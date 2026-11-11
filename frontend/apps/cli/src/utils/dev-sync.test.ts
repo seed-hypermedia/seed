@@ -1,3 +1,4 @@
+import {movedDocsPaths} from '../sync-hypermedia'
 import {afterEach, describe, expect, test} from 'bun:test'
 import {decode as decodeCbor} from '@ipld/dag-cbor'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown, type SeedClient} from '@seed-hypermedia/client'
@@ -439,4 +440,13 @@ describe('a running dev sync follows Git checkouts', () => {
     expect(docs.get('')!.metadata.name).toBe('Second')
     expect(git(root, 'status', '--porcelain')).toBe('')
   }, 30_000)
+})
+
+describe('movedDocsPaths', () => {
+  test("names the page's address from before the app environment rename, in the caller's path form", () => {
+    expect(movedDocsPaths('app-environment/guide')).toEqual(['agent/guide'])
+    expect(movedDocsPaths('/app-environment/plans/exec-warm-pool')).toEqual(['/agent/plans/exec-warm-pool'])
+    expect(movedDocsPaths('apps/desktop')).toEqual([])
+    expect(movedDocsPaths('')).toEqual([])
+  })
 })

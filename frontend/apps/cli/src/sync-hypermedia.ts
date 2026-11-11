@@ -187,6 +187,7 @@ async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryR
     layout,
     dryRun,
     metadataFor: publicationMetadataFor(serverUrl),
+    movedFromFor: movedDocsPaths,
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
@@ -208,6 +209,18 @@ async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryR
     } updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
   )
   return result
+}
+
+/**
+ * Where a page lived before the app environment rename moved the environment's pages from `agent/`
+ * to `app-environment/`. Block ids identify a moved page on their own; this covers a page that has
+ * none yet, so the old address still becomes a redirect.
+ */
+export function movedDocsPaths(path: string): string[] {
+  const slash = path.startsWith('/') ? '/' : ''
+  const clean = path.replace(/^\//, '')
+  if (clean.startsWith('app-environment/')) return [`${slash}agent/${clean.slice('app-environment/'.length)}`]
+  return []
 }
 
 /** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */

@@ -259,7 +259,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "hmServerUrl": "https://hyper.media",
   "protocol": 3,
   "minClientProtocol": 1,
-  "defaultPromptUrl": "hm://hyper.media/agent/guide",
+  "defaultPromptUrl": "hm://hyper.media/app-environment/guide",
   "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
   "subscriptionAuth": false,

@@ -1,5 +1,5 @@
 /**
- * Real-daemon smoke test for the effect outbox and the disk floor (hypermedia/agent/effect-outbox.md).
+ * Real-daemon smoke test for the effect outbox and the disk floor (hypermedia/app-environment/effect-outbox.md).
  *
  * Boots the actual Agents daemon as a child process on a real SQLite file, points its model provider
  * at a local OpenAI-compatible stand-in, and drives the production path over the wire with the signed

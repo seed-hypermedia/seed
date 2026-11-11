@@ -28,7 +28,10 @@ vi.mock('../agents/models', () => ({
   getDefaultAgentServerUrl: () => 'http://local.test',
   isLocalAgentServer: (url: string, local: string | null) => url === local,
   prefetchAgentDetail: vi.fn(async () => {}),
-  useAgentServerHealth: () => ({data: {defaultPromptUrl: 'hm://hyper.media/agent/guide'}, isInitialLoading: false}),
+  useAgentServerHealth: () => ({
+    data: {defaultPromptUrl: 'hm://hyper.media/app-environment/guide'},
+    isInitialLoading: false,
+  }),
   useCreateAgent: () => ({mutateAsync: mocks.createAgent}),
   useCreateSigningIdentity: () => ({mutateAsync: mocks.createIdentity}),
   useModelProviders: () => ({data: [{name: 'openai', type: 'openai'}], isLoading: false, isFetching: false}),

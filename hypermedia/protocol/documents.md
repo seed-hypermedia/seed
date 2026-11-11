@@ -158,7 +158,7 @@ The catalogue is in [the Seed API guide](../build/web-api.md). The daemon's gRPC
 
 ## Agents <!-- id:PGe8VRvX -->
 
-[Seed Agents](../agent.md) use `read hm://<space>/<path>` to get a document as markdown (or JSON), with `?v=` for a version and the suffixes `/:directory` and `/:attributes`. They use `write hm://<space>/<path>` with `options.action` set to `document.create` (the default), `update`, `move {toPath}`, `redirect {toUrl}`, `delete` or `fork {fromUrl}`. The runtime builds and signs the Change and Ref with the agent's [granted](../agent/grants.md) key. Agents should work draft-first (`draft.*` actions) so a multi-block edit publishes atomically. An external agent with the seed-cli skill uses the CLI commands above. See [Agents](../build/agents.md) and the [read](../agent/read.md) and [write](../agent/write.md) verbs. <!-- id:d61WCagU -->
+[Seed Agents](../agent.md) use `read hm://<space>/<path>` to get a document as markdown (or JSON), with `?v=` for a version and the suffixes `/:directory` and `/:attributes`. They use `write hm://<space>/<path>` with `options.action` set to `document.create` (the default), `update`, `move {toPath}`, `redirect {toUrl}`, `delete` or `fork {fromUrl}`. The runtime builds and signs the Change and Ref with the agent's [granted](../app-environment/grants.md) key. Agents should work draft-first (`draft.*` actions) so a multi-block edit publishes atomically. An external agent with the seed-cli skill uses the CLI commands above. See [Agents](../build/agents.md) and the [read](../app-environment/read.md) and [write](../app-environment/write.md) verbs. <!-- id:d61WCagU -->
 
 # Where this is going <!-- id:KjgTP5YT -->
 

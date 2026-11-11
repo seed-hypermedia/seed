@@ -72,7 +72,7 @@ export type Config = {
     allowNetwork: boolean
     /** Upstream DNS nameservers for sandbox name resolution. */
     dnsServers: string[]
-    /** Keep microVMs alive between executions (hypermedia/agent/plans/exec-warm-pool.md). Off unless opted in. */
+    /** Keep microVMs alive between executions (hypermedia/app-environment/plans/exec-warm-pool.md). Off unless opted in. */
     warmPool: boolean
     /** Maximum retained pool entries — transient overflow VMs can exceed it (see CodeExecConfig). */
     poolMaxVms: number
@@ -222,7 +222,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'hm-server-url': v('HM_SERVER_URL') || 'https://hyper.media',
     'ipfs-server-url': v('IPFS_SERVER_URL') || '',
     'default-prompt-url':
-      v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
+      v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/app-environment/guide',
     'docs-account': v('DOCS_ACCOUNT') || '',
     'docs-account-file': v('DOCS_ACCOUNT_FILE') || '',
     'activity-poll-interval-ms': Number(v('ACTIVITY_POLL_INTERVAL_MS')) || 5_000,

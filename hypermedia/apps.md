@@ -19,7 +19,7 @@ Everything lives in one repository, [github.com/seed-hypermedia/seed](https://gi
 | [Vault](./apps/vault.md) | The zero-knowledge identity vault that keeps account keys and delegates [session keys](./build/sign-in.md) to browsers. | `vault/` | gRPC-web to the site's daemon for account lookups and signing, and `/ipfs` uploads of [profile](./protocol/identity.md) and [capability](./protocol/permissions.md) blobs. <!-- id:3PPrdujc --> |
 | [Mobile app](./apps/mobile.md) | The Expo app for iOS, Android and web. | `frontend/apps/mobile` | The Seed API of a site. <!-- id:Dlw0ycZV --> |
 | [Explorer](./apps/explorer.md) | A raw-data browser for the network: [documents](./protocol/documents.md), [blobs](./protocol/blobs.md), feeds, an API lab. | `frontend/apps/explore` | The Seed API of a site. <!-- id:3eLF4nKi --> |
-| [App environment](./apps/app-environment.md) | The agent runtime: a signed action API, sessions, tools and [triggers](./agent/triggers.md). | `apps/` | The Seed API, as a client with delegated keys. <!-- id:tD5uUn5J --> |
+| [App environment](./apps/app-environment.md) | The agent runtime: a signed action API, sessions, tools and [triggers](./app-environment/triggers.md). | `apps/` | The Seed API, as a client with delegated keys. <!-- id:tD5uUn5J --> |
 
 # The shared packages <!-- id:evdyBAUd -->
 

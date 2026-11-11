@@ -25,7 +25,7 @@
  * event loop, keeps a watermark per policy in `server_config` so a pass only looks at what became
  * old since the previous one, and logs what it removed. `scripts/db-retention.ts` runs one pass
  * unthrottled against a stopped server's database for the one-off shrink (see the runbook linked in
- * hypermedia/agent/operations.md).
+ * hypermedia/app-environment/operations.md).
  *
  * Session transcripts (`session_events`) are never deleted here.
  */

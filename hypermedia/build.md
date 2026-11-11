@@ -40,7 +40,7 @@ The **[Seed CLI](./build/cli.md)** wraps the SDK in commands. It reads a [docume
 npx -y @seed-hypermedia/cli --help
 ```
 
-The CLI is also how external agents act on Seed. The [`seed-cli` skill](./build/agents.md) teaches Claude Code the commands, the key setup and a draft-first workflow, where the agent prepares a draft for a person to review before anything is published. Seed has no Model Context Protocol server. External agents use the CLI, the skill or the Seed API. [Seed Agents](./agent.md), the hosted runtime, reads and writes `hm://` addresses through its own verbs. It can also connect to [MCP servers](./agent/mcp.md) as a client. <!-- id:c2CpH-tn -->
+The CLI is also how external agents act on Seed. The [`seed-cli` skill](./build/agents.md) teaches Claude Code the commands, the key setup and a draft-first workflow, where the agent prepares a draft for a person to review before anything is published. Seed has no Model Context Protocol server. External agents use the CLI, the skill or the Seed API. [Seed Agents](./agent.md), the hosted runtime, reads and writes `hm://` addresses through its own verbs. It can also connect to [MCP servers](./app-environment/mcp.md) as a client. <!-- id:c2CpH-tn -->
 
 ## Deep integration: gRPC and libp2p <!-- id:h1NI606K -->
 

@@ -48,7 +48,7 @@ A path segment beginning with `:` after the document path selects a view of the 
 | `/:membership`, `/:followers`, `/:following` | [contact](./permissions.md) views of a space | optionally `/:followers/<uid>` <!-- id:kZTvciM8 --> |
 | `/:feed`, `/:all-documents`, `/:explore`, `/:settings` | site-level views | app and web only <!-- id:qj1efh9h --> |
 
-The [agents runtime](../agent.md)'s [`read`](../agent/read.md) verb accepts `/:directory`, `/:attributes`, `/:profile` and `/:comments` on an `hm://` address. The daemon's [discovery](./network.md) request also understands the wildcards `hm://<uid>/<path>/*` (one level) and `hm://<uid>/<path>/**` (everything beneath). <!-- id:P-bycAsF -->
+The [agents runtime](../agent.md)'s [`read`](../app-environment/read.md) verb accepts `/:directory`, `/:attributes`, `/:profile` and `/:comments` on an `hm://` address. The daemon's [discovery](./network.md) request also understands the wildcards `hm://<uid>/<path>/*` (one level) and `hm://<uid>/<path>/**` (everything beneath). <!-- id:P-bycAsF -->
 
 # Comments and other records <!-- id:MTAqFeRT -->
 
@@ -115,9 +115,9 @@ The `Resource` request takes the packed id as its `id` parameter: `GET /api/Reso
 
 ## Agents <!-- id:hRKIiBnD -->
 
-[Seed Agents](../agent.md) address everything by URL: [`read`](../agent/read.md) `hm://<uid>/<path>` (with `?v=`, `/:directory`, `/:attributes`, `/:profile`, `/:comments`, or a comment id `hm://<uid>/<tsid>`), `read https://…` (tried as Hypermedia first, then as a web page), and [`write`](../agent/write.md) `hm://<uid>/<path>`. An external agent should convert web URLs with the `OPTIONS` trick above before calling the CLI. See [Agents](../build/agents.md). <!-- id:xLo8L22B -->
+[Seed Agents](../agent.md) address everything by URL: [`read`](../app-environment/read.md) `hm://<uid>/<path>` (with `?v=`, `/:directory`, `/:attributes`, `/:profile`, `/:comments`, or a comment id `hm://<uid>/<tsid>`), `read https://…` (tried as Hypermedia first, then as a web page), and [`write`](../app-environment/write.md) `hm://<uid>/<path>`. An external agent should convert web URLs with the `OPTIONS` trick above before calling the CLI. See [Agents](../build/agents.md). <!-- id:xLo8L22B -->
 
-Domain-based references such as `hm://hyper.media/agent/guide` resolve the domain to its registered Hypermedia account before reading the resource. The SDK and embed readers use the domain cache first and fall back to HTTPS OPTIONS metadata. The path, version, and block fragment survive resolution; an unresolved domain is an error, never an account ID. The stored reference remains readable, while resource reads and discovery use the resolved canonical ID.
+Domain-based references such as `hm://hyper.media/app-environment/guide` resolve the domain to its registered Hypermedia account before reading the resource. The SDK and embed readers use the domain cache first and fall back to HTTPS OPTIONS metadata. The path, version, and block fragment survive resolution; an unresolved domain is an error, never an account ID. The stored reference remains readable, while resource reads and discovery use the resolved canonical ID.
 
 # See also <!-- id:zi3pWi3V -->
 

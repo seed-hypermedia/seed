@@ -2,13 +2,13 @@
 name: Embedding the agents UI
 summary: How another web app shows Seed Agents with the same UI the Seed apps use, through the @seed-hypermedia/apps-ui React package and a signer the app controls.
 ---
-`@seed-hypermedia/apps-ui` is the [Seed Agents](../agent.md) interface as one React package. It is the code the [Seed desktop app](../apps/desktop.md) and the [Seed web app](../apps/web.md) render: the agents list, each agent with its sessions, [triggers](../agent/triggers.md), memory, [tools](../agent/tools.md) and [MCP servers](../agent/mcp.md), system prompt, collaborators and settings, and sessions with their tool calls, [plans](../agent/plan.md), sub-sessions and [runs](../agent/runs.md). An app that embeds it gains each agents feature when it updates the package, instead of re-implementing the UI. <!-- id:fF1qtqqy -->
+`@seed-hypermedia/apps-ui` is the [Seed Agents](../agent.md) interface as one React package. It is the code the [Seed desktop app](../apps/desktop.md) and the [Seed web app](../apps/web.md) render: the agents list, each agent with its sessions, [triggers](../app-environment/triggers.md), memory, [tools](../app-environment/tools.md) and [MCP servers](../app-environment/mcp.md), system prompt, collaborators and settings, and sessions with their tool calls, [plans](../app-environment/plan.md), sub-sessions and [runs](../app-environment/runs.md). An app that embeds it gains each agents feature when it updates the package, instead of re-implementing the UI. <!-- id:fF1qtqqy -->
 
-The package bundles Seed's components, its block editor and the [agents protocol](../agent/signed-api.md) types. Only React 18 or 19 comes from the app. It is browser code, so an app that renders on the server loads it on the client only. <!-- id:vY_NQv2J -->
+The package bundles Seed's components, its block editor and the [agents protocol](../app-environment/signed-api.md) types. Only React 18 or 19 comes from the app. It is browser code, so an app that renders on the server loads it on the client only. <!-- id:vY_NQv2J -->
 
 # What the app provides <!-- id:wLw-0kPx -->
 
-Every request to an app environment is a [signed action](../agent/signed-api.md). The app passes two things in a `SeedAgentsHost`: <!-- id:-DShFun1 -->
+Every request to an app environment is a [signed action](../app-environment/signed-api.md). The app passes two things in a `SeedAgentsHost`: <!-- id:-DShFun1 -->
   - `serverUrl`, the app environment as the browser reaches it. The UI posts actions to `<serverUrl>/api/message`, subscribes on `<serverUrl>/agents/ws` and reads `<serverUrl>/agents/api/health`. Any path prefix is kept, so the URL can be the app's own reverse proxy of a server it does not expose. <!-- id:Zf-7qugn -->
   - `signer`, an object with the [account](../protocol/identity.md) id and a `sign(bytes)` function that returns the Ed25519 signature over exactly those bytes. The key never has to be in the page: the function may ask a server the app trusts to sign. When the signing key is not the account's own, the signer also names its key and the account's delegating [capability](../protocol/permissions.md). <!-- id:n4_IlMrQ -->
 

@@ -21,7 +21,7 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `apps.md`, `apps/` | one map page per piece of Seed software |
 | `schema.md`, `schema/` | Hypermedia Schemas: the meta-schema, the chapters, one page per term |
 | `example.md`, `example/` | example schemas and instances |
-| `agent.md`, `agent/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
+| `agent.md`, `app-environment/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
 | `glossary.md` | one entry per term |
 | `schemas.lock.json` | not published: every schema's CID |
 

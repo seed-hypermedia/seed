@@ -2,13 +2,13 @@
 name: The app environment
 summary: The Seed App environment as a program, a Bun process with one SQLite database that the desktop app bundles and hosted containers run, with its code map, ports, configuration, backends and deployments.
 ---
-The app environment is the program that runs Seed Agents. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../agent/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software. [Seed Agents](../agent.md) explains what an agent is and how to use one. <!-- id:XahmX6O- -->
+The app environment is the program that runs Seed Agents. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../app-environment/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software. [Seed Agents](../agent.md) explains what an agent is and how to use one. <!-- id:XahmX6O- -->
 
 The same build runs in three places. The desktop app ships it as a compiled binary and starts one for you. The hosted servers run it as a Docker image. You can also [self-host](../build/self-hosting.md) that image. <!-- id:7xiIpHiu -->
 
 # Where the code is <!-- id:m2SxIwMF -->
 
-`apps/`, package `@seed-hypermedia/apps`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai` for model calls and `@earendil-works/pi-durable` for the agent loop, pinned to 1.0.x), the MCP SDK for connecting to remote [MCP servers](../agent/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
+`apps/`, package `@seed-hypermedia/apps`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai` for model calls and `@earendil-works/pi-durable` for the agent loop, pinned to 1.0.x), the MCP SDK for connecting to remote [MCP servers](../app-environment/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
 
 <!-- id:p0g-x6aC -->
 | Path <!-- col:XVydtKVl --> | What it holds <!-- col:pxciYz7N --> <!-- id:QY9BBlKE --> |
@@ -16,31 +16,31 @@ The same build runs in three places. The desktop app ships it as a compiled bina
 | `src/main.ts` | Startup, the HTTP routes and the WebSocket server. <!-- id:Y0Xw5Kqi --> |
 | `src/config.ts` | Every flag and its environment variable; the top code comment is the configuration reference. <!-- id:2V09w8mX --> |
 | `src/api-service.ts` | The signed action handlers, by far the largest file. <!-- id:WgUneRMx --> |
-| `src/durable-session.ts` | The per-session [Pi Durable store](../agent/durable-sessions.md) the model turn runs on. <!-- id:5dMbNOWF --> |
+| `src/durable-session.ts` | The per-session [Pi Durable store](../app-environment/durable-sessions.md) the model turn runs on. <!-- id:5dMbNOWF --> |
 | `src/auth.ts` | Envelope signature checks and capability-based authorization. <!-- id:IKVKS0ev --> |
 | `src/runs.ts`, `src/workflow-*.ts` | The run queue and the workflow engine. <!-- id:Jy_5I5KZ --> |
-| `src/activity-monitor.ts`, `src/activity-triggers.ts`, `src/schedule-*.ts` | [Trigger](../agent/triggers.md) monitors. <!-- id:FzH_JMtW --> |
+| `src/activity-monitor.ts`, `src/activity-triggers.ts`, `src/schedule-*.ts` | [Trigger](../app-environment/triggers.md) monitors. <!-- id:FzH_JMtW --> |
 | `src/mcp.ts`, `src/web-tools.ts`, `src/code-exec.ts` | MCP client, web search and read, sandboxed execution. <!-- id:jyOzESXQ --> |
 | `src/sqlite-schema.sql`, `src/sqlite.ts` | The schema and its version check. <!-- id:24lfD2VY --> |
 | `protocol/` | `@seed-hypermedia/apps-protocol`: the wire types shared with clients, `PROTOCOL.md` and the `surface.json` snapshot. <!-- id:FQhl_OyT --> |
 | `frontend/packages/ui/src/agents/` | The client side: the signed client, React Query models and chat UI used by desktop, web and mobile. <!-- id:-w9W9xSC --> |
 
-[Development](../agent/development.md) has the full code map and the conventions. <!-- id:jIOkr9Wm -->
+[Development](../app-environment/development.md) has the full code map and the conventions. <!-- id:jIOkr9Wm -->
 
 # How it talks to Hypermedia <!-- id:oU9tXlHs -->
 
 The service talks to a Seed [site](../protocol/sites.md) and never to a [daemon](./daemon.md) directly. `--hm-server-url` names the site, `https://hyper.media` by default. The service reads through the [SDK](../build/sdk.md)'s `createSeedClient` against that site's `/api/<Key>` routes (the [Seed API](../build/web-api.md)), publishes signed [blobs](../protocol/blobs.md) with `PublishBlobs`, and fetches media from `--ipfs-server-url`, which defaults to the same origin. <!-- id:QTtOcGPk -->
 
-The activity monitor polls that site's activity feed every 5 seconds, 50 events a page and at most 5 pages a poll, to fire [comment](../protocol/comments.md), mention and site-update [triggers](../agent/triggers.md). Agents sign with their own [keys](../protocol/identity.md). A person lets an agent publish in their space by delegating a [capability](../protocol/permissions.md) to it. See [Seed Agents](../agent.md) and [security](../agent/security.md). <!-- id:ssdcQlwz -->
+The activity monitor polls that site's activity feed every 5 seconds, 50 events a page and at most 5 pages a poll, to fire [comment](../protocol/comments.md), mention and site-update [triggers](../app-environment/triggers.md). Agents sign with their own [keys](../protocol/identity.md). A person lets an agent publish in their space by delegating a [capability](../protocol/permissions.md) to it. See [Seed Agents](../agent.md) and [security](../app-environment/security.md). <!-- id:ssdcQlwz -->
 
 # How clients talk to it <!-- id:qkwY9-4k -->
 
 <!-- id:VlKDU77F -->
 | Route <!-- col:wL6MYKvJ --> | Purpose <!-- col:dFiPLdaD --> <!-- id:_DxqWjRZ --> |
 | --- | --- |
-| `POST /api/message`, `POST /agents/api/message` | The signed action API: every request is a [DAG-CBOR](../protocol/blobs.md) envelope signed by an [account](../protocol/identity.md) key or by a key holding a [capability](../protocol/permissions.md) for the account. See [the signed API](../agent/signed-api.md). <!-- id:aVbXTJV8 --> |
-| `/agents/ws` | Signed WebSocket subscriptions for live session and run updates. See [WebSocket subscriptions](../agent/websocket-subscriptions.md). <!-- id:9r7h_1IE --> |
-| `POST /agents/api/webhooks/:triggerId` and `/:triggerId/:secret` | Webhook [triggers](../agent/triggers.md). <!-- id:S-WSjzSN --> |
+| `POST /api/message`, `POST /agents/api/message` | The signed action API: every request is a [DAG-CBOR](../protocol/blobs.md) envelope signed by an [account](../protocol/identity.md) key or by a key holding a [capability](../protocol/permissions.md) for the account. See [the signed API](../app-environment/signed-api.md). <!-- id:aVbXTJV8 --> |
+| `/agents/ws` | Signed WebSocket subscriptions for live session and run updates. See [WebSocket subscriptions](../app-environment/websocket-subscriptions.md). <!-- id:9r7h_1IE --> |
+| `POST /agents/api/webhooks/:triggerId` and `/:triggerId/:secret` | Webhook [triggers](../app-environment/triggers.md). <!-- id:S-WSjzSN --> |
 | `GET /api/health`, `GET /api/version` | Status, build, protocol version, and which optional backends are enabled. <!-- id:X9ZH9iKU --> |
 | `GET /api/perf`, `GET /api/perf/sessions/:sessionId` | Timing diagnostics. <!-- id:7hcUlxhn --> |
 
@@ -50,7 +50,7 @@ Clients and servers deploy separately, and a desktop release keeps talking to ho
 
 # Storage <!-- id:76le7B-O -->
 
-One SQLite database, `agents.sqlite`, plus a data directory for agent state files. The tables fall into these groups: [accounts](../protocol/identity.md) and authorizations; model providers, [MCP servers](../agent/mcp.md) and secrets; agents, collaborators and [triggers](../agent/triggers.md); sessions, session events and continuations; runs, the run journal and event waits; trigger firings and activity watermarks; [tool documents](../agent/tool-document.md); and drafts. Session events are stored as [DAG-CBOR](../protocol/blobs.md), including full tool inputs. Secrets are encrypted with a key the server generates and keeps in its own `server_config` table. A copy of the whole database therefore holds everything needed to decrypt them. [Persistence](../agent/persistence.md) describes the tables. <!-- id:JgSR_DRZ -->
+One SQLite database, `agents.sqlite`, plus a data directory for agent state files. The tables fall into these groups: [accounts](../protocol/identity.md) and authorizations; model providers, [MCP servers](../app-environment/mcp.md) and secrets; agents, collaborators and [triggers](../app-environment/triggers.md); sessions, session events and continuations; runs, the run journal and event waits; trigger firings and activity watermarks; [tool documents](../app-environment/tool-document.md); and drafts. Session events are stored as [DAG-CBOR](../protocol/blobs.md), including full tool inputs. Secrets are encrypted with a key the server generates and keeps in its own `server_config` table. A copy of the whole database therefore holds everything needed to decrypt them. [Persistence](../app-environment/persistence.md) describes the tables. <!-- id:JgSR_DRZ -->
 
 If the stored schema version does not match the code, the server starts in a mode that answers every request with a schema-mismatch error. <!-- id:BRCVfx4n -->
 
@@ -72,7 +72,7 @@ Each flag has a `SEED_AGENTS_*` environment variable. Flags win over variables. 
 | `--subscription-auth` | off | Offer "Sign in with ChatGPT"-style provider login. <!-- id:qeaObqsq --> |
 | `--log-level` | `info` | `debug` turns on per-delta and per-poll lines. <!-- id:QKdV1tEu --> |
 
-[Operations](../agent/operations.md) lists every flag, the web and execution backends, and diagnostics. <!-- id:fccnUExV -->
+[Operations](../app-environment/operations.md) lists every flag, the web and execution backends, and diagnostics. <!-- id:fccnUExV -->
 
 # Running it <!-- id:uDHZk-0W -->
 
@@ -98,7 +98,7 @@ cd apps && bun run test:build   # the compiled binary boots
 | `https://staging.agentic.seed.hyper.media` | a `dev` build | `https://staging.hyper.media` <!-- id:JRdvk-Eo --> |
 | `https://dev.agentic.seed.hyper.media` | `dev` | `https://dev.hyper.media` <!-- id:fShITKT6 --> |
 
-**Self-hosted.** Run the image with a volume on `/data`, a model provider configured by each [account](../protocol/identity.md), and `--hm-server-url` pointing at your site. [Environments](../agent/environments.md) explains how clients choose a server and how a site advertises one with the `agentServerUrl` metadata key. <!-- id:BYxO5fzs -->
+**Self-hosted.** Run the image with a volume on `/data`, a model provider configured by each [account](../protocol/identity.md), and `--hm-server-url` pointing at your site. [Environments](../app-environment/environments.md) explains how clients choose a server and how a site advertises one with the `agentServerUrl` metadata key. <!-- id:BYxO5fzs -->
 
 # Working with it <!-- id:RUi86C0e -->
 
@@ -124,5 +124,5 @@ This service is the runtime for [Seed Agents](../agent.md). External agents such
 
 # See also <!-- id:uvu8f832 -->
 
-- [Seed Agents](../agent.md), [Operations](../agent/operations.md), [Environments](../agent/environments.md), [Development](../agent/development.md) <!-- id:6g-el_oN -->
+- [Seed Agents](../agent.md), [Operations](../app-environment/operations.md), [Environments](../app-environment/environments.md), [Development](../app-environment/development.md) <!-- id:6g-el_oN -->
 - [The desktop app](./desktop.md), [The web app](./web.md), [The mobile app](./mobile.md) <!-- id:t3VsoOoU -->

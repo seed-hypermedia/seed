@@ -1072,7 +1072,7 @@ export function CreateAgentDialog({
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const health = useAgentServerHealth(selectedServerUrl)
   // Servers from before `defaultPromptUrl` resolve this address to their docs space.
-  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
+  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/app-environment/guide'
   const [choosingLocation, setChoosingLocation] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
