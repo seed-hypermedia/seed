@@ -169,7 +169,7 @@ describe('metadataDiffOp', () => {
   })
 
   test('the home document keeps the keys the directory never names, and drops one named with a null', () => {
-    // The desktop stores the space's agents server and its published agents in the home document;
+    // The desktop stores the space's app environment and its published agents in the home document;
     // a full import of the docs wiped both, unbinding the space from its server.
     const published = {name: 'Docs', agentServerUrl: 'http://localhost:3051', spaceAgents: {a: {id: 'x'}}}
     expect(metadataDiffOp(published, {name: 'Docs'}, {keepUnlisted: true})).toBeNull()

@@ -1,5 +1,5 @@
 /**
- * Compiles the agents server into a standalone binary for the desktop app.
+ * Compiles the app environment into a standalone binary for the desktop app.
  *
  * The desktop spawns this artifact from its resources directory (see
  * `frontend/apps/desktop/src/agents-server-path.ts`), so the output layout is a contract:

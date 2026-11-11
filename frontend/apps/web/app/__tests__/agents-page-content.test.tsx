@@ -4,7 +4,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 /**
  * The signed-out gate on /hm/agents.
  *
- * Agent servers only accept signed envelopes, and on web the local device key is the signing
+ * App environments only accept signed envelopes, and on web the local device key is the signing
  * account, so the page must never render the agents UI before the identity has loaded — a
  * pre-load `null` key pair means "still loading", not "logged out", and showing a sign-in prompt
  * to an already-signed-in visitor is the bug this guards.

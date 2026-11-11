@@ -579,7 +579,7 @@ export const HMDocumentMetadataSchema = z
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     /**
-     * The agents server an agent's mount document names (an http(s) origin). A document with
+     * The app environment an agent's mount document names (an http(s) origin). A document with
      * `type: hm://hyper.media/agent` and this field is an agent: its versionless hm:// id is the
      * agent's id, and that server must register it under exactly that id. A space's agents are
      * found by querying its documents for this type; nothing else registers an agent with a space.
@@ -645,7 +645,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
   appEnvironmentUrl: 'App environment a space is bound to, on its home document; read before agentServerUrl.',
-  agentServerUrl: 'Agents server that hosts the agent this document mounts.',
+  agentServerUrl: 'App environment that hosts the agent this document mounts.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',

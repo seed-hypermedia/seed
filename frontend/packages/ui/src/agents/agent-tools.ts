@@ -135,7 +135,7 @@ export function getToolAvailability(
   }
   if (toolName === AGENT_EXECUTE_TOOL && caps && caps.codeExec === false) {
     if (!caps.local) {
-      return {available: false, note: 'This agent server does not support code execution.'}
+      return {available: false, note: 'This app environment does not support code execution.'}
     }
     if (caps.codeExecReasonCode === 'whp-disabled') {
       return {

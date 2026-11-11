@@ -68,7 +68,7 @@ it('uses real filter semantics, counts blocked requests and scopes rules to brow
   f.guest.emit('destroyed')
   expect(f.blocker.shouldBlock(f.session, f.request())).toBe(false)
 })
-it('exempts protected destinations and pages, including dynamically configured agent servers', () => {
+it('exempts protected destinations and pages, including dynamically configured app environments', () => {
   const f = fixture()
   expect(
     f.blocker.shouldBlock(f.session, f.request('https://daemon.example/fixture-tracker.js', undefined, 'script')),

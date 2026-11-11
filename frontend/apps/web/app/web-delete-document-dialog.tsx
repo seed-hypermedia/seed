@@ -51,7 +51,7 @@ function WebDeleteDocumentDialog({
   const doc = useResource(id)
   const directory = useQuery(queryDirectory(client, id, 'AllDescendants'))
   const childDocs = getChildDocuments(id, directory.data)
-  // A mounted agent goes with its document; the agent server call is signed by the same account.
+  // A mounted agent goes with its document; the app environment call is signed by the same account.
   registerWebAgentsPlatform()
   const agentDeletion = useMountedAgentDeletion(
     id,

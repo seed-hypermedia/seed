@@ -604,7 +604,7 @@ export function RunWorkHierarchy({
   cancelPending,
   renderToolPart,
 }: {
-  /** Agent server the runs live on: where a child row's run page is. */
+  /** App environment the runs live on: where a child row's run page is. */
   serverUrl: string
   run: RunInfo
   childRuns: RunInfo[]

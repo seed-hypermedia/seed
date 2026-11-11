@@ -26,7 +26,7 @@ procs:
       cmd: 'docker compose -f apps/dev/web-backends/docker-compose.yml down'
     autostart: true
 
-  # Agents server (:3051 via SEED_APPS_HTTP_PORT in .env.vars; release builds
+  # App environment (:3051 via SEED_APPS_HTTP_PORT in .env.vars; release builds
   # keep 3050), bun --hot. Defaults to the backends above and the testnet gateway.
   # Separate Bun workspace — install its deps before starting (fast if satisfied).
   agents:

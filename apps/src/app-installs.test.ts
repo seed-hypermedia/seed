@@ -15,7 +15,7 @@ import * as path from 'node:path'
 /**
  * Detection against a stand-in for the daemon and the servers around it: documents by address,
  * `QueryDocuments` over their attributes (with the folder rule the daemon applies), each site's
- * `/hm/api/config` and each agents server's `/health`. Nothing here touches the network; the pass
+ * `/hm/api/config` and each app environment's `/health`. Nothing here touches the network; the pass
  * gets the stand-in as its `fetch`.
  */
 
@@ -142,7 +142,7 @@ class FakeNetwork {
     })
   }
 
-  /** A space bound to an agents server by its home document, with a reference-form install of the app. */
+  /** A space bound to an app environment by its home document, with a reference-form install of the app. */
   putTenant(
     account: string,
     options: {
@@ -458,7 +458,7 @@ describe('app installs', () => {
     expect(again).toEqual({serverChanged: false, changedAccounts: new Set()})
   })
 
-  test('binds a space through its site when the home document names no agents server', async () => {
+  test('binds a space through its site when the home document names no app environment', async () => {
     const net = new FakeNetwork()
     await net.putConvertApp()
     net.putTenant('z6MkSiteSpace', {siteUrl: 'https://site.test'})

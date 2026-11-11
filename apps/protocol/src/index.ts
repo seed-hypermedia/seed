@@ -512,7 +512,7 @@ export type RefreshMcpServer = {
 
 /**
  * Lists the app installs visible to the account: the server-wide ones and the account's own, with
- * how the account's space is bound to an agents server. Reader level.
+ * how the account's space is bound to an app environment. Reader level.
  */
 export type ListApps = {
   _: 'ListApps'
@@ -1979,7 +1979,7 @@ export type AppInstallInfo = {
 }
 
 /**
- * Which agents server an account's space is bound to: the one its home document names as
+ * Which app environment an account's space is bound to: the one its home document names as
  * `agentServerUrl`, else the one its site advertises. Installs in the space belong to that server.
  */
 export type SpaceBinding = {

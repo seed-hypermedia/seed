@@ -274,7 +274,7 @@ function RunCardBody({
   readOnly = false,
   transcript = false,
 }: {
-  /** Agent server this run lives on, so its tool rows can link into the agent's own pages. */
+  /** App environment this run lives on, so its tool rows can link into the agent's own pages. */
   serverUrl: string
   accountUid: string | null | undefined
   run: RunInfo

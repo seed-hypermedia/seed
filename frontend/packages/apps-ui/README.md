@@ -5,7 +5,7 @@ servers, system prompt, collaborators and settings, sessions with their tool cal
 the compact assistant panel. It is the same code the Seed desktop and web apps render, so an app that embeds it gets
 every agents feature Seed ships.
 
-The package bundles everything it needs except React (18 or 19). The host supplies only an agents server URL and a
+The package bundles everything it needs except React (18 or 19). The host supplies only an app environment URL and a
 signer. It is browser code: an app that renders on the server imports it on the client only (for example with
 `React.lazy`).
 
@@ -37,7 +37,7 @@ export function Agents() {
 
 `SeedAgentsHost` (all types are exported):
 
-- `serverUrl`: the agents server as the browser can reach it. A canonical base ends in `/hm/api/agents` (for example
+- `serverUrl`: the app environment as the browser can reach it. A canonical base ends in `/hm/api/agents` (for example
   `https://site.example/hm/api/agents` for a site that serves agents on its own origin) and the UI calls
   `<serverUrl>/message`, `<serverUrl>/ws`, `<serverUrl>/health` and `<serverUrl>/webhooks/*`. Any other base is a legacy
   server: the UI calls `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`, so this can be
@@ -47,7 +47,7 @@ export function Agents() {
   server that signs on the page's behalf. When the signing key is not the account's own, also pass `signerUid` and the
   account's `delegation` Capability.
 - `hmApiUrl`: the Seed HTTP API used for account names, avatars and linked documents (default: `gatewayUrl`). Point it
-  at the server the agents server publishes to when it is not public.
+  at the server the app environment publishes to when it is not public.
 - `gatewayUrl`: public web origin for `hm://` links (default `https://hyper.media`).
 - `settings`: where small UI settings persist (default: `localStorage`).
 - `openUrl`, `signIn`, `openServerSettings`: host affordances.

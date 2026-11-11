@@ -386,7 +386,7 @@ export function createBootRoutes(boot: {phase: string}): Bun.Serve.Routes<WSData
 /** The answer to every non-health request while the server is starting. */
 function startingResponse(): Response {
   return Response.json(
-    {_: 'Error', message: 'Agents server is starting; retry shortly'},
+    {_: 'Error', message: 'App environment is starting; retry shortly'},
     {status: 503, headers: {...corsHeaders(), 'Retry-After': '5'}},
   )
 }
@@ -743,7 +743,7 @@ async function main(): Promise<void> {
   process.once('SIGTERM', shutdown)
 
   const hostname = cfg.http.hostname === '0.0.0.0' ? 'localhost' : cfg.http.hostname
-  console.log(`Agents server running at http://${hostname}:${server.port}`, {
+  console.log(`App environment running at http://${hostname}:${server.port}`, {
     bootMs: Math.round(performance.now() - bootStartedAt),
   })
   console.log(`  Database: ${cfg.dbPath}`)

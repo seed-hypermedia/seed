@@ -11,7 +11,7 @@ import {
   postSignedAgentAction,
 } from '../agents/client'
 
-describe('agent server URLs', () => {
+describe('app environment URLs', () => {
   it('treats the app environment path as canonical, like the agents path it replaces', () => {
     expect(isCanonicalAgentServerUrl('https://site.example/hm/api/apps')).toBe(true)
     expect(isCanonicalAgentServerUrl('https://site.example/hm/api/agents')).toBe(true)
@@ -50,7 +50,7 @@ describe('agent server URLs', () => {
   })
 })
 
-describe('canonical vs legacy agent server endpoints', () => {
+describe('canonical vs legacy app environment endpoints', () => {
   it('keeps a canonical /hm/api/agents base intact and still strips a bare /agents', () => {
     expect(normalizeAgentServerUrl('https://site.example/hm/api/agents/')).toBe('https://site.example/hm/api/agents')
     expect(normalizeAgentServerUrl('https://agentic.seed.hyper.media/agents')).toBe('https://agentic.seed.hyper.media')

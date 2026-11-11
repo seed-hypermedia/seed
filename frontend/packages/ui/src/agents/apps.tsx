@@ -1,5 +1,5 @@
 /**
- * The Apps dialog: the apps installed for the selected account on one agents server, and the apps it
+ * The Apps dialog: the apps installed for the selected account on one app environment, and the apps it
  * could install. A server-wide install is provided by the server (the Datalab converter on the hosted
  * one, with its usage on the shared key); the account's own installs are pages it published in its
  * space, each with the arguments the app declares. Secret arguments are stored here, on the
@@ -40,12 +40,12 @@ export function bindingNotice(binding: SpaceBinding | undefined): {title: string
   if (!binding || binding.isThisServer) return null
   if (binding.source === 'none' || !binding.agentServerUrl) {
     return {
-      title: 'This space names no agents server yet',
+      title: 'This space names no app environment yet',
       body: 'Neither its home document nor its site names one, so an install published in it belongs to no server. Choose this server in the space’s settings, under Agents, then install.',
     }
   }
   return {
-    title: 'This space is bound to another agents server',
+    title: 'This space is bound to another app environment',
     body: `Its ${binding.source === 'home' ? 'home document' : 'site'} names ${
       binding.agentServerUrl
     }, so installs published in it are that server’s. Choose this server in the space’s settings, under Agents, to install apps here.`,
@@ -105,7 +105,7 @@ export function appConsentLine(needs: AppNeeds, serverUrl: string | undefined): 
     needs.hosts.length ? `network access to ${needs.hosts.join(', ')}` : 'no network access',
     'read and write access to the memory of the agent that calls it',
   ]
-  return `Its code runs on ${serverUrl ?? 'this agents server'} with ${parts.join(', ')}.`
+  return `Its code runs on ${serverUrl ?? 'this app environment'} with ${parts.join(', ')}.`
 }
 
 /**
@@ -301,7 +301,7 @@ export function AppsDialog({
         </DialogDescription>
       </div>
       {unsupported ? (
-        <Notice size="sm" tone="warning" title="This agents server does not offer apps">
+        <Notice size="sm" tone="warning" title="This app environment does not offer apps">
           It answered the apps request with an error ({unsupported}). It runs a version from before apps; nothing can be
           installed on it until it is updated.
         </Notice>

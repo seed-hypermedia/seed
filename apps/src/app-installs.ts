@@ -15,7 +15,7 @@
  * `/hm/api/config`; a server believes a URL is itself only after fetching that URL's `/health` and
  * seeing its own `serverUid` come back, the way a custom domain is proven by what DNS points at.
  * The same handshake names the operator's space: the one registered on the site this server reads
- * through, whose advertised agents server proves to be this one. An install with `scope: server` is
+ * through, whose advertised app environment proves to be this one. An install with `scope: server` is
  * honored there and nowhere else, and applies to every space the server serves.
  *
  * What a pass stores is a snapshot of the app and its tools, so projection and execution never
@@ -177,7 +177,7 @@ export function appSecretName(slug: string, arg: string): string {
 }
 
 /**
- * Normalizes an agents server URL the way clients store it: origin plus the canonical
+ * Normalizes an app environment URL the way clients store it: origin plus the canonical
  * `/hm/api/agents` path when present, nothing else (mirrors `normalizeAgentServerUrl` in the UI).
  */
 export function normalizeAgentServerUrl(input: string): string {
@@ -190,7 +190,7 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-/** The URL of one public endpoint of an agents server, on the canonical install or the legacy host layout. */
+/** The URL of one public endpoint of an app environment, on the canonical install or the legacy host layout. */
 export function agentServerEndpointUrl(serverUrl: string, endpoint: 'health'): string {
   const base = normalizeAgentServerUrl(serverUrl)
   return new URL(base).pathname.endsWith('/hm/api/agents') ? `${base}/${endpoint}` : `${base}/agents/api/${endpoint}`
@@ -263,7 +263,7 @@ export async function isThisServer(deps: AppInstallDeps, url: string): Promise<b
   try {
     const health = await fetchJson(deps, agentServerEndpointUrl(normalized, 'health'))
     if (typeof health.serverUid === 'string' && health.serverUid) serverUid = health.serverUid
-    else error = 'no serverUid in /health (an older agents server)'
+    else error = 'no serverUid in /health (an older app environment)'
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause)
   }

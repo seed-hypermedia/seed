@@ -66,7 +66,7 @@ import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-
 
 /**
  * A new agent's default system prompt is a single Embed of the Agent Guide rather than inline text, so every new
- * agent picks up the current published guidance. The agent server names the guide (`defaultPromptUrl` in health).
+ * agent picks up the current published guidance. The app environment names the guide (`defaultPromptUrl` in health).
  */
 export function defaultAgentSystemPrompt(url: string): HMBlockNode[] {
   return [
@@ -588,7 +588,7 @@ export function ManageAgentAccountsDialog({
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3">
-        <DialogTitle>Agent Server Accounts</DialogTitle>
+        <DialogTitle>App environment accounts</DialogTitle>
         <DialogDescription>
           Hypermedia accounts that can be used by your agents on this server to write content.
         </DialogDescription>
@@ -1157,7 +1157,7 @@ export function CreateAgentDialog({
     }
     const result = await createAgent.mutateAsync(pendingCreation.current)
     if (result._ !== 'CreateAgentResponse' || result.agentId !== mount.documentId) {
-      throw new Error('This agent server must be updated to support creating mounted agents.')
+      throw new Error('This app environment must be updated to support creating mounted agents.')
     }
     await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
   }

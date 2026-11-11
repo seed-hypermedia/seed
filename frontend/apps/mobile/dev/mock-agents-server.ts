@@ -1,5 +1,5 @@
 /**
- * A mock agents server for developing and demoing the mobile agents UI without a model.
+ * A mock app environment for developing and demoing the mobile agents UI without a model.
  *
  * It speaks the real protocol — the same signed DAG-CBOR action API and WebSocket subscription
  * protocol the Bun service implements — so the app under test is entirely real: the real signed
@@ -12,7 +12,7 @@
  * is scripted and deterministic, so the same prompt produces the same demo every time.
  *
  * Deliberately NOT implemented: signature verification. This process accepts any well-formed
- * envelope and trusts the account it names. That is exactly what a real agents server must never
+ * envelope and trusts the account it names. That is exactly what a real app environment must never
  * do, which is why this lives under `dev/`, binds to loopback, and prints a warning on boot. Do not
  * deploy it, and do not copy its request handling into the service.
  *
@@ -554,7 +554,7 @@ const server = Bun.serve({
   },
 })
 
-console.log(`Mock agents server on http://localhost:${server.port}`)
+console.log(`Mock app environment on http://localhost:${server.port}`)
 console.log('  WARNING: signatures are NOT verified. Development only; never expose this port.')
 console.log('  Point the mobile app at this URL, then try:')
 console.log('    "what are the three nouns?"  → a streamed markdown reply')

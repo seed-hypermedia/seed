@@ -47,12 +47,12 @@ vi.mock('@shm/ui/agents/activity', async (importOriginal) => ({
 vi.mock('@shm/ui/agents/models', () => ({
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
-  LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  LOCAL_AGENT_SERVER_LABEL: 'Local app environment',
   useSiteUidInView: () => null,
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
   describeAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
-    localServerUrl && serverUrl === localServerUrl ? 'Local Agents' : new URL(serverUrl).host,
+    localServerUrl && serverUrl === localServerUrl ? 'Local app environment' : new URL(serverUrl).host,
   addOptimisticSessionMessage: vi.fn(),
   addOptimisticSessionToCaches: vi.fn(),
   removeOptimisticSessionFromLists: vi.fn(),
@@ -310,7 +310,7 @@ describe('assistant sidebar', () => {
     // Grouped by the space an agent lives in; these legacy ids live nowhere, so they are orphans,
     // and an orphan's row still says which server it runs on.
     expect(document.body.textContent).toContain('Orphan agents')
-    expect(document.body.textContent).toContain('Local Agents')
+    expect(document.body.textContent).toContain('Local app environment')
     expect(document.body.textContent).toContain('agentic.seed.hyper.media')
     clickInPicker('Researcher')
     expect(pickerTrigger()?.textContent).toContain('Researcher')

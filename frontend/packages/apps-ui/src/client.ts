@@ -45,7 +45,7 @@ export function createSeedAgentsClient({
   }
 }
 
-/** An error the agents server answered with (as opposed to a failed connection). */
+/** An error the app environment answered with (as opposed to a failed connection). */
 export type AgentServerError = Error & {
   readonly status: number
   /** The server's machine-readable cause, when it sent one. */

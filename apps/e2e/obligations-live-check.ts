@@ -1,5 +1,5 @@
 /**
- * Drives a REAL running Agents server over HTTP and checks the unified obligations loop end to end:
+ * Drives a REAL running App environment over HTTP and checks the unified obligations loop end to end:
  * a plan-shaped task, a step left open at turn end, the continuation the runtime hands itself, and
  * the settled checklist afterwards. The model half is scripted (scripted-provider.ts) so the
  * result is about the runtime.

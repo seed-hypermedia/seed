@@ -1,5 +1,5 @@
 /**
- * Live gate — drives a REAL running Agents server over the wire with REAL model calls.
+ * Live gate — drives a REAL running App environment over the wire with REAL model calls.
  *
  * Unlike `e2e/run.ts` (in-process Service, recorded cassettes), this script is a pure client: it
  * signs envelopes with the desktop daemon's key over grpc-web, exactly the way the desktop app
@@ -14,7 +14,7 @@
  *   bun e2e/live-gate.ts trivial memory       # a subset
  *   bun e2e/live-gate.ts --base http://localhost:3099 --out /tmp/gate --keep
  *
- * Flags: --base (agents server), --daemon (Seed daemon http/grpc-web), --account (uid to sign as),
+ * Flags: --base (app environment), --daemon (Seed daemon http/grpc-web), --account (uid to sign as),
  * --model / --provider (default: copied from --like agent), --like (agent id to mirror),
  * --out (artifact dir), --timeout (per-scenario ms), --keep (do not delete the NightGate agent).
  */

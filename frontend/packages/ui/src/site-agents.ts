@@ -15,7 +15,7 @@ import {useQuery} from '@tanstack/react-query'
 /**
  * The agents of a space are its mount documents: a document with `type: hm://hyper.media/agent`
  * and an `agentServerUrl`. Nothing else registers an agent with a space, so finding a space's
- * agents is a document query, not a question for any agents server. The query is small and runs
+ * agents is a document query, not a question for any app environment. The query is small and runs
  * on the client after the page is up, so a page never waits on it.
  *
  * Kept free of the agents models (which carry the editor) so the site header can ask whether a
@@ -29,7 +29,7 @@ export const AGENT_DOCUMENT_TYPE = 'hm://hyper.media/agent'
 export type SiteAgentMount = {
   /** The agent's id: the document's versionless hm:// id. */
   agentId: string
-  /** The agents server the document names, as written (mountable: http(s), no credentials). */
+  /** The app environment the document names, as written (mountable: http(s), no credentials). */
   serverUrl: string
   /** The document's name attribute, which is also the agent's name. */
   name: string

@@ -110,7 +110,7 @@ export async function prepareAgentMount({
   name: string
 }): Promise<PreparedAgentMount> {
   if (!isMountableAgentServerUrl(serverUrl))
-    throw new Error('Use an HTTP or HTTPS agent server address without credentials')
+    throw new Error('Use an HTTP or HTTPS app environment address without credentials')
   if (!client.getSigner) throw new Error('Signing is unavailable')
   const existing = await client.request('Resource', to)
   if (!canUseDocumentDestination(existing)) throw new Error('A document already exists here. Choose a different path.')

@@ -4421,7 +4421,7 @@ func TestHomeGenesisBootstrap(t *testing.T) {
 // A document whose latest generation is a tombstone must not come back from an attribute query,
 // whatever the shape of the filter. A top-level OR leaked it: its SQL joined the HAVING clause
 // unparenthesized, so `generation = MAX(generation) AND is_deleted = 0 AND a OR b` let `b` bypass
-// the deletion check, and an app mount page a space had deleted stayed mounted on its agents server.
+// the deletion check, and an app mount page a space had deleted stayed mounted on its app environment.
 func TestQueryDocumentsTombstonedUnderOrFilter(t *testing.T) {
 	t.Parallel()
 
@@ -4462,7 +4462,7 @@ func TestQueryDocumentsTombstonedUnderOrFilter(t *testing.T) {
 	either := &documents.DocumentFilter{Filter: &documents.DocumentFilter_Or_{Or: &documents.DocumentFilter_Or{
 		Filters: []*documents.DocumentFilter{typed("hm://y/app-mount"), typed("hm://x/app-mount")},
 	}}}
-	// The shape an agents server sends when it refreshes one space: the space match moves to WHERE
+	// The shape an app environment sends when it refreshes one space: the space match moves to WHERE
 	// and the OR is left on its own in HAVING.
 	inSpace := &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{
 		Filters: []*documents.DocumentFilter{

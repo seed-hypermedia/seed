@@ -301,7 +301,7 @@ export function useWebCreateDocumentMenuItem({
 }
 
 /**
- * Agent creation under `locationId` for the web New menus: `open` is undefined while no agent server
+ * Agent creation under `locationId` for the web New menus: `open` is undefined while no app environment
  * is known (none configured) or nobody is signed in, hiding the entry.
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.

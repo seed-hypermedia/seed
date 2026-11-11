@@ -46,7 +46,7 @@ export function DeleteDocumentDialog({
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
-  // A mounted agent goes with its document; the agent server call is signed by the same account.
+  // A mounted agent goes with its document; the app environment call is signed by the same account.
   const agentDeletion = useMountedAgentDeletion(
     id,
     doc.data?.type === 'document' ? doc.data.document.metadata : undefined,

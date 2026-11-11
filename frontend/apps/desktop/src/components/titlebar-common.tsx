@@ -599,7 +599,7 @@ export function SpaceHeaderTools() {
   )
 }
 
-// Keeps the Agents unread dot live with one connection per agents server. It stays in the window bar, which outlives
+// Keeps the Agents unread dot live with one connection per app environment. It stays in the window bar, which outlives
 // every page, while the Agents button itself is only in the space header.
 function AgentActivityConnection() {
   const agentsAccountUid = useSelectedAgentsAccountId()

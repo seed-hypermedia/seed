@@ -23,7 +23,7 @@ export function DocumentCreateButton({
   showSubdocument?: boolean
   importLabel?: string
   onCreate: (kind: 'document' | 'collection' | 'subdocument') => void
-  /** Opens agent creation at the same destination; omitted when no agent server is available. */
+  /** Opens agent creation at the same destination; omitted when no app environment is available. */
   onCreateAgent?: () => void
   onImport: () => void
 }) {

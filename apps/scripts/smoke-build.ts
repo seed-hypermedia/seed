@@ -86,7 +86,7 @@ try {
       .get(sessionId)
     database.close()
     if (!stored?.n) throw new Error('Bundled server left no durable store for the session')
-    console.log(`Built agents server smoke test passed on port ${port}: health, one model turn, durable store`)
+    console.log(`Built app environment smoke test passed on port ${port}: health, one model turn, durable store`)
   } finally {
     server.kill('SIGTERM')
     await Promise.race([server.exited, Bun.sleep(2_000).then(() => server.kill('SIGKILL'))])
@@ -133,6 +133,6 @@ async function waitForHealth(port: number): Promise<void> {
     await Bun.sleep(250)
   }
   throw new Error(
-    `Built agents server did not become healthy: ${lastError instanceof Error ? lastError.message : lastError}`,
+    `Built app environment did not become healthy: ${lastError instanceof Error ? lastError.message : lastError}`,
   )
 }
