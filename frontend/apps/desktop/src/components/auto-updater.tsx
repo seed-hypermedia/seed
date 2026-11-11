@@ -47,7 +47,7 @@ export function AutoUpdater() {
           updateStatus?.type == 'restarting'
             ? 'translateX(0)'
             : 'translateX(500px)',
-        transition: 'transform 0.5s ease-in-out, opacity 0.5s ease-in-out',
+        transition: 'transform 0.4s var(--ease-out-smooth), opacity 0.3s ease-out',
         opacity:
           updateStatus?.type == 'update-available' ||
           updateStatus?.type == 'downloading' ||

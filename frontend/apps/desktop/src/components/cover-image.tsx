@@ -42,7 +42,7 @@ export function CoverImage({
   const coverImage = (
     <div
       className={cn(
-        'relative h-0 w-full bg-transparent opacity-0 transition-all duration-300',
+        'relative h-0 w-full bg-transparent opacity-0 transition-[height,opacity] duration-300',
         show && 'h-[25vh] opacity-100',
         url && 'bg-accent',
       )}
