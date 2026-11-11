@@ -1,4 +1,4 @@
-import {callableToolRegistry, type AppMountInfo, type AppToolInfo} from '@seed-hypermedia/agents-protocol'
+import {callableToolRegistry, type AppMountInfo, type AppToolInfo} from '@seed-hypermedia/apps-protocol'
 import type {AgentToolInfo} from './client'
 
 /**

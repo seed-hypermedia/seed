@@ -1,4 +1,4 @@
-import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {
   getAgentServerHealth,
   getAgentWebSocketUrl,
@@ -46,7 +46,7 @@ import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
 import {useSiteAgentMounts} from '../site-agents'
 import {unmountedOwnedAgents} from './orphan-agents'
-import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/apps-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {UniversalAppContext} from '@shm/shared/routing'
@@ -2525,7 +2525,7 @@ export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountU
 /** Combines activity triggers and refreshes both active configuration and retained history. */
 export function useCombineAgentTriggers(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async (input: Omit<import('@seed-hypermedia/agents-protocol').CombineAgentTriggers, '_'>) => {
+    mutationFn: async (input: Omit<import('@seed-hypermedia/apps-protocol').CombineAgentTriggers, '_'>) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'CombineAgentTriggers', ...input}})
     },

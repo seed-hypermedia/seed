@@ -1,4 +1,4 @@
-import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl} from '@seed-hypermedia/apps-protocol'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {DocumentRoute} from '@shm/shared/routes'
 import {createContext, lazy, Suspense, useContext, useEffect, useState, type ComponentType, type ReactNode} from 'react'

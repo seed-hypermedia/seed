@@ -35,7 +35,7 @@ export const DEFAULT_DESKTOP_VAULT_URL: string | undefined =
   IME.VITE_DESKTOP_DEFAULT_VAULT_URL || process.env.VITE_DESKTOP_DEFAULT_VAULT_URL || undefined
 
 // The dev shell redefines the agents server port (.env.vars); the fallback matches the
-// production default baked into agents/src/config.ts.
+// production default baked into apps/src/config.ts.
 export const DEFAULT_DESKTOP_AGENTS_URL: string =
   IME.VITE_DESKTOP_DEFAULT_AGENTS_URL || process.env.VITE_DESKTOP_DEFAULT_AGENTS_URL || 'http://localhost:3050'
 
@@ -169,7 +169,7 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  * Default agent server for the web app's /hm/agents UI. The site will eventually support several
  * configured agent servers (as desktop does); for now this is the seed of the configured list.
  *
- * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
+ * The dev fallback matches the harness dev agents server port (see .env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
  */
 /**

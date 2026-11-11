@@ -5,7 +5,7 @@ import {
   REASONING_LEVEL_DESCRIPTIONS,
   REASONING_LEVEL_LABELS,
   type ReasoningLevel,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Brain} from 'lucide-react'
 

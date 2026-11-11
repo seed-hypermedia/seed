@@ -5,7 +5,7 @@ import {
   THOROUGHNESS_LEVELS,
   THOROUGHNESS_PRESETS,
   type Thoroughness,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Layers} from 'lucide-react'
 import {cn} from '@shm/ui/utils'

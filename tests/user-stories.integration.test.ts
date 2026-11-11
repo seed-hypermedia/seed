@@ -501,7 +501,7 @@ describe('CLI · 8. Create an instance of the signed type and sign it', () => {
 
 // ── An agent ─────────────────────────────────────────────────────────────────
 //
-// The agents service is Bun-only, so its stories run in agents/scripts/user-stories.ts and
+// The agents service is Bun-only, so its stories run in apps/scripts/user-stories.ts and
 // report one JSON line per step. The steps below are declared here, by name, so each is one
 // test; the runner and this list must agree.
 

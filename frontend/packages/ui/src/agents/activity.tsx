@@ -1,4 +1,4 @@
-import type {AgentActivity, AgentInfo, SessionInfo} from '@seed-hypermedia/agents-protocol'
+import type {AgentActivity, AgentInfo, SessionInfo} from '@seed-hypermedia/apps-protocol'
 import {getQueryClient} from '@shm/shared/models/query-client'
 import {useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'

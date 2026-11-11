@@ -48,22 +48,22 @@ const daemonBinaryPath = path.join(
 )
 
 // The local agents server: a `bun build --compile` binary staged by
-// `agents/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
-// directory ships so it lands as `<resources>/agents/`, which is where
+// `apps/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
+// directory ships so it lands as `<resources>/apps/`, which is where
 // `src/agents-server-path.ts` looks for it in a packaged app.
-const agentsServerName = process.env.AGENTS_SERVER_NAME || getPlatformTriple()
-const agentsDistPath = path.join(devProjectRoot, 'plz-out/bin/agents')
-const agentsBinaryPath = path.join(agentsDistPath, `seed-agents-${agentsServerName}`)
+const agentsServerName = process.env.APPS_SERVER_NAME || getPlatformTriple()
+const agentsDistPath = path.join(devProjectRoot, 'plz-out/bin/apps')
+const agentsBinaryPath = path.join(agentsDistPath, `seed-apps-${agentsServerName}`)
 const hasAgentsBinary = fs.existsSync(agentsBinaryPath) && fs.existsSync(path.join(agentsDistPath, 'package.json'))
 if (!hasAgentsBinary) {
   if (process.env.CI) {
     // Fail loudly rather than notarize and ship an app whose assistant cannot start.
     throw new Error(
-      `Missing agents server binary at ${agentsBinaryPath} (build it with \`cd agents && bun run build:binary\`)`,
+      `Missing agents server binary at ${agentsBinaryPath} (build it with \`cd apps && bun run build:binary\`)`,
     )
   }
   console.warn(
-    `[FORGE CONFIG]: ⚠️ No agents server binary at ${agentsBinaryPath} — packaging WITHOUT a local agents server. Build it with \`cd agents && bun run build:binary\`.`,
+    `[FORGE CONFIG]: ⚠️ No agents server binary at ${agentsBinaryPath} — packaging WITHOUT a local agents server. Build it with \`cd apps && bun run build:binary\`.`,
   )
 }
 
@@ -73,8 +73,8 @@ if (hasAgentsBinary) {
 }
 
 /**
- * Mach-O files inside the staged microsandbox platform package (see agents/scripts/build-binary.ts).
- * They ship under `<resources>/agents/node_modules/` and must be signed for notarization.
+ * Mach-O files inside the staged microsandbox platform package (see apps/scripts/build-binary.ts).
+ * They ship under `<resources>/apps/node_modules/` and must be signed for notarization.
  */
 function agentsNestedBinaries(): string[] {
   const platformPkgDir = path.join(agentsDistPath, 'node_modules', '@superradcompany', 'microsandbox-darwin-arm64')
@@ -93,10 +93,8 @@ function stagedMacExtraResourceBinaries(buildPath: string): string[] {
 
   if (hasAgentsBinary) {
     binaries.push(
-      path.join(resourcesDir, 'agents', path.basename(agentsBinaryPath)),
-      ...agentsNestedBinaries().map((binary) =>
-        path.join(resourcesDir, 'agents', path.relative(agentsDistPath, binary)),
-      ),
+      path.join(resourcesDir, 'apps', path.basename(agentsBinaryPath)),
+      ...agentsNestedBinaries().map((binary) => path.join(resourcesDir, 'apps', path.relative(agentsDistPath, binary))),
     )
   }
 
@@ -360,8 +358,8 @@ const config: ForgeConfig = {
         packageExecutableName,
         packageResourceExecutableNames: [
           path.basename(daemonBinaryPath),
-          // The agents binary ships inside the `agents/` resources subdirectory.
-          ...(hasAgentsBinary ? [path.join('agents', path.basename(agentsBinaryPath))] : []),
+          // The agents binary ships inside the `apps/` resources subdirectory.
+          ...(hasAgentsBinary ? [path.join('apps', path.basename(agentsBinaryPath))] : []),
         ],
       })
 

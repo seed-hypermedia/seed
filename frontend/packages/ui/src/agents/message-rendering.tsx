@@ -13,7 +13,7 @@ import {
 } from './chat-parts'
 import {formatElapsed, formatStepDuration, formatThinkingDuration} from './agent-run-status'
 import {serverNow, useServerNow} from './server-clock'
-import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
+import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/apps-protocol'
 import {
   detailLinkTarget,
   firstInlinePathValue,

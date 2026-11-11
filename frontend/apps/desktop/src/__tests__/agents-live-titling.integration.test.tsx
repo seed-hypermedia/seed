@@ -24,7 +24,7 @@ import {setAgentsPlatform} from '@shm/ui/agents/platform'
 const PROVIDER_PORT = 45891
 const SERVER_PORT = 45892
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`
-const REPO_AGENTS_DIR = path.resolve(__dirname, '../../../../../agents')
+const REPO_AGENTS_DIR = path.resolve(__dirname, '../../../../../apps')
 
 // The test account: a real ed25519 keypair; "the daemon" signs with it locally.
 const keyPair = blobs.generateNobleKeyPair()

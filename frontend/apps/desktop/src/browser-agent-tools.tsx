@@ -1,6 +1,6 @@
 import {useExperiments} from '@/models/experiments'
 import {useNavigate} from '@/utils/useNavigate'
-import type {BrowserCommand, UnsignedAgentAction} from '@seed-hypermedia/agents-protocol'
+import type {BrowserCommand, UnsignedAgentAction} from '@seed-hypermedia/apps-protocol'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {setAssistantBrowserStatus} from '@shm/ui/agents/assistant-window-context'
 import {sendAgentAction} from '@shm/ui/agents/client'

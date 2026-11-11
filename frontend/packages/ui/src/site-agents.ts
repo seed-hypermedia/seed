@@ -1,4 +1,4 @@
-import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl} from '@seed-hypermedia/apps-protocol'
 import {
   AttributeValue,
   DocumentFilter,

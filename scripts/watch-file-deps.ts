@@ -2,7 +2,7 @@
 /**
  * Runs a dev command and keeps Bun `file:` dependencies fresh.
  *
- * Bun workspaces like vault/ and agents/ consume the monorepo's shared
+ * Bun workspaces like vault/ and apps/ consume the monorepo's shared
  * packages (e.g. frontend/packages/ui) as `file:` dependencies, which
  * `bun install` COPIES into node_modules. Editing the package source while
  * the dev server runs leaves that copy stale until the next install.

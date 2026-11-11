@@ -8,7 +8,7 @@ This repository holds all of it:
 - the Seed daemon (`backend/`), a Go peer-to-peer node that stores, indexes and syncs Hypermedia data
 - the Seed desktop app and the Seed web app (`frontend/apps/desktop`, `frontend/apps/web`)
 - the Seed CLI and the SDK, `@seed-hypermedia/client` (`frontend/apps/cli`, `frontend/packages/client`)
-- Seed Agents (`agents/`), the identity vault (`vault/`) and the notification service (`frontend/apps/notify`)
+- Seed Agents (`apps/`), the identity vault (`vault/`) and the notification service (`frontend/apps/notify`)
 - the developer documentation and the Hypermedia Schemas library (`hypermedia/`)
 
 ## Documentation

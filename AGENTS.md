@@ -27,7 +27,7 @@ identified unauthorized publications; it is not permission for subsequent direct
 - `frontend/AGENTS.md` for `frontend/**`.
 - `proto/AGENTS.md` for `proto/**`.
 - `vault/AGENTS.md` for `vault/**`.
-- `agents/AGENTS.md` for `agents/**`.
+- `apps/AGENTS.md` for `apps/**`.
 
 ## Agent Assets
 
@@ -40,7 +40,7 @@ identified unauthorized publications; it is not permission for subsequent direct
 ## Repo Rules
 
 
-- Use `pnpm` for the JavaScript/TypeScript workspace; `agents/**` and `vault/**` use Bun. Follow package scripts.
+- Use `pnpm` for the JavaScript/TypeScript workspace; `apps/**` and `vault/**` use Bun. Follow package scripts.
 - Code inside `ops/**` uses a pinned Bun version (see `ops/package.json` `engines.bun`). Always build
   `ops/dist/deploy.js` with that exact version (`bunx --bun bun@<version> build ...`) or CI will fail the staleness
   check.

@@ -22,14 +22,14 @@ Every command below was checked against the repository on branch feat/onyx in Se
 | `frontend/apps/landing`, `emails`, `perf-web`, `performance`, `performance-dashboard` | the landing site, email templates, performance tooling | pnpm <!-- id:-PiCtbX7 --> |
 | `frontend/packages/client` | `@seed-hypermedia/client`, the [published SDK](./sdk.md) | pnpm <!-- id:8NqjCj-r --> |
 | `frontend/packages/shared`, `ui`, `editor` | shared models and hooks (`@shm/shared`), UI components (`@shm/ui`), the editor (`@shm/editor`) | pnpm <!-- id:cUHLxKb5 --> |
-| `agents/` | the [Seed Agents](../agent.md) server | its own Bun workspace <!-- id:qOYduI_0 --> |
+| `apps/` | the [Seed Agents](../agent.md) server | its own Bun workspace <!-- id:qOYduI_0 --> |
 | `vault/` | the [key vault service](../apps/vault.md) | its own Bun workspace <!-- id:7uVXnFiT --> |
 | `hypermedia/` | this site: concept pages, the [Hypermedia Schemas](../schema.md) library, the Seed API reference, the Agents docs | markdown, `scripts/hypermedia/` <!-- id:KGtdocvh --> |
 | `ops/` | the [self-hosted node](./self-hosting.md) deployment script (`seed-deploy`) | pinned Bun <!-- id:sKjHiyy5 --> |
 | `tests/` | cross-app integration tests | pnpm, Vitest, Playwright <!-- id:jLogi_RO --> |
 | `docs/` | internal design notes, decision records, runbooks and the security audit log; not published | markdown <!-- id:SH8-ft4T --> |
 
-`agents/` and `vault/` copy the frontend packages they use through `file:` dependencies, so a change to `frontend/packages/*` reaches them only after `bun install`. Their dev servers re-sync automatically. The map pages under [The Seed software](../apps.md), such as [Daemon](../apps/daemon.md), [Desktop](../apps/desktop.md) and [Web](../apps/web.md), explain how the programs talk to each other. <!-- id:qypHor4G -->
+`apps/` and `vault/` copy the frontend packages they use through `file:` dependencies, so a change to `frontend/packages/*` reaches them only after `bun install`. Their dev servers re-sync automatically. The map pages under [The Seed software](../apps.md), such as [Daemon](../apps/daemon.md), [Desktop](../apps/desktop.md) and [Web](../apps/web.md), explain how the programs talk to each other. <!-- id:qypHor4G -->
 
 # Setting up <!-- id:mePBDhAD -->
 
@@ -93,20 +93,20 @@ Run the checks for every area you touched. CI runs the same ones, and a single u
 | Area <!-- col:-MvRpZjz --> | Commands <!-- col:I-M5rtMN --> <!-- id:uRsCX3t0 --> |
 | --- | --- |
 | Whole TypeScript workspace | `pnpm typecheck` <!-- id:d94Q1u3R --> |
-| Formatting, everywhere | `pnpm format:write`, then `pnpm format:check` from the root; this covers the pnpm workspace, `agents/` and `vault/` <!-- id:mph0fqf0 --> |
+| Formatting, everywhere | `pnpm format:write`, then `pnpm format:check` from the root; this covers the pnpm workspace, `apps/` and `vault/` <!-- id:mph0fqf0 --> |
 | Web, shared, desktop unit tests | `pnpm test` runs all three; singly `pnpm web:test`, `pnpm shared:test`, `pnpm desktop:test:unit` <!-- id:dugjfXvL --> |
 | [SDK](./sdk.md), UI, editor, notify, explore | `pnpm --filter @seed-hypermedia/client test`, `pnpm --filter @shm/ui test`, `pnpm --filter @shm/editor test`, and the same for `@shm/notify` and `@shm/explore` <!-- id:ofZFP1b2 --> |
 | [CLI](./cli.md) | `pnpm --filter @seed-hypermedia/cli test` (a fixture suite against a real daemon) and `test:unit` <!-- id:VOFZaWCk --> |
 | Desktop end to end | `pnpm desktop:test`, which packages the app and drives it with Playwright <!-- id:Gilwz1nW --> |
 | Integration | `pnpm test:integration` from the root <!-- id:x7ufnsyK --> |
 | Mobile | `pnpm mobile:test`, `pnpm mobile:typecheck` <!-- id:d-fTb5LC --> |
-| Agents | `bun check` and `bun test` in `agents/`; `bun run protocol:check` when you change the agents wire protocol <!-- id:8k_Msi6q --> |
+| Agents | `bun check` and `bun test` in `apps/`; `bun run protocol:check` when you change the agents wire protocol <!-- id:8k_Msi6q --> |
 | Vault | `bun check` and `bun test` in `vault/` <!-- id:fxNXvKas --> |
 | Dependencies | `pnpm audit` <!-- id:3GkKdSas --> |
 | Go | `go test ./backend/...` and `golangci-lint run --new-from-merge-base origin/main ./backend/...` <!-- id:y8N1xXkq --> |
 | Docs | `node scripts/hypermedia/check.mjs` <!-- id:n7uUGSnA --> |
 
-In `agents/` and `vault/`, `bun check` runs the type checker and rewrites formatting, so commit whatever it changes. Go tests need the submodule and model that `direnv allow` fetched. CI runs them with `go test -tags cpu --count 1 ./backend/...`. For backend bug fixes, add a failing test first when practical, and use `testify/require` in Go tests. <!-- id:Fo7jkVlG -->
+In `apps/` and `vault/`, `bun check` runs the type checker and rewrites formatting, so commit whatever it changes. Go tests need the submodule and model that `direnv allow` fetched. CI runs them with `go test -tags cpu --count 1 ./backend/...`. For backend bug fixes, add a failing test first when practical, and use `testify/require` in Go tests. <!-- id:Fo7jkVlG -->
 
 To reproduce CI locally before pushing, use [agent-ci](https://agent-ci.dev). [Local CI with agent-ci](./local-ci.md) has the guide. <!-- id:eVnAHnXe -->
 

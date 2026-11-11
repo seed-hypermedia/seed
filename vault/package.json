@@ -18,7 +18,7 @@
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
     "@types/mjml-core": "4.15.2",
-    "@seed-hypermedia/agents-protocol": "file:../agents/protocol",
+    "@seed-hypermedia/apps-protocol": "file:../apps/protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui"

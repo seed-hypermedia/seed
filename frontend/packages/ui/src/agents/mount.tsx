@@ -1,5 +1,5 @@
 import {createDocumentBlobs} from '@seed-hypermedia/client'
-import {isMountableAgentServerUrl, type CreateAgent} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl, type CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {encodeDagCbor} from '@seed-hypermedia/client/signed-blob'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient, useUniversalAppContext} from '@shm/shared'

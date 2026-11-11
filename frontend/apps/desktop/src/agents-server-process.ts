@@ -14,14 +14,14 @@ import {forceKillChildProcess} from './win32-process'
 /**
  * Lifecycle for the local agents server, which runs the same artifact as the hosted deployment.
  *
- * The rule is **dev attaches, packaged spawns**: `./dev up` already runs `cd agents && bun run dev`
+ * The rule is **dev attaches, packaged spawns**: `./dev up` already runs `cd apps && bun run dev`
  * with hot reload, so spawning a second server there would fight it for the port and silently
  * shadow the developer's edits. Rather than make that a flag people forget to set, startup probes
  * the default port first and attaches to whatever healthy agents server answers.
  */
 
 /**
- * Mirrors the agents server's own port default (agents/src/config.ts). Dev redefines it via
+ * Mirrors the agents server's own port default (apps/src/config.ts). Dev redefines it via
  * SEED_AGENTS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
  * server and the dev hot-reload server never share a port. Read at call time, not module load,
  * so tests control it per-case.

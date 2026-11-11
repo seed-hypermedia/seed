@@ -1,9 +1,5 @@
-import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
-import {
-  AGENTS_PROTOCOL_HEADER,
-  AGENTS_PROTOCOL_VERSION,
-  declaredProtocolVersion,
-} from '@seed-hypermedia/agents-protocol'
+import type * as AgentsProtocol from '@seed-hypermedia/apps-protocol'
+import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION, declaredProtocolVersion} from '@seed-hypermedia/apps-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {getAgentsPlatform, type AgentsSignerDelegation} from './platform'
@@ -158,7 +154,7 @@ export type AgentServerHealth = {
   codeExecReasonCode?: string
   /** The server's identity principal, what a space's agents-server binding must prove to be. Absent on older servers. */
   serverUid?: string
-  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
+  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see apps/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
   minClientProtocol?: number
@@ -284,7 +280,7 @@ export async function signAgentActionWith(input: {
         }
       : {}),
     // Signed with the rest: the server answers in this protocol's shape, or refuses if it no
-    // longer serves it (see `agents/protocol/PROTOCOL.md`).
+    // longer serves it (see `apps/protocol/PROTOCOL.md`).
     protocol: AGENTS_PROTOCOL_VERSION,
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
@@ -339,7 +335,7 @@ export class AgentProtocolError extends AgentServerError {
 /**
  * The protocol version a server advertised on a response, read from its header. Servers from
  * before protocol 2 send no header, which counts as protocol 1. For display and diagnostics: the
- * client does not refuse older servers (see `agents/protocol/src/version.ts`).
+ * client does not refuse older servers (see `apps/protocol/src/version.ts`).
  */
 export function serverProtocolOf(headers: Headers): number {
   return declaredProtocolVersion(Number(headers.get(AGENTS_PROTOCOL_HEADER)))

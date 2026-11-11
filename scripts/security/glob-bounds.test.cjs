@@ -26,7 +26,7 @@ function scanModules(directory) {
 if (process.env.GLOB_TEST_PACKAGE) {
   packages.push(process.env.GLOB_TEST_PACKAGE)
 } else {
-  for (const workspace of ['', 'docs', 'tests', 'agents/protocol', 'frontend/scripts']) {
+  for (const workspace of ['', 'docs', 'tests', 'apps/protocol', 'frontend/scripts']) {
     scanModules(resolve(workspace, 'node_modules'))
   }
   for (const parent of ['frontend/apps', 'frontend/packages']) {

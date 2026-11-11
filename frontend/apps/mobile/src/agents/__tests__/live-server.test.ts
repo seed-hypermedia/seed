@@ -12,7 +12,7 @@
  *
  * Opt-in, because it needs a server running:
  *
- *   direnv exec . bash -lc 'cd agents && bun run dev'      # serves :3051
+ *   direnv exec . bash -lc 'cd apps && bun run dev'      # serves :3051
  *   SEED_AGENTS_TEST_SERVER=http://localhost:3051 npm test
  *
  * Runs in the `node` environment on purpose: jsdom provides no `fetch`, while React Native does —

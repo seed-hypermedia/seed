@@ -29,7 +29,7 @@ import type {
   SessionEvent,
   SessionEventPayload,
   SessionInfo,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 
 const PORT = Number(process.env.MOCK_AGENTS_PORT ?? 3052)
 const BOOT_TIME = Date.now()
