@@ -12,6 +12,7 @@ import {CommentContent, QuotedDocBlock} from '../comments'
 import type {HMComment, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {NavRoute} from '@shm/shared'
 import {TooltipProvider} from '../tooltip'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -74,7 +75,14 @@ beforeEach(() => {
   navigated.newWindow = false
   container = document.createElement('div')
   document.body.appendChild(container)
-  root = createRoot(container)
+  // BlockEmbedContent reads the query client (to look up the newest version holding a quoted block).
+  const reactRoot = createRoot(container)
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+  root = {
+    render: (node: React.ReactNode) =>
+      reactRoot.render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>),
+    unmount: () => reactRoot.unmount(),
+  } as Root
 })
 afterEach(() => {
   act(() => root.unmount())
