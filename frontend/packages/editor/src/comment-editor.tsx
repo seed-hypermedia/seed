@@ -742,7 +742,10 @@ export function CommentEditor({
   }, [editor])
 
   useEffect(() => {
-    editor.isEditable = !readOnly
+    // Assigning isEditable dispatches an editor update even when the value is unchanged; on mount
+    // that read as a local edit before initialBlocks were applied, so a prompt editor reported its
+    // saved (embed-only) prompt as empty. Only toggle it when it actually changes.
+    if (editor.isEditable !== !readOnly) editor.isEditable = !readOnly
   }, [editor, readOnly])
 
   useEffect(() => {
