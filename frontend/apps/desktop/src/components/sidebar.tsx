@@ -1,4 +1,5 @@
 import {grpcClient} from '@/grpc-client'
+import {ipc} from '@/ipc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
@@ -43,7 +44,11 @@ export function AppSidebar() {
       /* Session navigation still works. */
     }
   }, [routeSite])
-  const siteId = hmId(routeSite || lastSite || selectedAccountId || defaultJoinedSiteUid)
+  const sidebarSpaceUid = routeSite || lastSite || selectedAccountId || null
+  const siteId = hmId(sidebarSpaceUid || defaultJoinedSiteUid)
+  useEffect(() => {
+    ipc.send('windowSidebarSpace', {spaceUid: sidebarSpaceUid})
+  }, [sidebarSpaceUid])
   const navigate = useNavigate()
   const sidebar = useSiteSidebar()
   return (

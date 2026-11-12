@@ -1,10 +1,10 @@
 import {useIPC, useWindowUtils} from '@/app-context'
 import {WindowsLinuxWindowControls} from '@/components/window-controls'
+import {ipc} from '@/ipc'
 import {useCreateDraft} from '@/models/documents'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
-import {defaultRoute} from '@shm/shared/routes'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {getParentRoute} from '@shm/shared/utils/parent-route'
 import {
@@ -122,7 +122,9 @@ export function SystemMenu() {
               id: 'newwindow',
               title: 'New Window',
               accelerator: 'Ctrl+Shift+N',
-              onSelect: () => spawn(defaultRoute),
+              onSelect: () => {
+                void ipc.send('new_window')
+              },
               icon: <AddSquare className="size-4" />,
             },
             {id: 'separator'},

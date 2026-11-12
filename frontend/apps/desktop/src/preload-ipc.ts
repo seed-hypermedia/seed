@@ -6,6 +6,8 @@ import type {IpcRenderer} from 'electron'
 export const SEND_COMMANDS: ReadonlySet<string> = new Set([
   'windowNavState',
   'windowAssistantState',
+  'windowSidebarSpace',
+  'new_window',
   'focusedWindowAppEvent',
   'broadcastWindowEvent',
   'invalidate_queries',

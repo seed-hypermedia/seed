@@ -19,7 +19,12 @@ import {installWindowGuards} from './app-window-security'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 import {logWindowClose, logWindowOpen} from './memory-profiler-window'
-import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
+import {
+  getNewWindowRoute,
+  mergeWindowNavState,
+  resolveSelectedIdentityForWindow,
+  type WindowNavState,
+} from './utils/account-selection'
 
 /** Resolve the app's exact origin after its local server has started. */
 export function getAppWindowPolicy(): AppWindowPolicy {
@@ -348,6 +353,13 @@ export function getLastFocusedWindow(): BrowserWindow | null {
   return anyWindow || null
 }
 
+/** Route for a user-requested new window: the focused window's sidebar space home, or the welcome page. */
+export function getFocusedWindowNewWindowRoute(): NavRoute {
+  const focusedWindow = getLastFocusedWindow()
+  const focusedWindowId = Array.from(allWindows.entries()).find(([, window]) => window === focusedWindow)?.[0]
+  return getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+}
+
 let isExpectingQuit = false
 app.addListener('before-quit', () => {
   isExpectingQuit = true
@@ -664,9 +676,18 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     }))
   }
 
+  // IPC handler for the sidebar's resolved space, used to route new windows. In-memory
+  // only: it is not persisted to windowsState because the renderer re-reports on mount.
+  const windowSidebarSpaceHandler = (info: any, {spaceUid}: {spaceUid: string | null}) => {
+    windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
+      sidebarSpaceUid: spaceUid ?? null,
+    })
+  }
+
   // Note: The initWindow data is sent via the synchronous IPC handler above
   browserWindow.webContents.ipc.addListener('windowNavState', windowNavStateHandler)
   browserWindow.webContents.ipc.addListener('windowAssistantState', windowAssistantStateHandler)
+  browserWindow.webContents.ipc.addListener('windowSidebarSpace', windowSidebarSpaceHandler)
 
   // First render trick: https://getlotus.app/21-making-electron-apps-feel-native-on-mac
   browserWindow.on('ready-to-show', () => {
@@ -697,6 +718,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     // Remove IPC listeners to prevent memory leak
     browserWindow.webContents.ipc.removeListener('windowNavState', windowNavStateHandler)
     browserWindow.webContents.ipc.removeListener('windowAssistantState', windowAssistantStateHandler)
+    browserWindow.webContents.ipc.removeListener('windowSidebarSpace', windowSidebarSpaceHandler)
 
     // Clean up window state
     allWindows.delete(windowId)

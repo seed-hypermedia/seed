@@ -66,10 +66,12 @@ vi.mock('../logger', () => ({
 vi.mock('../memory-profiler-window', () => ({logWindowOpen: vi.fn(), logWindowClose: vi.fn()}))
 
 import {defaultRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   createAppWindow,
   createAppWindowInputSchema,
   getAllWindows,
+  getFocusedWindowNewWindowRoute,
   getWindowNavState,
   getWindowsState,
 } from '../app-windows'
@@ -149,5 +151,43 @@ describe('new window state', () => {
   it('uses defaults when there is no source window', () => {
     createAppWindow({id: 'new', routes: [defaultRoute]})
     expect(getWindowNavState().new).toMatchObject({sidebarLocked: true, sidebarWidth: 22, accessoryWidth: 20})
+  })
+})
+
+describe('getFocusedWindowNewWindowRoute', () => {
+  it('routes to the focused window sidebar space home document', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-a')})
+  })
+
+  it('falls back to the default route when the sidebar reports no space', () => {
+    createAppWindow({id: 'source', routes: [defaultRoute]})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('falls back to the default route after the sidebar clears its space', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: null})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('uses the space reported by the focused window', () => {
+    const first = createAppWindow({id: 'first', routes: [defaultRoute]})
+    const second = createAppWindow({id: 'second', routes: [defaultRoute]})
+    first.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    second.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-b'})
+    first.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-a')})
+    second.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-b')})
+  })
+
+  it('does not persist the sidebar space to the window state', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getWindowsState().source).not.toHaveProperty('sidebarSpaceUid')
+    expect(getWindowNavState().source.sidebarSpaceUid).toBe('space-a')
   })
 })

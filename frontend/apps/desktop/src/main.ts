@@ -46,6 +46,7 @@ import {
   getAllWindows,
   getAppWindowPolicy,
   getFocusedWindow,
+  getFocusedWindowNewWindowRoute,
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
@@ -60,7 +61,6 @@ import {saveMarkdownFile} from './save-markdown-file'
 
 import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {BIG_INT, IS_PROD_DESKTOP, OS_PROTOCOL_SCHEME, VERSION} from '@shm/shared/constants'
-import {defaultRoute} from '@shm/shared/routes'
 import {initDerivedSubscriptions} from './derived-subscriptions'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
@@ -490,7 +490,7 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    trpc.createAppWindow({routes: [defaultRoute]})
+    trpc.createAppWindow({routes: [getFocusedWindowNewWindowRoute()]})
   })
 
   ipcMain.on('minimize_window', (_event, _info) => {

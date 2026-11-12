@@ -4,6 +4,9 @@
  * making them easy to unit test.
  */
 
+import {defaultRoute, type NavRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+
 export type WindowNavState = {
   routes: any[]
   routeIndex: number
@@ -11,6 +14,8 @@ export type WindowNavState = {
   sidebarWidth: number
   accessoryWidth: number
   selectedIdentity?: string | null
+  /** Space uid shown in the window's sidebar, reported by the renderer; null when no space is selected. */
+  sidebarSpaceUid?: string | null
   assistantOpen?: boolean
   assistantSessionId?: string | null
 }
@@ -78,6 +83,8 @@ export function mergeWindowNavState(
     accessoryWidth: nextState.accessoryWidth ?? currentState?.accessoryWidth ?? 20,
     selectedIdentity:
       nextState.selectedIdentity !== undefined ? nextState.selectedIdentity : currentState?.selectedIdentity ?? null,
+    sidebarSpaceUid:
+      nextState.sidebarSpaceUid !== undefined ? nextState.sidebarSpaceUid : currentState?.sidebarSpaceUid ?? null,
     assistantOpen:
       nextState.assistantOpen !== undefined ? nextState.assistantOpen : currentState?.assistantOpen ?? false,
     assistantSessionId:
@@ -85,4 +92,12 @@ export function mergeWindowNavState(
         ? nextState.assistantSessionId
         : currentState?.assistantSessionId ?? null,
   }
+}
+
+/**
+ * Route for a user-requested new window: the home document of the focused
+ * window's sidebar space, or the default route when no space is selected.
+ */
+export function getNewWindowRoute(sidebarSpaceUid: string | null | undefined): NavRoute {
+  return sidebarSpaceUid ? {key: 'document', id: hmId(sidebarSpaceUid)} : defaultRoute
 }
