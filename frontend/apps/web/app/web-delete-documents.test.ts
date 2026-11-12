@@ -15,9 +15,6 @@ vi.mock('@seed-hypermedia/client', async () => {
   }
 })
 
-// The dialog registers the web agents platform (editor chunk); only the delete helper is under test.
-vi.mock('@/web-agents-platform', () => ({registerWebAgentsPlatform: vi.fn()}))
-
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,
 }))
@@ -27,7 +24,7 @@ vi.mock('./document-edit/web-document-card-cleanup', () => ({
   enqueueWebDocumentCardCleanup: enqueueCleanupMock,
 }))
 
-import {deleteWebDocuments} from './web-delete-document-dialog'
+import {deleteWebDocuments} from './web-delete-documents'
 
 function makeId(uid: string, path: string[]): UnpackedHypermediaId {
   return {

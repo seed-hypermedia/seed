@@ -31,7 +31,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
-import {deleteWebDocuments} from './web-delete-document-dialog'
+import {deleteWebDocuments} from './web-delete-documents'
 import {
   getLatestWebDocDraftForDoc,
   getWebDocDraft,

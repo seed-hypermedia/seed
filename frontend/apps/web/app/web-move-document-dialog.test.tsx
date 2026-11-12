@@ -28,7 +28,7 @@ vi.mock('@seed-hypermedia/client', async () => {
   }
 })
 
-vi.mock('./web-delete-document-dialog', () => ({
+vi.mock('./web-delete-documents', () => ({
   deleteWebDocuments: deleteWebDocumentsMock,
 }))
 
