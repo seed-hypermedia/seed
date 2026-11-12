@@ -585,12 +585,21 @@ export const HMDocumentMetadataSchema = z
      * found by querying its documents for this type; nothing else registers an agent with a space.
      */
     agentServerUrl: z.string().optional(),
-    /** Resource type; custom HTML pages use hm://hyper.media/page. */
+    /**
+     * Resource type: hm://hyper.media/page (custom HTML page), hm://hyper.media/app (an app, whose
+     * card embeds list its tools and pages) or hm://hyper.media/tool (an app's tool).
+     */
     type: z.string().optional(),
     /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
     html: z.string().optional(),
-    /** Published HM struct schema describing the page's URL input. */
+    /** Published HM struct schema describing a page's URL input or a tool's input. */
     inputSchema: z.string().optional(),
+    /** Published HM struct schema describing what a tool returns. */
+    outputSchema: z.string().optional(),
+    /** UnixFS folder whose index.ts default-exports a tool's async function. */
+    code: z.string().optional(),
+    /** hm:// URL of the app's own page that its Home tab shows. */
+    homePage: z.string().optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -644,6 +653,12 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
   agentServerUrl: 'Agents server that hosts the agent this document mounts.',
+  type: 'Resource type, such as a custom HTML page, an app or a tool.',
+  html: 'UnixFS folder holding a custom HTML page.',
+  inputSchema: 'Schema of the input a page or tool takes.',
+  outputSchema: 'Schema of what a tool returns.',
+  code: 'UnixFS folder holding a tool’s code, entry point index.ts.',
+  homePage: 'The app page its Home tab shows.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',

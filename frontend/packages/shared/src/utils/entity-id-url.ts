@@ -60,9 +60,17 @@ export const VIEW_TERMS = [
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 /** Parses agent views without confusing space settings with a mounted document's settings. */
-export function extractAgentDocumentView(
-  parts: string[],
-): {path: string[]; agentView: DocumentRoute['agentView']; agentSessionId?: string; agentTriggerId?: string} | null {
+export function extractAgentDocumentView(parts: string[]): {
+  path: string[]
+  agentView: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
+  agentSessionId?: string
+  agentTriggerId?: string
+} | null {
+  const appView = parts.at(-1)
+  if (parts.at(-2) === ':app' && appView && (APP_VIEWS as readonly string[]).includes(appView)) {
+    return {path: parts.slice(0, -2), agentView: undefined, appView: appView as DocumentRoute['appView']}
+  }
   if (parts.at(-2) === ':session' && parts.at(-1)) {
     return {path: parts.slice(0, -2), agentView: 'session', agentSessionId: parts.at(-1)}
   }
@@ -111,9 +119,12 @@ export function mountedAgentRoute(route: NavRoute): NavRoute {
       }
 }
 
-/** Suffix used by every mounted-agent URL producer. */
+/** App and tool tabs live at `:app/<view>`; plain `:tools` and `:settings` belong to agents. */
+export const APP_VIEWS = ['tools', 'pages', 'settings'] as const
+
+/** Suffix used by every mounted-agent and app-tab URL producer. */
 export function agentDocumentViewPath(route: DocumentRoute): string | undefined {
-  if (!route.agentView) return undefined
+  if (!route.agentView) return route.appView ? `:app/${route.appView}` : undefined
   if (route.agentView === 'triggers' && route.agentTriggerId)
     return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
   if (route.agentView === 'tools') return ':settings/permissions'
@@ -208,10 +219,20 @@ export function extractViewTermFromUrl(url: string): {
   settingsTab?: string
   settingsDomain?: string
   agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
   agentSessionId?: string
   agentTriggerId?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+  const appMatch = inspectCleanUrl.match(/\/:app\/(tools|pages|settings)(?=[?#]|$)/)
+  if (appMatch) {
+    return {
+      url: inspectCleanUrl.replace(appMatch[0], ''),
+      isInspect,
+      viewTerm: null,
+      appView: appMatch[1] as DocumentRoute['appView'],
+    }
+  }
   const agentMatch = inspectCleanUrl.match(
     /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/(?:prompt|permissions|identities|mcp)|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
   )
@@ -789,7 +810,7 @@ export function routeToUrl(
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
-      ...(route.agentView ? {version: null, latest: true, blockRef: null, blockRange: null} : {}),
+      ...(route.agentView || route.appView ? {version: null, latest: true, blockRef: null, blockRange: null} : {}),
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
@@ -912,15 +933,16 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'document') {
     let url = packBaseId(route.id.uid, route.id.path)
-    if (route.agentView) url += `/${agentDocumentViewPath(route)}`
+    const viewPath = agentDocumentViewPath(route)
+    if (viewPath) url += `/${viewPath}`
     url += getHMQueryString({
-      version: route.agentView ? null : route.id.version,
-      latest: route.agentView ? true : route.id.latest,
+      version: viewPath ? null : route.id.version,
+      latest: viewPath ? true : route.id.latest,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
       pageParams: route.id.pageParams,
     })
-    if (route.id.blockRef && !route.agentView) {
+    if (route.id.blockRef && !viewPath) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
     }
     return appendAgentViewQuery(url, route)
@@ -999,7 +1021,8 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
   }
   if (route.key === 'document') {
     return appendAgentViewQuery(
-      packBaseId(route.id.uid, route.id.path) + (route.agentView ? `/${agentDocumentViewPath(route)}` : ''),
+      packBaseId(route.id.uid, route.id.path) +
+        (agentDocumentViewPath(route) ? `/${agentDocumentViewPath(route)}` : ''),
       route,
     )
   }

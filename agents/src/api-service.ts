@@ -119,6 +119,9 @@ import {
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
+import {appEmbedBlobs, findListingApp, resolveAppParent} from '@/app-children'
+import {collectToolCodeFiles, validateToolCode} from '@/tool-code'
+import {HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
 import {loadMermaidParser} from './mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
@@ -10999,6 +11002,22 @@ function parseIpfsCid(raw: unknown): string {
   return cid
 }
 
+/**
+ * The path inside a UnixFS folder that an ipfs:// address names after its CID (`ipfs://<cid>/index.ts`
+ * reads that file of the folder), or '' for the CID itself. Dot segments are refused.
+ */
+function parseIpfsSubpath(raw: string): string {
+  const rest =
+    raw
+      .trim()
+      .replace(/^ipfs:\/\//, '')
+      .split(/[?#]/, 1)[0] ?? ''
+  const segments = rest.split('/').slice(1).filter(Boolean)
+  if (segments.some((segment) => segment === '.' || segment === '..'))
+    throw new APIError(400, `Invalid path inside ${raw}`)
+  return segments.map((segment) => encodeURIComponent(decodeURIComponent(segment))).join('/')
+}
+
 /** Chunks bytes as UnixFS and publishes every block through the typed Seed API. */
 /**
  * Bytes of blob data per PublishBlobs request. The daemon receives the request as one gRPC
@@ -13616,8 +13635,55 @@ async function resolveWritePageFolder(
   }
 }
 
+/** A tool's code folder resolved from `options.tool`, ready to publish beside the document change. */
+type WriteToolFolder = {code: string; blobs: CollectedBlob[]; files: number; bytes: number}
+
+/**
+ * Turns `options.tool` (a memory folder with an index.ts, or one .ts file) into the UnixFS folder the
+ * tool's `code` attribute will point at, after checking the entry point default-exports a function.
+ */
+async function resolveWriteToolFolder(
+  context: AgentServicePiToolContext,
+  value: unknown,
+): Promise<WriteToolFolder | undefined> {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value.trim())
+    throw new APIError(400, 'write options.tool must be a memory path: a folder with an index.ts, or one .ts file')
+  const {files, bytes} = withMemoryErrors(() => collectToolCodeFiles(context.stateDir, value.trim()))
+  try {
+    validateToolCode(files)
+  } catch (error) {
+    throw new APIError(400, error instanceof Error ? error.message : String(error))
+  }
+  const folder = await directoryToIpfsBlobs(files)
+  return {code: `ipfs://${folder.cid}`, blobs: folder.blobs, files: files.length, bytes}
+}
+
+/** Refuses a schema reference that does not resolve to a published HM struct. */
+async function assertStructSchemaRef(client: ReturnType<typeof createSeedClient>, ref: unknown, label: string) {
+  if (typeof ref !== 'string' || !/^(hm|ipfs):\/\//.test(ref))
+    throw new APIError(400, `${label} must reference a published HM schema.`)
+  const contract = await loadSchemaRef(client, ref)
+  if (!contract || resolveSchema(contract.schema, {}, contract.registry).schema.type !== STRUCT_URL)
+    throw new APIError(400, `${label} must resolve to an HM struct schema.`)
+}
+
 /** Adds what the agent needs to know about a published page to a document write result. */
-function withPageResult(result: Record<string, unknown>, folder: WritePageFolder | undefined): Record<string, unknown> {
+function withPageResult(
+  result: Record<string, unknown>,
+  folder: WritePageFolder | undefined,
+  tool?: WriteToolFolder,
+): Record<string, unknown> {
+  if (tool && !result.error)
+    return {
+      ...result,
+      resourceType: HM_TOOL_TYPE,
+      code: tool.code,
+      toolFiles: tool.files,
+      toolBytes: tool.bytes,
+      instructions:
+        'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+    }
   if (!folder) return result
   const id = typeof result.id === 'string' ? result.id : undefined
   return {
@@ -14772,24 +14838,39 @@ export async function executeReadVerb(
 
   if (address.startsWith('ipfs://')) {
     const cid = parseIpfsCid(address)
-    if (isDagCborCid(cid)) return readIpfsObject(context, cid, options)
-    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
-    const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
+    const subpath = parseIpfsSubpath(address)
+    if (isDagCborCid(cid) && !subpath) return readIpfsObject(context, cid, options)
+    // A path after the CID reads that file of a UnixFS folder, such as a tool's index.ts.
+    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}${subpath ? `/${subpath}` : ''}`
+    const targetPath =
+      typeof options.path === 'string' && options.path.trim()
+        ? options.path
+        : `ipfs/${cid}${subpath ? `/${decodeURIComponent(subpath)}` : ''}`
     const result = await withMemoryErrorsAsync(() =>
       agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
     )
     context.onMemoryChange()
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
-    const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
+    const base = {
+      path: file.path,
+      cid,
+      ...(subpath ? {file: decodeURIComponent(subpath)} : {}),
+      size: file.size,
+      mimeType: file.mimeType,
+    }
     if (file.encoding === 'binary') {
       return {
-        summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
+        summary: `Fetched ipfs://${cid}${subpath ? `/${subpath}` : ''} to ${file.path} (${file.size} bytes${
           file.mimeType ? `, ${file.mimeType}` : ''
         }); binary content not shown.`,
         ...base,
       }
     }
-    return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+    return {
+      summary: `Fetched ipfs://${cid}${subpath ? `/${subpath}` : ''} to ${file.path} (${file.size} bytes).`,
+      ...base,
+      content: file.content,
+    }
   }
 
   if (address === 'activity:' || address.startsWith('activity:')) {
@@ -14891,8 +14972,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -15319,8 +15400,13 @@ export async function executeWriteVerb(
         })
       }
     }
+    // A tool: options.tool names a memory folder (or one .ts file) whose index.ts default-exports
+    // the tool's async function. It is published as a UnixFS folder beside the change and the
+    // document's `code` attribute points at it. A tool lives directly under an app.
+    const toolFolder = await resolveWriteToolFolder(context, options.tool)
+    if (toolFolder && pageFolder) throw new APIError(400, 'A document is either a page or a tool, not both.')
     let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined
-    if (pageFolder && pageInputSchema === undefined && action === 'update') {
+    if ((pageFolder || toolFolder) && pageInputSchema === undefined && action === 'update') {
       const id = unpackHmId(address)
       if (!id) throw new APIError(400, 'Invalid page address')
       const existing = await createSeedClient(context.hmServerUrl).request('Resource', id)
@@ -15329,7 +15415,7 @@ export async function executeWriteVerb(
       pageInputSchema = existing.document.metadata.inputSchema
     }
     const metadata: Record<string, unknown> | undefined =
-      isRecord(options.metadata) || pageFolder
+      isRecord(options.metadata) || pageFolder || toolFolder
         ? {
             ...(isRecord(options.metadata) ? options.metadata : {}),
             ...(pageFolder
@@ -15339,16 +15425,23 @@ export async function executeWriteVerb(
                   inputSchema: pageInputSchema ?? 'hm://hyper.media/page-input',
                 }
               : {}),
+            ...(toolFolder ? {type: HM_TOOL_TYPE, code: toolFolder.code, inputSchema: pageInputSchema} : {}),
           }
         : undefined
     if (pageFolder) {
       const ref = metadata?.inputSchema
-      if (typeof ref !== 'string' || !/^(hm|ipfs):\/\//.test(ref))
-        throw new APIError(400, 'A page inputSchema must reference a published HM schema.')
-      const contract = await loadSchemaRef(createSeedClient(context.hmServerUrl), ref)
-      if (!contract || resolveSchema(contract.schema, {}, contract.registry).schema.type !== STRUCT_URL)
-        throw new APIError(400, 'A page inputSchema must resolve to an HM struct schema.')
-      pageFolder.inputSchema = ref
+      await assertStructSchemaRef(createSeedClient(context.hmServerUrl), ref, 'A page inputSchema')
+      pageFolder.inputSchema = ref as string
+    }
+    if (toolFolder) {
+      if (metadata?.inputSchema === undefined)
+        throw new APIError(
+          400,
+          'A tool needs metadata.inputSchema: publish its input as an HM struct schema first (read ~/tools/write/apps).',
+        )
+      await assertStructSchemaRef(createSeedClient(context.hmServerUrl), metadata.inputSchema, 'A tool inputSchema')
+      if (metadata.outputSchema !== undefined)
+        await assertStructSchemaRef(createSeedClient(context.hmServerUrl), metadata.outputSchema, 'A tool outputSchema')
     }
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
@@ -15374,9 +15467,10 @@ export async function executeWriteVerb(
               ...(metadata ? {metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
-            pageFolder?.blobs,
+            pageFolder?.blobs ?? toolFolder?.blobs,
           ),
           pageFolder,
+          toolFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
@@ -15390,9 +15484,10 @@ export async function executeWriteVerb(
               ...(metadata ? {metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
-            pageFolder?.blobs,
+            pageFolder?.blobs ?? toolFolder?.blobs,
           ),
           pageFolder,
+          toolFolder,
         )
       case 'comment':
         return writeHypermedia(
@@ -16521,11 +16616,19 @@ async function writeDocumentCreate(
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
+  // A tool or page written under an app joins the app: its card embed is added to the app in the
+  // same publish. A tool anywhere else is refused.
+  const childId = unpackHmId(`hm://${account}${path}`)
+  const {app, refusal} = childId ? await resolveAppParent(client, childId, metadata.type) : {app: null}
+  if (refusal) throw new APIError(400, refusal)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
   const capability = await requireWriteCapability(client, account, signer.publicKey, path)
+  const appCapability = app
+    ? await requireWriteCapability(client, account, signer.publicKey, hmIdPathToEntityQueryPath(app.id.path))
+    : undefined
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
   const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   if (request.dryRun)
@@ -16533,6 +16636,7 @@ async function writeDocumentCreate(
       id: `hm://${account}${path}`,
       metadata,
       blockCount: parsed.blocks.length,
+      ...(app ? {app: app.id.id} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
@@ -16542,13 +16646,18 @@ async function writeDocumentCreate(
   // content Change is the genesis. Every document created here used to share the home genesis
   // (sixty papers, one comment thread, 2026-09-15).
   const created = await createDocumentBlobs(signer.signer, {space: account, path, ops, capability})
+  const appBlobs =
+    app && childId
+      ? await appEmbedBlobs({client, signer: signer.signer, app, childId, change: 'add', capability: appCapability})
+      : null
   const published = await client.publish({
-    blobs: [...created.blobs, ...extraBlobs],
+    blobs: [...created.blobs, ...extraBlobs, ...(appBlobs ?? [])],
   })
   return writeToolResult(request.command, signer, {
     id: `hm://${account}${path}`,
     version: created.version,
     cids: published.cids,
+    ...(app ? {app: app.id.id, listedInApp: true} : {}),
     ...typed,
     ...(await readBackDocumentAssets(client, `hm://${account}${path}`, created.version, assets)),
   })
@@ -16754,7 +16863,13 @@ async function writeDocumentDelete(
     genesis = resource.document.genesis
     generation = resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0
   }
-  if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(id), dryRun: true})
+  // A deleted tool or page also leaves its app's list.
+  const app = await findListingApp(client, id)
+  const appCapability = app
+    ? await requireWriteCapability(client, id.uid, signer.publicKey, hmIdPathToEntityQueryPath(app.id.path))
+    : undefined
+  if (request.dryRun)
+    return writeToolResult(request.command, signer, {id: packHmId(id), ...(app ? {app: app.id.id} : {}), dryRun: true})
   const refInput = await createTombstoneRef(
     {
       space: id.uid,
@@ -16765,8 +16880,22 @@ async function writeDocumentDelete(
     },
     signer.signer,
   )
-  const published = await client.publish(refInput)
-  return writeToolResult(request.command, signer, {id: packHmId(id), cids: published.cids})
+  const appBlobs = app
+    ? await appEmbedBlobs({
+        client,
+        signer: signer.signer,
+        app,
+        childId: id,
+        change: 'remove',
+        capability: appCapability,
+      })
+    : null
+  const published = await client.publish({blobs: [...refInput.blobs, ...(appBlobs ?? [])]})
+  return writeToolResult(request.command, signer, {
+    id: packHmId(id),
+    cids: published.cids,
+    ...(appBlobs ? {app: app!.id.id, removedFromApp: true} : {}),
+  })
 }
 
 async function writeDocumentRef(
@@ -17930,6 +18059,8 @@ export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<v
 
 function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteDocumentContent {
   const rawContent = input.content ?? input.body ?? input.text
+  // A document may be born without a body: an app or a tool is all metadata.
+  if (rawContent === undefined) return {ops: [], metadata: normalizeMetadataInput(input.metadata), blocks: []}
   const format =
     input.format === undefined
       ? typeof rawContent === 'string'

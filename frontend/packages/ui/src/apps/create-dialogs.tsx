@@ -1,0 +1,165 @@
+import {HM_APP_TYPE, HM_TOOL_TYPE, TOOL_CODE_TEMPLATE} from '@seed-hypermedia/client/apps'
+import type {DocumentOperation} from '@seed-hypermedia/client/change'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId, useUniversalClient} from '@shm/shared'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {pathNameify} from '@shm/shared/utils/path'
+import {useState} from 'react'
+import {Button} from '../button'
+import {DialogDescription, DialogTitle} from '../components/dialog'
+import {Input} from '../components/input'
+import {Label} from '../components/label'
+import {Textarea} from '../components/textarea'
+import {SizableText} from '../text'
+import {toast} from '../toast'
+import {toolCodeFolder, useAppsPublisher, type AppRef} from './publish'
+
+function attrs(values: Record<string, string>): DocumentOperation {
+  return {
+    type: 'SetAttributes',
+    attrs: Object.entries(values)
+      .filter(([, value]) => value !== '')
+      .map(([key, value]) => ({key: [key], value})),
+  }
+}
+
+/** The free path for `name` under `parent`: its slug, or the slug with a number when taken. */
+async function freeChildId(
+  client: ReturnType<typeof useUniversalClient>,
+  parent: UnpackedHypermediaId,
+  name: string,
+): Promise<UnpackedHypermediaId> {
+  const slug = pathNameify(name) || 'untitled'
+  for (let attempt = 1; attempt < 50; attempt++) {
+    const path = [...(parent.path ?? []), attempt === 1 ? slug : `${slug}-${attempt}`]
+    const id = hmId(parent.uid, {path})
+    const existing = await client.request('Resource', id).catch(() => null)
+    if (existing?.type !== 'document') return id
+  }
+  throw new Error('Choose a different name')
+}
+
+function NameAndSummaryForm({
+  title,
+  description,
+  namePlaceholder,
+  summaryPlaceholder,
+  submitLabel,
+  onSubmit,
+  onClose,
+}: {
+  title: string
+  description: string
+  namePlaceholder: string
+  summaryPlaceholder: string
+  submitLabel: string
+  onSubmit: (values: {name: string; summary: string}) => Promise<void>
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [summary, setSummary] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!name.trim() || busy) return
+        setBusy(true)
+        setError(null)
+        onSubmit({name: name.trim(), summary: summary.trim()})
+          .then(onClose)
+          .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+          .finally(() => setBusy(false))
+      }}
+    >
+      <DialogTitle>{title}</DialogTitle>
+      <DialogDescription>{description}</DialogDescription>
+      <div className="grid gap-1">
+        <Label htmlFor="app-create-name">Name</Label>
+        <Input
+          id="app-create-name"
+          autoFocus
+          value={name}
+          placeholder={namePlaceholder}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </div>
+      <div className="grid gap-1">
+        <Label htmlFor="app-create-summary">Description</Label>
+        <Textarea
+          id="app-create-summary"
+          value={summary}
+          placeholder={summaryPlaceholder}
+          onChange={(event) => setSummary(event.target.value)}
+        />
+      </div>
+      {error ? (
+        <SizableText size="sm" className="text-destructive" role="alert">
+          {error}
+        </SizableText>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="default" disabled={!name.trim() || busy}>
+          {busy ? 'Creating…' : submitLabel}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+/** Creates an app under `location` and opens it. */
+export function CreateAppDialog({input, onClose}: {input: {location: UnpackedHypermediaId}; onClose: () => void}) {
+  const client = useUniversalClient()
+  const publisher = useAppsPublisher()
+  const navigate = useNavigate()
+  return (
+    <NameAndSummaryForm
+      title="New app"
+      description="An app collects tools and pages. It is a document you can share like any other."
+      namePlaceholder="Weather"
+      summaryPlaceholder="What the app is for"
+      submitLabel="Create app"
+      onClose={onClose}
+      onSubmit={async ({name, summary}) => {
+        const id = await freeChildId(client, input.location, name)
+        await publisher.create(id, [attrs({name, summary, type: HM_APP_TYPE})])
+        toast.success(`Created ${name}`)
+        navigate({key: 'document', id})
+      }}
+    />
+  )
+}
+
+/** Creates a tool inside `app`, lists it on the app and opens it. */
+export function CreateToolDialog({input, onClose}: {input: {app: AppRef}; onClose: () => void}) {
+  const client = useUniversalClient()
+  const publisher = useAppsPublisher()
+  const navigate = useNavigate()
+  return (
+    <NameAndSummaryForm
+      title="New tool"
+      description="A tool is one function of this app: an input schema, an output schema and its code."
+      namePlaceholder="forecast"
+      summaryPlaceholder="What the tool does"
+      submitLabel="Create tool"
+      onClose={onClose}
+      onSubmit={async ({name, summary}) => {
+        const id = await freeChildId(client, input.app.id, name)
+        const folder = await toolCodeFolder(TOOL_CODE_TEMPLATE)
+        await publisher.create(
+          id,
+          [attrs({name, summary, type: HM_TOOL_TYPE, code: folder.code})],
+          input.app,
+          folder.blobs,
+        )
+        toast.success(`Created ${name}`)
+        navigate({key: 'document', id})
+      }}
+    />
+  )
+}

@@ -400,6 +400,31 @@ describe('write verb', () => {
     )
   })
 
+  test('read ipfs://<cid>/<path> reads that file of a UnixFS folder, such as a tool index.ts', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const cid = 'bafybeicn7oky3oaxeega6pl4n6w6rmvwhdtik4pjw2fxbmvxczvidzz2uq'
+    const requested: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = String(url)
+      requested.push(href)
+      if (href === `https://hm.example/ipfs/${cid}/index.ts`)
+        return new Response('export default async function (input) {\n  return {}\n}\n', {
+          headers: {'content-type': 'text/plain'},
+        })
+      return new Response('not found', {status: 404})
+    }) as unknown as typeof fetch
+
+    const result = await executeReadVerb(context, {address: `ipfs://${cid}/index.ts`})
+    expect(requested).toEqual([`https://hm.example/ipfs/${cid}/index.ts`])
+    expect(result).toMatchObject({cid, file: 'index.ts', path: `ipfs/${cid}/index.ts`})
+    expect(String(result.content)).toContain('export default async function')
+    await expect(executeReadVerb(context, {address: `ipfs://${cid}/../secret`})).rejects.toThrow('Invalid path')
+  })
+
   test('batchBlobsForPublish keeps order and never splits a single oversized blob', () => {
     const blob = (n: number, size: number) => ({cid: `c${n}`, data: new Uint8Array(size)})
     const batches = apisvc.batchBlobsForPublish([blob(1, 4), blob(2, 4), blob(3, 20), blob(4, 1), blob(5, 9)], 10)

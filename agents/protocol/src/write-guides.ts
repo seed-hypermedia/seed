@@ -154,6 +154,10 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 
 Read \`~/tools/write/pages\` before building a custom HTML page. Durable page data uses schema-bound Seed resources; create the data model and resources before the HTML.
 
+## Apps and tools
+
+Read \`~/tools/write/apps\` before building an app. An app is a document typed \`hm://hyper.media/app\` whose card embeds list its tools and pages; a tool (\`options.tool\`) must be written directly under an app.
+
 ## Typed documents
 
 Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Hypermedia schemas:
@@ -310,6 +314,54 @@ The same APIs work on web and desktop, subject to those independent approvals:
 Use click handlers for actions rather than form submission. Disable Submit while pending, preserve input on errors/denial, and only clear it on success. Calls awaiting trust stay pending until the viewer decides; at most 32 requests may be pending, with 8 MiB per request including binary bytes. Do not try to export keys, read another page's local state, or access parent DOM/cookies. Advanced Any signing includes lasting permission grants and arbitrary signatures. Do not push users toward broad trust to make a page work. Revocation stops further operations and late results; it cannot recall completed signatures, published writes or capabilities already granted. The sandbox does not guarantee data cannot leave through navigation. Verify the rendered page and SDK calls before claiming they work.
 
 `,
+  },
+  apps: {
+    summary: 'Build an app: a document whose card embeds list its tools and pages.',
+    markdown: `# Building apps and tools
+
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Every child lives directly under the app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
+
+A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Nothing runs app tools yet; publish them so people can read, review and edit them. These are different from the private callables in \`~/tools/<name>\` (read ~/tools/write/tools): an app tool is a shared, signed Seed document.
+
+## Steps
+
+1. Write the app: an ordinary document with a name, a one-line description in \`metadata.summary\`, and \`metadata.type: "hm://hyper.media/app"\`. Leave its content empty; the publisher fills it in.
+2. For each tool, publish its input schema (and output schema, if it returns something structured) as an HM struct with write ipfs:// and \`options.schema: "schema"\` (read ~/tools/write/ipfs). Reference each by its \`ipfs://\` CID, or bind it to a type document and use that document's hm:// URL.
+3. Write the tool's code to memory as \`~/memory/apps/<app>/<tool>/index.ts\`. The entry point default-exports one async function that takes the input and resolves to the output:
+
+\`\`\`ts
+type Input = {city: string}
+type Output = {summary: string; highC: number}
+
+export default async function (input: Input): Promise<Output> {
+  return {summary: \`Sunny in \${input.city}\`, highC: 21}
+}
+\`\`\`
+
+4. Publish the tool under the app with \`options.tool\` naming that folder (or one .ts file). The publisher checks that index.ts parses and default-exports a function, publishes the folder, sets \`type\` and \`code\`, and adds the tool's card embed to the app in the same publish. A tool anywhere but directly under an app is refused.
+5. Pages work the same way: a page written directly under an app (with \`options.page\`, read ~/tools/write/pages) is added to the app's list too. Set the app's \`metadata.homePage\` to one of its pages' hm:// URL to make that page the app's Home tab.
+
+## Example
+
+\`\`\`json
+{"address":"hm://SIGNER_UID/apps/weather","options":{"name":"Weather","metadata":{"type":"hm://hyper.media/app","summary":"Forecasts and radar for any city."},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+\`\`\`json
+{"address":"hm://SIGNER_UID/apps/weather/forecast","options":{"name":"forecast","tool":"~/memory/apps/weather/forecast","metadata":{"summary":"Today's forecast for a city.","inputSchema":"ipfs://INPUT_SCHEMA_CID","outputSchema":"ipfs://OUTPUT_SCHEMA_CID"},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+\`\`\`json
+{"address":"hm://SIGNER_UID/apps/weather/radar","content":"Radar map.","options":{"name":"Radar","page":"~/memory/apps/weather/radar","signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"update","metadata":{"homePage":"hm://SIGNER_UID/apps/weather/radar"}}}\`.
+
+## Revising
+
+- Read a tool's current code with \`read ipfs://<code CID>/index.ts\` (the \`code\` attribute names the folder), edit it in memory, then write the same address with \`options.action: "update"\` and \`options.tool\` again. Its schemas stay unless \`metadata\` replaces them.
+- Delete a tool or page with \`options.action: "delete"\`; it also leaves the app's list.
+- Do not edit the app's content by hand to list children; the publisher keeps the embeds in order, oldest first.`,
   },
   comments: {
     summary: 'Create comments and replies, then update or delete existing comment records.',

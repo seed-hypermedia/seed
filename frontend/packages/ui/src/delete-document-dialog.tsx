@@ -13,8 +13,8 @@ export type DeleteDocumentDialogProps = {
   childDocuments?: DeleteDocumentDialogItem[]
   canDelete?: boolean
   cannotDeleteReason?: string
-  /** What is being deleted: a mounted agent's document is deleted as the agent, server side included. */
-  subject?: 'document' | 'agent'
+  /** What is being deleted: a mounted agent's document is deleted as the agent, server side included; apps and tools are named as such. */
+  subject?: 'document' | 'agent' | 'app' | 'tool'
   onConfirm: () => Promise<void> | void
   onClose?: () => void
   onSuccess?: () => void
@@ -83,7 +83,11 @@ export function DeleteDocumentDialog({
         <Text className="text-muted-foreground text-base leading-7">
           {subject === 'agent'
             ? 'This permanently removes the agent: its sessions, memory and triggers on its server, and its document. Links pointing to it from other documents will break.'
-            : 'This permanently removes the document and all its content. Links pointing to it from other documents will break.'}
+            : subject === 'app'
+              ? 'This permanently removes the app, its tools and its pages. Links pointing to them will break.'
+              : subject === 'tool'
+                ? 'This permanently removes the tool and takes it out of its app. Links pointing to it will break.'
+                : 'This permanently removes the document and all its content. Links pointing to it from other documents will break.'}
         </Text>
       </div>
 
@@ -103,7 +107,7 @@ export function DeleteDocumentDialog({
           Cancel
         </Button>
         <Button variant="destructive" onClick={handleConfirm} disabled={isDeleting}>
-          {subject === 'agent' ? 'Delete agent' : 'Delete document'}
+          {`Delete ${subject}`}
         </Button>
       </div>
     </div>

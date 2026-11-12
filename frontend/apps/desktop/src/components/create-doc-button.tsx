@@ -14,6 +14,9 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {CreateAppDialog, CreateToolDialog} from '@shm/ui/apps/create-dialogs'
+import type {AppRef} from '@shm/ui/apps/publish'
+import {appResourceKind} from '@shm/ui/apps/tabs'
 import {useAgentServerUrls} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
 import {DocumentCreateButton} from '@shm/ui/document-create-button'
@@ -29,7 +32,7 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Bot, FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
+import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -60,6 +63,12 @@ export function useCreateDocumentMenuItem({
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
   const createAgent = useCreateAgentAtLocation(locationId, !locationId.path?.length)
+  // An app takes only tools from this menu (agents build its pages); a tool takes nothing.
+  const location = useResource(locationId)
+  const locationDocument = location.data?.type === 'document' ? location.data.document : undefined
+  const locationKind = appResourceKind(locationDocument?.metadata.type)
+  const createApp = useAppDialog(CreateAppDialog)
+  const createTool = useAppDialog(CreateToolDialog)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -75,6 +84,21 @@ export function useCreateDocumentMenuItem({
   const menuItem = useMemo<MenuItemType | null>(() => {
     if (!myAccountIds.data?.length) return null
     if (!canEdit || !canCreateChildren) return null
+    if (locationKind === 'tool') return null
+    if (locationKind === 'app')
+      return {
+        key: 'new',
+        label: 'New',
+        icon: <Add className="size-4" />,
+        children: [
+          {
+            key: 'new-tool',
+            label: 'Tool',
+            icon: <Wrench className="size-4" />,
+            onClick: () => locationDocument && createTool.open({app: {id: locationId, document: locationDocument}}),
+          },
+        ],
+      }
 
     return {
       key: 'new',
@@ -123,6 +147,12 @@ export function useCreateDocumentMenuItem({
             ]
           : []),
         {
+          key: 'new-app',
+          label: 'App',
+          icon: <Blocks className="size-4" />,
+          onClick: () => createApp.open({location: locationId}),
+        },
+        {
           key: 'import',
           label: 'Import',
           icon: <Import className="size-4" />,
@@ -134,6 +164,11 @@ export function useCreateDocumentMenuItem({
     canCreateChildren,
     canEdit,
     createAgent.open,
+    createApp.open,
+    createTool.open,
+    locationDocument,
+    locationId,
+    locationKind,
     createDraft,
     myAccountIds.data?.length,
     openImportDialog,
@@ -147,6 +182,8 @@ export function useCreateDocumentMenuItem({
         {importDialog.content}
         {importing.content}
         {createAgent.content}
+        {createApp.content}
+        {createTool.content}
       </>
     ),
   }
@@ -240,6 +277,7 @@ function DesktopActorButton({
   })
   const createDraft = useCreateDraft()
   const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
+  const createApp = useAppDialog(CreateAppDialog)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -303,6 +341,7 @@ function DesktopActorButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
         onCreateAgent={createAgent.open}
+        onCreateApp={() => createApp.open({location: destination})}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -337,6 +376,7 @@ function DesktopActorButton({
       {importDialog.content}
       {importing.content}
       {createAgent.content}
+      {createApp.content}
     </>
   )
 }
@@ -392,6 +432,10 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
   if (!currentDocument || !canEditCurrent) return null
   // Only documents and collections take children; an agent's page is the agent.
   if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
+  // An app's New makes its tools; a tool takes no children.
+  const kind = appResourceKind(currentDocument.metadata?.type)
+  if (kind === 'tool') return null
+  if (kind === 'app') return <NewToolButton app={{id: locationId, document: currentDocument}} />
 
   return (
     <DesktopActorButton
@@ -404,5 +448,22 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
       schema={schema}
       onImportFinished={() => setGeneration((value) => value + 1)}
     />
+  )
+}
+
+/** The New button on an app: tools are the only children made here (agents build its pages). */
+function NewToolButton({app}: {app: AppRef}) {
+  const createTool = useAppDialog(CreateToolDialog)
+  return (
+    <>
+      <DocumentCreateButton
+        onCreate={() => {}}
+        onImport={() => {}}
+        options={[
+          {key: 'new-tool', label: 'Tool', icon: <Wrench className="size-4" />, onSelect: () => createTool.open({app})},
+        ]}
+      />
+      {createTool.content}
+    </>
   )
 }

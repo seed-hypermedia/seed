@@ -144,6 +144,29 @@ describe('hypermediaUrlToRoute', () => {
     }
   })
 
+  test('app tabs live at /:app/<view> and round trip on every URL form', () => {
+    const id = hmId('alice', {path: ['apps', 'weather']})
+    for (const appView of ['tools', 'pages', 'settings'] as const) {
+      const route = {key: 'document' as const, id, appView}
+      expect(routeToHmUrl(route)).toBe(`hm://alice/apps/weather/:app/${appView}`)
+      expect(routeToUrl(route, {hostname: 'https://seed.example'})).toBe(
+        `https://seed.example/hm/alice/apps/weather/:app/${appView}`,
+      )
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/apps/weather/:app/${appView}`)
+      for (const url of [
+        `hm://alice/apps/weather/:app/${appView}`,
+        `https://seed.example/hm/alice/apps/weather/:app/${appView}`,
+      ]) {
+        const parsed = hypermediaUrlToRoute(url)
+        expect(parsed).toMatchObject({key: 'document', id: {id: id.id}, appView})
+        expect(parsed).not.toHaveProperty('agentView')
+      }
+    }
+    // The agent terms keep their meaning: plain :tools and :settings are an agent's pages.
+    expect(hypermediaUrlToRoute('hm://alice/apps/weather/:tools')).toMatchObject({agentView: 'permissions'})
+    expect(hypermediaUrlToRoute('hm://alice/apps/weather/:settings')).toMatchObject({agentView: 'settings'})
+  })
+
   test('converts a base document URL into a document route', () => {
     expect(hypermediaUrlToRoute('hm://uid1')).toEqual({
       key: 'document',

@@ -1,4 +1,5 @@
 import {HMListDocumentCollaboratorsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {ResourceTab} from './apps/tabs'
 import {
   hmId,
   activityFilterToSlug,
@@ -85,8 +86,11 @@ export function DocumentTools({
   hasAgent,
   agentHome,
   activeAgentView,
+  resourceTabs,
 }: {
   id: UnpackedHypermediaId
+  /** A typed resource's own tabs (an app's or a tool's); they replace the document tabs like an agent's. */
+  resourceTabs?: ResourceTab[]
   hasAgent?: boolean
   /** Agent resources display their identity home instead of mount content. */
   agentHome?: boolean
@@ -328,7 +332,7 @@ export function DocumentTools({
               ]
             : []),
         ]
-  const isAgentTabBar = (hasAgent || agentHome) && mode === 'document'
+  const isAgentTabBar = (hasAgent || agentHome || !!resourceTabs) && mode === 'document'
   // An agent's tab bar is about the agent: Comments only shows once a comment exists (or while it
   // is open); connections, people and attributes never do (attributes live in the options menu).
   const buttons = isAgentTabBar
@@ -355,32 +359,34 @@ export function DocumentTools({
           {view: 'settings', label: 'Settings', icon: Settings},
         ]
       : []
-    buttons.unshift(
-      // An agent document has no Home tab for now: its base URL opens Sessions. A document that
-      // merely advertises a server keeps its Content tab beside the agent tabs.
-      ...(agentHome
-        ? []
-        : [
-            {
-              label: 'Content',
-              tooltip: 'Open Content',
-              icon: Newspaper,
-              active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
-              route: documentRoute,
-            },
-          ]),
-      ...agentTabs.map(({view, label, icon}) => ({
-        label,
-        tooltip: `Open agent ${label.toLowerCase()}`,
-        icon,
-        // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
-        active:
-          activeAgentView === view ||
-          (view === 'sessions' && (activeAgentView === 'session' || (!activeAgentView && !!agentHome))) ||
-          (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
-        route: {...documentRoute, agentView: view},
-      })),
-    )
+    if (resourceTabs) buttons.unshift(...resourceTabs)
+    else
+      buttons.unshift(
+        // An agent document has no Home tab for now: its base URL opens Sessions. A document that
+        // merely advertises a server keeps its Content tab beside the agent tabs.
+        ...(agentHome
+          ? []
+          : [
+              {
+                label: 'Content',
+                tooltip: 'Open Content',
+                icon: Newspaper,
+                active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+                route: documentRoute,
+              },
+            ]),
+        ...agentTabs.map(({view, label, icon}) => ({
+          label,
+          tooltip: `Open agent ${label.toLowerCase()}`,
+          icon,
+          // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
+          active:
+            activeAgentView === view ||
+            (view === 'sessions' && (activeAgentView === 'session' || (!activeAgentView && !!agentHome))) ||
+            (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
+          route: {...documentRoute, agentView: view},
+        })),
+      )
   }
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =
@@ -431,7 +437,7 @@ export function DocumentTools({
           count={button.count}
           showZeroCount={button.showZeroCount}
           bg={button.bg}
-          showLabel={hasAgent || showLabels}
+          showLabel={hasAgent || !!resourceTabs || showLabels}
           collapsedCount={
             mode === 'document' && 'panel' in button.route && button.route.panel?.key === 'collaborators'
               ? collabsCount
@@ -452,7 +458,7 @@ export function DocumentTools({
     </>
   )
 
-  if (hasAgent)
+  if (hasAgent || resourceTabs)
     return (
       <div ref={containerRef} className="flex min-w-0 items-center gap-2 overflow-x-auto p-1">
         {tabButtons}

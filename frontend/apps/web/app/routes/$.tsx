@@ -66,6 +66,7 @@ const WebSpaceSettingsScreen = lazy(() =>
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
   agentSessionId?: string
   agentTriggerId?: string
   agentMemoryPath?: string
@@ -132,6 +133,7 @@ function getInspectTab(value: string | null): InspectTab | null {
  */
 function extractViewTermFromPath(pathParts: string[]): {
   agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
   agentSessionId?: string
   agentTriggerId?: string
   path: string[]
@@ -446,6 +448,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   let isCommentPermalink = false
   let accountUid: string | null = null
   let agentView: DocumentRoute['agentView']
+  let appView: DocumentRoute['appView']
   let agentSessionId: string | undefined
   let agentTriggerId: string | undefined
 
@@ -467,6 +470,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     const docUid = targetPathParts[0]
     const extracted = extractViewTermFromPath(targetPathParts.slice(1))
     agentView = extracted.agentView
+    appView = extracted.appView
     agentSessionId = extracted.agentSessionId
     agentTriggerId = extracted.agentTriggerId
     viewTerm = extracted.viewTerm
@@ -483,8 +487,8 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     accountUid = extracted.accountUid || null
     documentId = hmId(docUid, {
       path: extracted.path,
-      version: isCommentPermalink || agentView ? null : version,
-      latest: isCommentPermalink || agentView ? true : latest,
+      version: isCommentPermalink || agentView || appView ? null : version,
+      latest: isCommentPermalink || agentView || appView ? true : latest,
     })
   } else {
     // Site document (regular path) or inspector document (/inspect/path...)
@@ -493,6 +497,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     isInspect = inspectResult.isInspect
     const extracted = extractViewTermFromPath(inspectResult.pathParts)
     agentView = extracted.agentView
+    appView = extracted.appView
     agentSessionId = extracted.agentSessionId
     agentTriggerId = extracted.agentTriggerId
     viewTerm = extracted.viewTerm
@@ -509,13 +514,14 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
-      version: isCommentPermalink || agentView ? null : version,
-      latest: isCommentPermalink || agentView ? true : latest,
+      version: isCommentPermalink || agentView || appView ? null : version,
+      latest: isCommentPermalink || agentView || appView ? true : latest,
     })
   }
 
   const siteResourceData = {
     agentView,
+    appView,
     agentSessionId,
     agentTriggerId: agentTriggerId || parsedRequest.url.searchParams.get('trigger') || undefined,
     agentMemoryPath: parsedRequest.url.searchParams.get('file') || undefined,
@@ -629,9 +635,10 @@ export default function UnifiedDocumentPage() {
           q: siteData.exploreQ || undefined,
           sort: siteData.exploreSort || undefined,
         }
-      : siteData.agentView && initialRoute.key === 'document'
+      : (siteData.agentView || siteData.appView) && initialRoute.key === 'document'
         ? {
             ...initialRoute,
+            appView: siteData.appView,
             agentView: siteData.agentView,
             agentSessionId: siteData.agentSessionId,
             agentTriggerId: siteData.agentTriggerId,

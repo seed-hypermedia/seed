@@ -6673,6 +6673,212 @@ describe('api service', () => {
     }
   })
 
+  test('write with options.tool publishes a tool under its app and keeps the app list in step', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      let toolExists = false
+      const appContent: unknown[] = [
+        {block: {id: 'note', type: 'Paragraph', text: 'Weather tools.', annotations: [], attributes: {}}, children: []},
+      ]
+      const publishes: {blobs: {cid?: string; data: Uint8Array}[]}[] = []
+      const document = (path: string, metadata: Record<string, unknown>, content: unknown[] = []) => ({
+        type: 'document',
+        id: unpackHmId(`hm://${signerPublicKey}${path}`),
+        document: {
+          content,
+          version: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+          account: signerPublicKey,
+          authors: [signerPublicKey],
+          path,
+          createTime: '',
+          updateTime: '',
+          metadata,
+          genesis: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+          visibility: 'PUBLIC',
+        },
+      })
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
+          return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/ListChanges'))
+          return Response.json(
+            serialize({
+              changes: [
+                {id: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy', deps: [], author: signerPublicKey},
+              ],
+            }),
+          )
+        if (href.includes('/api/Resource')) {
+          const target = decodeURIComponent(href)
+          if (/\/weather\/forecast\b/.test(target))
+            return Response.json(
+              serialize(
+                toolExists
+                  ? document('/weather/forecast', {name: 'forecast', type: 'hm://hyper.media/tool'})
+                  : {type: 'not-found', id: unpackHmId(`hm://${signerPublicKey}/weather/forecast`)},
+              ),
+            )
+          if (/\/notes\b/.test(target)) return Response.json(serialize(document('/notes', {name: 'Notes'})))
+          if (/\/weather\b/.test(target))
+            return Response.json(
+              serialize(document('/weather', {name: 'Weather', type: 'hm://hyper.media/app'}, appContent)),
+            )
+          return Response.json(serialize(document('', {name: 'Home'})))
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'App builder', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+      })
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      const writeMemory = async (path: string, content: string) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'WriteAgentMemoryFile', agentId: session.session.agentId, path, content},
+          }),
+        )
+      const write = async (input: Record<string, unknown>) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+      await writeMemory(
+        'apps/weather/forecast/index.ts',
+        'export default async function (input: {city: string}) {\n  return {summary: `Sunny in ${input.city}`}\n}\n',
+      )
+      // Setup publishes the signing identity's profile; count only what the writes publish.
+      publishes.length = 0
+      const toolOptions = {
+        name: 'forecast',
+        tool: '~/memory/apps/weather/forecast',
+        metadata: {summary: 'Forecast for a city.', inputSchema: 'hm://hyper.media/example/person'},
+      }
+
+      // A tool needs an input schema and an entry point that default-exports its function.
+      const noSchema = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: {...toolOptions, metadata: {summary: 'Forecast for a city.'}},
+      })
+      expect(String(noSchema.error)).toContain('inputSchema')
+      await writeMemory('apps/broken/index.ts', 'export const notDefault = 1\n')
+      const noDefault = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: {...toolOptions, tool: '~/memory/apps/broken'},
+      })
+      expect(String(noDefault.error)).toContain('default-export')
+      // A tool anywhere but directly under an app is refused.
+      const outside = await write({address: `hm://${signerPublicKey}/notes/forecast`, options: toolOptions})
+      expect(String(outside.error)).toContain('directly under an app')
+      expect(publishes).toHaveLength(0)
+
+      const dryRun = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: toolOptions,
+        dryRun: true,
+      })
+      expect(dryRun.error).toBeUndefined()
+      expect(dryRun.app).toBe(`hm://${signerPublicKey}/weather`)
+      expect(publishes).toHaveLength(0)
+
+      const created = await write({address: `hm://${signerPublicKey}/weather/forecast`, options: toolOptions})
+      expect(created.error).toBeUndefined()
+      expect(created).toMatchObject({
+        resourceType: 'hm://hyper.media/tool',
+        app: `hm://${signerPublicKey}/weather`,
+        listedInApp: true,
+        toolFiles: 1,
+      })
+      expect(created.code).toMatch(/^ipfs:\/\/bafy/)
+      // One publish carries the tool, its code folder and the app's new card embed.
+      expect(publishes).toHaveLength(1)
+      const changes = publishes[0]!.blobs
+        .map((blob) => {
+          try {
+            return cbor.decode<{type?: string; body?: {ops?: {type: string; block?: Record<string, unknown>}[]}}>(
+              blob.data,
+            )
+          } catch {
+            return null
+          }
+        })
+        .filter((value) => value?.type === 'Change')
+      const toolChange = changes.find(
+        (change) =>
+          change?.body?.ops?.some(
+            (op) => op.type === 'SetAttributes' && JSON.stringify(op).includes('hm://hyper.media/tool'),
+          ),
+      )
+      expect(JSON.stringify(toolChange)).toContain(String(created.code))
+      const appChange = changes.find((change) => change?.body?.ops?.some((op) => op.type === 'ReplaceBlock'))
+      expect(appChange?.body?.ops?.find((op) => op.type === 'ReplaceBlock')?.block).toMatchObject({
+        type: 'Embed',
+        link: `hm://${signerPublicKey}/weather/forecast`,
+        view: 'Card',
+      })
+
+      // Deleting the tool removes its embed in the same publish.
+      toolExists = true
+      appContent.unshift({
+        block: {
+          id: 'tool1',
+          type: 'Embed',
+          link: `hm://${signerPublicKey}/weather/forecast`,
+          attributes: {view: 'Card'},
+        },
+        children: [],
+      })
+      const deleted = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: {action: 'delete'},
+      })
+      expect(deleted.error).toBeUndefined()
+      expect(deleted).toMatchObject({app: `hm://${signerPublicKey}/weather`, removedFromApp: true})
+      expect(publishes).toHaveLength(2)
+      expect(
+        JSON.stringify(
+          publishes[1]!.blobs.map((blob) => {
+            try {
+              return cbor.decode(blob.data)
+            } catch {
+              return null
+            }
+          }),
+        ),
+      ).toContain('"DeleteBlocks"')
+    } finally {
+      globalThis.fetch = originalFetch
+      cleanup()
+    }
+  })
+
   test('publishes a markdown memory file as a seed document, uploading memory images and updating in place', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

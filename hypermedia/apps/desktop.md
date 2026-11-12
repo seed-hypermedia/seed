@@ -139,6 +139,7 @@ The pane's header shows the page's icon and title, a private-page button, the tr
 <!-- id:PHFBxAlV -->
 
 - [Custom HTML pages](./document-pages.md): documents that open as sandboxed HTML pages, built by agents and shared like any document.
+- [Apps and tools](./apps-and-tools.md): an app collects tools and pages, listed by card embeds and shown as Home, Tools, Pages and Settings tabs.
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md)
   <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md),

@@ -25,7 +25,10 @@ export type DocumentState = {
 /**
  * Resolves the current document state including head depth.
  */
-export async function resolveDocumentState(client: SeedClient, targetId: string): Promise<DocumentState> {
+export async function resolveDocumentState(
+  client: Pick<SeedClient, 'request'>,
+  targetId: string,
+): Promise<DocumentState> {
   const unpacked = unpackHmId(targetId)
   if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
   const changesResp = await client.request('ListChanges', {targetId: unpacked})
@@ -148,7 +151,10 @@ export type FollowedResource = {
  * address: the content belongs to `targetId`, and a write to `id` behaves differently from a write
  * to `targetId` (see {@link describeRedirect}). Callers surface `redirects` to the user or agent.
  */
-export async function followRedirects(client: SeedClient, id: UnpackedHypermediaId): Promise<FollowedResource> {
+export async function followRedirects(
+  client: Pick<SeedClient, 'request'>,
+  id: UnpackedHypermediaId,
+): Promise<FollowedResource> {
   const seen = new Set<string>([packHmId(id)])
   const redirects: RedirectHop[] = []
   let current = id
@@ -197,7 +203,10 @@ export function describeRedirect(followed: Pick<FollowedResource, 'id' | 'target
  * `type: 'redirect'`. Operations on such a path (edit, fork, move, delete) act on the redirect
  * target's document, so this follows the chain (bounded, cycle-safe) to that document.
  */
-export async function followToDocument(client: SeedClient, id: UnpackedHypermediaId): Promise<FollowedDocument> {
+export async function followToDocument(
+  client: Pick<SeedClient, 'request'>,
+  id: UnpackedHypermediaId,
+): Promise<FollowedDocument> {
   const followed = await followRedirects(client, id)
   const first = followed.redirects[0]
   if (followed.resource.type !== 'document') {
@@ -224,7 +233,7 @@ export async function followToDocument(client: SeedClient, id: UnpackedHypermedi
  * Ref at the source path with a fresh generation, which supersedes the redirect Ref.
  */
 export async function resolveEditableDocument(
-  client: SeedClient,
+  client: Pick<SeedClient, 'request'>,
   id: UnpackedHypermediaId,
 ): Promise<EditableDocumentBase> {
   const followed = await followToDocument(client, id)

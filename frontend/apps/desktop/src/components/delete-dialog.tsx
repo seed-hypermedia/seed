@@ -8,6 +8,9 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
 import {useMountedAgentDeletion} from '@shm/ui/agents/delete-mounted-agent'
+import {useAppsPublisher, type AppRef} from '@shm/ui/apps/publish'
+import {appResourceKind} from '@shm/ui/apps/tabs'
+import {parentDocumentId} from '@seed-hypermedia/client/apps'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {DeleteDocumentDialog as SharedDeleteDocumentDialog} from '@shm/ui/delete-document-dialog'
 import {Spinner} from '@shm/ui/spinner'
@@ -46,6 +49,9 @@ export function DeleteDocumentDialog({
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
+  const parentId = parentDocumentId(id)
+  const parent = useResource(parentId)
+  const appsPublisher = useAppsPublisher()
   // A mounted agent goes with its document; the agent server call is signed by the same account.
   const agentDeletion = useMountedAgentDeletion(
     id,
@@ -65,6 +71,12 @@ export function DeleteDocumentDialog({
 
   const childDocIds = childDocs.map((item) => hmId(id.uid, {path: item.path}))
   const document = doc.data.document
+  const kind = appResourceKind(document.metadata.type)
+  // A deleted tool or page also leaves the list of the app it belongs to.
+  const listingApp: AppRef | undefined =
+    parentId && parent.data?.type === 'document' && appResourceKind(parent.data.document.metadata.type) === 'app'
+      ? {id: parentId, document: parent.data.document}
+      : undefined
 
   return (
     <SharedDeleteDocumentDialog
@@ -79,7 +91,7 @@ export function DeleteDocumentDialog({
         path: item.path,
       }))}
       canDelete={!!cap && roleCanWrite(cap.role)}
-      subject={agentDeletion.isAgent ? 'agent' : 'document'}
+      subject={agentDeletion.isAgent ? 'agent' : kind ?? 'document'}
       onConfirm={async () => {
         await agentDeletion.deleteAgent()
         await deleteEntity.mutateAsync({
@@ -87,6 +99,7 @@ export function DeleteDocumentDialog({
           signingAccountUid: cap!.accountUid,
           capabilityId: cap!.capabilityId,
         })
+        if (listingApp) await appsPublisher.removeFromApp(listingApp, id)
       }}
       onClose={onClose}
       onSuccess={onSuccess}
