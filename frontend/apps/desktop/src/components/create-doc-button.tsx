@@ -456,20 +456,13 @@ function NewToolButton({app}: {app: AppRef}) {
   const createTool = useAppDialog(CreateToolDialog)
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="default" size="sm" className="justify-center">
-            <Add className="size-4" />
-            <span className="truncate">New</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={() => createTool.open({app})}>
-            <Wrench className="size-4" />
-            Tool
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DocumentCreateButton
+        onCreate={() => {}}
+        onImport={() => {}}
+        options={[
+          {key: 'new-tool', label: 'Tool', icon: <Wrench className="size-4" />, onSelect: () => createTool.open({app})},
+        ]}
+      />
       {createTool.content}
     </>
   )
