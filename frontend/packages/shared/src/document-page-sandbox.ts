@@ -10,9 +10,13 @@ import {
 /** Same-origin resource route containing only the sandbox bootstrap, never page code or credentials. */
 export const DOCUMENT_PAGE_RUNNER_PATH = '/hm/page-runner'
 
-/** HTTP policy also isolates direct visits; page code may execute only inline scripts/styles. */
+/**
+ * HTTP policy also isolates direct visits; page code may execute only inline scripts/styles.
+ * `allow-forms` lets a page's own submit handlers run (browsers drop the submit event without it);
+ * `form-action 'none'` still stops any form from navigating or posting anywhere.
+ */
 export const DOCUMENT_PAGE_SANDBOX_CSP = [
-  'sandbox allow-scripts',
+  'sandbox allow-scripts allow-forms',
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline'",
@@ -167,7 +171,7 @@ export function mountDocumentPage({
   const frame = document.createElement('iframe')
   frame.title = 'Document page'
   frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:white'
-  frame.setAttribute('sandbox', 'allow-scripts')
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms')
   frame.referrerPolicy = 'no-referrer'
   frame.src = `${DOCUMENT_PAGE_RUNNER_PATH}#launch=${launch}`
   const channel = new MessageChannel()

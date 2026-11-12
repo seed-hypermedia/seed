@@ -28,7 +28,8 @@ describe('same-origin page routes', () => {
   it('keeps direct runner visits opaque and network restricted', async () => {
     const response = runner(args())
     const policy = response.headers.get('Content-Security-Policy')!
-    expect(policy).toContain('sandbox allow-scripts')
+    expect(policy).toContain('sandbox allow-scripts allow-forms')
+    expect(policy).toContain("form-action 'none'")
     expect(policy).not.toContain('allow-same-origin')
     expect(policy).toContain("connect-src 'none'")
     expect(policy).toContain("frame-ancestors 'self'")

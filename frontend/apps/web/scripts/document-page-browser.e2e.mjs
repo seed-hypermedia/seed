@@ -230,6 +230,21 @@ for (const engine of (process.env.PAGE_TEST_BROWSERS || 'chromium,firefox,webkit
         'Storage key limit reached',
       ])
     })
+    await t.test('form submit handlers run, and an unhandled submit cannot navigate the frame', async () => {
+      const frame = await mount(
+        'Alice',
+        hmid,
+        'v1',
+        '<form id="handled"><input name="title" required value="Issue"><button id="save">Save</button></form><form id="raw" method="post" action="https://example.com/collect"><button id="leak">Leak</button></form><p id="out"></p><script>document.querySelector("#handled").addEventListener("submit", (event) => { event.preventDefault(); document.querySelector("#out").textContent = "submitted " + new FormData(event.target).get("title") })</script>',
+      )
+      const url = frame.url()
+      await frame.locator('#save').click()
+      await frame.waitForFunction(() => document.querySelector('#out').textContent === 'submitted Issue')
+      await frame.locator('#leak').click()
+      await page.waitForTimeout(300)
+      assert.equal(frame.url(), url)
+      assert.deepEqual(await frame.evaluate(() => seed.profile()), {id: 'Alice', name: 'Alice Profile'})
+    })
     await t.test('same-host iframe cannot read the parent, native storage, cookies, or fetch', async () => {
       const frame = await mount()
       const result = await frame.evaluate(async () => {
