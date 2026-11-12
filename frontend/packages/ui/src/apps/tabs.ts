@@ -13,9 +13,8 @@ export function appResourceKind(type: unknown): 'app' | 'tool' | null {
 /** A tab in a typed resource's tab bar. */
 export type ResourceTab = {label: string; tooltip: string; icon: LucideIcon; active: boolean; route: NavRoute}
 
-/** The tabs of an app (Home, Tools, Pages, Settings) or a tool (Tool, Settings). */
+/** An app's tabs: Home, Tools, Pages and Settings. A tool shows its app's tabs, with Tools selected. */
 export function appResourceTabs(
-  kind: 'app' | 'tool',
   id: UnpackedHypermediaId,
   appView: DocumentRoute['appView'],
   panel?: DocumentPanelRoute | null,
@@ -28,12 +27,10 @@ export function appResourceTabs(
     active: appView === view,
     route: {key: 'document', id: base, ...(view ? {appView: view} : {}), ...(panel ? {panel} : {})},
   })
-  return kind === 'app'
-    ? [
-        tab('Home', House, undefined),
-        tab('Tools', Wrench, 'tools'),
-        tab('Pages', FileCode2, 'pages'),
-        tab('Settings', Settings, 'settings'),
-      ]
-    : [tab('Tool', Wrench, undefined), tab('Settings', Settings, 'settings')]
+  return [
+    tab('Home', House, undefined),
+    tab('Tools', Wrench, 'tools'),
+    tab('Pages', FileCode2, 'pages'),
+    tab('Settings', Settings, 'settings'),
+  ]
 }

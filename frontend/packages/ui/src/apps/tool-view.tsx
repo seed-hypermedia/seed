@@ -1,14 +1,13 @@
-import {TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
-import type {DocumentRoute} from '@shm/shared/routes'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {useQuery} from '@tanstack/react-query'
 import {Save} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
+import {AgentSubpageHeader} from '../agents/header'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
-import {Input} from '../components/input'
-import {Label} from '../components/label'
 import {Textarea} from '../components/textarea'
 import {useFileUrl} from '../get-file-url'
 import type {HypermediaSchema} from '../schema/engine'
@@ -22,20 +21,141 @@ import {setAttribute, toolCodeFolder, useAppsPublisher} from './publish'
 
 const noSchemaNav = () => {}
 
-/** A tool document's tabs: the tool itself (schemas and code) and its Settings. */
+/**
+ * A tool, shown inside its app (the app's tabs stay above it, Tools selected) like an agent
+ * session: a header with a back button and the tool's name, then one page with its description,
+ * schemas and code. Every edit is published together with Save.
+ */
 export function ToolDocumentView({
   docId,
   document,
-  appView,
   canEdit,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
-  appView: DocumentRoute['appView']
   canEdit: boolean
 }) {
-  if (appView === 'settings') return <ToolSettingsTab docId={docId} document={document} canEdit={canEdit} />
-  return <ToolTab docId={docId} document={document} canEdit={canEdit} />
+  const client = useUniversalClient()
+  const publisher = useAppsPublisher()
+  const navigate = useNavigate()
+  const saved = document.metadata
+  const source = useToolSource(saved.code)
+  const [name, setName] = useState(saved.name ?? '')
+  const [summary, setSummary] = useState(saved.summary ?? '')
+  // A schema edit, or null to remove it; undefined while the saved schema is untouched.
+  const [input, setInput] = useState<HypermediaSchema | null | undefined>(undefined)
+  const [output, setOutput] = useState<HypermediaSchema | null | undefined>(undefined)
+  const [code, setCode] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setName(saved.name ?? '')
+    setSummary(saved.summary ?? '')
+    setInput(undefined)
+    setOutput(undefined)
+    setCode(null)
+  }, [saved.name, saved.summary, saved.inputSchema, saved.outputSchema, saved.code])
+  const codeDirty = code !== null && code !== (source.data ?? '')
+  const dirty =
+    name !== (saved.name ?? '') ||
+    summary !== (saved.summary ?? '') ||
+    input !== undefined ||
+    output !== undefined ||
+    codeDirty
+  const appId = parentDocumentId(docId)
+
+  async function schemaRefFor(schema: HypermediaSchema | null) {
+    return schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
+  }
+  async function save() {
+    setSaving(true)
+    try {
+      const ops = []
+      if (name !== (saved.name ?? '')) ops.push(setAttribute('name', name.trim()))
+      if (summary !== (saved.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
+      if (input !== undefined) ops.push(setAttribute('inputSchema', await schemaRefFor(input)))
+      if (output !== undefined) ops.push(setAttribute('outputSchema', await schemaRefFor(output)))
+      const folder = codeDirty && code !== null ? await toolCodeFolder(code) : null
+      if (folder) ops.push(setAttribute('code', folder.code))
+      await publisher.update(docId, ops, folder?.blobs ?? [])
+      toast.success('Tool saved')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <AgentSubpageHeader
+        title={canEdit ? name : saved.name || docId.path?.at(-1) || ''}
+        placeholder="Tool name"
+        onTitleChange={canEdit ? setName : undefined}
+        backLabel="Back to app tools"
+        onBack={() => appId && navigate({key: 'document', id: appId, appView: 'tools'})}
+        actions={
+          canEdit && dirty ? (
+            <Button size="sm" variant="default" disabled={saving || !name.trim()} onClick={() => void save()}>
+              <Save className="size-3.5" /> {saving ? 'Saving…' : 'Save'}
+            </Button>
+          ) : null
+        }
+      />
+      <section className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6 overflow-y-auto p-4">
+        <Section title="Description">
+          {canEdit ? (
+            <Textarea
+              aria-label="Tool description"
+              value={summary}
+              placeholder="What the tool does"
+              onChange={(event) => setSummary(event.target.value)}
+            />
+          ) : (
+            <SizableText color="muted">{saved.summary || 'No description.'}</SizableText>
+          )}
+        </Section>
+        <Section title="Input">
+          <SchemaField
+            label="Input"
+            schemaRef={input === null ? undefined : saved.inputSchema}
+            value={input ?? null}
+            onChange={setInput}
+            canEdit={canEdit}
+          />
+        </Section>
+        <Section title="Output">
+          <SchemaField
+            label="Output"
+            schemaRef={output === null ? undefined : saved.outputSchema}
+            value={output ?? null}
+            onChange={setOutput}
+            canEdit={canEdit}
+            optional
+          />
+        </Section>
+        <Section title={TOOL_ENTRY_FILE}>
+          {source.isError && code === null ? (
+            <SizableText size="sm" className="text-destructive" role="alert">
+              {source.error instanceof Error ? source.error.message : 'Could not load the code'}
+            </SizableText>
+          ) : (
+            <CodeTextArea
+              aria-label={`${saved.name || 'Tool'} ${TOOL_ENTRY_FILE}`}
+              className="min-h-80"
+              value={code ?? (source.isLoading ? '' : source.data ?? '')}
+              placeholder={source.isLoading ? 'Loading…' : undefined}
+              readOnly={!canEdit}
+              onChange={(event) => setCode(event.currentTarget.value)}
+            />
+          )}
+          <SizableText size="xs" color="muted">
+            The tool's code: <code>export default async function (input): Promise&lt;output&gt;</code>. Nothing runs
+            tools yet.
+          </SizableText>
+        </Section>
+      </section>
+    </div>
+  )
 }
 
 function Section({title, children, action}: {title: string; children: ReactNode; action?: ReactNode}) {
@@ -88,74 +208,6 @@ function SchemaRef({schemaRef, empty}: {schemaRef: string | undefined; empty: st
   )
 }
 
-function ToolTab({docId, document, canEdit}: {docId: UnpackedHypermediaId; document: HMDocument; canEdit: boolean}) {
-  const metadata = document.metadata
-  const source = useToolSource(metadata.code)
-  const publisher = useAppsPublisher()
-  const [draft, setDraft] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const current = draft ?? source.data ?? ''
-  const dirty = draft !== null && draft !== (source.data ?? '')
-  useEffect(() => setDraft(null), [metadata.code])
-  async function saveCode() {
-    setSaving(true)
-    try {
-      const folder = await toolCodeFolder(current)
-      await publisher.update(docId, [setAttribute('code', folder.code)], folder.blobs)
-      toast.success('Code saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSaving(false)
-    }
-  }
-  return (
-    <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6 overflow-y-auto p-4">
-      <div className="flex flex-col gap-1 pt-4">
-        <SizableText size="2xl" weight="bold" className="font-mono">
-          {metadata.name || docId.path?.at(-1)}
-        </SizableText>
-        {metadata.summary ? <SizableText color="muted">{metadata.summary}</SizableText> : null}
-      </div>
-      <Section title="Input">
-        <SchemaRef schemaRef={metadata.inputSchema} empty="No input schema yet. Set one in Settings." />
-      </Section>
-      <Section title="Output">
-        <SchemaRef schemaRef={metadata.outputSchema} empty="No output schema." />
-      </Section>
-      <Section
-        title={TOOL_ENTRY_FILE}
-        action={
-          canEdit && dirty ? (
-            <Button size="sm" variant="default" disabled={saving} onClick={() => void saveCode()}>
-              <Save className="size-3.5" /> {saving ? 'Saving…' : 'Save'}
-            </Button>
-          ) : null
-        }
-      >
-        {source.isError && draft === null ? (
-          <SizableText size="sm" className="text-destructive" role="alert">
-            {source.error instanceof Error ? source.error.message : 'Could not load the code'}
-          </SizableText>
-        ) : (
-          <CodeTextArea
-            aria-label={`${metadata.name || 'Tool'} ${TOOL_ENTRY_FILE}`}
-            className="min-h-80"
-            value={source.isLoading && draft === null ? '' : current}
-            placeholder={source.isLoading ? 'Loading…' : undefined}
-            readOnly={!canEdit}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-          />
-        )}
-        <SizableText size="xs" color="muted">
-          The tool's code: <code>export default async function (input): Promise&lt;output&gt;</code>. Nothing runs tools
-          yet.
-        </SizableText>
-      </Section>
-    </section>
-  )
-}
-
 function SchemaField({
   label,
   schemaRef,
@@ -198,95 +250,5 @@ function SchemaField({
         </div>
       ) : null}
     </div>
-  )
-}
-
-function ToolSettingsTab({
-  docId,
-  document,
-  canEdit,
-}: {
-  docId: UnpackedHypermediaId
-  document: HMDocument
-  canEdit: boolean
-}) {
-  const client = useUniversalClient()
-  const publisher = useAppsPublisher()
-  const saved = document.metadata
-  const [name, setName] = useState(saved.name ?? '')
-  const [summary, setSummary] = useState(saved.summary ?? '')
-  // A schema edit, or null to remove it; undefined while the saved schema is untouched.
-  const [input, setInput] = useState<HypermediaSchema | null | undefined>(undefined)
-  const [output, setOutput] = useState<HypermediaSchema | null | undefined>(undefined)
-  const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    setName(saved.name ?? '')
-    setSummary(saved.summary ?? '')
-    setInput(undefined)
-    setOutput(undefined)
-  }, [saved.name, saved.summary, saved.inputSchema, saved.outputSchema])
-  const dirty =
-    name !== (saved.name ?? '') || summary !== (saved.summary ?? '') || input !== undefined || output !== undefined
-  async function schemaRefFor(schema: HypermediaSchema | null) {
-    return schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
-  }
-  async function save() {
-    setBusy(true)
-    try {
-      const ops = []
-      if (name !== (saved.name ?? '')) ops.push(setAttribute('name', name.trim()))
-      if (summary !== (saved.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
-      if (input !== undefined) ops.push(setAttribute('inputSchema', await schemaRefFor(input)))
-      if (output !== undefined) ops.push(setAttribute('outputSchema', await schemaRefFor(output)))
-      await publisher.update(docId, ops)
-      toast.success('Tool saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto p-4">
-      <div className="grid gap-1">
-        <Label htmlFor="tool-settings-name">Name</Label>
-        <Input id="tool-settings-name" value={name} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="grid gap-1">
-        <Label htmlFor="tool-settings-summary">Description</Label>
-        <Textarea
-          id="tool-settings-summary"
-          value={summary}
-          disabled={!canEdit}
-          onChange={(e) => setSummary(e.target.value)}
-        />
-      </div>
-      <Section title="Input schema">
-        <SchemaField
-          label="Input"
-          schemaRef={input === null ? undefined : saved.inputSchema}
-          value={input ?? null}
-          onChange={setInput}
-          canEdit={canEdit}
-        />
-      </Section>
-      <Section title="Output schema">
-        <SchemaField
-          label="Output"
-          schemaRef={output === null ? undefined : saved.outputSchema}
-          value={output ?? null}
-          onChange={setOutput}
-          canEdit={canEdit}
-          optional
-        />
-      </Section>
-      {canEdit ? (
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button variant="default" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      ) : null}
-    </section>
   )
 }

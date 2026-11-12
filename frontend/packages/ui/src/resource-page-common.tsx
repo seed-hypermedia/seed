@@ -1,6 +1,7 @@
 import {ActivityPanelPortal, WebActivityPanelLayout} from './activity-panel-layout'
 import {AppDocumentView} from './apps/app-view'
 import {appResourceKind, appResourceTabs} from './apps/tabs'
+import {parentDocumentId} from '@seed-hypermedia/client/apps'
 import {ToolDocumentView} from './apps/tool-view'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
@@ -2292,7 +2293,12 @@ function DocumentBody({
   const appKind = appResourceKind(document.metadata.type)
   const appTabs = useMemo(
     () =>
-      appKind && route.key === 'document' ? appResourceTabs(appKind, docId, route.appView, panelRoute) : undefined,
+      route.key !== 'document' || !appKind
+        ? undefined
+        : appKind === 'app'
+          ? appResourceTabs(docId, route.appView, panelRoute)
+          : // A tool stays inside its app: the app's tabs, Tools selected.
+            appResourceTabs(parentDocumentId(docId) ?? docId, 'tools'),
     [appKind, route, docId, panelRoute],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
@@ -3316,7 +3322,7 @@ function DocumentBody({
         {route.key === 'document' && appKind === 'app' ? (
           <AppDocumentView docId={docId} document={document} appView={route.appView} canEdit={!!canEditCurrentRoute} />
         ) : route.key === 'document' && appKind === 'tool' ? (
-          <ToolDocumentView docId={docId} document={document} appView={route.appView} canEdit={!!canEditCurrentRoute} />
+          <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
         ) : route.key === 'document' && (route.agentView || isAgentDocument) ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (

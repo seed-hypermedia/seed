@@ -111,11 +111,11 @@ describe('AppDocumentView', () => {
 })
 
 describe('app tabs', () => {
-  it('gives apps Home, Tools, Pages and Settings, and tools Tool and Settings', () => {
+  it('gives apps Home, Tools, Pages and Settings', () => {
     expect(appResourceKind('hm://hyper.media/app')).toBe('app')
     expect(appResourceKind('hm://hyper.media/tool')).toBe('tool')
     expect(appResourceKind('hm://hyper.media/page')).toBeNull()
-    const tabs = appResourceTabs('app', appId, 'tools')
+    const tabs = appResourceTabs(appId, 'tools')
     expect(tabs.map((tab) => [tab.label, tab.active])).toEqual([
       ['Home', false],
       ['Tools', true],
@@ -124,9 +124,5 @@ describe('app tabs', () => {
     ])
     expect(tabs[0]!.route).toMatchObject({key: 'document', id: {id: appId.id}})
     expect(tabs[0]!.route).not.toHaveProperty('appView')
-    expect(appResourceTabs('tool', forecastId, undefined).map((tab) => [tab.label, tab.active])).toEqual([
-      ['Tool', true],
-      ['Settings', false],
-    ])
   })
 })
