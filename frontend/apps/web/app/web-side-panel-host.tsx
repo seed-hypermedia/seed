@@ -4,10 +4,14 @@ import {useLocalKeyPair} from '@/auth'
 import {clientLazy, ClientOnly} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
-import {NavContextProvider} from '@shm/shared/utils/navigation'
+import {getRoutePanel} from '@shm/shared/routes'
+import {useStreamSelector} from '@shm/shared/use-stream'
+import {NavContextProvider, NO_NAV_STATE} from '@shm/shared/utils/navigation'
+import {ActivityPanelOutlet, ActivityPanelProvider} from '@shm/ui/activity-panel-layout'
 import type {WebAssistantAgents} from './web-assistant-activity'
 import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
+import {SidePanelSlotContent, useSidePanelSlot} from '@shm/ui/side-panel-slot'
 import {Spinner} from '@shm/ui/spinner'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
@@ -27,11 +31,11 @@ const WebAssistantPanelContent = clientLazy<{showClose?: boolean; visible?: bool
 // here at all; nothing of it enters the initial bundle.
 const WebAssistantActivity = lazy(() => import('./web-assistant-activity'))
 
-const WIDTH_STORAGE_KEY = 'seed.assistant.width'
-const DEFAULT_WIDTH_PX = 380
-const MIN_WIDTH_PX = 280
-/** The page keeps at least this share of the viewport, mirroring desktop's maxSize={40}. */
-const MAX_WIDTH_FRACTION = 0.4
+const WIDTH_STORAGE_KEY = 'seed.side-panel.width'
+const DEFAULT_WIDTH_PX = 320
+const MIN_WIDTH_PX = 240
+/** The page keeps at least this share of the viewport, mirroring desktop's maxSize={45}. */
+const MAX_WIDTH_FRACTION = 0.45
 
 function clampWidth(width: number): number {
   const max = typeof window === 'undefined' ? Infinity : Math.max(MIN_WIDTH_PX, window.innerWidth * MAX_WIDTH_FRACTION)
@@ -62,30 +66,40 @@ function usePanelWidth(): [number, (width: number) => void] {
 }
 
 /**
- * Hosts the agents assistant panel beside the page, the way desktop's main window does.
+ * Hosts the shared side panel beside the page, the way desktop's main window does: one slot that
+ * Activity and Agents take turns holding — whichever opens last closes the other, so the two are
+ * never open side by side.
  *
  * Mounted once, above the Remix outlet, so route changes never remount it: the panel keeps its
  * transcript, composer draft, scroll position, and WebSocket subscriptions while the page behind it
  * changes. The page-scoped contexts it needs — in-app navigation for dialogs and links, and the
- * current route for the window context it attaches to every send — are re-provided from the
- * site-context bridge, which the page on screen keeps up to date.
+ * current route both for the window context the assistant attaches to every send and for Activity,
+ * which lives in the route — are re-provided from the site-context bridge, which the page on screen
+ * keeps up to date.
  *
  * Layout: a flex row whose first column is always the page — rendered whether or not the panel is
  * open, so toggling never remounts the page either — and whose second column, when open, is a
  * draggable divider plus a sticky full-height aside. Pages that scroll the window keep doing so;
- * the aside sticks to the viewport beside them. Narrow screens have no room for a split: the panel
- * takes the whole viewport and a "Back to page" bar returns to the page. Because that covers the
- * page, it only happens when the reader opened the panel themselves during this page load — a
- * state restored by a reload keeps the panel out of the way until they ask for it from the header.
+ * the aside sticks to the viewport beside them. Narrow screens have no room for a split: Activity
+ * stays in the page's own sheet and Agents takes the whole viewport, with a "Back to page" bar that
+ * returns to the page. Because that covers the page, it only happens when the reader opened the
+ * panel themselves during this page load — a state restored by a reload keeps the panel out of the
+ * way until they ask for it from the header.
  */
-export function WebAssistantHost({children}: {children: React.ReactNode}) {
+export function WebSidePanelHost({children}: {children: React.ReactNode}) {
   const panel = useAssistantPanel()
-  // Agents are only usable signed in, so the panel only exists for a signed-in reader — a stored
-  // "open" preference from a previous signed-in visit must not surface the panel to a signed-out
-  // visitor. The preference itself is kept, so signing back in restores the panel as it was.
+  // Agents are only usable signed in, so their panel only exists for a signed-in reader — a stored
+  // "open" preference from a previous signed-in visit must not surface it to a signed-out visitor.
+  // The preference itself is kept, so signing back in restores the panel as it was. Activity, a
+  // route concern, is open to everyone.
   const keyPair = useLocalKeyPair()
   const media = useMedia()
   const isMobile = !!media.xs
+  const snapshot = useSiteContextSnapshot()
+  const route = useStreamSelector(snapshot?.navigation.state ?? NO_NAV_STATE, (state) => {
+    return state.routes[state.routeIndex] ?? null
+  })
+  const activityOpen = route ? getRoutePanel(route)?.key === 'feed' : false
   const [width, setWidth] = usePanelWidth()
   const [dragging, setDragging] = useState(false)
   const groupRef = useRef<HTMLDivElement>(null)
@@ -97,6 +111,25 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const wasOpenedByReader = useRef(false)
   const previousMobile = useRef(isMobile)
   const dragStart = useRef<{x: number; width: number} | null>(null)
+  // Activity "opened by the reader" means the route gained or lost its feed panel after the first
+  // route the host saw — an Activity panel already in the URL at arrival is a restore, not an
+  // action, and the slot must not animate open for it.
+  const activityTouched = useRef(false)
+  const previousActivityOpen = useRef<boolean | null>(null)
+
+  // Activity holds the slot through the route: exclusivity closes replace the route (a panel switch
+  // is not history), reader closes push one (Back returns to the panel).
+  const closeActivity = useCallback(
+    (replace: boolean) => {
+      if (route && 'panel' in route) snapshot?.universal.openRoute?.({...route, panel: null}, replace)
+    },
+    [route, snapshot],
+  )
+
+  const active = useSidePanelSlot([
+    ['activity', {open: activityOpen, close: () => closeActivity(true)}],
+    ['assistant', {open: !!keyPair && panel.isOpen, close: panel.close, restored: !panel.openedByReader}],
+  ])
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -122,9 +155,8 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
     setDragging(false)
   }, [])
 
-  const showSidePanel = !!keyPair && panel.isOpen && !isMobile
-  const showFullScreen = !!keyPair && panel.isOpen && isMobile && panel.openedByReader
-  const visible = showSidePanel || showFullScreen
+  const showSidePanel = active !== null && !isMobile
+  const showFullScreen = active === 'assistant' && isMobile && panel.openedByReader
   useEffect(() => {
     const group = groupRef.current
     const aside = asideRef.current
@@ -137,7 +169,14 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         group.focus({preventScroll: true})
       }
     }
-    const explicit = panel.openedByReader || wasOpenedByReader.current
+    if (route) {
+      if (previousActivityOpen.current === null) previousActivityOpen.current = activityOpen
+      else if (previousActivityOpen.current !== activityOpen) {
+        previousActivityOpen.current = activityOpen
+        activityTouched.current = true
+      }
+    }
+    const explicit = panel.openedByReader || wasOpenedByReader.current || activityTouched.current
     const resized = previousMobile.current !== isMobile
     wasOpenedByReader.current = panel.openedByReader
     previousMobile.current = isMobile
@@ -146,7 +185,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
       returnFocus.current = document.activeElement as HTMLElement
       setHasOpened(true)
     }
-    if (isMobile || !keyPair || !explicit || resized) {
+    if (isMobile || !explicit || resized) {
       cancelMotion.current?.()
       setShown(showSidePanel)
     } else {
@@ -157,7 +196,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         'width',
       )
     }
-  }, [showSidePanel, shown, isMobile, keyPair, panel.openedByReader])
+  }, [showSidePanel, shown, isMobile, panel.openedByReader, activityOpen, route])
   useEffect(() => () => cancelMotion.current?.(), [])
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
@@ -165,84 +204,99 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   // this site that the reader's account can see (owner, accepted collaborator, or a public agent),
   // or orphan agents of their own to adopt, which the button then flags with a dot. A mount
   // document the agent is not shared with them through is no reason to show a way into an empty
-  // panel. It reflects what is on screen, not the stored preference: on a narrow viewport with a
-  // restored "open" that is not showing, the button reads closed and a tap opens the panel rather
-  // than silently closing the invisible one.
+  // panel. It reflects what is on screen, not the stored preference: while Activity holds the slot
+  // the button reads closed and a tap opens Agents (closing Activity), and on a narrow viewport a
+  // restored "open" that is not showing reads closed for the same reason.
+  const agentsOnScreen = (active === 'assistant' && !isMobile) || showFullScreen
   const [agents, setAgents] = useState<WebAssistantAgents>({usable: false, orphans: 0})
   const headerToggle = useMemo<AssistantPanelToggle | null>(
     () =>
       keyPair && (agents.usable || agents.orphans > 0)
-        ? {isOpen: visible, toggle: visible ? panel.close : panel.open, orphans: agents.orphans}
+        ? {isOpen: agentsOnScreen, toggle: agentsOnScreen ? panel.close : panel.open, orphans: agents.orphans}
         : null,
-    [keyPair, agents, visible, panel.close, panel.open],
+    [keyPair, agents, agentsOnScreen, panel.close, panel.open],
   )
 
   return (
-    <div
-      ref={groupRef}
-      className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}
-    >
-      {keyPair ? (
-        <ClientOnly>
-          <SiteContextScope>
-            <Suspense fallback={null}>
-              <WebAssistantActivity onAgentsChange={setAgents} />
-            </Suspense>
-          </SiteContextScope>
-        </ClientOnly>
-      ) : null}
-      <AssistantPanelToggleContext.Provider value={headerToggle}>
-        <div className="min-w-0 flex-1">{children}</div>
-      </AssistantPanelToggleContext.Provider>
-      <>
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize agents panel"
-          aria-hidden={!showSidePanel || undefined}
-          aria-valuemin={MIN_WIDTH_PX}
-          aria-valuemax={Math.max(
-            MIN_WIDTH_PX,
-            typeof window === 'undefined' ? MIN_WIDTH_PX : window.innerWidth * MAX_WIDTH_FRACTION,
-          )}
-          aria-valuenow={width}
-          tabIndex={showSidePanel ? 0 : -1}
-          style={showSidePanel ? undefined : {display: 'none'}}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Enter') return
-            event.preventDefault()
-            cancelMotion.current?.()
-            if (event.key === 'Enter') {
-              const group = groupRef.current!
-              group.tabIndex = -1
-              group.focus({preventScroll: true})
-              panel.close()
-            } else setWidth(width + (event.key === 'ArrowLeft' ? 10 : -10))
-          }}
-          className={cn('panel-resize-handle visible sticky top-0 h-dvh shrink-0 self-start', dragging && 'active')}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-        />
-        <aside
-          ref={asideRef}
-          data-panel-width
-          aria-hidden={!showSidePanel || undefined}
-          aria-label="Agents"
-          data-testid="web-assistant-panel"
-          className="bg-background border-border sticky top-0 flex h-dvh shrink-0 flex-col self-start overflow-hidden"
-          style={{width: shown ? width : 0}}
-        >
-          {keyPair && !isMobile && (showSidePanel || hasOpened) ? (
-            <div className="h-full border-l">
-              <PanelBody showClose visible={showSidePanel} />
-            </div>
-          ) : null}
-        </aside>
-      </>
-      {showFullScreen ? <FullScreenPanel onBack={panel.close} /> : null}
-    </div>
+    <ActivityPanelProvider>
+      <div
+        ref={groupRef}
+        className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}
+      >
+        {keyPair ? (
+          <ClientOnly>
+            <SiteContextScope>
+              <Suspense fallback={null}>
+                <WebAssistantActivity onAgentsChange={setAgents} />
+              </Suspense>
+            </SiteContextScope>
+          </ClientOnly>
+        ) : null}
+        <AssistantPanelToggleContext.Provider value={headerToggle}>
+          <div className="min-w-0 flex-1">{children}</div>
+        </AssistantPanelToggleContext.Provider>
+        <>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize side panel"
+            aria-hidden={!showSidePanel || undefined}
+            aria-valuemin={MIN_WIDTH_PX}
+            aria-valuemax={Math.max(
+              MIN_WIDTH_PX,
+              typeof window === 'undefined' ? MIN_WIDTH_PX : window.innerWidth * MAX_WIDTH_FRACTION,
+            )}
+            aria-valuenow={width}
+            tabIndex={showSidePanel ? 0 : -1}
+            style={showSidePanel ? undefined : {display: 'none'}}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Enter') return
+              event.preventDefault()
+              cancelMotion.current?.()
+              if (event.key === 'Enter') {
+                const group = groupRef.current!
+                group.tabIndex = -1
+                group.focus({preventScroll: true})
+                if (active === 'activity') closeActivity(false)
+                else panel.close()
+              } else setWidth(width + (event.key === 'ArrowLeft' ? 10 : -10))
+            }}
+            className={cn('panel-resize-handle visible sticky top-0 h-dvh shrink-0 self-start', dragging && 'active')}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          />
+          <aside
+            ref={asideRef}
+            data-panel-width
+            aria-hidden={!showSidePanel || undefined}
+            aria-label={active === 'assistant' ? 'Agents' : 'Activity'}
+            data-testid="web-side-panel"
+            className="bg-background border-border sticky top-0 flex h-dvh shrink-0 flex-col self-start overflow-hidden"
+            style={{width: shown ? width : 0}}
+          >
+            {!isMobile && (showSidePanel || hasOpened) ? (
+              <div className="h-full border-l">
+                <SidePanelSlotContent
+                  active={active}
+                  panels={{
+                    activity: {render: () => <ActivityPanelOutlet />},
+                    // The assistant stays mounted once shown so its chat survives switching to
+                    // Activity.
+                    assistant: {
+                      keepMounted: true,
+                      render: () => (keyPair ? <PanelBody showClose visible={active === 'assistant'} /> : null),
+                    },
+                  }}
+                />
+              </div>
+            ) : null}
+          </aside>
+        </>
+        {showFullScreen ? <FullScreenPanel onBack={panel.close} /> : null}
+      </div>
+    </ActivityPanelProvider>
   )
 }
 

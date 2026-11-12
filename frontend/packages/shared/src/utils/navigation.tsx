@@ -180,7 +180,8 @@ export function useNavRoute() {
   return navRoute
 }
 
-const NO_NAV_STATE: StateStream<NavState> = {
+/** An inert empty nav state for readers that may run before any page publishes its navigation. */
+export const NO_NAV_STATE: StateStream<NavState> = {
   get: () => ({routes: [], routeIndex: 0, lastAction: 'push'}),
   subscribe: () => () => {},
 }

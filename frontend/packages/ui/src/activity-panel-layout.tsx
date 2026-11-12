@@ -1,11 +1,5 @@
-import {IS_DESKTOP} from '@shm/shared/constants'
-import {getRoutePanel} from '@shm/shared/routes'
-import {useNavigate, useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {createContext, useContext, useMemo, useRef, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
-import {Group, Panel} from 'react-resizable-panels'
-import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
-import {useMedia} from './use-media'
 
 const ActivityPanelTarget = createContext<{
   target: HTMLDivElement | null
@@ -32,52 +26,4 @@ export function ActivityPanelPortal({active, children}: {active: boolean; childr
   const retained = useRef<ReactNode>(null)
   if (active) retained.current = children
   return context?.target ? createPortal(retained.current, context.target) : null
-}
-
-/** Gives web desktop Activity a panel beside the complete site shell. */
-export function WebActivityPanelLayout({children}: {children: ReactNode}) {
-  const media = useMedia()
-  if (IS_DESKTOP || media.xs) return <>{children}</>
-  return (
-    <ActivityPanelProvider>
-      <WebActivityPanelGroup>{children}</WebActivityPanelGroup>
-    </ActivityPanelProvider>
-  )
-}
-
-function WebActivityPanelGroup({children}: {children: ReactNode}) {
-  const saved = useSavedPanelLayout('web-activity', ['site', 'activity'])
-  const route = useNavRouteOrNull()
-  const navigate = useNavigate()
-  const open = !!route && getRoutePanel(route)?.key === 'feed'
-  const close = () => {
-    if (route && 'panel' in route) navigate({...route, panel: null})
-  }
-  return (
-    <Group
-      orientation="horizontal"
-      className="max-h-full min-h-0"
-      // Override Group's inline 100% height; the web shell has no fixed parent height.
-      style={{height: '100dvh'}}
-      onLayoutChanged={(layout, meta) => {
-        saved.onLayoutChanged(layout, meta)
-        if (meta.isUserInteraction && open && layout.activity === 0) close()
-      }}
-    >
-      <Panel id="site" minSize="50%">
-        {children}
-      </Panel>
-      <PanelSeparator open={open} onCollapse={close} />
-      <AnimatedPanel
-        id="activity"
-        open={open}
-        minSize="250px"
-        maxSize="50%"
-        defaultSize={saved.expanded?.activity ? `${saved.expanded.activity}%` : '320px'}
-        className="border-l"
-      >
-        <ActivityPanelOutlet />
-      </AnimatedPanel>
-    </Group>
-  )
 }

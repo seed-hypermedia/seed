@@ -133,10 +133,10 @@ function isTriggeredSession(session: SessionInfo): boolean {
  * until the first send, which creates the session and opens it here. Agents are not created here:
  * an agent is a document, made from the New menu of a space's home document.
  *
- * Shared between desktop (mounted in the window's side panel, which it shares with Bookmarks and
- * Activity, toggled from the space header) and web (mounted beside the site page, toggled from the
- * account menu). Everything host-specific — signing, navigation, the account, the rich editor —
- * comes through the agents platform seam.
+ * Shared between desktop and web: on both it lives in the side panel beside the page, which it
+ * shares with Activity (on desktop also Bookmarks), toggled from the space or site header.
+ * Everything host-specific — signing, navigation, the account, the rich editor — comes through the
+ * agents platform seam.
  */
 /** A stable empty server list, so hooks keyed on it never see a fresh array per render. */
 const NO_SERVERS: string[] = []

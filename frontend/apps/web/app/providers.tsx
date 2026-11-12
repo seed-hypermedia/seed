@@ -24,7 +24,7 @@ import {
 import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
 import {WebDocumentMaintenance} from './document-maintenance'
-import {WebAssistantHost} from './web-assistant-host'
+import {WebSidePanelHost} from './web-side-panel-host'
 import {WebDomainHost} from './components/web-domain-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
@@ -179,14 +179,14 @@ export const Providers = (props: {children: any}) => {
     <ThemeProvider>
       <QueryClientProvider client={client}>
         <ReadOnlyViewerProvider value={ReadOnlyViewer}>
-          {/* Above the outlet on purpose: the assistant panel and its open/session state must
-              outlive the per-page WebSiteProvider, or every route change would remount the panel.
-              The page contexts the panel needs reach it through the site-context bridge. */}
+          {/* Above the outlet on purpose: the side panel and the assistant's open/session state
+              must outlive the per-page WebSiteProvider, or every route change would remount the
+              panel. The page contexts the panel needs reach it through the site-context bridge. */}
           <AssistantPanelProvider>
-            <WebAssistantHost>
+            <WebSidePanelHost>
               <WebDocumentMaintenance>{props.children}</WebDocumentMaintenance>
               <WebDomainHost />
-            </WebAssistantHost>
+            </WebSidePanelHost>
           </AssistantPanelProvider>
         </ReadOnlyViewerProvider>
       </QueryClientProvider>

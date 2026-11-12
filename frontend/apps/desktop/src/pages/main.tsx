@@ -28,12 +28,13 @@ import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {windowContainerStyles} from '@shm/ui/container'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from '@shm/ui/resizable-panels'
+import {SidePanelSlotContent, useSidePanelSlot} from '@shm/ui/side-panel-slot'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Group, Panel} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
@@ -325,42 +326,27 @@ export default function Main({className}: {className?: string}) {
   )
 }
 
-/** Keeps Agents, Bookmarks and Activity in one slot: whichever opens last closes the others. */
-function useExclusiveAccessory(assistant: AccessoryAssistant) {
-  const bookmarks = useBookmarksPanel()
-  const route = useNavRoute()
-  const navigate = useNavigate('replace')
-  const activityOpen = getRoutePanel(route)?.key === 'feed'
-  // Activity starts as "closed" so a restored Activity panel wins over a restored assistant at launch.
-  const previous = useRef({assistant: assistant.open, bookmarks: false, activity: false})
-  useEffect(() => {
-    const prev = previous.current
-    previous.current = {assistant: assistant.open, bookmarks: bookmarks.isOpen, activity: activityOpen}
-    if ((bookmarks.isOpen && !prev.bookmarks) || (activityOpen && !prev.activity)) {
-      if (assistant.open) assistant.onClose()
-    } else if (assistant.open && !prev.assistant) {
-      bookmarks.close()
-      if (activityOpen && 'panel' in route) navigate({...route, panel: null})
-    }
-  }, [assistant, bookmarks, activityOpen, route, navigate])
-}
-
 function DesktopAccessoryPanel({assistant}: {assistant: AccessoryAssistant}) {
   const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
   const bookmarks = useBookmarksPanel()
   const route = useNavRoute()
   const navigate = useNavigate()
+  const replaceNavigate = useNavigate('replace')
   const activityOpen = getRoutePanel(route)?.key === 'feed'
-  useExclusiveAccessory(assistant)
-  const assistantVisible = assistant.open && !bookmarks.isOpen && !activityOpen
-  const active = activityOpen ? 'activity' : bookmarks.isOpen ? 'bookmarks' : assistantVisible ? 'assistant' : null
-  // While the slot animates closed it keeps showing whatever was last in it.
-  const lastActive = useRef(active)
-  if (active) lastActive.current = active
-  const shown = active ?? lastActive.current
-  // The assistant stays mounted once opened so its chat survives switching to Bookmarks or Activity.
-  const assistantMounted = useRef(false)
-  if (assistantVisible) assistantMounted.current = true
+  // Agents, Bookmarks and Activity share one slot: whichever opens last closes the others.
+  const active = useSidePanelSlot([
+    [
+      'activity',
+      {
+        open: activityOpen,
+        close: () => {
+          if ('panel' in route) replaceNavigate({...route, panel: null})
+        },
+      },
+    ],
+    ['bookmarks', {open: bookmarks.isOpen, close: bookmarks.close}],
+    ['assistant', {open: assistant.open, close: assistant.onClose}],
+  ])
   const close = () => {
     if (activityOpen && 'panel' in route) navigate({...route, panel: null})
     else if (bookmarks.isOpen) bookmarks.close()
@@ -378,17 +364,27 @@ function DesktopAccessoryPanel({assistant}: {assistant: AccessoryAssistant}) {
         defaultSize={saved.expanded?.bookmarks ? `${saved.expanded.bookmarks}%` : '320px'}
         className="border-border overflow-hidden rounded-lg border"
       >
-        {shown === 'activity' ? <ActivityPanelOutlet /> : shown === 'bookmarks' ? <BookmarksPanel /> : null}
-        {assistant.available && assistantMounted.current ? (
-          <div className={cn('h-full min-h-0', shown !== 'assistant' && 'hidden')}>
-            <AssistantPanel
-              initialSessionId={assistant.sessionId}
-              visible={assistantVisible}
-              onSessionChange={assistant.onSessionChange}
-              onClose={assistant.onClose}
-            />
-          </div>
-        ) : null}
+        <SidePanelSlotContent
+          active={active}
+          panels={{
+            activity: {render: () => <ActivityPanelOutlet />},
+            bookmarks: {render: () => <BookmarksPanel />},
+            // The assistant stays mounted once opened so its chat survives switching to
+            // Bookmarks or Activity.
+            assistant: {
+              keepMounted: true,
+              render: () =>
+                assistant.available ? (
+                  <AssistantPanel
+                    initialSessionId={assistant.sessionId}
+                    visible={active === 'assistant'}
+                    onSessionChange={assistant.onSessionChange}
+                    onClose={assistant.onClose}
+                  />
+                ) : null,
+            },
+          }}
+        />
       </AnimatedPanel>
     </>
   )
