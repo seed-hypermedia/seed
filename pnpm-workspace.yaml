@@ -34,11 +34,6 @@ auditConfig:
     # dependency is patched locally with parse/walker depth limits; security CI
     # exercises the installed patch in scripts/security/braces-depth.test.cjs.
     - GHSA-vfj7-8cjw-p6xm
-    # extract-zip has no patched release. The dependency is patched locally
-    # with the upstream fix to reject a symlink at an archive entry's leaf path.
-    # It is only used by the desktop packaging toolchain with trusted archives.
-    - GHSA-7pqw-9j4j-h8q3
-    - GHSA-jmr9-qjv8-65gv
     # The CNA rejected this sprintf-js CVE (CVE-2026-97058); GitHub still lists the
     # withdrawn advisory. https://cveawg.mitre.org/api/cve/CVE-2026-97058
     - GHSA-hp3w-g68c-fv3c
@@ -117,7 +112,6 @@ allowBuilds:
 # Local patches (was package.json#pnpm.patchedDependencies).
 patchedDependencies:
   'electron-installer-redhat': 'patches/electron-installer-redhat.patch'
-  'extract-zip@2.0.1': 'patches/extract-zip@2.0.1.patch'
   'braces@3.0.3': 'patches/braces@3.0.3.patch'
   'http-cache-semantics@4.3.0': 'patches/http-cache-semantics@4.3.0.patch'
   '@tiptap/core@2.0.3': 'patches/@tiptap__core@2.0.3.patch'
@@ -176,6 +170,9 @@ overrides:
   'toml': '5.0.1'
   'fast-xml-builder': '1.1.7'
   'fast-uri': '3.1.9'
+  # extract-zip 2.0.1 has no fixed release for GHSA-7pqw-9j4j-h8q3 / GHSA-jmr9-qjv8-65gv.
+  # Forge 7's @electron/packager 18 is its only consumer; Electron and packager 20 use this hardened drop-in instead.
+  '@electron/packager>extract-zip': 'npm:@electron-internal/extract-zip@1.0.5'
   'minimatch@^3': '3.1.4'
   'minimatch@^5': '5.1.8'
   'minimatch@^7': '7.4.8'
