@@ -5,7 +5,6 @@ import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
 import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
-import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
@@ -165,10 +164,6 @@ export const BlockManipulationExtension = Extension.create<{
               if (shouldOpen && openUrl && clickedEmbed) {
                 openUrl(clickedEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
                 return true
-              }
-
-              if (isInGridContainer(view.state, nodePos)) {
-                return false
               }
 
               let tr = view.state.tr

@@ -121,3 +121,31 @@ describe('Grid slash command', () => {
     expect(cursorBlockId(editor)).toBe(current.children[0]!.id)
   })
 })
+
+describe('Clicking an image in a grid', () => {
+  it('selects the image, like images outside grids', () => {
+    const url = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+    const editor = createEditor([
+      {
+        id: 'parent',
+        type: 'paragraph',
+        content: 'test',
+        props: {childrenType: 'Grid', columnCount: '3'},
+        children: [{id: 'img', type: 'image', props: {url, name: ''}}],
+      },
+    ])
+    const {view} = editor._tiptapEditor
+    const imagePos = blockPos(editor, 'img') + 1
+    const event = new MouseEvent('click')
+    Object.defineProperty(event, 'target', {value: document.createElement('img')})
+
+    const handled = view.someProp('handleClickOn', (handler) =>
+      handler(view, imagePos, view.state.doc.nodeAt(imagePos)!, imagePos, event, true),
+    )
+
+    expect(handled).toBe(true)
+    const {selection} = view.state
+    expect(selection instanceof NodeSelection && selection.node.type.name).toBe('image')
+    expect(selection.from).toBe(imagePos)
+  })
+})

@@ -12,7 +12,6 @@ import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
 import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {markBlockUploaded, MediaType} from './media-render'
@@ -258,17 +257,6 @@ export const MediaContainer = ({
 
     const view = editor._tiptapEditor?.view
     if (!view) return
-
-    // Resolve position once just to gate on grid-container membership. The
-    // dispatch below re-resolves the range AFTER beginEditIfNeeded, because
-    // entering edit mode can synchronously replace the whole doc (draft
-    // content differs from published), invalidating any pre-edit positions.
-    const preEditRange = findBlockRangeById(view.state.doc, block.id)
-    const preEditContentPos = preEditRange?.blockContentBeforePos ?? null
-
-    if (preEditContentPos == null) return
-
-    if (isInGridContainer(view.state, preEditContentPos)) return
 
     e.preventDefault()
     e.stopPropagation()
