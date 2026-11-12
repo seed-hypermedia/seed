@@ -1,4 +1,4 @@
-import {Link, MessageSquare, Share2} from 'lucide-react'
+import {Link, MessageSquare, Route} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {
@@ -287,7 +287,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
               onOpenCitations(blockId)
             }}
           >
-            <Share2 size={14} />
+            <Route size={14} />
             <span className="text-xs leading-none">{citationCount}</span>
           </button>
         ) : null}
