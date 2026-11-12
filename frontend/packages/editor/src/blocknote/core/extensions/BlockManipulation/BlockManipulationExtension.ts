@@ -92,11 +92,12 @@ export const BlockManipulationExtension = Extension.create<{
         const {state} = this.editor
         const {selection} = state
         if (selection instanceof NodeSelection) {
-          const $pos = state.doc.resolve(selection.from + 1)
+          const {blockContent} = getBlockInfoFromPos(state, selection.from)
+          const newBlockPos = blockContent.afterPos + 1
           this.editor
             .chain()
-            .BNCreateBlock($pos.end() + 2)
-            .setTextSelection($pos.end() + 3)
+            .BNCreateBlock(newBlockPos)
+            .setTextSelection(newBlockPos + 2)
             .run()
           return true
         }

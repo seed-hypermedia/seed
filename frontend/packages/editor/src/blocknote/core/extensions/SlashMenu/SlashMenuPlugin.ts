@@ -4,7 +4,7 @@ import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {SuggestionsMenuState, setupSuggestionsMenu} from '../../shared/plugins/suggestion/SuggestionPlugin'
 import {BlockSchema} from '../Blocks/api/blockTypes'
-import {BaseSlashMenuItem} from './BaseSlashMenuItem'
+import {BaseSlashMenuItem, isSlashMenuItemAvailable} from './BaseSlashMenuItem'
 
 export const slashMenuPluginKey = new PluginKey('SlashMenuPlugin')
 
@@ -33,9 +33,11 @@ export class SlashMenuProsemirrorPlugin<
       '/',
       (query) =>
         getItems().filter(
-          ({name, aliases}: SlashMenuItem) =>
-            name.toLowerCase().startsWith(query.toLowerCase()) ||
-            (aliases && aliases.filter((alias) => alias.toLowerCase().startsWith(query.toLowerCase())).length !== 0),
+          (item: SlashMenuItem) =>
+            isSlashMenuItemAvailable(item, editor) &&
+            (item.name.toLowerCase().startsWith(query.toLowerCase()) ||
+              (item.aliases &&
+                item.aliases.filter((alias) => alias.toLowerCase().startsWith(query.toLowerCase())).length !== 0)),
         ),
       ({item, editor}) => item.execute(editor),
       {isEnabled: isSlashMenuEnabled},

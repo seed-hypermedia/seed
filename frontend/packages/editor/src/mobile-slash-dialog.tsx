@@ -3,6 +3,7 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/componen
 import {X} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {BlockNoteEditor} from './blocknote/core'
+import {isSlashMenuItemAvailable} from './blocknote/core/extensions/SlashMenu/BaseSlashMenuItem'
 import {HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 
@@ -15,7 +16,10 @@ interface MobileSlashDialogProps {
 }
 
 export function MobileSlashDialog({isOpen, onClose, editor, extraItems = []}: MobileSlashDialogProps) {
-  const slashMenuItems = [...extraItems, ...getSlashMenuItems()]
+  const slashMenuItems = [
+    ...extraItems,
+    ...getSlashMenuItems().filter((item) => isSlashMenuItemAvailable(item, editor)),
+  ]
 
   const handleSelectBlockType = (item: any) => {
     item.execute(editor)
