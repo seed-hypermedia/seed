@@ -1,12 +1,10 @@
-import {HM_APP_TYPE, parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
 import type {DocumentRoute} from '@shm/shared/routes'
-import {useNavigate} from '@shm/shared/utils/navigation'
 import {useQuery} from '@tanstack/react-query'
 import {Save} from 'lucide-react'
-import {useEffect, useMemo, useState, type ReactNode} from 'react'
+import {useEffect, useState, type ReactNode} from 'react'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
 import {Input} from '../components/input'
@@ -20,7 +18,7 @@ import {publishSchemaObject} from '../schema/schema-document'
 import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
-import {setAttribute, toolCodeFolder, useAppsPublisher, type AppRef} from './publish'
+import {setAttribute, toolCodeFolder, useAppsPublisher} from './publish'
 
 const noSchemaNav = () => {}
 
@@ -214,21 +212,13 @@ function ToolSettingsTab({
 }) {
   const client = useUniversalClient()
   const publisher = useAppsPublisher()
-  const navigate = useNavigate()
   const saved = document.metadata
-  const parentId = useMemo(() => parentDocumentId(docId), [docId])
-  const parent = useResource(parentId)
-  const app: AppRef | undefined =
-    parentId && parent.data?.type === 'document' && parent.data.document.metadata.type === HM_APP_TYPE
-      ? {id: parentId, document: parent.data.document}
-      : undefined
   const [name, setName] = useState(saved.name ?? '')
   const [summary, setSummary] = useState(saved.summary ?? '')
   // A schema edit, or null to remove it; undefined while the saved schema is untouched.
   const [input, setInput] = useState<HypermediaSchema | null | undefined>(undefined)
   const [output, setOutput] = useState<HypermediaSchema | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
     setName(saved.name ?? '')
     setSummary(saved.summary ?? '')
@@ -291,36 +281,7 @@ function ToolSettingsTab({
         />
       </Section>
       {canEdit ? (
-        <div className="flex items-center justify-between gap-2 pt-2">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <SizableText size="sm">Delete this tool?</SizableText>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true)
-                  publisher
-                    .remove(docId, document, app)
-                    .then(() => {
-                      if (app) navigate({key: 'document', id: app.id, appView: 'tools'})
-                    })
-                    .catch((error) => toast.error(error instanceof Error ? error.message : String(error)))
-                    .finally(() => setBusy(false))
-                }}
-              >
-                Delete
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirmDelete(true)}>
-              Delete tool
-            </Button>
-          )}
+        <div className="flex items-center justify-end gap-2 pt-2">
           <Button variant="default" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
             {busy ? 'Saving…' : 'Save'}
           </Button>

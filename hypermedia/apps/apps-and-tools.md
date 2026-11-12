@@ -30,9 +30,9 @@ An app opens as tabs instead of a text document, like an agent:
 
 - **Home** shows the app's `homePage` (one of its own pages) running in place, or an overview with its tool and page counts.
 - **Tools** and **Pages** list the embedded children in order. Documents under the app that it does not list appear under **Not in this app**, with an **Add** button that lists them.
-- **Settings** edits the name and description, and deletes the app (its tools and pages stay).
+- **Settings** edits the name and description. **Delete App** in the options menu removes the app with its tools and pages.
 
-A tool opens on a **Tool** tab with its schemas and its `index.ts` in a text area, saved with **Save**, and a **Settings** tab that edits its name, description and both schemas with the schema editor, or deletes it. Every save publishes a new version of the document right away; a code save publishes a new folder and points `code` at it.
+A tool opens on a **Tool** tab with its schemas and its `index.ts` in a text area, saved with **Save**, and a **Settings** tab that edits its name, description and both schemas with the schema editor. **Delete Tool** in the options menu removes it and takes it off its app's list. Every save publishes a new version of the document right away; a code save publishes a new folder and points `code` at it.
 
 **New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
 

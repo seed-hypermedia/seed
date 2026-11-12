@@ -6,7 +6,6 @@ import {
   type HMMetadata,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {hmId} from '@shm/shared'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import type {DocumentRoute} from '@shm/shared/routes'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -237,12 +236,10 @@ function AppChildRow({
 
 function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) {
   const publisher = useAppsPublisher()
-  const navigate = useNavigate()
   const saved = app.document.metadata
   const [name, setName] = useState(saved.name ?? '')
   const [summary, setSummary] = useState(saved.summary ?? '')
   const [busy, setBusy] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
     setName(saved.name ?? '')
     setSummary(saved.summary ?? '')
@@ -278,34 +275,7 @@ function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) {
         />
       </div>
       {canEdit ? (
-        <div className="flex items-center justify-between gap-2 pt-2">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <SizableText size="sm">Delete this app? Its tools and pages stay.</SizableText>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true)
-                  publisher
-                    .remove(app.id, app.document)
-                    .then(() => navigate({key: 'document', id: hmId(app.id.uid, {path: app.id.path?.slice(0, -1)})}))
-                    .catch((error) => toast.error(error instanceof Error ? error.message : String(error)))
-                    .finally(() => setBusy(false))
-                }}
-              >
-                Delete
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirmDelete(true)}>
-              Delete app
-            </Button>
-          )}
+        <div className="flex items-center justify-end gap-2 pt-2">
           <Button variant="default" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
             {busy ? 'Saving…' : 'Save'}
           </Button>

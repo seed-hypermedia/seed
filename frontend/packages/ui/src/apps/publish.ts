@@ -15,7 +15,6 @@ import {
   type HMSigner,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {createTombstoneRef} from '@seed-hypermedia/client/ref'
 import {encodeDagCbor} from '@seed-hypermedia/client/signed-blob'
 import {useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -124,25 +123,10 @@ export function useAppsPublisher() {
         await publish([...access.blobs, ...update.blobs], [id])
       },
 
-      /** Deletes a document; when `app` lists it, it also leaves the app's list. */
-      async remove(id: UnpackedHypermediaId, document: HMDocument, app?: AppRef) {
-        if (!signer) throw new Error('Select an account to sign with')
-        const access = await writeAccess(id)
-        const tombstone = await createTombstoneRef(
-          {
-            space: id.uid,
-            path: hmIdPathToEntityQueryPath(id.path),
-            genesis: document.genesis,
-            generation: document.generationInfo ? Number(document.generationInfo.generation) : 0,
-            capability: access.capability,
-          },
-          signer,
-        )
-        const appBlobs = app ? await appChildBlobs(app, id, 'remove') : []
-        await publish(
-          [...access.blobs, ...tombstone.blobs.map((blob) => ({cid: blob.cid!, data: blob.data})), ...appBlobs],
-          app ? [id, app.id] : [id],
-        )
+      /** Takes `child` off `app`'s list, after the child is deleted. */
+      async removeFromApp(app: AppRef, child: UnpackedHypermediaId) {
+        const blobs = await appChildBlobs(app, child, 'remove')
+        if (blobs.length) await publish(blobs, [app.id])
       },
 
       /** Lists `child` on `app`, for children that exist under the app but are not listed. */
