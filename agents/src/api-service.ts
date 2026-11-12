@@ -11002,6 +11002,22 @@ function parseIpfsCid(raw: unknown): string {
   return cid
 }
 
+/**
+ * The path inside a UnixFS folder that an ipfs:// address names after its CID (`ipfs://<cid>/index.ts`
+ * reads that file of the folder), or '' for the CID itself. Dot segments are refused.
+ */
+function parseIpfsSubpath(raw: string): string {
+  const rest =
+    raw
+      .trim()
+      .replace(/^ipfs:\/\//, '')
+      .split(/[?#]/, 1)[0] ?? ''
+  const segments = rest.split('/').slice(1).filter(Boolean)
+  if (segments.some((segment) => segment === '.' || segment === '..'))
+    throw new APIError(400, `Invalid path inside ${raw}`)
+  return segments.map((segment) => encodeURIComponent(decodeURIComponent(segment))).join('/')
+}
+
 /** Chunks bytes as UnixFS and publishes every block through the typed Seed API. */
 /**
  * Bytes of blob data per PublishBlobs request. The daemon receives the request as one gRPC
@@ -14822,24 +14838,39 @@ export async function executeReadVerb(
 
   if (address.startsWith('ipfs://')) {
     const cid = parseIpfsCid(address)
-    if (isDagCborCid(cid)) return readIpfsObject(context, cid, options)
-    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
-    const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
+    const subpath = parseIpfsSubpath(address)
+    if (isDagCborCid(cid) && !subpath) return readIpfsObject(context, cid, options)
+    // A path after the CID reads that file of a UnixFS folder, such as a tool's index.ts.
+    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}${subpath ? `/${subpath}` : ''}`
+    const targetPath =
+      typeof options.path === 'string' && options.path.trim()
+        ? options.path
+        : `ipfs/${cid}${subpath ? `/${decodeURIComponent(subpath)}` : ''}`
     const result = await withMemoryErrorsAsync(() =>
       agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
     )
     context.onMemoryChange()
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
-    const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
+    const base = {
+      path: file.path,
+      cid,
+      ...(subpath ? {file: decodeURIComponent(subpath)} : {}),
+      size: file.size,
+      mimeType: file.mimeType,
+    }
     if (file.encoding === 'binary') {
       return {
-        summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
+        summary: `Fetched ipfs://${cid}${subpath ? `/${subpath}` : ''} to ${file.path} (${file.size} bytes${
           file.mimeType ? `, ${file.mimeType}` : ''
         }); binary content not shown.`,
         ...base,
       }
     }
-    return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+    return {
+      summary: `Fetched ipfs://${cid}${subpath ? `/${subpath}` : ''} to ${file.path} (${file.size} bytes).`,
+      ...base,
+      content: file.content,
+    }
   }
 
   if (address === 'activity:' || address.startsWith('activity:')) {

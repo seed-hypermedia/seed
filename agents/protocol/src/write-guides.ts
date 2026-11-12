@@ -359,7 +359,7 @@ Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weat
 
 ## Revising
 
-- New tool code: write the same address with \`options.action: "update"\` and \`options.tool\` again. Its schemas stay unless \`metadata\` replaces them.
+- Read a tool's current code with \`read ipfs://<code CID>/index.ts\` (the \`code\` attribute names the folder), edit it in memory, then write the same address with \`options.action: "update"\` and \`options.tool\` again. Its schemas stay unless \`metadata\` replaces them.
 - Delete a tool or page with \`options.action: "delete"\`; it also leaves the app's list.
 - Do not edit the app's content by hand to list children; the publisher keeps the embeds in order, oldest first.`,
   },
