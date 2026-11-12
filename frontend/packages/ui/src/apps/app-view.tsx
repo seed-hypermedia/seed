@@ -54,18 +54,31 @@ export function AppDocumentView({
   document,
   appView,
   canEdit,
+  onPageAccessChange,
+  onPageParametersChange,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   appView: DocumentRoute['appView']
   canEdit: boolean
+  /** Hands the home page's permission manager to the host's options menu, as a page document does. */
+  onPageAccessChange?: (manage: (() => void) | null) => void
+  /** Hands the home page's parameter editor to the host's options menu. */
+  onPageParametersChange?: (edit: (() => void) | null) => void
 }) {
   const app: AppRef = useMemo(() => ({id: docId, document}), [docId, document])
   const children = useAppChildren(docId, document)
   if (appView === 'tools') return <AppChildrenTab app={app} kind="tool" appChildren={children} canEdit={canEdit} />
   if (appView === 'pages') return <AppChildrenTab app={app} kind="page" appChildren={children} canEdit={canEdit} />
   if (appView === 'settings') return <AppSettingsTab app={app} canEdit={canEdit} />
-  return <AppHomeTab app={app} appChildren={children} />
+  return (
+    <AppHomeTab
+      app={app}
+      appChildren={children}
+      onPageAccessChange={onPageAccessChange}
+      onPageParametersChange={onPageParametersChange}
+    />
+  )
 }
 
 function TabColumn({children}: {children: ReactNode}) {
@@ -76,7 +89,17 @@ function TabColumn({children}: {children: ReactNode}) {
   )
 }
 
-function AppHomeTab({app, appChildren: children}: {app: AppRef; appChildren: ReturnType<typeof useAppChildren>}) {
+function AppHomeTab({
+  app,
+  appChildren: children,
+  onPageAccessChange,
+  onPageParametersChange,
+}: {
+  app: AppRef
+  appChildren: ReturnType<typeof useAppChildren>
+  onPageAccessChange?: (manage: (() => void) | null) => void
+  onPageParametersChange?: (edit: (() => void) | null) => void
+}) {
   const navigate = useNavigate()
   const homeId = useMemo(() => {
     const id = app.document.metadata.homePage ? unpackHmId(app.document.metadata.homePage) : null
@@ -88,7 +111,14 @@ function AppHomeTab({app, appChildren: children}: {app: AppRef; appChildren: Ret
   if (homeId && homeDocument && homeCid)
     return (
       <div data-app-home-page className="min-h-0 flex-1">
-        <DocumentPageView docId={homeId} document={homeDocument} cid={homeCid} fill />
+        <DocumentPageView
+          docId={homeId}
+          document={homeDocument}
+          cid={homeCid}
+          fill
+          onAccountAccessChange={onPageAccessChange}
+          onParametersChange={onPageParametersChange}
+        />
       </div>
     )
   const tools = children.listed.filter((item) => item.kind === 'tool').length

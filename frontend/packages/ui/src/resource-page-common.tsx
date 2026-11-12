@@ -2948,21 +2948,22 @@ function DocumentBody({
       unorderedItems.push(
         ...getDocumentPagePanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
       )
-      if (editPageParameters)
-        unorderedItems.push({
-          key: 'page-parameters',
-          label: 'Page parameters',
-          icon: <SlidersHorizontal className="size-4" />,
-          onClick: editPageParameters,
-        })
-      if (managePagePermissions)
-        unorderedItems.push({
-          key: 'page-permissions',
-          label: 'Page permissions',
-          icon: <ShieldCheck className="size-4" />,
-          onClick: managePagePermissions,
-        })
     } else unorderedItems.push(citationFragmentToggleMenuItem)
+    // A running page (this document's, or an app's home page) hands its controls to this menu.
+    if (editPageParameters)
+      unorderedItems.push({
+        key: 'page-parameters',
+        label: 'Page parameters',
+        icon: <SlidersHorizontal className="size-4" />,
+        onClick: editPageParameters,
+      })
+    if (managePagePermissions)
+      unorderedItems.push({
+        key: 'page-permissions',
+        label: 'Page permissions',
+        icon: <ShieldCheck className="size-4" />,
+        onClick: managePagePermissions,
+      })
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (spaceSettingsMenuItem) unorderedItems.push(spaceSettingsMenuItem)
     // An agent's tab bar has no Attributes tab; the options menu opens that panel instead.
@@ -3320,7 +3321,14 @@ function DocumentBody({
         )}
       >
         {route.key === 'document' && appKind === 'app' ? (
-          <AppDocumentView docId={docId} document={document} appView={route.appView} canEdit={!!canEditCurrentRoute} />
+          <AppDocumentView
+            docId={docId}
+            document={document}
+            appView={route.appView}
+            canEdit={!!canEditCurrentRoute}
+            onPageAccessChange={onPageAccessChange}
+            onPageParametersChange={onPageParametersChange}
+          />
         ) : route.key === 'document' && appKind === 'tool' ? (
           <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
         ) : route.key === 'document' && (route.agentView || isAgentDocument) ? (
