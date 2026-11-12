@@ -65,7 +65,7 @@ export function AppDocumentView({
   const children = useAppChildren(docId, document)
   if (appView === 'tools') return <AppChildrenTab app={app} kind="tool" appChildren={children} canEdit={canEdit} />
   if (appView === 'pages') return <AppChildrenTab app={app} kind="page" appChildren={children} canEdit={canEdit} />
-  if (appView === 'settings') return <AppSettingsTab app={app} pages={children.listed} canEdit={canEdit} />
+  if (appView === 'settings') return <AppSettingsTab app={app} canEdit={canEdit} />
   return <AppHomeTab app={app} appChildren={children} />
 }
 
@@ -235,29 +235,25 @@ function AppChildRow({
   )
 }
 
-function AppSettingsTab({app, pages, canEdit}: {app: AppRef; pages: AppChildItem[]; canEdit: boolean}) {
+function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) {
   const publisher = useAppsPublisher()
   const navigate = useNavigate()
   const saved = app.document.metadata
   const [name, setName] = useState(saved.name ?? '')
   const [summary, setSummary] = useState(saved.summary ?? '')
-  const [homePage, setHomePage] = useState(saved.homePage ?? '')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
     setName(saved.name ?? '')
     setSummary(saved.summary ?? '')
-    setHomePage(saved.homePage ?? '')
-  }, [saved.name, saved.summary, saved.homePage])
-  const dirty = name !== (saved.name ?? '') || summary !== (saved.summary ?? '') || homePage !== (saved.homePage ?? '')
-  const pageChoices = pages.filter((item) => item.kind === 'page')
+  }, [saved.name, saved.summary])
+  const dirty = name !== (saved.name ?? '') || summary !== (saved.summary ?? '')
   async function save() {
     setBusy(true)
     try {
       const ops = []
       if (name !== (saved.name ?? '')) ops.push(setAttribute('name', name.trim()))
       if (summary !== (saved.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
-      if (homePage !== (saved.homePage ?? '')) ops.push(setAttribute('homePage', homePage || null))
       await publisher.update(app.id, ops)
       toast.success('App saved')
     } catch (error) {
@@ -280,26 +276,6 @@ function AppSettingsTab({app, pages, canEdit}: {app: AppRef; pages: AppChildItem
           disabled={!canEdit}
           onChange={(e) => setSummary(e.target.value)}
         />
-      </div>
-      <div className="grid gap-1">
-        <Label htmlFor="app-settings-home">Home page</Label>
-        <select
-          id="app-settings-home"
-          className="border-border bg-background h-9 rounded-md border px-2 text-sm"
-          value={homePage}
-          disabled={!canEdit}
-          onChange={(e) => setHomePage(e.target.value)}
-        >
-          <option value="">App overview</option>
-          {pageChoices.map((item) => (
-            <option key={item.id.id} value={item.id.id}>
-              {item.metadata?.name || item.id.path?.at(-1)}
-            </option>
-          ))}
-        </select>
-        <SizableText size="xs" color="muted">
-          The Home tab shows this page, or an overview of the app.
-        </SizableText>
       </div>
       {canEdit ? (
         <div className="flex items-center justify-between gap-2 pt-2">
