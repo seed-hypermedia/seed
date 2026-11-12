@@ -156,6 +156,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
         firstEmptyBlockClass: blockStyles.isFirstEmptyBlock,
         hasAnchorClass: blockStyles.hasAnchor,
         isFilterClass: blockStyles.isFilter,
+        emptyGridCellClass: blockStyles.isEmptyGridCell,
         includeChildren: true,
         showOnlyCurrent: false,
       }),

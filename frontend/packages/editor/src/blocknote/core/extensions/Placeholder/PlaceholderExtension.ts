@@ -19,6 +19,7 @@ export interface PlaceholderOptions {
   firstEmptyBlockClass: string
   isFilterClass: string
   hasAnchorClass: string
+  emptyGridCellClass: string
   placeholder:
     | ((PlaceholderProps: {editor: Editor; node: ProsemirrorNode; pos: number; hasAnchor: boolean}) => string)
     | string
@@ -37,6 +38,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
       firstEmptyBlockClass: 'is-first-empty-block',
       isFilterClass: 'is-filter',
       hasAnchorClass: 'has-anchor',
+      emptyGridCellClass: 'is-empty-grid-cell',
       placeholder: 'Write something …',
       showOnlyWhenEditable: true,
       showOnlyCurrent: true,
@@ -88,9 +90,14 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
               const showsFilterPlaceholder =
                 hasAnchor && isEmpty && menuState?.triggerCharacter === '' && menuState?.active
               const showsFirstBlockPlaceholder = isEmpty && isFirstTopLevelBlockContent
+              const showsGridCellPlaceholder = isEmpty && node.type.name === 'paragraph' && isGridCellContent(doc, pos)
 
-              if (showsFirstBlockPlaceholder || showsFilterPlaceholder) {
+              if (showsFirstBlockPlaceholder || showsFilterPlaceholder || showsGridCellPlaceholder) {
                 const classes: string[] = []
+
+                if (showsGridCellPlaceholder) {
+                  classes.push(this.options.emptyGridCellClass)
+                }
 
                 if (showsFirstBlockPlaceholder) {
                   classes.push(this.options.emptyNodeClass, this.options.firstEmptyBlockClass)
@@ -153,3 +160,11 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
     ]
   },
 })
+
+/** Whether the block content node at `pos` belongs to a direct child of a Grid group. */
+function isGridCellContent(doc: ProsemirrorNode, pos: number) {
+  const $pos = doc.resolve(pos)
+  if ($pos.depth < 1 || $pos.parent.type.name !== 'blockNode') return false
+  const group = $pos.node($pos.depth - 1)
+  return group.type.name === 'blockChildren' && group.attrs.listType === 'Grid'
+}

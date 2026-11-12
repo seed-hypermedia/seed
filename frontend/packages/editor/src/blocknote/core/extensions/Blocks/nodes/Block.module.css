@@ -496,6 +496,16 @@ NESTED BLOCKS
   content: var(--hm-editor-placeholder, "Enter text or type '/' for commands");
 }
 
+/* Label empty grid cells with a placeholder. */
+.blockContent.isEmptyGridCell:not(.isFilter):before {
+  content: 'Empty cell';
+  font-size: 0.9em;
+  font-family: var(--font-sans, sans-serif);
+  pointer-events: none;
+  position: absolute;
+  opacity: 0.5;
+}
+
 .blockContent.isFilter.hasAnchor:before {
   font-family: var(--font-sans, sans-serif);
   content: 'Type to filter';
