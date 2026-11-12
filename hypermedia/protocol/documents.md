@@ -123,7 +123,7 @@ The daemon has no draft concept. Drafts live in clients. The Seed app keeps draf
 
 ## In the Seed app <!-- id:C1RGnLmO -->
 
-Every edit you save creates a draft. Publish signs a Change and a Ref with the selected account and pushes them. The options menu offers move and delete (a tombstone). The activity panel lists versions (the Refs) and opens any of them. The version graph offers an "Exact version" link. With the Developer Tools experiment on, "Inspect Document" shows the underlying blobs. <!-- id:beHqX_2S -->
+Every edit you save creates a draft. Publish signs a Change and a Ref with the selected account and pushes them. The options menu offers move and delete (a tombstone). Deleting a document with children tombstones the whole subtree; a **Move children…** option in the delete dialog moves the child documents somewhere else first, then deletes only the parent. The activity panel lists versions (the Refs) and opens any of them. The version graph offers an "Exact version" link. With the Developer Tools experiment on, "Inspect Document" shows the underlying blobs. <!-- id:beHqX_2S -->
 
 ## CLI <!-- id:HxphZckW -->
 

@@ -18,6 +18,11 @@ const siteId = hmId('site')
 const otherSiteId = hmId('other')
 const sourceId = hmId('site', {path: ['old-parent', 'move-me']})
 
+const directoryMock = vi.hoisted(() => ({
+  data: [] as any[],
+  resourcesById: {} as Record<string, any>,
+}))
+
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: (id: any) => {
     if (!id) return {data: null}
@@ -41,8 +46,9 @@ vi.mock('@shm/shared/models/entity', () => ({
     }
     return {data: {type: 'not-found', id}}
   },
-  useDirectory: () => ({data: []}),
-  useResources: () => [],
+  useDirectory: () => ({data: directoryMock.data, isLoading: false}),
+  useResources: (ids: any[]) =>
+    (ids || []).map((id) => directoryMock.resourcesById[id.id] || {data: {type: 'not-found', id}}),
 }))
 
 vi.mock('@shm/shared/models/search', () => ({
@@ -52,6 +58,9 @@ vi.mock('@shm/shared/models/search', () => ({
 vi.mock('../components/dialog', () => ({
   DialogTitle: ({children, className}: {children: React.ReactNode; className?: string}) => (
     <h2 className={className}>{children}</h2>
+  ),
+  DialogDescription: ({children, className}: {children: React.ReactNode; className?: string}) => (
+    <p className={className}>{children}</p>
   ),
 }))
 
@@ -78,6 +87,8 @@ afterEach(() => {
   })
   container.remove()
   hmIconMock.mockClear()
+  directoryMock.data = []
+  directoryMock.resourcesById = {}
 })
 
 async function clearToWritableRoots() {
@@ -203,7 +214,7 @@ describe('DocumentDestinationDialog', () => {
     await clearToWritableRoots()
 
     expect(hmIconMock).toHaveBeenCalledWith(
-      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 28}),
+      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 24}),
       expect.anything(),
     )
   })
@@ -241,5 +252,113 @@ describe('DocumentDestinationDialog', () => {
 
     expect(container.textContent).toContain('Docs')
     expect(container.textContent).toContain('Other Site')
+  })
+
+  describe('move-children mode', () => {
+    const moveChildrenInput: DocumentDestinationDialogInput = {id: sourceId, mode: 'move-children'}
+    const childA = {id: hmId('site', {path: ['old-parent', 'move-me', 'a']}), path: ['old-parent', 'move-me', 'a']}
+    const childB = {id: hmId('site', {path: ['old-parent', 'move-me', 'b']}), path: ['old-parent', 'move-me', 'b']}
+
+    it('hides the URL Path section, lists destinations, and submits the target parent', async () => {
+      directoryMock.data = [childA, childB, {path: ['old-parent', 'move-me', 'a', 'deep']}]
+      const {onSubmit} = renderDialog({
+        input: moveChildrenInput,
+        enabledModes: ['move-children'],
+        writableDocuments: [
+          {id: siteId, title: 'Docs', document: {version: 'v1', metadata: {name: 'Docs'}} as any},
+          // The writable parent of the source, so the default "move up one level" target is writable.
+          {
+            id: hmId('site', {path: ['old-parent']}),
+            title: 'Old parent',
+            document: {version: 'v1', metadata: {name: 'Old parent'}} as any,
+          },
+        ],
+      })
+
+      expect(container.textContent).toContain('Move children of "Move me"')
+      expect(container.textContent).not.toContain('URL Path')
+      expect(container.querySelector('input[placeholder="url-path"]')).toBeNull()
+      expect(container.textContent).toContain('2 documents will move')
+
+      const showButton = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Show',
+      ) as HTMLButtonElement
+      await act(async () => {
+        showButton.click()
+      })
+      expect(container.textContent).toContain('old-parent/a')
+      expect(container.textContent).toContain('old-parent/b')
+
+      const submitButton = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Move and delete',
+      ) as HTMLButtonElement
+      expect(submitButton.disabled).toBe(false)
+      await act(async () => {
+        submitButton.click()
+      })
+      expect(onSubmit).toHaveBeenCalledWith({
+        from: sourceId,
+        to: hmId('site', {path: ['old-parent']}),
+        mode: 'move-children',
+        signingAccountId: 'site',
+      })
+    })
+
+    it('shows the destination conflict message', () => {
+      directoryMock.data = [childA]
+      const conflictId = hmId('site', {path: ['old-parent', 'a']})
+      directoryMock.resourcesById[conflictId.id] = {
+        data: {type: 'document', id: conflictId, document: {metadata: {name: 'Taken'}, version: 'v1'}},
+      }
+      renderDialog({
+        input: moveChildrenInput,
+        enabledModes: ['move-children'],
+        writableDocuments: [
+          {
+            id: hmId('site', {path: ['old-parent']}),
+            title: 'Old parent',
+            document: {version: 'v1', metadata: {name: 'Old parent'}} as any,
+          },
+        ],
+      })
+
+      expect(container.textContent).toContain(
+        'A document already exists at /old-parent/a. Choose a different location.',
+      )
+    })
+
+    it('blocks a target inside the document subtree', async () => {
+      // The location list offers the source itself; picking it puts the target inside the subtree.
+      directoryMock.data = [
+        {
+          id: sourceId,
+          path: ['old-parent', 'move-me'],
+          metadata: {name: 'Move me'},
+          visibility: 'PUBLIC',
+          version: 'v1',
+        },
+      ]
+      renderDialog({
+        input: moveChildrenInput,
+        enabledModes: ['move-children'],
+        writableDocuments: [
+          {
+            id: hmId('site', {path: ['old-parent']}),
+            title: 'Old parent',
+            document: {version: 'v1', metadata: {name: 'Old parent'}} as any,
+          },
+          {id: sourceId, title: 'Move me', document: {version: 'v1', metadata: {name: 'Move me'}} as any},
+        ],
+      })
+
+      const row = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.includes('Move me'),
+      ) as HTMLButtonElement
+      expect(row).toBeTruthy()
+      await act(async () => {
+        row.click()
+      })
+      expect(container.textContent).toContain('Choose a location outside this document subtree.')
+    })
   })
 })

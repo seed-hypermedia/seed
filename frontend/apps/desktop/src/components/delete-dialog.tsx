@@ -32,10 +32,10 @@ export function useDeleteDialog() {
 }
 
 export function DeleteDocumentDialog({
-  input: {id, onSuccess},
+  input: {id, onSuccess, onMoveChildren},
   onClose,
 }: {
-  input: {id: UnpackedHypermediaId; onSuccess?: () => void}
+  input: {id: UnpackedHypermediaId; onSuccess?: () => void; onMoveChildren?: () => void}
   onClose?: () => void
 }) {
   const list = useListSite(id)
@@ -101,6 +101,7 @@ export function DeleteDocumentDialog({
         })
         if (listingApp) await appsPublisher.removeFromApp(listingApp, id)
       }}
+      onMoveChildren={onMoveChildren}
       onClose={onClose}
       onSuccess={onSuccess}
     />

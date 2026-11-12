@@ -5,6 +5,8 @@ import {
   canShowMoveDocumentAction,
   canShowRepublishDocumentAction,
   canUseDocumentAsDestinationParent,
+  getChildMoveDestinationPath,
+  getChildMoveRoots,
   isMoveTargetParentBlocked,
   isMoveTargetSameSite,
   canUseMoveTargetParent,
@@ -111,5 +113,52 @@ describe('document destination occupancy', () => {
   it('allows empty and deleted destinations', () => {
     expect(canUseDocumentDestination({type: 'not-found', id: destination})).toBe(true)
     expect(canUseDocumentDestination({type: 'tombstone', id: destination})).toBe(true)
+  })
+})
+
+describe('child move roots', () => {
+  const doc = (path: string[]) => ({path, isRedirect: false})
+  const redirect = (path: string[]) => ({path, isRedirect: true})
+
+  it('returns only the shallowest real descendants', () => {
+    expect(
+      getChildMoveRoots(
+        ['parent'],
+        [
+          doc(['parent', 'a']),
+          doc(['parent', 'a', 'deep']),
+          doc(['parent', 'a', 'deep', 'deeper']),
+          doc(['parent', 'b']),
+        ],
+      ),
+    ).toEqual([
+      ['parent', 'a'],
+      ['parent', 'b'],
+    ])
+  })
+
+  it('skips redirects but keeps real documents under a redirect path', () => {
+    expect(
+      getChildMoveRoots(
+        ['parent'],
+        [redirect(['parent', 'moved']), doc(['parent', 'moved', 'real']), doc(['parent', 'child'])],
+      ),
+    ).toEqual([
+      ['parent', 'child'],
+      ['parent', 'moved', 'real'],
+    ])
+  })
+
+  it('ignores documents outside the parent subtree and the parent itself', () => {
+    expect(
+      getChildMoveRoots(
+        ['parent'],
+        [doc(['parent']), doc(['parent', 'child']), doc(['other', 'child']), doc(['parental', 'x'])],
+      ),
+    ).toEqual([['parent', 'child']])
+  })
+
+  it('computes the destination path as target plus the last segment', () => {
+    expect(getChildMoveDestinationPath(['parent', 'a', 'deep'], ['target', 'loc'])).toEqual(['target', 'loc', 'deep'])
   })
 })

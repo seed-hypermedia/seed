@@ -160,6 +160,20 @@ describe('parent reference-removal publication confirmation', () => {
     expect(actor.getSnapshot().context.removedChildDocumentIds).toEqual([])
     actor.stop()
   })
+  it.each(['confirmingChildDeletion', 'childDeletionFailed'] as const)(
+    'publishes without child deletions after %s when the user skips them',
+    async (reviewState) => {
+      const {actor, publish, inspect} = start()
+      if (reviewState === 'childDeletionFailed') inspect.mockRejectedValueOnce(new Error('offline'))
+      actor.send({type: 'publish.start'})
+      await waitFor(actor, (snapshot) => snapshot.matches({publishing: reviewState}))
+      actor.send({type: 'publish.skipChildDeletion'})
+      await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+      expect(publish).toHaveBeenCalledOnce()
+      expect(publish.mock.calls[0]?.[0].input.confirmedChildDeletions).toEqual([])
+      actor.stop()
+    },
+  )
   it('cancellation leaves the draft without executing a deletion or publication', async () => {
     const {actor, publish} = start()
     actor.send({type: 'publish.start'})

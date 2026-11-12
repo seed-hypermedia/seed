@@ -6,6 +6,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
 const {
+  moveChildrenAndDeleteMutateAsyncMock,
   moveDraftMutateAsyncMock,
   moveMutateAsyncMock,
   navigateMock,
@@ -16,6 +17,7 @@ const {
   useResourcesMock,
   writableDocumentsMock,
 } = vi.hoisted(() => ({
+  moveChildrenAndDeleteMutateAsyncMock: vi.fn(),
   moveDraftMutateAsyncMock: vi.fn(),
   moveMutateAsyncMock: vi.fn(),
   navigateMock: vi.fn(),
@@ -36,6 +38,13 @@ vi.mock('@/models/documents', () => ({
   useMoveDraft: () => ({mutateAsync: moveDraftMutateAsyncMock, isLoading: false}),
   useRepublishDocument: () => ({mutateAsync: republishMutateAsyncMock, isLoading: false}),
   useCreateDraft: () => async () => {},
+}))
+
+vi.mock('@/models/entities', () => ({
+  useMoveChildrenAndDeleteDocument: () => ({
+    mutateAsync: moveChildrenAndDeleteMutateAsyncMock,
+    isLoading: false,
+  }),
 }))
 
 vi.mock('@/models/gateway-settings', () => ({
@@ -67,6 +76,9 @@ vi.mock('@shm/shared/models/entity', () => ({
 vi.mock('@shm/ui/components/dialog', () => ({
   DialogTitle: ({children, className}: {children: React.ReactNode; className?: string}) => (
     <h2 className={className}>{children}</h2>
+  ),
+  DialogDescription: ({children, className}: {children: React.ReactNode; className?: string}) => (
+    <p className={className}>{children}</p>
   ),
 }))
 
@@ -147,6 +159,7 @@ function findButtonExact(container: HTMLDivElement, label: string) {
 
 describe('DocumentDestinationDialog', () => {
   beforeEach(() => {
+    moveChildrenAndDeleteMutateAsyncMock.mockReset()
     moveDraftMutateAsyncMock.mockReset()
     moveMutateAsyncMock.mockReset()
     navigateMock.mockReset()
@@ -184,6 +197,20 @@ describe('DocumentDestinationDialog', () => {
               id: hmId('alice', {path: ['docs']}),
               path: ['docs'],
               metadata: {name: 'Docs'},
+              visibility: 'PUBLIC',
+              version: 'v1',
+            },
+          ],
+          isLoading: false,
+        }
+      }
+      if (pathKey === 'docs/api') {
+        return {
+          data: [
+            {
+              id: hmId('alice', {path: ['docs', 'api', 'child']}),
+              path: ['docs', 'api', 'child'],
+              metadata: {name: 'Child'},
               visibility: 'PUBLIC',
               version: 'v1',
             },
@@ -251,6 +278,40 @@ describe('DocumentDestinationDialog', () => {
       expect(container.querySelector('input[placeholder="url-path"]')).toHaveProperty('value', 'api')
       expect(container.textContent).toContain('Choose a new location or URL path.')
     } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('submits move-children with the target parent, moving roots and deleting only the parent', async () => {
+    const previousResources = useResourcesMock.getMockImplementation()!
+    useResourcesMock.mockImplementation((ids: ReturnType<typeof hmId>[]) =>
+      ids.map((id) => ({data: {type: 'not-found', id}, isLoading: false})),
+    )
+    const {container, root} = renderDialog({id: hmId('alice', {path: ['docs', 'api']}), mode: 'move-children'})
+    try {
+      // The URL Path section is replaced by the destination list.
+      expect(container.querySelector('input[placeholder="url-path"]')).toBeNull()
+      expect(container.textContent).toContain('1 document will move')
+      const showButton = findButtonExact(container, 'Show')
+      expect(showButton).toBeTruthy()
+      await act(async () => {
+        showButton?.click()
+      })
+      expect(container.textContent).toContain('docs/child')
+
+      const submit = findButtonExact(container, 'Move and delete')
+      expect(submit?.disabled).toBe(false)
+      await act(async () => {
+        submit?.click()
+      })
+      expect(moveChildrenAndDeleteMutateAsyncMock).toHaveBeenCalledWith({
+        parent: hmId('alice', {path: ['docs', 'api']}),
+        target: hmId('alice', {path: ['docs']}),
+        signingAccountId: 'alice',
+      })
+      expect(moveMutateAsyncMock).not.toHaveBeenCalled()
+    } finally {
+      useResourcesMock.mockImplementation(previousResources)
       cleanup(root, container)
     }
   })

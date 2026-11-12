@@ -1201,6 +1201,7 @@ export default function DesktopResourcePage() {
       onClick: () => {
         deleteEntity.open({
           id: docId,
+          onMoveChildren: () => destinationDialog.open({id: docId, mode: 'move-children'}),
           onSuccess: () => {
             dispatch({
               type: 'backplace',

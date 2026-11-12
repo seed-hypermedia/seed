@@ -29,13 +29,26 @@ function DeletionListItem({item}: {item: DeleteDocumentDialogItem}) {
   )
 }
 
-/** Expandable, bounded list of document titles and paths for destructive confirmations. */
-export function DeletionDocumentList({documents, label}: {documents: DeleteDocumentDialogItem[]; label: string}) {
+/** Expandable, bounded list of document titles and paths for destructive confirmations.
+ * `tone` controls the surface: 'destructive' (default) for deletions, 'neutral' for previews. */
+export function DeletionDocumentList({
+  documents,
+  label,
+  tone = 'destructive',
+}: {
+  documents: DeleteDocumentDialogItem[]
+  label: string
+  tone?: 'destructive' | 'neutral'
+}) {
   const [showChildDocuments, setShowChildDocuments] = React.useState(false)
   const childDocumentListId = React.useId()
   return (
     <div
-      className="border-destructive/20 bg-destructive/[0.03] overflow-hidden rounded-lg border"
+      className={
+        tone === 'neutral'
+          ? 'border-border bg-muted/30 overflow-hidden rounded-lg border'
+          : 'border-destructive/20 bg-destructive/[0.03] overflow-hidden rounded-lg border'
+      }
       data-testid="delete-document-child-section"
     >
       <div className="flex items-center justify-between gap-4 px-4 py-3">

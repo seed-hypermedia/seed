@@ -115,9 +115,13 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
 
   const onDeleteDocument = useCallback(
     (id: UnpackedHypermediaId, onSuccess?: () => void) => {
-      deleteDialog.open({id, onSuccess})
+      deleteDialog.open({
+        id,
+        onSuccess,
+        onMoveChildren: () => destinationDialog.open({id, mode: 'move-children'}),
+      })
     },
-    [deleteDialog],
+    [deleteDialog, destinationDialog],
   )
 
   const onRepublishDocument = useCallback(

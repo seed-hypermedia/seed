@@ -17,6 +17,7 @@ const enqueueCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true, 
 const releaseCleanupMock = vi.hoisted(() => vi.fn(async () => {}))
 const sharedDestinationDialogMock = vi.hoisted(() => vi.fn(() => <div data-testid="shared-destination-dialog" />))
 const invalidateQueriesMock = vi.hoisted(() => vi.fn())
+const deleteWebDocumentsMock = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@seed-hypermedia/client', async () => {
   const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
@@ -26,6 +27,10 @@ vi.mock('@seed-hypermedia/client', async () => {
     createRedirectRef: createRedirectRefMock,
   }
 })
+
+vi.mock('./web-delete-documents', () => ({
+  deleteWebDocuments: deleteWebDocumentsMock,
+}))
 
 vi.mock('./document-edit/web-document-card-cleanup', () => ({
   releaseWebDocumentCardCleanup: releaseCleanupMock,
@@ -51,7 +56,12 @@ vi.mock('@shm/shared/models/entity', () => ({
   useResources: () => [],
 }))
 
-import {moveWebDocuments, republishWebDocument, WebDocumentDestinationDialog} from './web-move-document-dialog'
+import {
+  moveChildrenAndDeleteWebDocument,
+  moveWebDocuments,
+  republishWebDocument,
+  WebDocumentDestinationDialog,
+} from './web-move-document-dialog'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -110,7 +120,7 @@ describe('WebDocumentDestinationDialog', () => {
     expect(sharedDestinationDialogMock).toHaveBeenCalledWith(
       expect.objectContaining({
         input: {id, mode: 'move'},
-        enabledModes: ['move', 'republish'],
+        enabledModes: ['move', 'republish', 'move-children'],
       }),
       {},
     )
@@ -187,7 +197,7 @@ describe('WebDocumentDestinationDialog', () => {
     })
 
     const dialogProps = (sharedDestinationDialogMock.mock.calls as any[])[0][0]
-    expect(dialogProps.enabledModes).toEqual(['move', 'republish'])
+    expect(dialogProps.enabledModes).toEqual(['move', 'republish', 'move-children'])
 
     await act(async () => {
       await dialogProps.onSubmit({from, to, mode: 'republish', signingAccountId: 'site'})
@@ -622,5 +632,89 @@ describe('republishWebDocument', () => {
       },
       {client: expect.anything()},
     )
+  })
+})
+
+describe('moveChildrenAndDeleteWebDocument', () => {
+  const parent = makeId('site', ['p'])
+  const target = makeId('site', ['t'])
+  const descendants = [
+    {path: ['p', 'a'], metadata: {name: 'A'}},
+    {path: ['p', 'a', 'deep'], metadata: {name: 'Deep'}},
+    {path: ['p', 'b'], metadata: {name: 'B'}},
+    {path: ['p', 'gone'], metadata: {name: 'Gone'}, redirectInfo: {}},
+  ] as unknown as HMDocumentInfo[]
+  const getSigner = () => ({
+    getPublicKey: async () => new Uint8Array([1]),
+    sign: async () => new Uint8Array([2]),
+  })
+  const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+    const path = id.path?.join('/')
+    if (path === 't/a' || path === 't/b' || path === 't/a/deep') return {type: 'not-found', id}
+    return {
+      type: 'document',
+      document: {version: 'v1', genesis: 'g1', generationInfo: {genesis: 'g1', generation: 1n}},
+    }
+  })
+
+  it('moves each child root then deletes only the parent', async () => {
+    deleteWebDocumentsMock.mockClear()
+    const publish = vi.fn(async () => ({}))
+    await moveChildrenAndDeleteWebDocument({request, publish, getSigner} as any, {
+      parent,
+      target,
+      descendants,
+      signingAccountId: 'site',
+      capabilityId: 'cap-cid',
+    })
+    // roots a (with descendant deep) and b: 2 refs for a, 2 for b, 2 for deep.
+    expect(publish).toHaveBeenCalledTimes(6)
+    expect(deleteWebDocumentsMock).toHaveBeenCalledTimes(1)
+    expect(deleteWebDocumentsMock).toHaveBeenCalledWith(expect.anything(), {
+      ids: [parent],
+      signingAccountId: 'site',
+      capabilityId: 'cap-cid',
+    })
+    expect(deleteWebDocumentsMock.mock.invocationCallOrder[0]).toBeGreaterThan(publish.mock.invocationCallOrder.at(-1)!)
+  })
+
+  it('publishes and deletes nothing when a destination is occupied', async () => {
+    deleteWebDocumentsMock.mockClear()
+    const publish = vi.fn(async () => ({}))
+    const conflictRequest = vi.fn(async (key: string, id: UnpackedHypermediaId) => {
+      if (id.path?.join('/') === 't/a')
+        return {type: 'document', id, document: {version: 'v1', generationInfo: {genesis: 'g', generation: 1n}}}
+      return request(key, id)
+    })
+    await expect(
+      moveChildrenAndDeleteWebDocument({request: conflictRequest, publish, getSigner} as any, {
+        parent,
+        target,
+        descendants,
+        signingAccountId: 'site',
+      }),
+    ).rejects.toThrow('A document already exists')
+    expect(publish).not.toHaveBeenCalled()
+    expect(deleteWebDocumentsMock).not.toHaveBeenCalled()
+  })
+
+  it('does not delete the parent when a move fails partway', async () => {
+    deleteWebDocumentsMock.mockClear()
+    let calls = 0
+    // Root a publishes 4 refs (a + its descendant); the 5th call is inside root b's move.
+    const publish = vi.fn(async () => {
+      calls += 1
+      if (calls === 5) throw new Error('publish failed')
+      return {}
+    })
+    await expect(
+      moveChildrenAndDeleteWebDocument({request, publish, getSigner} as any, {
+        parent,
+        target,
+        descendants,
+        signingAccountId: 'site',
+      }),
+    ).rejects.toThrow(/Moved 1 of 2 child documents\..*was not deleted\./)
+    expect(deleteWebDocumentsMock).not.toHaveBeenCalled()
   })
 })

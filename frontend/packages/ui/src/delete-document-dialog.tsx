@@ -18,6 +18,8 @@ export type DeleteDocumentDialogProps = {
   onConfirm: () => Promise<void> | void
   onClose?: () => void
   onSuccess?: () => void
+  /** Shown only for documents with children: moves children elsewhere before deleting. */
+  onMoveChildren?: () => void
   className?: string
 }
 
@@ -31,6 +33,7 @@ export function DeleteDocumentDialog({
   onConfirm,
   onClose,
   onSuccess,
+  onMoveChildren,
   className,
 }: DeleteDocumentDialogProps) {
   const [isDeleting, setIsDeleting] = React.useState(false)
@@ -102,10 +105,22 @@ export function DeleteDocumentDialog({
 
       <DocumentDeletionReferences documentIds={[document.key, ...childDocuments.map((child) => child.key)]} />
 
-      <div className="flex shrink-0 justify-end gap-3" data-testid="delete-document-footer">
+      <div className="flex shrink-0 flex-wrap justify-end gap-3" data-testid="delete-document-footer">
         <Button onClick={onClose} variant="outline" disabled={isDeleting}>
           Cancel
         </Button>
+        {hasChildren && onMoveChildren && subject === 'document' ? (
+          <Button
+            variant="outline"
+            disabled={isDeleting}
+            onClick={() => {
+              onClose?.()
+              onMoveChildren()
+            }}
+          >
+            Move children…
+          </Button>
+        ) : null}
         <Button variant="destructive" onClick={handleConfirm} disabled={isDeleting}>
           {`Delete ${subject}`}
         </Button>
