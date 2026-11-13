@@ -418,7 +418,9 @@ describe('generateCaddyfile', () => {
   test('routes /hm/api/agents to the agents service only when enabled, open like the site', () => {
     expect(generateCaddyfile(makeTestConfig())).not.toContain('seed-agents')
     const caddy = generateCaddyfile(makeTestConfig({agents: true}))
-    expect(caddy).toMatch(/@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\* \/hm\/api\/apps \/hm\/api\/apps\/\*\n\}/)
+    expect(caddy).toMatch(
+      /@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\* \/hm\/api\/apps \/hm\/api\/apps\/\*\n\}/,
+    )
     expect(caddy).toContain('reverse_proxy @agentsroute seed-agents:3050')
     expect(caddy.indexOf('reverse_proxy @agentsroute')).toBeLessThan(caddy.indexOf('reverse_proxy * seed-web'))
     expect(caddy).not.toContain('forward_auth')
@@ -838,7 +840,7 @@ describe('docker-compose image refs', () => {
     expect(agents).toMatch(/profiles:\n\s+- agents\n/)
     expect(agents).toContain('SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}')
     expect(agents).toContain('${SEED_SITE_WORKSPACE}/agents:/data')
-    expect(compose).toContain("SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://agentic.seed.hyper.media}'")
+    expect(compose).toContain("SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://hyper.media/hm/api/apps}'")
   })
 })
 
@@ -2522,13 +2524,13 @@ describe('enterprise: profile helpers', () => {
     expect(notifyHost(makeEnterpriseConfig())).toBe('')
     expect(notifyHost(makeEnterpriseConfig({notify: true}))).toBe('https://example.org/hm/api/notify')
     expect(agentsHost(makeEnterpriseConfig())).toBe('')
-    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://example.org/hm/api/agents')
+    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://example.org/hm/api/apps')
     // The site profile keeps the hosted notify service, now on hyper.media itself.
     expect(NOTIFY_SERVICE_HOST).toBe('https://hyper.media/hm/api/notify')
     expect(notifyHost(makeTestConfig())).toBe(NOTIFY_SERVICE_HOST)
     expect(notifyHost(makeTestConfig({notify: true}))).toBe(NOTIFY_SERVICE_HOST)
     expect(agentsHost(makeTestConfig())).toBe('')
-    expect(agentsHost(makeTestConfig({agents: true}))).toBe('https://node1.seed.run/hm/api/agents')
+    expect(agentsHost(makeTestConfig({agents: true}))).toBe('https://node1.seed.run/hm/api/apps')
   })
 
   test('compose profiles follow the config', () => {
@@ -2850,7 +2852,8 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain('COMPOSE_PROFILES="notify,agents,metrics"')
     expect(env).toContain('SEED_NOTIFY_HOST="https://example.org/hm/api/notify"')
     expect(env).toContain('NOTIFY_SERVICE_HOST="https://example.org/hm/api/notify"')
-    expect(env).toContain('SEED_AGENTS_HOST="https://example.org/hm/api/agents"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://example.org/hm/api/apps"')
+    expect(env).toContain('SEED_AGENTS_PUBLIC_URL="https://example.org/hm/api/apps"')
     expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
     expect(env).toContain('SEED_SMTP_HOST="smtp.example.org"')
     expect(env).toContain('SEED_SMTP_PORT="2587"')
@@ -2871,7 +2874,9 @@ describe('enterprise: buildComposeEnv', () => {
   test('site profile with agents passes its own agents URL and the profile', () => {
     const env = buildComposeEnv(makeTestConfig({agents: true, agents_kvm: true}), makePaths('/opt/seed'))
     expect(env).toContain('COMPOSE_PROFILES="agents"')
-    expect(env).toContain('SEED_AGENTS_HOST="https://node1.seed.run/hm/api/agents"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://node1.seed.run/hm/api/apps"')
+    // The app server knows it is the site itself, under /hm/api/apps.
+    expect(env).toContain('SEED_AGENTS_PUBLIC_URL="https://node1.seed.run/hm/api/apps"')
     expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
     expect(env).not.toContain('SEED_SERVICE_SECRET')
   })
@@ -2991,7 +2996,9 @@ describe('enterprise: generateCaddyfile', () => {
     const webhook = caddy.indexOf('@agents_webhook {')
     expect(webhook).toBeGreaterThan(0)
     expect(webhook).toBeLessThan(gateStart)
-    expect(caddy).toMatch(/@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\* \/hm\/api\/apps\/webhooks\/\*\n/)
+    expect(caddy).toMatch(
+      /@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\* \/hm\/api\/apps\/webhooks\/\*\n/,
+    )
 
     // Members only: /hm/api/agents (API and WebSocket) sits behind the gate, before the catch-all.
     const gated = caddy.indexOf('@agents path /hm/api/agents /hm/api/agents/* /hm/api/apps /hm/api/apps/*')

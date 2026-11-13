@@ -29,7 +29,7 @@ Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
   ├─ Local app environment subprocess (desktop only; same artifact as the Docker image)
   │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
   ├─ Agents routes: list, server, detail, session, run
-  ├─ Assistant sidebar: sessions of any agent on any configured server
+  ├─ Assistant sidebar: sessions of any agent on any server the app knows
   ├─ Provider and create-agent dialogs
   ├─ daemon-backed signing for the selected account
   ├─ signed CBOR HTTP client
@@ -122,8 +122,8 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 
 - Agents list, server, detail, and session routes with sidebar, menu, and shortcut integration. See [desktop and web UI](./desktop-ui.md). <!-- id:KVIyJNrf -->
 - Local app environment lifecycle: attaches to an already-running server in development, and spawns the bundled binary in a packaged app. <!-- id:o29cW4lm -->
-- Assistant sidebar backed by agent sessions, with no separate chat runtime. It lists sessions from every configured server, including the local one. <!-- id:KM6x2pZe -->
-- Default and multi-server settings. <!-- id:OuuPfvPJ -->
+- Assistant sidebar backed by agent sessions, with no separate chat runtime. It lists sessions from every server the app remembers, including the local one. <!-- id:KM6x2pZe -->
+- Many servers with no server settings: the server is chosen when an agent or app is created or moved, and the app remembers the ones used. <!-- id:OuuPfvPJ -->
 - Provider management dialog for every provider type in the registry, with API-key and ChatGPT-subscription sign-in. <!-- id:5OYSu8Vw -->
 - Create-agent dialog with configured-provider selection. <!-- id:JhGY7o_O -->
 - Agent detail page with editable name, model, and system prompt, and a Settings panel to invite collaborators and manage members. <!-- id:x5czSImM -->

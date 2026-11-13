@@ -75,7 +75,7 @@ Everything the app shows comes from a [site](../protocol/sites.md)'s `/api/<Key>
 
 ## Agents <!-- id:UHV5HLBL -->
 
-The Agents screens list your [Seed Agents](../agent.md), open sessions and chat. They reuse the platform-neutral half of the shared agents code: the signed client, React Query models, chat row model and tool summaries. Only the views are rewritten. The [app environment](./app-environment.md) defaults to `https://agentic.seed.hyper.media`, overridable with `EXPO_PUBLIC_SEED_AGENT_SERVER_URL` or in the app. <!-- id:r9o8K8r_ -->
+The Agents screens list your [Seed Agents](../agent.md), open sessions and chat. They reuse the platform-neutral half of the shared agents code: the signed client, React Query models, chat row model and tool summaries. Only the views are rewritten. The [app environment](./app-environment.md) defaults to `https://hyper.media/hm/api/apps`, overridable with `EXPO_PUBLIC_SEED_APPS_ENVIRONMENT_URL` or in the app. <!-- id:r9o8K8r_ -->
 
 For UI work without spending tokens, `npm run mock-agents` serves a scripted app environment on `http://localhost:3052` that streams replies, shows pending tool calls, advances a plan and parks a run for an answer. It does not verify signatures, binds to loopback only, and must never be deployed. <!-- id:zIZYXZ2C -->
 

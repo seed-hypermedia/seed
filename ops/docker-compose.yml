@@ -43,7 +43,7 @@ services:
       - 'NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST}'
       # The site's own agents service (`<site>/hm/api/agents`) when the
       # `agents` profile is on; the hosted one otherwise.
-      - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://agentic.seed.hyper.media}'
+      - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://hyper.media/hm/api/apps}'
       - 'SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}'
       - 'SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}'
       - 'DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
@@ -106,6 +106,8 @@ services:
       # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
       # injects the device and sets this to "microsandbox".
       - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND:-}'
+      # Where clients reach this server: the site itself, under /hm/api/apps.
+      - 'SEED_AGENTS_PUBLIC_URL=${SEED_AGENTS_PUBLIC_URL:-}'
 
   prometheus:
     image: prom/prometheus:latest

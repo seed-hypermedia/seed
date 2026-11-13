@@ -124,6 +124,7 @@ Config source: `apps/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_DB_PATH` | `./data/agents.sqlite` | SQLite DB path. <!-- id:dknRVRGp --> |
 | `SEED_AGENTS_DATA_DIR` | `./data` | Data directory. <!-- id:oMgwJJep --> |
 | `SEED_AGENTS_HM_SERVER_URL` | `https://hyper.media` | Seed DAG-CBOR `/api/*` endpoint ([Seed API](../build/web-api.md)) used for activity and HM reads and writes. <!-- id:-U_3_rUb --> |
+| `SEED_AGENTS_PUBLIC_URL` | _(unset)_ | Where clients reach this server, such as `https://hyper.media/hm/api/apps` when the web host proxies `/hm/api/apps` here. Reported as `publicUrl` in `/api/health`. An app an agent runs here is pointed at it (its `appEnvironmentUrl`). |
 | `SEED_AGENTS_IPFS_SERVER_URL` | HM server URL | Direct `/ipfs/*` [gateway](../protocol/files.md) origin for reads when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
 | `SEED_AGENTS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The document a new agent's system prompt embeds, the [Agent Guide](./guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:ClWokX89 --> |
 | `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…` go to this account. <!-- id:dAKWdZ8N --> |
