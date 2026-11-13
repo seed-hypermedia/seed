@@ -23,7 +23,7 @@ import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
 import {cn} from '../utils'
-import type {AppRef} from './publish'
+import {setAttribute, useAppsPublisher, type AppRef} from './publish'
 import {appServerErrorMessage, structFields, structValue, useAppRun, useAppServerUrl, type StructField} from './running'
 
 type ConfigKey = 'publicConfigSchema' | 'privateConfigSchema'
@@ -64,6 +64,7 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
   const privateDialog = useAppDialog(PrivateConfigDialog, {className: 'w-full max-w-lg'})
   const server = useAppServerUrl(app.id, draftApp.document)
   const appRun = useAppRun(server.serverUrl, app.id.id)
+  const publisher = useAppsPublisher()
   const publicFields = structFields(publicSchema.schema)
   const privateFields = structFields(privateSchema.schema)
   const publicConfig = (metadata.publicConfig ?? {}) as Record<string, unknown>
@@ -104,10 +105,15 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
             serverUrl: server.serverUrl,
             privateFields,
             onRun: async (serverUrl, privateConfig) => {
-              // The server reads the app as published: put the chosen server in the draft and
-              // publish it with any other unsaved settings (public config) before running.
-              if (serverUrl !== server.serverUrl) change({metadata: {appEnvironmentUrl: serverUrl}})
-              if (serverUrl !== server.serverUrl || hasDraft) send({type: 'publish.start'} as never)
+              // An app runs only on the server it names, and the server checks the app as published:
+              // publish the chosen server first and wait for it, then run. The draft takes the same
+              // value so a later publish keeps it; other unsaved settings (public config) publish too.
+              const published = app.document.metadata.appEnvironmentUrl
+              if (serverUrl !== published && serverUrl !== server.serverUrl) {
+                await publisher.update(app.id, [setAttribute('appEnvironmentUrl', serverUrl)])
+                change({metadata: {appEnvironmentUrl: serverUrl}})
+              }
+              if (hasDraft) send({type: 'publish.start'} as never)
               await appRun.run.mutateAsync({serverUrl, privateConfig})
               toast.success('App is running')
             },

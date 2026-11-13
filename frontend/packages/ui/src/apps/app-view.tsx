@@ -9,14 +9,12 @@ import {
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import type {DocumentRoute} from '@shm/shared/routes'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Blocks, FileCode2, Plus, Wrench} from 'lucide-react'
+import {Blocks, FileCode2, Wrench} from 'lucide-react'
 import {useMemo, type ReactNode} from 'react'
 import {Button} from '../button'
 import {DocumentPageView, documentPageCid} from '../document-page'
 import {SizableText} from '../text'
 import {toast} from '../toast'
-import {useAppDialog} from '../universal-dialog'
-import {CreateToolDialog} from './create-dialogs'
 import {useAppsPublisher, type AppRef} from './publish'
 import {AppSettingsTab} from './app-settings'
 import {AppRunStatus, useAppRun, useAppServerUrl} from './running'
@@ -164,26 +162,17 @@ function AppChildrenTab({
 }) {
   const navigate = useNavigate()
   const publisher = useAppsPublisher()
-  const createTool = useAppDialog(CreateToolDialog)
   const listed = children.listed.filter((item) => item.kind === kind)
   const strays = children.strays.filter((item) => item.kind === kind)
   const noun = kind === 'tool' ? 'tool' : 'page'
   return (
     <TabColumn>
-      {createTool.content}
-      {kind === 'tool' && canEdit ? (
-        <div className="flex justify-end">
-          <Button size="sm" variant="default" onClick={() => createTool.open({app})}>
-            <Plus className="size-4" /> New tool
-          </Button>
-        </div>
-      ) : null}
       {!children.isLoading && !listed.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
           <SizableText weight="bold">No {noun}s yet.</SizableText>
           <SizableText size="sm" color="muted">
             {kind === 'tool'
-              ? 'A tool is one function of this app: what it takes, what it returns, and its code.'
+              ? 'A tool is one function of this app: what it takes, what it returns, and its code. Add one with New in the toolbar.'
               : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
           </SizableText>
         </div>

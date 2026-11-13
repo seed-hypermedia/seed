@@ -99,7 +99,7 @@ describe('DocumentTools', () => {
         .filter((tab) => !tab.closest('[aria-hidden="true"]'))
         .map((tab) => tab.getAttribute('data-label'))
     // Nothing to show: no comments; connections, people and attributes never show here.
-    expect(labels()).toEqual(['Content', 'Sessions', 'Triggers', 'Memory', 'Agent access', 'Settings'])
+    expect(labels()).toEqual(['Content', 'Sessions', 'Triggers', 'Memory', 'People', 'Settings'])
 
     act(() =>
       root.render(
@@ -143,16 +143,16 @@ describe('DocumentTools', () => {
     )
     expect(container.querySelector('[data-label="Comments"]')?.getAttribute('data-active')).toBe('true')
   })
-  it('gives an agent document neither a Content nor a Home tab, even before registration finishes', () => {
+  it('gives an agent document a Home tab (its document) and no Content tab, even before registration finishes', () => {
     act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome activeTab="content" />))
     expect(container.querySelector('[data-label="Content"]')).toBeNull()
-    expect(container.querySelector('[data-label="Home"]')).toBeNull()
+    expect(container.querySelector('[data-label="Home"]')?.getAttribute('data-active')).toBe('true')
   })
 
-  it("lights Sessions at an agent document's base URL", () => {
+  it("lights Home, not Sessions, at an agent document's base URL", () => {
     act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome hasAgent activeTab="content" />))
-    expect(container.querySelector('[data-label="Home"]')).toBeNull()
-    expect(container.querySelector('[data-label="Sessions"]')?.getAttribute('data-active')).toBe('true')
+    expect(container.querySelector('[data-label="Home"]')?.getAttribute('data-active')).toBe('true')
+    expect(container.querySelector('[data-label="Sessions"]')?.getAttribute('data-active')).not.toBe('true')
   })
 
   it('shows the Attributes tab with a zero count when the document has no custom attributes', () => {

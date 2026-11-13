@@ -23,6 +23,7 @@ import {
   Info,
   LucideIcon,
   MessagesSquare,
+  House,
   Newspaper,
   Quote,
   Route,
@@ -355,26 +356,30 @@ export function DocumentTools({
           {view: 'sessions', label: 'Sessions', icon: Bot},
           {view: 'triggers', label: 'Triggers', icon: Zap},
           {view: 'memory', label: 'Memory', icon: Brain},
-          {view: 'access', label: 'Agent access', icon: Shield},
+          {view: 'access', label: 'People', icon: Users},
           {view: 'settings', label: 'Settings', icon: Settings},
         ]
       : []
     if (resourceTabs) buttons.unshift(...resourceTabs)
     else
       buttons.unshift(
-        // An agent document has no Home tab for now: its base URL opens Sessions. A document that
-        // merely advertises a server keeps its Content tab beside the agent tabs.
-        ...(agentHome
-          ? []
-          : [
-              {
-                label: 'Content',
-                tooltip: 'Open Content',
-                icon: Newspaper,
-                active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
-                route: documentRoute,
-              },
-            ]),
+        // An agent document's base URL is its Home: the document that is its instructions. A
+        // document that merely advertises a server keeps its Content tab beside the agent tabs.
+        agentHome
+          ? {
+              label: 'Home',
+              tooltip: 'Open the agent’s document: its instructions and tools',
+              icon: House,
+              active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+              route: documentRoute,
+            }
+          : {
+              label: 'Content',
+              tooltip: 'Open Content',
+              icon: Newspaper,
+              active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+              route: documentRoute,
+            },
         ...agentTabs.map(({view, label, icon}) => ({
           label,
           tooltip: `Open agent ${label.toLowerCase()}`,
@@ -382,7 +387,7 @@ export function DocumentTools({
           // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
           active:
             activeAgentView === view ||
-            (view === 'sessions' && (activeAgentView === 'session' || (!activeAgentView && !!agentHome))) ||
+            (view === 'sessions' && activeAgentView === 'session') ||
             (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
           route: {...documentRoute, agentView: view},
         })),

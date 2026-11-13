@@ -9,6 +9,7 @@ import {
   appChildKind,
   createDocumentUpdateBlobs,
   HM_APP_TYPE,
+  isToolHostType,
   HM_TOOL_TYPE,
   parentDocumentId,
   removeAppChildOps,
@@ -20,8 +21,8 @@ import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 /** The app a child document is written under, with its current content. */
 export type AppParent = {id: UnpackedHypermediaId; document: HMDocument}
 
-/** Why a tool was refused: it was not written directly under an app. */
-export const TOOL_OUTSIDE_APP_ERROR = `A tool lives directly under an app. Write the app first (a document with metadata.type "${HM_APP_TYPE}"), then write the tool at hm://<account>/<app path>/<tool name>. Read ~/tools/write/apps.`
+/** Why a tool was refused: it was not written directly under an app or an agent. */
+export const TOOL_OUTSIDE_APP_ERROR = `A tool lives directly under an app or an agent. Write the app first (a document with metadata.type "${HM_APP_TYPE}"), or use an agent's document, then write the tool at hm://<account>/<app or agent path>/<tool name>. Read ~/tools/write/apps.`
 
 /**
  * The app that a new document of `type` at `childId` belongs to (`app` is null when it is not an
@@ -71,6 +72,6 @@ export async function findListingApp(
   const parentId = parentDocumentId(childId)
   if (!parentId) return null
   const parent = await client.request('Resource', parentId).catch(() => null)
-  if (parent?.type !== 'document' || parent.document.metadata?.type !== HM_APP_TYPE) return null
+  if (parent?.type !== 'document' || !isToolHostType(parent.document.metadata?.type)) return null
   return {id: parentId, document: parent.document}
 }

@@ -41,16 +41,16 @@ Memory addresses stay private to the agent and use \`~/memory/<path>\`.
 Memory writes are not public and do not use \`dryRun\` or a signer. A write replaces the entire target file.`,
   },
   tools: {
-    summary: 'Create, replace, or delete an authored callable tool.',
-    markdown: `# Authoring callable tools
+    summary: 'Make a tool: a tool is a resource in an app or an agent, never a private file.',
+    markdown: `# Making tools
 
-Write JSON to \`~/tools/<name>\` with \`description\`, an input JSON schema, an optional output schema, source code, and optional runtime (TypeScript is the default; Python is also supported when available).
+A tool is always a **resource**: a Seed document typed \`hm://hyper.media/tool\` that lives in an **app** (a document typed \`hm://hyper.media/app\`) or in an **agent** (your own agent document works). It has a name, a summary, an input schema, an optional output schema, and code, and its host lists it with a card embed. There are no private tools: \`~/tools/<name>\` cannot be written, and "make me a tool" always means publishing a tool resource. Read \`~/tools/write/apps\` for the steps.
 
-\`\`\`json
-{"address":"~/tools/word_count","content":"{\"description\":\"Count words.\",\"input\":{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]},\"source\":\"export default (input) => ({count: input.text.trim().split(/\\s+/).length})\"}"}
-\`\`\`
+Your built-in callables (search, web_search, web_read, execute, browser, …) and the tools of your MCP servers are part of you, not resources; read \`~/tools/<name>\` for their contracts.
 
-The source runs in the execute sandbox with validated input. Read \`~/tools/<name>\` after saving to inspect the live contract, then invoke it with the call verb. Delete with \`options: {delete: true}\`. Tool authoring does not use \`dryRun\` or a signer.`,
+Any tool you made before resources existed was moved to \`~/memory/tools/<name>/\` (its code and a \`tool.json\` with its schemas). To use one again, publish it as a tool resource under an app or your agent document.
+
+Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`.`,
   },
   triggers: {
     summary: 'Create, edit, enable, disable, or delete an automation trigger.',
@@ -151,13 +151,9 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 - Delete: the address is the document; use \`options: {action: "delete"}\`.
 - Publish a memory markdown file: use \`options: {fromPath: "~/memory/file.md", signer: {...}}\`; frontmatter supplies metadata and the destination path may be derived when writing to account home.
 
-## Custom HTML pages
+## Apps, pages and tools
 
-Read \`~/tools/write/pages\` before building a custom HTML page. Durable page data uses schema-bound Seed resources; create the data model and resources before the HTML.
-
-## Apps and tools
-
-Read \`~/tools/write/apps\` before building an app. An app is a document typed \`hm://hyper.media/app\` whose card embeds list its tools and pages; a tool (\`options.tool\`) must be written directly under an app.
+A custom HTML page or a tool always belongs to an **app** (or an agent): there is no standalone page and no private tool. To build a page, put it in an app (use an existing one that fits, or make one); to make a tool, publish it as a resource in an app or an agent. Read \`~/tools/write/apps\` first, then \`~/tools/write/pages\` for the page itself. An app is a document typed \`hm://hyper.media/app\` whose card embeds list its tools and pages. Durable page data uses schema-bound Seed resources; create the data model and resources before the HTML.
 
 ## Typed documents
 
@@ -184,6 +180,11 @@ Every hm:// link in document content is resolved before publishing. Use \`option
   pages: {
     summary: 'Build schema-first pages backed by Seed resources, then publish and test their UI.',
     markdown: `# Building pages with Seed data
+
+**A page always lives in an app.** Apps are the only way to have a page: write it directly under an app (or an agent) with \`options.page\`, and the publisher lists it in the app. If no app fits, make one first (read ~/tools/write/apps). The app is the page's backend:
+
+- \`await seed.app.context()\` returns \`{app, publicConfig}\`: the app's hm:// id and its public config, the same context the app's tools get, minus private config. Read settings (an app id, units, a default city) from \`publicConfig\` instead of hard-coding them.
+- \`await seed.app.call("<tool name>", input)\` runs one of the app's tools on the app's server, signed as the viewer, and resolves to its output. Anything that needs a secret, a private config value, another service, or heavy work belongs in a tool the page calls, never in the page.
 
 **Default: model first, resources second, UI third.** A request such as “build me a task tracker” means a working page backed by Seed data, not a browser-local demo. Use existing types and collections where suitable. Stateless calculators need no invented schema; local-only primary data requires an explicit user request.
 
@@ -310,6 +311,7 @@ The same APIs work on web and desktop, subject to those independent approvals:
 - \`seed.signer.getPublicKey()\` and \`seed.signer.sign(new Uint8Array(bytes))\` implement the SDK's HMSigner interface. They return public key/signature bytes; private keys never leave Seed. Web sign-in may use a delegated device key, so its signing principal can differ from the selected account UID; existing protocol delegation still applies. A prebundled SDK can use this signer; do not fetch dependencies at runtime.
 - \`seed.hm.createComment(input)\`, \`updateComment\`, \`deleteComment\`, \`createDocumentBlobs\`, \`createVersionRef\`, \`createRedirectRef\`, \`createTombstoneRef\`, \`createCapability\`, \`createContact\`, \`updateContact\`, \`deleteContact\`, and \`signDocumentChange\` use the corresponding SDK input and return types, with the host supplying the signer. Helpers sign but do not publish. The signed-change result uses a string for \`changeCid\` so it survives the bridge. \`seed.hm.signBlob(body)\` signs a custom dag-json blob body, returning \`{cid, data, ts, signer}\`; publish its cid/data through \`seed.publish\`.
 - A new document can be created with \`const {account} = await seed.context(); const {blobs} = await seed.hm.createDocumentBlobs({space: account, path: "/pages/data", ops: [{type: "SetAttributes", attrs: [{key: ["name"], value: "Page data"}]}]}); await seed.publish({blobs});\`. Use document changes with a base version for edits; do not recreate an existing document.
+- \`seed.app.context()\` resolves to \`{app, publicConfig}\`: the hm:// id of the app this page belongs to and the app's public config (the context its tools get, without private config, which never reaches a page). Example: \`const {publicConfig} = await seed.app.context(); unitsLabel.textContent = publicConfig.units ?? 'metric';\`.
 - \`seed.app.call(tool, input)\` runs a tool of the app this page belongs to (a page written directly under an app) on the app's server, signed as the viewer, and resolves to the tool's output (rejecting with its error). \`tool\` is the tool's name in the app, its path segment such as \`"get-weather"\`, or its hm:// URL. The viewer approves it once, for that tool, or for every tool of the app. Example: \`const forecast = await seed.app.call("get-weather", {city: cityInput.value});\`. Server-side work (anything needing a secret, an API key or another service) belongs in a tool, never in the page.
 - \`seed.comments.create({content: blockNodes, target?, version?})\` signs AND publishes a comment, returning \`{commentId, version}\`. It defaults to this page's document and displayed version. Another target needs its version in the URL or version field; visibility follows the target document. Example: \`const content = await seed.hm.parseMarkdown(messageInput.value); const posted = await seed.comments.create({content});\`.
 
@@ -318,12 +320,14 @@ Use click handlers for actions rather than form submission. Disable Submit while
 `,
   },
   apps: {
-    summary: 'Build an app: a document whose card embeds list its tools and pages.',
+    summary: 'Build an app: the only home for pages and tools; its card embeds list them.',
     markdown: `# Building apps and tools
 
-An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Every child lives directly under the app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
 
-A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools. These are different from the private callables in \`~/tools/<name>\` (read ~/tools/write/tools): an app tool is a shared, signed Seed document.
+A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools; an agent's tools run whenever the agent is mounted. When someone asks you to make a tool, they always mean this: a tool resource in an app or an agent. You have no private tools, and \`~/tools/<name>\` cannot be written.
+
+The app's **pages** are its interface and its **tools** are its server side. A page reads the app's public config with \`seed.app.context()\` and calls the app's tools with \`seed.app.call("<tool name>", input)\`, as the viewer. Put anything that needs a secret, a private config value, another service or heavy work in a tool, and have the page call it.
 
 ## Steps
 
@@ -345,13 +349,14 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 
 4. Publish the tool under the app with \`options.tool\` naming that folder (or one .ts file). The publisher checks that index.ts parses and default-exports a function, publishes the folder, sets \`type\` and \`code\`, and adds the tool's card embed to the app in the same publish. A tool anywhere but directly under an app is refused.
 5. Pages work the same way: a page written directly under an app (with \`options.page\`, read ~/tools/write/pages) is added to the app's list too. Set the app's \`metadata.homePage\` to one of its pages' hm:// URL to make that page the app's Home tab.
-6. An app's pages are its interface and its tools are its server side: a page calls the app's tools with \`seed.app.call("<tool name>", input)\`, which runs the tool on the app's server as the viewer and returns its output. Put anything that needs a secret, a private config value, another service or heavy work in a tool, and have the page call it; never put that logic or a key in the page. Pages of one app share their permissions, so a viewer who allows a tool on one page has allowed it on all of them.
+6. Build the app's page against its own backend: \`const {publicConfig} = await seed.app.context()\` for its settings, \`await seed.app.call("<tool name>", input)\` for its tools (read ~/tools/write/pages). Pages of one app share their permissions, so a viewer who allows a tool on one page has allowed it on all of them.
 
 ## Config and running
 
 - An app declares its config as two HM struct schemas, referenced like tool schemas: \`metadata.publicConfigSchema\` (values anyone can read, stored on the app as \`metadata.publicConfig\`) and \`metadata.privateConfigSchema\` (secrets such as API keys, which the person running the app enters and the app server keeps; they are never published).
-- An app runs on the app server its \`metadata.appEnvironmentUrl\` names (or, without one, the server the space's site names). A person who can write the app's space runs it from the app's Settings, choosing the server and filling in the config.
-- You run apps on the server you run on. Write the app's address with \`options.action: "run"\` and its private config: \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
+- An app runs only on the server it names: its \`metadata.appEnvironmentUrl\`, or, without one, the app environment its space's site advertises. It cannot run, and its tools cannot be called, anywhere else. A person who can write the app's space runs it from the app's Settings (Run App), which sets that server and the private config.
+- You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
+- A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
 - Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
 

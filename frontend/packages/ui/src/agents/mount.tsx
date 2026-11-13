@@ -1,7 +1,8 @@
 import {createDocumentBlobs} from '@seed-hypermedia/client'
 import {isMountableAgentServerUrl, type CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {encodeDagCbor} from '@seed-hypermedia/client/signed-blob'
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {replaceContentOps} from '@seed-hypermedia/client/apps'
 import {hmId, useUniversalClient, useUniversalAppContext} from '@shm/shared'
 import {useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -74,6 +75,12 @@ export function MountAgentDialog({
       accountUid={input.accountUid}
       serverUrl={input.serverUrl}
       name={input.agent.definition.name}
+      // Mounting moves the agent's prompt into its document, which is its system prompt from then on.
+      content={
+        Array.isArray(input.agent.definition.systemPrompt)
+          ? (input.agent.definition.systemPrompt as unknown as HMBlockNode[])
+          : undefined
+      }
       onClose={onClose}
       onSubmit={async (_destination, mount) => {
         await sendAgentAction({
@@ -92,9 +99,9 @@ export function MountAgentDialog({
 export type PreparedAgentMount = {id: string; blobs: {cid: string; data: Uint8Array}[]}
 
 /**
- * Signs the agent mount document at `to` without publishing it: a bodiless document whose `type` and
- * `agentServerUrl` attributes name the mount, plus the writer capability when `to` is outside the
- * signer's own space. Throws when the location is taken or the signer cannot write there.
+ * Signs the agent mount document at `to` without publishing it: a document whose `type` and
+ * `agentServerUrl` attributes name the mount and whose body is the agent's instructions (its system
+ * prompt), plus the writer capability when `to` is outside the signer's own space. Throws when the location is taken or the signer cannot write there.
  */
 export async function prepareAgentMount({
   client,
@@ -102,12 +109,15 @@ export async function prepareAgentMount({
   serverUrl,
   to,
   name,
+  content,
 }: {
   client: ReturnType<typeof useUniversalClient>
   accountUid: string
   serverUrl: string
   to: UnpackedHypermediaId
   name: string
+  /** The agent's instructions: its document is its system prompt (by default, an embed of the Agent Guide). */
+  content?: HMBlockNode[]
 }): Promise<PreparedAgentMount> {
   if (!isMountableAgentServerUrl(serverUrl))
     throw new Error('Use an HTTP or HTTPS app environment address without credentials')
@@ -134,6 +144,7 @@ export async function prepareAgentMount({
           {key: ['agentServerUrl'], value: serverUrl},
         ],
       },
+      ...(content?.length ? replaceContentOps([], content) : []),
     ],
   })
   const blobs = document.blobs.map((blob) => ({...blob, cid: blob.cid!}))
@@ -167,6 +178,7 @@ export function AgentMountDestination({
   accountUid,
   serverUrl,
   name,
+  content,
   creating = false,
   onClose,
   onSubmit,
@@ -175,6 +187,8 @@ export function AgentMountDestination({
   accountUid: string
   serverUrl: string
   name: string
+  /** The document's starting body: the agent's instructions (an existing agent brings its own prompt). */
+  content?: HMBlockNode[]
   creating?: boolean
   onClose: () => void
   onSubmit: (destination: DocumentDestinationSubmitInput, mount: NonNullable<CreateAgent['mount']>) => Promise<void>
@@ -199,7 +213,14 @@ export function AgentMountDestination({
   async function mount(destination: DocumentDestinationSubmitInput) {
     const {to, name: documentName} = destination
     if (prepared.current?.id !== to.id) {
-      prepared.current = await prepareAgentMount({client, accountUid, serverUrl, to, name: documentName || name})
+      prepared.current = await prepareAgentMount({
+        client,
+        accountUid,
+        serverUrl,
+        to,
+        name: documentName || name,
+        content,
+      })
     }
     // Publish to the user's node and the agent's node. Retain the exact signed blobs for retries.
     await client.publish({blobs: prepared.current.blobs})

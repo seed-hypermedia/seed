@@ -3,8 +3,6 @@ import {
   type AgentCollaboratorRole,
   type AgentDefinition,
   type AgentModelRef,
-  type AgentToolInfo,
-  type AgentToolInput,
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
@@ -34,7 +32,6 @@ import {
   useCombineAgentTriggers,
   useCreateSigningIdentity,
   useDeleteAgent,
-  useDeleteAgentTool,
   useDeleteAgentTrigger,
   useInviteAgentCollaborator,
   useModelProviders,
@@ -42,7 +39,6 @@ import {
   useRemoveAgentCollaborator,
   useSetAgentPublicChat,
   useSetAgentPublicRead,
-  useSaveAgentTool,
   useSigningIdentities,
   useUpdateAgent,
   useUpdateAgentTrigger,
@@ -56,7 +52,21 @@ import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useCollaborators} from '@shm/shared/models/entity'
+import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  AGENT_WRITE_SCOPE_OPTIONS,
+  AgentWriteScopePicker,
+  useAgentWriteScope,
+  useGrantAgentWriteAccess,
+  widensAgentWriteScope,
+  type AgentWriteScope,
+} from './write-access'
+import {useAppsPublisher} from '../apps/publish'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {agentSigningKeys, primaryAgentSigningKey} from './primary-identity'
 import {type NavRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -74,7 +84,6 @@ import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Switch} from '@shm/ui/components/switch'
-import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container} from '@shm/ui/container'
 import {AgentPane} from './pane'
@@ -215,6 +224,7 @@ export function AgentDetailPage({
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
   const editNameDialog = useAppDialog(EditAgentNameDialog)
+  const publisher = useAppsPublisher()
   const modelProviders = useModelProviders(serverUrl, selectedAccountId, agentId)
   const collaborators = useAgentCollaborators(serverUrl, selectedAccountId, agentId)
   const allAgents = useAgentList(serverUrl, selectedAccountId)
@@ -317,8 +327,7 @@ export function AgentDetailPage({
   }, [modelProvider, enabledModels, modelProviders.data, modelProviders.isFetching, canWrite])
 
   // The agent's primary signing account, and whether other agents also use it.
-  const agentSigningKey =
-    agent.data?.agent.definition.signingKeys?.[0] || agent.data?.agent.definition.signingKey || undefined
+  const agentSigningKey = primaryAgentSigningKey(agent.data?.agent.definition)
   const isAccountShared =
     !!agentSigningKey &&
     (allAgents.data || []).some((other) => {
@@ -327,6 +336,11 @@ export function AgentDetailPage({
         other.definition.signingKeys || (other.definition.signingKey ? [other.definition.signingKey] : [])
       return otherKeys.includes(agentSigningKey)
     })
+  // The accounts the agent signs as (its primary key first), for its write access.
+  const agentAccountIds = agentSigningKeys(agent.data?.agent.definition).flatMap((name) => {
+    const accountId = signingIdentities.data?.find((identity) => identity.name === name)?.accountId
+    return accountId ? [accountId] : []
+  })
   const agentAccountStatus: AgentAccountRenameStatus = !agentSigningKey
     ? {kind: 'none'}
     : isAccountShared
@@ -337,9 +351,17 @@ export function AgentDetailPage({
     if (!agent.data) throw new Error('Agent not loaded')
     const trimmed = nextName.trim()
     if (!trimmed) throw new Error('Agent name is required')
-    const definition = agent.data.agent.definition
-    const result = await updateAgent.mutateAsync({agentId, definition: {...definition, name: trimmed}})
-    if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
+    const mountId = agentId.startsWith('hm://') ? unpackHmId(agentId) : null
+    if (mountId) {
+      // A mounted agent is named by its document: publishing the new title renames the agent (its
+      // server copies the document's name onto it).
+      await publisher.update(mountId, [{type: 'SetAttributes', attrs: [{key: ['name'], value: trimmed}]}])
+      invalidateQueries([queryKeys.ENTITY, mountId.id])
+    } else {
+      const definition = agent.data.agent.definition
+      const result = await updateAgent.mutateAsync({agentId, definition: {...definition, name: trimmed}})
+      if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
+    }
     // Keep the dedicated account's profile name in sync; leave shared accounts alone.
     if (isOwner && agentSigningKey && !isAccountShared) {
       await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
@@ -521,22 +543,18 @@ export function AgentDetailPage({
       ]
     : undefined
 
+  const displayName = documentName?.trim() || name
+  function openRename() {
+    editNameDialog.open({currentName: displayName, accountStatus: agentAccountStatus, onRename: handleRenameAgent})
+  }
+
   // Built only once the agent has loaded; the render below shows a spinner or notice before then.
   const header = agent.data ? (
     <AgentHeader
       embedded={embedded}
       agent={agent.data.agent}
-      agentName={documentName?.trim() || name}
-      onEditName={
-        canWrite && !documentName
-          ? () =>
-              editNameDialog.open({
-                currentName: name,
-                accountStatus: agentAccountStatus,
-                onRename: handleRenameAgent,
-              })
-          : undefined
-      }
+      agentName={displayName}
+      onEditName={canWrite ? openRename : undefined}
       agentId={agentId}
       serverUrl={serverUrl}
       activeTab={tab}
@@ -635,7 +653,25 @@ export function AgentDetailPage({
           />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-4xl px-4 py-4">
-              {promptEditorDisabled ? (
+              {agentId.startsWith('hm://') ? (
+                // A mounted agent's instructions are its document, read at the start of each turn.
+                <div className="border-border bg-muted/40 flex flex-col items-start gap-3 rounded-lg border p-6">
+                  <SizableText>
+                    This agent’s system prompt is its document. Edit it on the Home tab like any document; tools are the
+                    card embeds in it.
+                  </SizableText>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => {
+                      const id = unpackHmId(agentId)
+                      if (id) navigate({key: 'document', id})
+                    }}
+                  >
+                    Open Home
+                  </Button>
+                </div>
+              ) : promptEditorDisabled ? (
                 <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
                   {!canWrite
                     ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
@@ -814,6 +850,7 @@ export function AgentDetailPage({
                   accountUid={selectedAccountId ?? null}
                   agentId={agentId}
                   ownerAccountId={agent.data.agent.account}
+                  agentAccountIds={agentAccountIds}
                   collaborators={collaborators.data?.collaborators || []}
                   publicRead={collaborators.data?.publicRead ?? agent.data.agent.publicRead ?? false}
                   publicChat={collaborators.data?.publicChat ?? agent.data.agent.publicChat ?? false}
@@ -824,6 +861,23 @@ export function AgentDetailPage({
 
               {tab === 'settings' ? (
                 <section className="flex max-w-2xl flex-col gap-4">
+                  <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <div className="min-w-0">
+                      <SizableText size="sm" weight="bold" className="block">
+                        Name
+                      </SizableText>
+                      <SizableText size="xs" color="muted" className="block truncate">
+                        {displayName}
+                        {agentAccountStatus.kind === 'own' ? ' · also the name of its account' : ''}
+                      </SizableText>
+                    </div>
+                    {canWrite ? (
+                      <Button variant="outline" size="sm" onClick={openRename}>
+                        <Pencil className="size-4" />
+                        Rename
+                      </Button>
+                    ) : null}
+                  </div>
                   <AgentServerHostSection
                     serverUrl={serverUrl}
                     localServerUrl={localServerUrl.data}
@@ -1063,16 +1117,17 @@ function hasPromptContent(blocks: HMBlockNode[]): boolean {
 }
 
 /**
- * The Collaborators tab, mirroring the document collaborators page: an invite row on top, then
- * the owner and members as one flat list with the role reading quietly on the right. The agent
- * API keeps roles explicit (reader/writer), so the invite row carries a role select the document
- * page does not need.
+ * The People tab: one page for who can use the agent and what the agent itself can write. People
+ * merges the agent's collaborators with the writers of its document (the document's own People
+ * list): "Can edit" means both, so inviting an editor also lets them edit the agent's
+ * instructions. The agent's own write access in the space is shown, and widened, here too.
  */
 function AgentCollaboratorsTab({
   serverUrl,
   accountUid,
   agentId,
   ownerAccountId,
+  agentAccountIds,
   collaborators,
   publicRead,
   publicChat,
@@ -1083,6 +1138,8 @@ function AgentCollaboratorsTab({
   accountUid: string | null
   agentId: string
   ownerAccountId: string
+  /** The accounts the agent signs as; its primary key first. */
+  agentAccountIds: string[]
   collaborators: AgentCollaboratorInfo[]
   publicRead: boolean
   publicChat: boolean
@@ -1093,15 +1150,55 @@ function AgentCollaboratorsTab({
   const remove = useRemoveAgentCollaborator(serverUrl, accountUid)
   const setPublicRead = useSetAgentPublicRead(serverUrl, accountUid)
   const setPublicChat = useSetAgentPublicChat(serverUrl, accountUid)
+  // A mounted agent's id is its document: its writers and the agent's own grants live in that space.
+  const docId = agentId.startsWith('hm://') ? unpackHmId(agentId) : null
+  const documentPeople = useCollaborators(docId ?? hmId(ownerAccountId))
+  const myDocCapability = useSelectedAccountCapability(docId ?? undefined, 'owner')
+  const addDocWriters = useAddCapabilities(docId ?? hmId(ownerAccountId))
   const [selected, setSelected] = useState<SearchResult[]>([])
   const [role, setRole] = useState<AgentCollaboratorRole>('writer')
-  const excludedAccountIds = [ownerAccountId, ...collaborators.map((member) => member.accountId)]
+  const collaboratorIds = new Set(collaborators.map((member) => member.accountId))
+  // Writers of the document who are not (yet) collaborators of the agent, nor the agent itself.
+  const documentWriters = docId
+    ? uniqueBy(
+        [...documentPeople.parentCapabilities, ...documentPeople.grantedCapabilities],
+        (capability) => capability.accountUid,
+      ).filter(
+        (capability) =>
+          capability.accountUid !== ownerAccountId &&
+          !collaboratorIds.has(capability.accountUid) &&
+          !agentAccountIds.includes(capability.accountUid),
+      )
+    : []
+  const documentWriterIds = new Set(
+    [...documentPeople.parentCapabilities, ...documentPeople.grantedCapabilities].map((cap) => cap.accountUid),
+  )
+  const excludedAccountIds = [ownerAccountId, ...collaborators.map((member) => member.accountId), ...agentAccountIds]
+
+  /** Lets editors edit the agent's document (its instructions) too, when this account can grant that. */
+  async function grantDocumentWrite(accountIds: string[]) {
+    const missing = accountIds.filter((id) => !documentWriterIds.has(id) && id !== docId?.uid)
+    if (!docId || !missing.length) return
+    if (!myDocCapability) {
+      toast.info('Only the owner of this space can let them edit the agent’s document; ask them to add a writer there.')
+      return
+    }
+    await addDocWriters.mutateAsync({myCapability: myDocCapability, collaboratorAccountIds: missing, role: 'WRITER'})
+  }
+
+  async function inviteAccounts(accountIds: string[], nextRole: AgentCollaboratorRole) {
+    await Promise.all(
+      accountIds.map((collaboratorAccountId) => invite.mutateAsync({agentId, collaboratorAccountId, role: nextRole})),
+    )
+    if (nextRole === 'writer') await grantDocumentWrite(accountIds)
+  }
 
   async function handleInvite() {
     if (!selected.length) return
     try {
-      await Promise.all(
-        selected.map((member) => invite.mutateAsync({agentId, collaboratorAccountId: member.id.uid, role})),
+      await inviteAccounts(
+        selected.map((member) => member.id.uid),
+        role,
       )
       toast.success(selected.length === 1 ? 'Invitation sent' : `${selected.length} invitations sent`)
       setSelected([])
@@ -1111,44 +1208,96 @@ function AgentCollaboratorsTab({
   }
 
   return (
-    <section className="flex max-w-2xl flex-col gap-4">
-      {isOwner ? (
-        <div className="flex flex-col gap-2">
-          <div className="border-border flex overflow-hidden rounded-md border">
-            <AccountSearchInput
-              label="Collaborators"
-              placeholder="Invite collaborators"
-              values={selected}
-              onValuesChange={setSelected}
-              excludeUids={excludedAccountIds}
-            />
-            <select
-              aria-label="Collaborator role"
-              value={role}
-              onChange={(event) => setRole(event.currentTarget.value as AgentCollaboratorRole)}
-              className="border-border bg-background text-foreground border-l px-3 text-sm outline-none"
-            >
-              <option value="reader">Can read</option>
-              <option value="writer">Can write</option>
-            </select>
-            {selected.length ? (
-              <Button
-                size="sm"
-                className="h-auto rounded-tl-none rounded-bl-none"
-                onClick={() => void handleInvite()}
-                disabled={invite.isLoading}
-                aria-label="Send collaborator invitation"
+    <section className="flex max-w-2xl flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        {isOwner ? (
+          <div className="flex flex-col gap-2">
+            <div className="border-border flex overflow-hidden rounded-md border">
+              <AccountSearchInput
+                label="People"
+                placeholder="Invite people"
+                values={selected}
+                onValuesChange={setSelected}
+                excludeUids={excludedAccountIds}
+              />
+              <select
+                aria-label="Collaborator role"
+                value={role}
+                onChange={(event) => setRole(event.currentTarget.value as AgentCollaboratorRole)}
+                className="border-border bg-background text-foreground border-l px-3 text-sm outline-none"
               >
-                <ArrowRight className="size-4" />
-              </Button>
-            ) : null}
+                <option value="reader">Can view</option>
+                <option value="writer">Can edit</option>
+              </select>
+              {selected.length ? (
+                <Button
+                  size="sm"
+                  className="h-auto rounded-tl-none rounded-bl-none"
+                  onClick={() => void handleInvite()}
+                  disabled={invite.isLoading || addDocWriters.isLoading}
+                  aria-label="Send collaborator invitation"
+                >
+                  <ArrowRight className="size-4" />
+                </Button>
+              ) : null}
+            </div>
+            <SizableText size="xs" color="muted">
+              Viewers can see everything. Editors can also chat with it and change its instructions, settings, memory,
+              tools and triggers.
+            </SizableText>
           </div>
-          <SizableText size="xs" color="muted">
-            Readers can view everything. Writers can also change settings, memory, tools, triggers, and sessions.
-          </SizableText>
-        </div>
+        ) : null}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner className="size-8" />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {collaborators.map((member) => (
+              <AgentCollaboratorRow
+                key={member.accountId}
+                member={member}
+                isOwner={isOwner}
+                changing={invite.isLoading || remove.isLoading}
+                onRoleChange={(nextRole) =>
+                  inviteAccounts([member.accountId], nextRole).catch((error) =>
+                    toast.error(error instanceof Error ? error.message : 'Could not change role'),
+                  )
+                }
+                onRemove={() =>
+                  remove.mutate(
+                    {agentId, collaboratorAccountId: member.accountId},
+                    {
+                      onError: (error) =>
+                        toast.error(error instanceof Error ? error.message : 'Could not remove member'),
+                    },
+                  )
+                }
+              />
+            ))}
+            {documentWriters.map((capability) => (
+              <AgentDocumentWriterRow
+                key={capability.accountUid}
+                accountId={capability.accountUid}
+                inherited={!sameIdPath(capability.grantId.path, docId?.path)}
+                canAdd={isOwner}
+                adding={invite.isLoading}
+                onAdd={() =>
+                  invite
+                    .mutateAsync({agentId, collaboratorAccountId: capability.accountUid, role: 'writer'})
+                    .then(() => toast.success('Invitation sent'))
+                    .catch((error) =>
+                      toast.error(error instanceof Error ? error.message : 'Could not invite collaborator'),
+                    )
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      {docId ? (
+        <AgentWriteAccessSection docId={docId} agentAccountIds={agentAccountIds} accountUid={accountUid} />
       ) : null}
-
       <div className="border-border flex flex-col gap-3 rounded-md border p-3">
         <div className="flex items-center gap-3">
           <Globe className="text-muted-foreground size-5 shrink-0" />
@@ -1222,36 +1371,131 @@ function AgentCollaboratorsTab({
           </div>
         ) : null}
       </div>
+    </section>
+  )
+}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Spinner className="size-8" />
-        </div>
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>()
+  return items.filter((item) => (seen.has(key(item)) ? false : (seen.add(key(item)), true)))
+}
+
+function sameIdPath(a: string[] | null | undefined, b: string[] | null | undefined) {
+  return (a ?? []).join('/') === (b ?? []).join('/')
+}
+
+/** Someone who can edit the agent's document (from its space) but has not been added to the agent. */
+function AgentDocumentWriterRow({
+  accountId,
+  inherited,
+  canAdd,
+  adding,
+  onAdd,
+}: {
+  accountId: string
+  inherited: boolean
+  canAdd: boolean
+  adding: boolean
+  onAdd: () => void
+}) {
+  const account = useAccount(accountId, {subscribe: true})
+  const metadata = account.data?.metadata
+  return (
+    <div className="group flex items-center gap-3 rounded-md p-3">
+      <AccountAvatar id={hmId(accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
+          {metadata?.name || abbreviateUid(accountId)}
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          {inherited ? 'Writer in this space: can edit its instructions' : 'Can edit its instructions'}
+        </SizableText>
+      </div>
+      {canAdd ? (
+        <Button size="xs" variant="outline" disabled={adding} onClick={onAdd}>
+          Add as editor
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * What the agent's own key may publish in the space its document lives in. Capabilities cannot be
+ * revoked, so the space owner can widen it here but never narrow it.
+ */
+function AgentWriteAccessSection({
+  docId,
+  agentAccountIds,
+  accountUid,
+}: {
+  docId: UnpackedHypermediaId
+  agentAccountIds: string[]
+  accountUid: string | null
+}) {
+  const {scope, isLoading} = useAgentWriteScope(docId, agentAccountIds)
+  const grant = useGrantAgentWriteAccess(docId)
+  const [choice, setChoice] = useState<AgentWriteScope | null>(null)
+  const canGrant = !!accountUid && accountUid === docId.uid && !!agentAccountIds[0]
+  const current = AGENT_WRITE_SCOPE_OPTIONS.find((option) => option.scope === scope)!
+  const pending = choice && widensAgentWriteScope(scope, choice) ? choice : null
+  return (
+    <div className="flex flex-col gap-2">
+      <SizableText size="sm" weight="bold">
+        What this agent can write
+      </SizableText>
+      {isLoading ? (
+        <Spinner className="size-5" />
+      ) : canGrant ? (
+        <>
+          <AgentWriteScopePicker
+            value={choice ?? scope}
+            onChange={setChoice}
+            minimum={scope}
+            disabled={grant.isLoading}
+          />
+          <div className="flex items-center gap-2">
+            <SizableText size="xs" color="muted" className="flex-1">
+              Access can be widened but not taken back: to narrow it, give the agent a new account.
+            </SizableText>
+            {pending ? (
+              <Button
+                size="sm"
+                disabled={grant.isLoading}
+                onClick={() =>
+                  grant.mutate(
+                    {ownerUid: accountUid!, agentAccountId: agentAccountIds[0]!, scope: pending},
+                    {
+                      onSuccess: () => {
+                        setChoice(null)
+                        toast.success('Write access granted')
+                      },
+                      onError: (error) =>
+                        toast.error(error instanceof Error ? error.message : 'Could not grant write access'),
+                    },
+                  )
+                }
+              >
+                {grant.isLoading ? <Spinner /> : null}
+                Grant access
+              </Button>
+            ) : null}
+          </div>
+        </>
       ) : (
-        <div className="flex flex-col gap-1">
-          {collaborators.map((member) => (
-            <AgentCollaboratorRow
-              key={member.accountId}
-              member={member}
-              isOwner={isOwner}
-              changing={invite.isLoading || remove.isLoading}
-              onRoleChange={(nextRole) =>
-                invite.mutate(
-                  {agentId, collaboratorAccountId: member.accountId, role: nextRole},
-                  {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change role')},
-                )
-              }
-              onRemove={() =>
-                remove.mutate(
-                  {agentId, collaboratorAccountId: member.accountId},
-                  {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not remove member')},
-                )
-              }
-            />
-          ))}
+        <div className="border-border flex items-start gap-3 rounded-md border p-3">
+          <current.icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+          <div className="flex flex-col gap-0.5">
+            <SizableText size="sm" weight="medium">
+              {current.label}
+            </SizableText>
+            <SizableText size="xs" color="muted">
+              {current.description} Only the owner of this space can change this.
+            </SizableText>
+          </div>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -1361,255 +1605,6 @@ function DeleteAgentDialog({
           <Button variant="destructive" onClick={(event) => void handleDelete(event)} disabled={deleteAgent.isLoading}>
             <Trash2 className="size-4" />
             Delete agent
-          </Button>
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </div>
-  )
-}
-
-/** One create/edit surface for every authored-tool document field. */
-function AuthoredToolDialog({
-  input,
-  onClose,
-}: {
-  input: {
-    serverUrl?: string
-    accountUid: string | null
-    agentId: string
-    tool?: AgentToolInfo
-    readOnly?: boolean
-  }
-  onClose: () => void
-}) {
-  const {tool, readOnly = false} = input
-  const saveTool = useSaveAgentTool(input.serverUrl, input.accountUid)
-  const [name, setName] = useState(tool?.name ?? '')
-  const [summary, setSummary] = useState(tool?.summary ?? '')
-  const [description, setDescription] = useState(tool?.description ?? '')
-  const [runtime, setRuntime] = useState<'typescript' | 'python'>(tool?.runtime ?? 'typescript')
-  const [source, setSource] = useState(tool?.source ?? 'export default async function (input) {\n  return {}\n}\n')
-  const [inputSchema, setInputSchema] = useState(
-    JSON.stringify(tool?.input ?? {type: 'object', properties: {}}, null, 2),
-  )
-  const [outputSchema, setOutputSchema] = useState(tool?.output ? JSON.stringify(tool.output, null, 2) : '')
-
-  async function handleSave(event: React.FormEvent) {
-    event.preventDefault()
-    try {
-      const parsedInput = JSON.parse(inputSchema) as unknown
-      const parsedOutput = outputSchema.trim() ? (JSON.parse(outputSchema) as unknown) : undefined
-      if (!parsedInput || typeof parsedInput !== 'object' || Array.isArray(parsedInput)) {
-        throw new Error('Input schema must be a JSON object')
-      }
-      if (
-        parsedOutput !== undefined &&
-        (!parsedOutput || typeof parsedOutput !== 'object' || Array.isArray(parsedOutput))
-      ) {
-        throw new Error('Output schema must be a JSON object or left blank')
-      }
-      const nextTool: AgentToolInput = {
-        name: name.trim(),
-        ...(summary.trim() ? {summary: summary.trim()} : {}),
-        description,
-        input: parsedInput as Record<string, unknown>,
-        ...(parsedOutput ? {output: parsedOutput as Record<string, unknown>} : {}),
-        source,
-        runtime,
-      }
-      await saveTool.mutateAsync({agentId: input.agentId, tool: nextTool, previousName: tool?.name})
-      toast.success(tool ? 'Tool updated' : 'Tool created')
-      onClose()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not save tool')
-    }
-  }
-
-  return (
-    <form className="flex max-h-[78vh] w-full max-w-3xl min-w-0 flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
-      <div className="flex flex-col gap-1">
-        <DialogTitle>{tool ? 'Edit authored tool' : 'Add authored tool'}</DialogTitle>
-        <DialogDescription>
-          Define the name, model-facing contract, runtime, and executable source. Tool names use lowercase letters,
-          numbers, underscores, and hyphens.
-        </DialogDescription>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <SizableText size="sm" weight="bold">
-            Name
-          </SizableText>
-          <Input
-            className="font-mono"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="weather_lookup"
-            pattern="[a-z][a-z0-9_-]{1,63}"
-            minLength={2}
-            maxLength={64}
-            required
-            disabled={readOnly || saveTool.isLoading}
-            autoFocus={!tool}
-          />
-        </label>
-        <label className="flex flex-col gap-1.5 sm:w-40">
-          <SizableText size="sm" weight="bold">
-            Runtime
-          </SizableText>
-          <select
-            className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-            value={runtime}
-            onChange={(event) => setRuntime(event.target.value === 'python' ? 'python' : 'typescript')}
-            disabled={readOnly || saveTool.isLoading}
-          >
-            <option value="typescript">TypeScript</option>
-            <option value="python">Python</option>
-          </select>
-        </label>
-      </div>
-
-      <label className="flex flex-col gap-1.5">
-        <SizableText size="sm" weight="bold">
-          List summary
-        </SizableText>
-        <Input
-          value={summary}
-          onChange={(event) => setSummary(event.target.value)}
-          placeholder="One short sentence; derived from the description when blank"
-          maxLength={140}
-          disabled={readOnly || saveTool.isLoading}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <SizableText size="sm" weight="bold">
-          Description sent to the model
-        </SizableText>
-        <Textarea
-          className="min-h-24 resize-y"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder="Explain what the tool does and when to call it."
-          required
-          disabled={readOnly || saveTool.isLoading}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <SizableText size="sm" weight="bold">
-          Source
-        </SizableText>
-        <Textarea
-          className="min-h-56 resize-y font-mono text-xs"
-          value={source}
-          onChange={(event) => setSource(event.target.value)}
-          spellCheck={false}
-          required
-          disabled={readOnly || saveTool.isLoading}
-        />
-      </label>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="flex min-w-0 flex-col gap-1.5">
-          <SizableText size="sm" weight="bold">
-            Input schema
-          </SizableText>
-          <Textarea
-            className="min-h-48 resize-y font-mono text-xs"
-            value={inputSchema}
-            onChange={(event) => setInputSchema(event.target.value)}
-            spellCheck={false}
-            required
-            disabled={readOnly || saveTool.isLoading}
-          />
-        </label>
-        <label className="flex min-w-0 flex-col gap-1.5">
-          <SizableText size="sm" weight="bold">
-            Output schema <span className="text-muted-foreground font-normal">(optional)</span>
-          </SizableText>
-          <Textarea
-            className="min-h-48 resize-y font-mono text-xs"
-            value={outputSchema}
-            onChange={(event) => setOutputSchema(event.target.value)}
-            placeholder="Leave blank for any output"
-            spellCheck={false}
-            disabled={readOnly || saveTool.isLoading}
-          />
-        </label>
-      </div>
-
-      {tool ? (
-        <div className="border-border flex min-w-0 flex-col gap-1 border-t pt-3">
-          <SizableText size="xs" color="muted">
-            Current version
-          </SizableText>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground truncate text-left font-mono text-xs"
-            title="Copy content address"
-            onClick={() => {
-              copyTextToClipboard(tool.cid)
-              toast.success('Content address copied')
-            }}
-          >
-            {tool.cid}
-          </button>
-        </div>
-      ) : null}
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {readOnly ? 'Close' : 'Cancel'}
-        </Button>
-        {!readOnly ? (
-          <Button type="submit" disabled={saveTool.isLoading}>
-            {saveTool.isLoading ? <Spinner /> : null}
-            {tool ? 'Save changes' : 'Create tool'}
-          </Button>
-        ) : null}
-      </div>
-    </form>
-  )
-}
-
-function DeleteAuthoredToolDialog({
-  input,
-  onClose,
-}: {
-  input: {serverUrl?: string; accountUid: string | null; agentId: string; tool: AgentToolInfo}
-  onClose: () => void
-}) {
-  const deleteTool = useDeleteAgentTool(input.serverUrl, input.accountUid)
-
-  async function handleDelete(event: React.MouseEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    try {
-      await deleteTool.mutateAsync({agentId: input.agentId, name: input.tool.name})
-      toast.success('Tool deleted')
-      onClose()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not delete tool')
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4 rounded-lg p-4">
-      <AlertDialogTitle>Delete authored tool?</AlertDialogTitle>
-      <AlertDialogDescription>
-        This permanently deletes <span className="font-mono">{input.tool.name}</span>. Calls and workflows that refer to
-        this name will stop working. This action cannot be undone.
-      </AlertDialogDescription>
-      <AlertDialogFooter>
-        <AlertDialogCancel asChild>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-        </AlertDialogCancel>
-        <AlertDialogAction asChild>
-          <Button variant="destructive" onClick={(event) => void handleDelete(event)} disabled={deleteTool.isLoading}>
-            <Trash2 className="size-4" />
-            Delete tool
           </Button>
         </AlertDialogAction>
       </AlertDialogFooter>
@@ -1753,7 +1748,8 @@ function useAgentDefinitionPatch(
   onSave: (definition: AgentDefinition) => Promise<unknown>,
 ) {
   const storedTools = () => (definition.tools ? normalizeStoredAgentTools(definition.tools) : [...DEFAULT_AGENT_TOOLS])
-  const storedSigningKeys = () => definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
+  // Primary first: saving keeps `signingKey` equal to the first entry.
+  const storedSigningKeys = () => agentSigningKeys(definition)
   const [enabledTools, setEnabledTools] = useState<string[]>(storedTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(storedSigningKeys)
   const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers ?? [])
@@ -1797,11 +1793,8 @@ function useAgentDefinitionPatch(
   return {enabledTools, signingKeys, mcpServers, saveTools, saveMcpServers}
 }
 
-/** Settings > Permissions: the grant toggles and the authored tools. */
+/** Settings > Permissions: the grant toggles. */
 function AgentPermissionsPage({
-  serverUrl,
-  accountUid,
-  agentId,
   definition,
   identities,
   webCapabilities,
@@ -1822,11 +1815,7 @@ function AgentPermissionsPage({
   onOpenIdentities: () => void
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
-  const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
-  const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
-  const agentTools = useAgentTools(serverUrl, accountUid, agentId)
-  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
   const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave)
   const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
 
@@ -1927,85 +1916,9 @@ function AgentPermissionsPage({
             </div>
           )
         })}
-        {authoredTools.map((tool) => (
-          <div
-            key={tool.name}
-            className={`group/tool border-border bg-card hover:bg-accent/20 flex items-center gap-2 rounded-xl border px-4 py-2 ${
-              tool.enabled ? '' : 'opacity-60'
-            }`}
-          >
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
-              onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool, readOnly})}
-            >
-              <SizableText size="sm" weight="bold" className="shrink-0 font-mono">
-                {tool.name}
-              </SizableText>
-              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
-              </span>
-              {!tool.enabled ? (
-                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                  Disabled
-                </span>
-              ) : null}
-              <SizableText size="sm" color="muted" className="truncate">
-                {tool.summary}
-              </SizableText>
-            </button>
-            {!readOnly ? (
-              <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/tool:opacity-100">
-                <Button
-                  variant="ghost"
-                  size="iconSm"
-                  aria-label={`Edit ${tool.name}`}
-                  onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
-                >
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="iconSm"
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label={`Delete ${tool.name}`}
-                  onClick={() => deleteAuthoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ))}
-        <div className="flex items-center justify-between gap-3 px-1">
-          {agentTools.isLoading && authoredTools.length === 0 ? (
-            <SizableText size="sm" color="muted">
-              Loading custom tools…
-            </SizableText>
-          ) : authoredTools.length === 0 ? (
-            <SizableText size="sm" color="muted">
-              No custom tools yet — add one here or ask the agent to write one for itself.
-            </SizableText>
-          ) : (
-            <span />
-          )}
-          {!readOnly ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId})}
-            >
-              <Plus className="size-4" />
-              Add tool
-            </Button>
-          ) : null}
-        </div>
       </div>
 
       {toolInfoDialog.content}
-      {authoredToolDialog.content}
-      {deleteAuthoredToolDialog.content}
       {enableWhpDialog.content}
 
       {saving ? (
@@ -2072,13 +1985,17 @@ function AgentIdentitiesPage({
     }
   }
 
-  const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
+  // In the agent's order, so the primary account leads the list.
+  const grantedIdentities = signingKeys.flatMap((name) => identities.filter((identity) => identity.name === name))
   const ungrantedIdentities = identities.filter((identity) => !signingKeys.includes(identity.name))
+  const primaryKey = signingKeys[0]
 
   return (
     <section className="flex max-w-3xl flex-col gap-4">
       <SizableText size="sm" color="muted">
-        The accounts this agent signs and publishes as. Anything it publishes appears under these names.
+        The accounts this agent signs and publishes as. The primary account is the agent: it publishes by default,
+        others mention it, and it holds the agent’s write access. The others are accounts it can also sign as when
+        asked.
       </SizableText>
       {!publishEnabled ? (
         <div className="border-border bg-muted/40 flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
@@ -2107,13 +2024,39 @@ function AgentIdentitiesPage({
                   onEdit={() => editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})}
                 />
               </div>
+              {identity.name === primaryKey ? (
+                <span className="bg-primary/10 text-primary shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                  Primary
+                </span>
+              ) : canManageIdentities ? (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="shrink-0 opacity-0 group-hover/identity:opacity-100 max-sm:opacity-100"
+                  disabled={saving || identitiesLoading}
+                  onClick={() =>
+                    void saveTools(enabledTools, [
+                      identity.name,
+                      ...signingKeys.filter((name) => name !== identity.name),
+                    ])
+                  }
+                >
+                  Make primary
+                </Button>
+              ) : null}
               {canManageIdentities ? (
                 <Button
                   variant="ghost"
                   size="iconSm"
                   className="text-muted-foreground hover:text-destructive opacity-0 group-hover/identity:opacity-100 max-sm:opacity-100"
                   aria-label={`Remove ${displayName}`}
-                  disabled={saving || identitiesLoading}
+                  // The primary account is the agent; another one has to become primary first.
+                  disabled={saving || identitiesLoading || (identity.name === primaryKey && signingKeys.length > 1)}
+                  title={
+                    identity.name === primaryKey && signingKeys.length > 1
+                      ? 'Make another account primary before removing this one'
+                      : undefined
+                  }
                   onClick={() =>
                     void saveTools(
                       enabledTools,

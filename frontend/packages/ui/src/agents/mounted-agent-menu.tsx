@@ -1,3 +1,4 @@
+import {primaryAgentSigningKey} from './primary-identity'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {MenuItemType} from '@shm/ui/options-dropdown'
@@ -24,9 +25,9 @@ export function useMountedAgentProfileMenuItem(
   const identities = useSigningIdentities(serverUrl, accountUid, agentId)
   const navigate = useNavigate()
   const definition = agent.data?.agent.definition
-  const signingKeys = definition?.signingKeys || (definition?.signingKey ? [definition.signingKey] : [])
-  const granted = (identities.data || []).filter((identity) => signingKeys.includes(identity.name))
-  const accountId = signingKeys.length === 1 && granted.length === 1 ? granted[0]?.accountId : undefined
+  // The agent is its primary account, whatever else it can also sign as.
+  const primaryKey = primaryAgentSigningKey(definition)
+  const accountId = (identities.data || []).find((identity) => identity.name === primaryKey)?.accountId
   if (!serverUrl || !definition || !accountId) return null
   return {
     key: 'open-agent-profile',

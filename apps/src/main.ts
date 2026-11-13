@@ -3,7 +3,7 @@ import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
-import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
+import {configureDocsSpace, docsSpaceAccount, resolveDocsUrl} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {ExecCanary} from '@/exec-canary'
 import {METRICS_CONTENT_TYPE, renderMetrics} from '@/metrics'
@@ -170,10 +170,14 @@ export function createAPIRoutes(
         hmServerUrl: svc.hmServerUrl,
         // Where clients reach this server (null when not configured).
         publicUrl: svc.publicUrl ?? null,
+        // Stable identity: a server checks that the URL an app names is itself by matching this.
+        serverId: svc.serverId,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
-        defaultPromptUrl,
+        // Resolved to the knowledge base account: clients write it into documents (a new agent's
+        // document embeds it), where the `hm://hyper.media` alias would not load.
+        defaultPromptUrl: defaultPromptUrl ? resolveDocsUrl(defaultPromptUrl) : defaultPromptUrl,
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,

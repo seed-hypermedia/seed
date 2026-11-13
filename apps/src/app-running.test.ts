@@ -19,6 +19,8 @@ function createTestState() {
   return {db, dataDir, cleanup: () => fs.rmSync(dataDir, {recursive: true, force: true})}
 }
 
+const SERVER = 'http://this-server.test/hm/api/apps'
+
 const TOOL_SOURCE = `export default async function (input: {city: string}, ctx: any) {
   if (!ctx.privateConfig.apiKey) throw new Error('This app needs an apiKey')
   return {city: input.city, units: ctx.publicConfig.units, keyLength: ctx.privateConfig.apiKey.length, app: ctx.app}
@@ -34,6 +36,10 @@ describe('running apps', () => {
     const space = blobs.principalToString(owner.principal)
     const appUrl = `hm://${space}/weather`
     const toolUrl = `hm://${space}/weather/get-weather`
+    // Where the app says it runs; changed below to show it runs nowhere else.
+    let appServer: string | undefined = SERVER
+    const agentUrl = `hm://${space}/helper-agent`
+    const agentToolUrl = `hm://${space}/helper-agent/summarize`
     const executions: CodeExecRequest[] = []
     const svc = new apisvc.Service(db, dataDir, {
       hmServerUrl: 'https://hm.test',
@@ -82,8 +88,26 @@ describe('running apps', () => {
     globalThis.fetch = mock(async (url: string | URL | Request) => {
       const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
       if (href.includes('/ipfs/bafycode/index.ts')) return new Response(TOOL_SOURCE)
+      // The app names this server: asked for its health, it answers with this server's id.
+      if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
+      if (href.startsWith('http://another-server.test/hm/api/apps/health'))
+        return Response.json({serverId: 'someone-else'})
       if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
       if (href.includes('/api/Resource')) {
+        if (href.includes('/helper-agent/summarize'))
+          return Response.json(
+            serialize(
+              document(agentToolUrl, {name: 'summarize', type: 'hm://hyper.media/tool', code: 'ipfs://bafycode'}),
+            ),
+          )
+        if (href.includes('/helper-agent'))
+          return Response.json(
+            serialize(
+              document(agentUrl, {name: 'Helper', type: 'hm://hyper.media/agent', agentServerUrl: SERVER}, [
+                {block: {id: 'a1', type: 'Embed', link: agentToolUrl, attributes: {view: 'Card'}}, children: []},
+              ]),
+            ),
+          )
         if (href.includes('/weather/get-weather'))
           return Response.json(
             serialize(document(toolUrl, {name: 'get-weather', type: 'hm://hyper.media/tool', code: 'ipfs://bafycode'})),
@@ -91,9 +115,16 @@ describe('running apps', () => {
         if (href.includes('/weather'))
           return Response.json(
             serialize(
-              document(appUrl, {name: 'Weather', type: 'hm://hyper.media/app', publicConfig: {units: 'metric'}}, [
-                {block: {id: 'b1', type: 'Embed', link: toolUrl, attributes: {view: 'Card'}}, children: []},
-              ]),
+              document(
+                appUrl,
+                {
+                  name: 'Weather',
+                  type: 'hm://hyper.media/app',
+                  appEnvironmentUrl: appServer,
+                  publicConfig: {units: 'metric'},
+                },
+                [{block: {id: 'b1', type: 'Embed', link: toolUrl, attributes: {view: 'Card'}}, children: []}],
+              ),
             ),
           )
       }
@@ -107,6 +138,17 @@ describe('running apps', () => {
       }
     }
     try {
+      // An app runs only on the server it names: none, or another one, and it does not run here.
+      appServer = undefined
+      expect(await send(owner, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
+        error: expect.stringContaining('names no server'),
+      })
+      appServer = 'http://another-server.test/hm/api/apps'
+      expect(await send(owner, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
+        error: expect.stringContaining('not on this server'),
+      })
+      appServer = SERVER
+
       // Only a writer of the app's space can run it.
       expect(await send(stranger, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
         error: expect.stringContaining('write to the app'),
@@ -184,6 +226,23 @@ describe('running apps', () => {
       expect(await send(owner, {_: 'RunApp', appId: appUrl, privateConfig: {}})).toMatchObject({
         run: {privateConfigKeys: ['apiKey']},
       })
+
+      // Agents and apps converge: a tool under an agent mounted here runs with no Run step.
+      const now = Date.now()
+      db.query('INSERT OR IGNORE INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)').run(space, now, now)
+      db.query(
+        `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).run(agentUrl, space, new Uint8Array([160]), 'x', 'ready', now, now)
+      expect(await send(stranger, {_: 'GetAppRun', appId: agentUrl})).toMatchObject({run: {appId: agentUrl}})
+      const agentCall = await send(stranger, {
+        _: 'CallAppTool',
+        appId: agentUrl,
+        toolId: agentToolUrl,
+        input: {city: 'Oslo'},
+      })
+      expect(agentCall).toMatchObject({_: 'AppToolCallResponse', call: {toolId: agentToolUrl}})
+      // Its tool ran without private config: the tool reports that, as code would.
+      expect((agentCall as {call: {error?: string}}).call.error).toContain('apiKey')
 
       // Stopping forgets the run and its private config.
       expect(await send(owner, {_: 'StopApp', appId: appUrl})).toMatchObject({run: null})

@@ -123,7 +123,8 @@ import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
 import {appEmbedBlobs, findListingApp, resolveAppParent} from '@/app-children'
 import * as appRunning from '@/app-running'
 import {collectToolCodeFiles, validateToolCode} from '@/tool-code'
-import {HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
+import {HM_PAGE_TYPE, HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
+import {withTimeout} from '@/poll-loop'
 import {loadMermaidParser} from './mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
@@ -594,29 +595,15 @@ function publishGrantEnabled(definition: api.AgentDefinition): boolean {
 /**
  * Narrows a parent's tool grants to what a sub-session spec requested.
  *
- * The intersection runs over callable names, but two grants need translating:
- *
- * - The publish grant is a pseudo-tool a spec never spells 'publish' naturally — scripts ask for
- *   the `write` verb. A child that asked to write (by either name) keeps the parent's publish
- *   grant; one that did not asks for a read-only posture and loses it.
- * - An authored lambda named in the spec is sandbox code, so the request is meaningful only while
- *   the parent grants `execute`. The lambda's own name is kept in the narrowed tools (where the
- *   sandbox gate honors it) rather than the general `execute` callable, so the child can run
- *   exactly the lambdas it was handed without gaining arbitrary code execution.
- *
- * Every grant can only ever narrow: a parent whose base lacks 'publish' or 'execute' has nothing
- * for the filter to keep, however loudly the spec asks.
+ * The intersection runs over callable names, but the publish grant needs translating: it is a
+ * pseudo-tool a spec never spells 'publish' naturally — scripts ask for the `write` verb. A child
+ * that asked to write (by either name) keeps the parent's publish grant; one that did not asks for
+ * a read-only posture and loses it. Every grant can only ever narrow.
  */
-export function narrowDefinitionTools(base: string[], specTools: string[], lambdaTools: string[] = []): string[] {
+export function narrowDefinitionTools(base: string[], specTools: string[]): string[] {
   const requested = specTools.map(normalizeSeedToolName)
   const requestsPublish = requested.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
-  const grantedLambdas = base.includes(callableToolRegistry.execute.name)
-    ? requested.filter((tool) => lambdaTools.includes(tool))
-    : []
-  return [
-    ...base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish)),
-    ...grantedLambdas,
-  ]
+  return base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish))
 }
 
 function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
@@ -972,6 +959,8 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #publicUrl: string | undefined
+  /** This server's stable identity, reported in /health so an app's server URL can be recognized as this one. */
+  readonly #serverId: string
   readonly #ipfsServerUrl: string
   readonly #fetchCapability: auth.CapabilityFetcher
   readonly #web: WebToolsConfig
@@ -1033,6 +1022,10 @@ export class Service {
    * prompt embeds, and it runs on every GetSession (each session open, each WS resubscribe) — so
    * it is cached against the prompt blocks' JSON with a short TTL to pick up remote doc edits.
    */
+  /** The last good read of each mounted agent's document prompt, keyed by agent id (see #agentDocumentPrompt). */
+  readonly #agentDocumentPromptCache = new Map<string, AgentDocumentPrompt>()
+  /** Where each mounted agent's keys may write, by agent id: refreshed at most once a minute. */
+  readonly #agentWriteScopeCache = new Map<string, {scope: AgentWriteScope; expiresAt: number}>()
   readonly #resolvedSystemPromptCache = new Map<
     string,
     {source: string; value: string; expiresAt: number; refreshing?: boolean}
@@ -1090,9 +1083,29 @@ export class Service {
         return lag.p95 > 50 || lag.last > 100
       },
     })
-    for (const agent of stmt<{state_dir: string}, []>(db, 'SELECT state_dir FROM agents').all())
+    for (const agent of stmt<{id: string; account_id: string; state_dir: string}, []>(
+      db,
+      'SELECT id, account_id, state_dir FROM agents',
+    ).all()) {
       agentMemory.migratePrivateMemory(agent.state_dir)
+      // Agents no longer hold private code tools; each authored one moves into the agent's memory.
+      const moved = toolDocs.moveLambdaToolsToMemory(
+        db,
+        {accountId: agent.account_id, agentId: agent.id},
+        (path, content) => agentMemory.writeMemoryFile(agent.state_dir, path, content),
+        (path) => {
+          try {
+            agentMemory.readMemoryFile(agent.state_dir, path)
+            return true
+          } catch {
+            return false
+          }
+        },
+      )
+      if (moved.length) log.info(`Moved authored tools of ${agent.id} into memory: ${moved.join(', ')}`)
+    }
     this.#dataDir = dataDir
+    this.#serverId = readOrCreateServerId(dataDir)
     this.#onEvent = options.onEvent
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
@@ -1305,6 +1318,11 @@ export class Service {
     return this.#publicUrl
   }
 
+  /** This server's stable identity (see #serverId). */
+  get serverId(): string {
+    return this.#serverId
+  }
+
   /** The HTTP server used for direct IPFS gateway reads. */
   get ipfsServerUrl(): string {
     return this.#ipfsServerUrl
@@ -1408,6 +1426,8 @@ export class Service {
       codeExec: this.#codeExec,
       encrypt: (plain) => encryptSecret(this.#db, plain),
       decrypt: (ciphertext) => decryptSecret(this.#db, ciphertext),
+      serverId: this.#serverId,
+      ...(this.#publicUrl ? {publicUrl: this.#publicUrl} : {}),
     }
   }
 
@@ -3889,72 +3909,9 @@ export class Service {
     return {_: 'ListAgentToolsResponse', agentId, tools}
   }
 
-  #saveAgentTool(
-    accountId: string,
-    agentId: string,
-    tool: api.AgentToolInput,
-    previousName?: string,
-  ): api.SaveAgentToolResponse {
-    if (!this.#getAgentInfo(accountId, agentId)) throw new APIError(404, 'Agent not found')
-    const normalizedPreviousName =
-      previousName === undefined
-        ? undefined
-        : normalizeBoundedString(previousName, 'Previous tool name', MAX_NAME_BYTES)
-    const normalizedTool = {
-      ...tool,
-      name: normalizeBoundedString(tool.name, 'Tool name', MAX_NAME_BYTES),
-    }
-
-    try {
-      const saved = this.#db.transaction(() => {
-        const previous = normalizedPreviousName
-          ? toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedPreviousName)
-          : undefined
-        if (normalizedPreviousName && !previous) throw new APIError(404, `Tool "${normalizedPreviousName}" not found`)
-        if (previous?.doc.kind === 'builtin') throw new APIError(400, 'Builtin tools cannot be edited')
-
-        const target = toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedTool.name)
-        if ((!normalizedPreviousName || normalizedTool.name !== normalizedPreviousName) && target) {
-          throw new APIError(409, `A tool named "${normalizedTool.name}" already exists`)
-        }
-
-        let row = toolDocs.saveLambdaToolDocument(this.#db, accountId, agentId, normalizedTool)
-        if (previous && normalizedTool.name !== normalizedPreviousName) {
-          stmt(
-            this.#db,
-            `UPDATE tool_documents SET created_at = ? WHERE account_id = ? AND agent_id = ? AND name = ?`,
-          ).run([previous.createdAt, accountId, agentId, normalizedTool.name])
-          toolDocs.deleteToolDocument(this.#db, accountId, agentId, normalizedPreviousName!)
-          row = toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedTool.name)!
-        }
-        return row
-      })()
-
-      invalidateSpaceIndex(accountId, agentId)
-      this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId})
-      return {
-        _: 'SaveAgentToolResponse',
-        agentId,
-        tool: {
-          name: saved.doc.name,
-          kind: 'lambda',
-          summary: saved.doc.summary,
-          description: saved.doc.description,
-          input: saved.doc.input as Record<string, unknown>,
-          output: saved.doc.output as Record<string, unknown> | undefined,
-          source: saved.doc.source,
-          runtime: saved.doc.runtime,
-          cid: saved.cid,
-          enabled: saved.enabled,
-          granted: true,
-          createdAt: saved.createdAt,
-          updatedAt: saved.updatedAt,
-        },
-      }
-    } catch (error) {
-      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
-      throw error
-    }
+  /** Agents no longer hold private code tools: saving one is refused with what to do instead. */
+  #saveAgentTool(..._args: unknown[]): never {
+    throw new APIError(410, TOOLS_ARE_RESOURCES)
   }
 
   #deleteAgentTool(accountId: string, agentId: string, rawName: string): api.DeleteAgentToolResponse {
@@ -5414,7 +5371,6 @@ export class Service {
       codeExec: this.#codeExec,
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
-      appServerUrl: this.#publicUrl,
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
@@ -5725,11 +5681,7 @@ export class Service {
       // intersect against that full set, not a stale minimal default, or the child loses tools
       // the parent granted.
       const base = (definition.tools ?? [...serviceCallableNames(), 'publish']).map(normalizeSeedToolName)
-      const lambdaTools = toolDocs
-        .listToolDocuments(this.#db, run.accountId, run.agentId)
-        .filter((row) => row.enabled && row.doc.kind === 'lambda')
-        .map((row) => row.doc.name)
-      definition.tools = narrowDefinitionTools(base, spec.tools, lambdaTools)
+      definition.tools = narrowDefinitionTools(base, spec.tools)
     }
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
     this.#runningSessions.set(this.#runningSessionKey(run.accountId, sessionId), runningSession)
@@ -7309,7 +7261,6 @@ export class Service {
       codeExec: this.#codeExec,
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
-      appServerUrl: this.#publicUrl,
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
@@ -7739,6 +7690,92 @@ export class Service {
    * and a provider's prompt cache holds only while it repeats byte for byte. State that moves (the
    * Space index, the plan, the delegation budget left, the clock) rides with each turn's input.
    */
+  /**
+   * A mounted agent's document as prompt: its blocks other than card embeds (the instructions), and
+   * a listing of the tools and pages its card embeds name. Null for an agent without a document.
+   * Reads the latest published version each time; when the read fails the last good read stands.
+   */
+  async #agentDocumentPrompt(agentId: string): Promise<AgentDocumentPrompt | null> {
+    const id = agentId.startsWith('hm://') ? unpackHmId(agentId) : null
+    if (!id) return null
+    const cached = this.#agentDocumentPromptCache.get(agentId)
+    const client = createSeedClient(this.#hmServerUrl)
+    const resource = await withTimeout(
+      client.request('Resource', id),
+      AGENT_DOCUMENT_PROMPT_TIMEOUT_MS,
+      'agent document',
+    ).catch(() => null)
+    if (resource?.type !== 'document') return cached ?? null
+    const document = resource.document
+    if (cached && cached.version === document.version) return cached
+    const content = document.content ?? []
+    const isCard = (node: HMBlockNode) =>
+      node.block.type === 'Embed' && (node.block.attributes as {view?: string} | undefined)?.view === 'Card'
+    const cards = content.filter(isCard).map((node) => String((node.block as {link?: string}).link ?? ''))
+    const entries = await Promise.all(
+      cards.map(async (link) => {
+        const child = unpackHmId(link)
+        if (!child) return null
+        const found = await withTimeout(
+          client.request('Resource', child),
+          AGENT_DOCUMENT_PROMPT_TIMEOUT_MS,
+          'agent document card',
+        ).catch(() => null)
+        const meta = found?.type === 'document' ? found.document.metadata : undefined
+        const kind = meta?.type === HM_TOOL_TYPE ? 'tool' : meta?.type === HM_PAGE_TYPE ? 'page' : 'document'
+        return {kind, url: link, name: meta?.name || child.path?.at(-1) || link, summary: meta?.summary}
+      }),
+    )
+    const line = (entry: NonNullable<(typeof entries)[number]>) =>
+      `- ${entry.name}${entry.summary ? ` — ${entry.summary}` : ''} (${entry.url})`
+    const tools = entries.filter((entry) => entry?.kind === 'tool') as NonNullable<(typeof entries)[number]>[]
+    const others = entries.filter((entry) => entry && entry.kind !== 'tool') as NonNullable<(typeof entries)[number]>[]
+    const listing = [
+      tools.length
+        ? `\n\nYour tools (card embeds in your document; call one with call and its hm:// URL, read it for its input contract):\n${tools
+            .map(line)
+            .join('\n')}`
+        : '',
+      others.length ? `\n\nYour pages and other listed documents:\n${others.map(line).join('\n')}` : '',
+    ].join('')
+    const serverUrl =
+      typeof document.metadata.agentServerUrl === 'string' &&
+      protocol.isMountableAgentServerUrl(document.metadata.agentServerUrl)
+        ? document.metadata.agentServerUrl
+        : undefined
+    const next: AgentDocumentPrompt = {
+      ...(serverUrl ? {serverUrl} : {}),
+      id: id.id,
+      version: document.version,
+      blocks: content.filter((node) => !isCard(node)),
+      listing,
+    }
+    this.#agentDocumentPromptCache.set(agentId, next)
+    return next
+  }
+
+  /**
+   * Where a mounted agent's signing keys may publish in the space its document lives in: the whole
+   * space, its own document (and below), or nowhere. Read from the space's WRITER/AGENT capabilities
+   * for those keys; the owner picks this when creating the agent and widens it from its People tab.
+   */
+  async #agentWriteScope(agentId: string, publicKeys: string[]): Promise<AgentWriteScope | null> {
+    const id = agentId.startsWith('hm://') ? unpackHmId(agentId) : null
+    if (!id?.path?.length || !publicKeys.length) return null
+    const cached = this.#agentWriteScopeCache.get(agentId)
+    if (cached && cached.expiresAt > Date.now()) return cached.scope
+    const client = createSeedClient(this.#hmServerUrl)
+    const result = await withTimeout(
+      client.request('ListCapabilities', {targetId: id}),
+      AGENT_DOCUMENT_PROMPT_TIMEOUT_MS,
+      'agent capabilities',
+    ).catch(() => null)
+    if (!result) return cached?.scope ?? null
+    const scope = agentWriteScopeOf(result.capabilities, publicKeys, '/' + id.path.join('/'))
+    this.#agentWriteScopeCache.set(agentId, {scope, expiresAt: Date.now() + 60_000})
+    return scope
+  }
+
   async #agentSystemPrompt(
     accountId: string,
     agentId: string,
@@ -7747,9 +7784,22 @@ export class Service {
     /** Where this turn's run sits in its delegation tree; absent for runless prompt previews. */
     delegation?: DelegationStatus,
   ): Promise<string> {
-    const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
+    // Primary first: `signingKey` names the account the agent is (see resolveWriteSigner).
+    const enabledKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
+    const primaryKey =
+      definition.signingKey && enabledKeys.includes(definition.signingKey) ? definition.signingKey : enabledKeys[0]
+    const signingKeys = primaryKey ? [primaryKey, ...enabledKeys.filter((key) => key !== primaryKey)] : enabledKeys
+    // A mounted agent's instructions are its document: the latest published version, read each
+    // turn. Until a writer moves the prompt into the document (it has no text yet, only card
+    // embeds), the prompt stored with the agent still applies.
+    const documentPrompt =
+      runPromptProfile?.includeAgentSystemPrompt === false ? null : await this.#agentDocumentPrompt(agentId)
     const agentPromptBlocks =
-      runPromptProfile?.includeAgentSystemPrompt === false ? [] : normalizeSystemPromptBlocks(definition.systemPrompt)
+      runPromptProfile?.includeAgentSystemPrompt === false
+        ? []
+        : documentPrompt?.blocks.length
+          ? documentPrompt.blocks
+          : normalizeSystemPromptBlocks(definition.systemPrompt)
     const additionalPrompt = runPromptProfile?.systemPrompt ?? runPromptProfile?.prompt
     const requestedPromptBlocks = additionalPrompt
       ? [...agentPromptBlocks, ...normalizeSystemPromptBlocks(additionalPrompt)]
@@ -7812,8 +7862,17 @@ export class Service {
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
     const delegationParagraph = delegation ? delegationPrompt(delegation) : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}`
-    if (!signingKeys.length) return basePrompt
+    const documentPromptNote = documentPrompt
+      ? `\n\n${
+          documentPrompt.blocks.length
+            ? `These instructions are your document ${documentPrompt.id} (version ${documentPrompt.version}); its latest published version is read at the start of each turn, so editing it (write with options.action "update") changes how you work from the next turn.`
+            : `Your document is ${documentPrompt.id}.`
+        }${
+          documentPrompt.serverUrl
+            ? ` You run on the app server ${documentPrompt.serverUrl}. An app runs only on the server it names: to run an app you can write here, set its metadata.appEnvironmentUrl to ${documentPrompt.serverUrl} (an update) unless it already names it, then run it with write options.action "run".`
+            : ''
+        }${documentPrompt.listing}`
+      : ''
     const identities = signingKeys.flatMap((name) => {
       const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
         this.#db,
@@ -7826,14 +7885,26 @@ export class Service {
         {
           name: typeof metadata.label === 'string' ? metadata.label : name,
           publicKey: typeof metadata.accountId === 'string' ? metadata.accountId : name,
+          ...(name === primaryKey && signingKeys.length > 1 ? {primary: true} : {}),
         },
       ]
     })
+    const writeScope = documentPrompt
+      ? await this.#agentWriteScope(
+          agentId,
+          identities.map((identity) => identity.publicKey),
+        )
+      : null
+    const writeScopeNote =
+      documentPrompt && writeScope
+        ? `\n\n${agentWriteScopePrompt(writeScope, documentPrompt.id, identities[0]?.publicKey)}`
+        : ''
+    const basePrompt = `${systemPrompt}${documentPromptNote}${writeScopeNote}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}`
     if (!identities.length) return basePrompt
     return `${basePrompt}\n\n<available_signing_identities>\n${safeJSONStringify(
       identities,
       2,
-    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {name: "Document Name", signer: {publicKey: "..."}}}. The name option sets the document name (stored as metadata.name) — a markdown # heading is body content only. Pass dryRun: true at the top level of the write call to validate a publish without publishing. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
+    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. The first identity is you (your primary account): writes sign as it by default, and sign as another only when asked. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {name: "Document Name", signer: {publicKey: "..."}}}. The name option sets the document name (stored as metadata.name) — a markdown # heading is body content only. Pass dryRun: true at the top level of the write call to validate a publish without publishing. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
   }
 
   /**
@@ -8010,7 +8081,6 @@ export class Service {
       codeExec: this.#codeExec,
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
-      appServerUrl: this.#publicUrl,
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
@@ -11424,7 +11494,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
 
   const parts = [
     '<space>',
-    'tools/ (read ~/tools/<name> for a contract; call runs one; write ~/tools/<name> authors one)',
+    'tools/ (read ~/tools/<name> for a contract; call runs one; your own tools are resources in apps or your agent, called by hm:// URL)',
     ...toolLines,
     memoryLine,
     `triggers/ (read ~/triggers/; write ~/triggers/<name> creates or edits an automation)${
@@ -12410,6 +12480,8 @@ function assertTriggerContinuationCallable(
   if (continuation?.kind !== 'tool') return
   const name = continuation.tool
   if (name === seedVerbRegistry.read.name || name === seedVerbRegistry.write.name) return
+  // A tool resource (in an app or an agent) is called by its hm:// URL, like the call verb does.
+  if (/^hm:\/\/[^/]+\/.+/.test(name)) return
   if (serviceCallableNames().includes(name)) return
   const document = toolDocs.getToolDocument(db, accountId, agentId, name)
   if (document?.enabled && document.doc.kind !== 'builtin') return
@@ -12424,7 +12496,9 @@ function assertTriggerContinuationCallable(
       seedVerbRegistry.write.name,
       ...serviceCallableNames(),
       ...authored,
-    ].join(', ')}. Author one with write ~/tools/<name> first.`,
+    ].join(
+      ', ',
+    )}, or a tool resource's hm:// URL. To run your own code, publish it as a tool in an app or your agent (read ~/tools/write/apps).`,
   )
 }
 
@@ -13187,8 +13261,6 @@ export type AgentServicePiToolContext = WriteToolContext & {
   ) => Promise<api.AppToolCallInfo>
   /** Runs an app on this server as one of the agent's signers (`write` with `options.action: "run"`). */
   runApp?: (signer: string, action: {appId: string; privateConfig?: Record<string, unknown>}) => Promise<api.AppRunInfo>
-  /** Where clients reach this server; an app an agent runs here names it as its `appEnvironmentUrl`. */
-  appServerUrl?: string
   /** Stops an app on this server (`write` with `options.action: "stop"`). */
   stopApp?: (signer: string, action: {appId: string}) => Promise<void>
   /** Callable tool names this agent may dispatch through the call verb. */
@@ -13856,7 +13928,7 @@ function toolsListing(context: AgentServicePiToolContext): Record<string, unknow
     '## Callable with the call verb',
     ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${toolDocumentTag(row.doc)}`),
     '',
-    'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool, then call it by name.',
+    'To make a new tool, publish a tool resource in an app or your agent (read ~/tools/write/apps), then call it by its hm:// URL.',
     'Its source runs in the execute sandbox and receives the validated input: TypeScript (default) `export default (input) => result`; python `def main(input): return result`. Whatever it returns is the tool result; anything it prints comes back as logs.',
   ]
   return {
@@ -14264,11 +14336,11 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       'Creating a webhook through write returns its secret endpoint path (the secret is the last URL segment; it may also be sent as a Bearer header instead), and read ~/triggers/<name> shows it again.',
       'continuation (optional) — what a firing does:',
       '  {kind: "newThread"} (default): start a thread from the prompt; a model handles every firing.',
-      '  {kind: "tool", tool, input?, onFailure?}: call ONE tool headlessly with NO model — tool is read, write, any callable tool (search, web_search, execute, navigate), or one of your enabled ~/tools/<name> lambdas / MCP tools. input defaults to the trigger event; otherwise it is a JSON template where the strings "$event" and "$event.<path>" are replaced from the event (a webhook body is "$event.payload"). The call runs as a durable run linked from the firing (read run:<id> for its output).',
+      '  {kind: "tool", tool, input?, onFailure?}: call ONE tool headlessly with NO model — tool is read, write, any callable tool (search, web_search, execute, navigate), an enabled MCP tool, or the hm:// URL of a tool resource (a tool in an app or your agent). input defaults to the trigger event; otherwise it is a JSON template where the strings "$event" and "$event.<path>" are replaced from the event (a webhook body is "$event.payload"). The call runs as a durable run linked from the firing (read run:<id> for its output).',
       '  {kind: "script", script, input?, onFailure?}: run a workflow script headlessly — the same `export default async function (input, ctx) {…}` module a script child takes, with input = {event, input, trigger: {id, name, firingId}}. Use ctx.call for tools, ctx.delegate to bring in a model only when needed, ctx.waitForEvent to pause for a person. Linted when written.',
       '  {kind: "wake", signal, runId?, payload?}: deliver a signal into a run parked on ctx.waitForEvent.',
       '  onFailure (tool/script): "none" (default) records the error on the firing and the trigger; "thread" also starts a thread from the prompt with the failure attached so a model can recover — the cheap way to keep a model out of the loop until something goes wrong. prompt may be omitted for tool/script triggers.',
-      'Pattern: author a tool with write ~/tools/<name>, then write a webhook trigger with continuation {kind: "tool", tool: "<name>", input: {payload: "$event.payload"}, onFailure: "thread"} — deliveries run your code directly and only a failure wakes you.',
+      'Pattern: publish a tool resource in an app or your agent (read ~/tools/write/apps), then write a webhook trigger with continuation {kind: "tool", tool: "hm://<its URL>", input: {payload: "$event.payload"}, onFailure: "thread"} — deliveries run your code directly and only a failure wakes you.',
       'enabled defaults to true; write with enabled false to turn a trigger off. {delete: true} removes one.',
     ].join('\n'),
   }
@@ -15098,6 +15170,53 @@ const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   run: ['privateConfig'],
   stop: [],
 }
+/** The app server a mounted agent's own document names (`agentServerUrl`): where it runs. */
+async function agentServerUrlOf(context: AgentServicePiToolContext): Promise<string | undefined> {
+  const id = context.agentId.startsWith('hm://') ? unpackHmId(context.agentId) : null
+  if (!id) return undefined
+  const agent = await createSeedClient(context.hmServerUrl)
+    .request('Resource', id)
+    .catch(() => null)
+  const url = agent?.type === 'document' ? agent.document.metadata.agentServerUrl : undefined
+  return typeof url === 'string' && protocol.isMountableAgentServerUrl(url) ? url : undefined
+}
+
+/**
+ * This server's stable identity: a random id kept in the data directory. It answers "is the server an
+ * app names this one?" without the server having to know its own public URL.
+ */
+function readOrCreateServerId(dataDir: string): string {
+  const file = path.join(dataDir, 'server-id')
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim()
+    if (existing) return existing
+  } catch {}
+  const id = nodeCrypto.randomUUID()
+  try {
+    fs.mkdirSync(dataDir, {recursive: true})
+    fs.writeFileSync(file, `${id}\n`)
+  } catch {}
+  return id
+}
+
+/** A mounted agent's document, read as its prompt (see Service#agentDocumentPrompt). */
+type AgentDocumentPrompt = {
+  id: string
+  version: string
+  /** The document's blocks other than card embeds: the agent's instructions. */
+  blocks: HMBlockNode[]
+  /** Markdown listing the tools and pages the document's card embeds name, or ''. */
+  listing: string
+  /** The app server the document names (`agentServerUrl`): where the agent runs, and where it can run apps. */
+  serverUrl?: string
+}
+
+/** How long a turn waits for the agent's document before using the last good read. */
+const AGENT_DOCUMENT_PROMPT_TIMEOUT_MS = 5_000
+
+/** Why ~/tools/<name> cannot be written, and what to do instead. */
+const TOOLS_ARE_RESOURCES =
+  'Tools are not written to ~/tools. A tool is a resource: publish it under an app (or an agent) with write and options.tool; read ~/tools/write/apps. Your earlier private tools were moved to ~/memory/tools/<name>/ (code and tool.json) for you to publish that way.'
 const HM_WRITE_OPTIONS_HINT = 'Extra command fields belong in options.input, never as loose option keys.'
 
 /** Options of a `write ipfs://` that publishes an object given as content (see writeIpfsObject). */
@@ -15301,36 +15420,8 @@ export async function executeWriteVerb(
   }
 
   if (address.startsWith('~/tools/')) {
-    assertKnownWriteOptions('~/tools/<name>', options, ['delete', 'tool'])
-    const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
-    try {
-      if (options.delete === true) {
-        const deleted = toolDocs.deleteToolDocument(context.db, context.accountId, context.agentId, name)
-        context.onMemoryChange()
-        return {summary: deleted ? `Deleted tool ${name}.` : `No tool named ${name}.`, name, deleted}
-      }
-      const parsed = content !== undefined ? (JSON.parse(content) as unknown) : options.tool
-      const row = toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-        ...(isRecord(parsed) ? parsed : {}),
-        name,
-      })
-      context.onMemoryChange()
-      return {
-        summary: `Saved tool ${name} (${row.cid}). Call it by name with the call verb; its contract is live in ~/tools now.`,
-        name,
-        cid: row.cid,
-        kind: row.doc.kind,
-      }
-    } catch (error) {
-      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
-      if (error instanceof SyntaxError) {
-        throw new APIError(
-          400,
-          'write ~/tools/<name> expects JSON content: {description, input, output?, source, runtime?}',
-        )
-      }
-      throw error
-    }
+    // Agents hold no private code tools: a tool is a resource under an app or an agent.
+    throw new APIError(400, TOOLS_ARE_RESOURCES)
   }
 
   const memoryPath = memoryPathFromAddress(address)
@@ -15586,39 +15677,27 @@ export async function executeWriteVerb(
           await context.stopApp(signer.publicKey, {appId})
           return {summary: `Stopped ${appId}.`, appId, running: false}
         }
-        const run = await context.runApp(signer.publicKey, {
-          appId,
-          ...(isRecord(options.privateConfig) ? {privateConfig: options.privateConfig} : {}),
-        })
-        // People find the app's server through the app: point it here when it names another one.
-        // The app runs either way; a failed pointer update is reported, not thrown.
-        let pointer = ''
-        if (context.appServerUrl) {
-          const id = unpackHmId(appId)
-          const current = id
-            ? await createSeedClient(context.hmServerUrl)
-                .request('Resource', id)
-                .catch(() => null)
-            : null
-          if (current?.type === 'document' && current.document.metadata.appEnvironmentUrl !== context.appServerUrl) {
-            try {
-              await writeHypermedia(
-                context,
-                envelope('document.update', {edit: appId, metadata: {appEnvironmentUrl: context.appServerUrl}}),
+        const run = await context
+          .runApp(signer.publicKey, {
+            appId,
+            ...(isRecord(options.privateConfig) ? {privateConfig: options.privateConfig} : {}),
+          })
+          .catch(async (error: unknown) => {
+            // The app runs only where it says: tell the agent which server it can name to run it here.
+            const serverUrl = await agentServerUrlOf(context)
+            if (error instanceof APIError && error.status === 409 && serverUrl)
+              throw new APIError(
+                409,
+                `${error.message} You run on ${serverUrl}: to run this app here, set its metadata.appEnvironmentUrl to ${serverUrl} with an update (you need write access to the app), then run it again.`,
               )
-              pointer = ` The app now names this server: ${context.appServerUrl}.`
-            } catch (error) {
-              pointer = ` Set the app's metadata.appEnvironmentUrl to ${
-                context.appServerUrl
-              } so people find it (the update failed: ${error instanceof Error ? error.message : String(error)}).`
-            }
-          }
-        }
+            throw error
+          })
+        // An app runs only on the server it names (its appEnvironmentUrl, or its space's site): the
+        // run is refused anywhere else, and this verb never changes where an app runs.
         return {
-          summary: `${appId} runs on this server.${pointer} Call its tools with call and a tool's hm:// URL.`,
+          summary: `${appId} runs on this server. Call its tools with call and a tool's hm:// URL.`,
           run,
           running: true,
-          ...(context.appServerUrl ? {appServerUrl: context.appServerUrl} : {}),
         }
       }
       case 'document':
@@ -15760,123 +15839,6 @@ function contractMarkdownForThisServer(context: AgentServicePiToolContext, row: 
   return `${toolDocs.toolDocumentContractMarkdown(narrowed)}\n\n> This server runs ${context.codeExec.runtimes.join(
     ', ',
   )}; the runtime list above is narrowed to what it can actually run.`
-}
-
-/**
- * Runs an authored lambda tool: its stored source, executed in the same sandbox the execute tool
- * uses, with the call's validated input handed in and its return value handed back. See
- * tool-documents.ts for the ABI, and code-exec.ts for how the program is assembled.
- *
- * Failures are thrown rather than returned: a lambda that crashes, returns nothing, or returns
- * something its own output schema rejects is a broken tool, and the model that authored it is the
- * one who can fix it — so it gets the error, not a plausible-looking empty result.
- */
-async function executeLambdaTool(
-  context: AgentServicePiToolContext,
-  row: toolDocs.ToolDocumentRow,
-  rawInput: unknown,
-  toolCallId: string | undefined,
-): Promise<Record<string, unknown>> {
-  const doc = row.doc
-  const toolInput = isRecord(rawInput) ? rawInput : {}
-  const validationErrors = validateJsonSchemaValue(doc.input, toolInput)
-  if (validationErrors.length > 0) {
-    // Same touch-expand contract as builtins: a miss answers with the contract, not an error.
-    return {
-      summary: `Input for ${doc.name} did not match its contract — here it is; call again with valid input.`,
-      contract: toolDocs.toolDocumentContractMarkdown(row),
-      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
-    }
-  }
-  const source = typeof doc.source === 'string' ? doc.source : ''
-  if (!source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
-  const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
-  // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
-  // owner should grant something would send the user off to fix the wrong thing.
-  if (!context.codeExec.runtimes.includes(runtime)) {
-    throw new APIError(
-      400,
-      `Tool ${doc.name} is written in ${doc.runtime ?? 'typescript'}, which this server cannot run: ${
-        runtime === 'ts'
-          ? 'TypeScript tools need a sandbox image with bun on PATH.'
-          : 'code execution is unavailable here.'
-      }`,
-    )
-  }
-  // An authored tool is code in the sandbox, so it rides on the SAME grant the execute tool needs.
-  // Without this, writing a lambda would be a way around an owner who turned code execution off.
-  // A delegated child may carry the lambda's own name instead: its spec asked for this tool and
-  // the owner's execute grant backed it at narrowing time (see narrowDefinitionTools), without
-  // handing the child the general execute callable.
-  if (
-    !context.callableTools.includes(callableToolRegistry.execute.name) &&
-    !context.definition.tools?.includes(doc.name)
-  ) {
-    throw new APIError(
-      403,
-      `Tool ${doc.name} runs code in the sandbox, which is not enabled for this agent. Its owner can grant code execution in the agent's tool settings.`,
-    )
-  }
-
-  let execution: CodeExecResult
-  try {
-    execution = await context.codeExec.execute({
-      principal: {accountId: context.accountId, agentId: context.agentId, sessionId: context.sessionId},
-      stateDir: context.stateDir,
-      runtime,
-      code: buildLambdaProgram(runtime, source, toolInput),
-      onProgress: (progress) =>
-        context.onToolProgress(seedVerbRegistry.call.name, {
-          toolCallId,
-          detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${doc.name}…`,
-          outputTail: progress.outputTail,
-        }),
-    })
-  } catch (error) {
-    if (error instanceof CodeExecError) throw new APIError(error.status, error.message)
-    throw error
-  }
-  if (execution.changedFiles.length) context.onMemoryChange()
-
-  const {result, hasResult, logs} = parseLambdaResult(execution.stdout)
-  if (!execution.success) {
-    const detail = (execution.stderr.trim() || logs || '').split('\n').slice(-8).join('\n')
-    throw new APIError(400, `Tool ${doc.name} failed (exit ${execution.exitCode})${detail ? `:\n${detail}` : ''}`)
-  }
-  if (!hasResult) {
-    throw new APIError(
-      400,
-      `Tool ${doc.name} finished without returning a value. ${
-        runtime === 'python'
-          ? 'Its main(input) function must return the result.'
-          : 'Its default export must return the result.'
-      }`,
-    )
-  }
-  if (doc.output) {
-    const outputErrors = validateJsonSchemaValue(doc.output, result)
-    if (outputErrors.length > 0) {
-      throw new APIError(
-        400,
-        `Tool ${doc.name} returned a value its own output schema rejects: ${outputErrors
-          .map((error) => `${error.path}: ${error.message}`)
-          .join('; ')}`,
-      )
-    }
-  }
-  const changeSummary = execution.changedFilesTotal
-    ? `, ${execution.changedFilesTotal} memory file${execution.changedFilesTotal === 1 ? '' : 's'} changed`
-    : ''
-  return {
-    summary: `Ran ${doc.name} (${execution.durationMs}ms${changeSummary}).`,
-    result,
-    ...(logs ? {logs} : {}),
-    ...(execution.changedFiles.length ? {changedFiles: execution.changedFiles} : {}),
-    ...(execution.changedFilesTotal > execution.changedFiles.length
-      ? {changedFilesTotal: execution.changedFilesTotal}
-      : {}),
-    durationMs: execution.durationMs,
-  }
 }
 
 /**
@@ -16044,9 +16006,6 @@ export async function executeCallVerb(
     const document = toolName
       ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
       : undefined
-    if (document?.enabled && document.doc.kind === 'lambda') {
-      return executeLambdaTool(context, document, input.input, toolCallId)
-    }
     if (document?.enabled && document.doc.kind === 'mcp') {
       return executeMcpTool(context, document, input.input, toolCallId)
     }
@@ -19380,6 +19339,41 @@ async function readDiscussionHypermedia(input: {
   })
   result.markdown = ensureToolResultSize(lines.join('\n'))
   return result
+}
+
+/** Where a mounted agent's keys may publish in its document's space. */
+type AgentWriteScope = 'space' | 'document' | 'none'
+
+/**
+ * The widest scope the capabilities on an agent's document give its keys: `space` for a grant at
+ * the space root, `document` for one at (or above) the document's own path, else `none`.
+ */
+export function agentWriteScopeOf(
+  capabilities: {delegate?: string; role?: string; path?: string; isExact?: boolean; noRecursive?: boolean}[],
+  publicKeys: string[],
+  documentPath: string,
+): AgentWriteScope {
+  let scope: AgentWriteScope = 'none'
+  for (const cap of capabilities) {
+    if (!cap.delegate || !publicKeys.includes(cap.delegate) || (cap.role !== 'WRITER' && cap.role !== 'AGENT')) continue
+    if (cap.role === 'AGENT' || !cap.path || cap.path === '/') {
+      if (!cap.isExact && !cap.noRecursive) return 'space'
+    }
+    if (cap.path === documentPath || (!cap.isExact && !cap.noRecursive && documentPath.startsWith(cap.path + '/')))
+      scope = 'document'
+  }
+  return scope
+}
+
+/** The prompt paragraph that tells a mounted agent where its work belongs, from its write scope. */
+export function agentWriteScopePrompt(scope: AgentWriteScope, documentId: string, ownKey?: string): string {
+  const own = ownKey ? `hm://${ownKey}` : "your own key's space"
+  const space = `hm://${unpackHmId(documentId)?.uid ?? ''}`
+  if (scope === 'space')
+    return `You can write anywhere in the space ${space}. Put what you make for yourself (tools, apps, pages, notes) under your document ${documentId}, and work your user asks for where it belongs in that space. Do not publish into ${own}: nobody browses it.`
+  if (scope === 'document')
+    return `You can write your document ${documentId} and anything under it, and nothing else in ${space}. Put everything you make there (for example ${documentId}/<name>) and embed it in your document as a card, so your user finds it. Do not publish into ${own}: nobody browses it. To write elsewhere in ${space}, ask your user to give you write access to the whole space from your People tab.`
+  return `You have no write access in ${space}. You can publish only into ${own}, which your user will not find unless you link it. Before making something your user should see, ask them to give you write access from your People tab (your document, or the whole space).`
 }
 
 async function readProfileHypermedia(input: {

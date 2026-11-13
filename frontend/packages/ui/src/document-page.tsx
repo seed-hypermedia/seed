@@ -32,7 +32,7 @@ import {
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {documentPageStorage, mountDocumentPage} from '@shm/shared/document-page-sandbox'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {HM_APP_TYPE, parentDocumentId} from '@seed-hypermedia/client/apps'
+import {isToolHostType, parentDocumentId} from '@seed-hypermedia/client/apps'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import type {DocumentPagePlatform} from '@shm/shared/document-page'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -104,7 +104,7 @@ function DocumentPageLaunch(props: DocumentPageViewProps) {
   const parentId = parentDocumentId(props.docId)
   const parent = useResource(parentId)
   const appDocument =
-    parent?.data?.type === 'document' && parent.data.document.metadata.type === HM_APP_TYPE
+    parent?.data?.type === 'document' && isToolHostType(parent.data.document.metadata.type)
       ? parent.data.document
       : null
   const app = React.useMemo(
@@ -354,6 +354,7 @@ function DocumentPageSession({
         return documentPageStorage(window.localStorage, context, method, params as Record<string, unknown>)
       }
       if (method === 'app.call') return callPageAppTool({app, account, client, access, params, signal})
+      if (method === 'app.context') return pageAppContext(app)
       if (method === 'open') {
         try {
           const link = parseDocumentPageLink(params)
@@ -687,4 +688,17 @@ export async function callPageAppTool({
   authorized.throwIfAborted()
   if (call.error) throw new Error(call.error)
   return call.output ?? null
+}
+
+/** `seed.app.context()`: the tool context without private config: the app's id and public config. */
+export function pageAppContext(app: PageApp | null): {app: string; publicConfig: Record<string, unknown>} {
+  if (!app) throw new Error('This page is not part of an app.')
+  const publicConfig = app.document.metadata.publicConfig
+  return {
+    app: hmId(app.id.uid, {path: app.id.path}).id,
+    publicConfig:
+      publicConfig && typeof publicConfig === 'object' && !Array.isArray(publicConfig)
+        ? (publicConfig as Record<string, unknown>)
+        : {},
+  }
 }

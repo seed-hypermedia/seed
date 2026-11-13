@@ -76,7 +76,7 @@ describe('MountedAgentDocument access states', () => {
       expect(text).toContain('This agent is not shared with your account')
       expect(text).toContain('localhost:3051')
       expect(text).not.toContain('z6MkVisitor')
-      expect(text).toContain('Agent access tab')
+      expect(text).toContain('People tab')
       expect(text).toContain('orphaned or deleted')
       expect(text).not.toContain('No agent is registered')
       // No Retry button: the page polls until a grant or an invite changes the answer.

@@ -459,9 +459,10 @@ describe('write verb', () => {
     await expect(
       executeWriteVerb(context, {address: 'ipfs://', options: {fromPths: '~/memory/a.txt'}}),
     ).rejects.toThrow(/does not understand option "fromPths"/)
+    // Agents hold no private code tools: ~/tools/<name> is refused with what to do instead.
     await expect(
       executeWriteVerb(context, {address: '~/tools/thing', content: '{}', options: {overwrite: true}}),
-    ).rejects.toThrow(/does not understand option "overwrite"/)
+    ).rejects.toThrow(/A tool is a resource/)
   })
 
   // title and dryRun used to be loose option keys; the refusal points at where each concept
@@ -598,166 +599,6 @@ describe('call verb', () => {
     expect(String(result.summary)).toContain('did not match its contract')
     expect(String(result.contract)).toContain('"python"')
     expect(String(result.contract)).not.toContain('"ts"')
-  })
-
-  test('an authored lambda runs its source, and its return value is the result', async () => {
-    const context = makeContext()
-    const programs: string[] = []
-    ;(context.codeExec as {execute: unknown}).execute = mock(async (request: {code: string; runtime: string}) => {
-      programs.push(request.code)
-      return {
-        exitCode: 0,
-        success: true,
-        stdout: `working\n${LAMBDA_RESULT_PREFIX}{"tempC":21}\n`,
-        stderr: '',
-        truncated: false,
-        durationMs: 7,
-        changedFiles: [{path: 'weather.json', change: 'added'}],
-        changedFilesTotal: 1,
-      }
-    })
-    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
-      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
-      source: 'export default (input) => ({tempC: 21})',
-    })
-
-    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, 'tc-lambda')
-    expect(result.result).toEqual({tempC: 21})
-    // What it printed comes back as logs, kept apart from what it returned.
-    expect(result.logs).toBe('working')
-    expect(String(result.summary)).toContain('Ran weather')
-    // The validated input reached the program, and memory changes were announced.
-    expect(programs[0]).toContain('{\\"city\\":\\"Lisbon\\"}')
-    expect(context.onMemoryChange).toHaveBeenCalled()
-  })
-
-  test('a delegated child runs a lambda its spec carried without the general execute grant', async () => {
-    // Regression: the sandbox gate only honored 'execute' in callableTools, so a child narrowed to
-    // exactly the lambda it was handed could never run it.
-    const context = makeContext({
-      callableTools: ['search'],
-      definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm', tools: ['weather']} as never,
-    })
-    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
-      exitCode: 0,
-      success: true,
-      stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":18}\n`,
-      stderr: '',
-      truncated: false,
-      durationMs: 2,
-      changedFiles: [],
-      changedFilesTotal: 0,
-    }))
-    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
-      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
-      source: 'export default (input) => ({tempC: 18})',
-    })
-
-    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Porto'}}, 'tc-lambda-narrow')
-    expect(result.result).toEqual({tempC: 18})
-
-    // Without either the execute grant or the lambda's own name, the gate still refuses.
-    const ungranted = makeContext({callableTools: ['search']})
-    toolDocs.saveLambdaToolDocument(ungranted.db, ungranted.accountId, ungranted.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
-      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
-      source: 'export default (input) => ({tempC: 18})',
-    })
-    await expect(executeCallVerb(ungranted, {tool: 'weather', input: {city: 'Porto'}}, undefined)).rejects.toThrow(
-      'runs code in the sandbox',
-    )
-  })
-
-  test('a lambda call validates both edges and surfaces its failures', async () => {
-    const context = makeContext()
-    const behavior = {stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":"warm"}\n`, success: true, exitCode: 0}
-    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
-      exitCode: behavior.exitCode,
-      success: behavior.success,
-      stdout: behavior.stdout,
-      stderr: behavior.success ? '' : 'Traceback: boom',
-      truncated: false,
-      durationMs: 3,
-      changedFiles: [],
-      changedFilesTotal: 0,
-    }))
-    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
-      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
-      source: 'export default (input) => ({tempC: "warm"})',
-    })
-
-    // Bad input answers with the tool's own contract, exactly like a builtin does.
-    const miss = await executeCallVerb(context, {tool: 'weather', input: {}}, undefined)
-    expect(String(miss.summary)).toContain('did not match its contract')
-    expect(String(miss.contract)).toContain('# weather')
-
-    // A return value the tool's own output schema rejects is the tool's bug, and it says so.
-    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
-      'output schema rejects',
-    )
-
-    // A crash surfaces with the tail of what the runtime said.
-    behavior.success = false
-    behavior.exitCode = 1
-    behavior.stdout = ''
-    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
-      'Traceback: boom',
-    )
-
-    // A tool that finishes without returning anything is broken, not empty.
-    behavior.success = true
-    behavior.exitCode = 0
-    behavior.stdout = 'printed but never returned\n'
-    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
-      'without returning a value',
-    )
-  })
-
-  test('an authored lambda cannot run code the owner did not grant', async () => {
-    // Authoring a tool must not be a way around an owner who turned code execution off.
-    const context = makeContext({callableTools: ['search', 'web_search']})
-    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object'},
-      source: 'export default () => ({})',
-    })
-    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
-      'not enabled for this agent',
-    )
-  })
-
-  test('a python lambda cannot run where code execution is unavailable', async () => {
-    const context = makeContext({
-      codeExec: {
-        runtimes: [],
-        availability: async () => ({available: false, runtimes: [], reason: 'no virtualization'}),
-        execute: async () => {
-          throw new Error('unused')
-        },
-      } as never,
-    })
-    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
-      name: 'weather',
-      description: 'Look up the temperature for a city.',
-      input: {type: 'object'},
-      source: 'def main(input):\n    return {}',
-      runtime: 'python',
-    })
-    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
-      'this server cannot run',
-    )
   })
 
   test('search dispatches through the Search API', async () => {
@@ -941,32 +782,6 @@ describe('space index and touch-expand pins', () => {
     expect(agentMemory.withOwnerAccess(true, index)).toBe(owner)
     // No scope at all is the reader view, never the owner's.
     expect(index()).toBe(reader)
-  })
-
-  test('authored lambda appears in the index and the listing', async () => {
-    const context = makeContext()
-    await executeWriteVerb(context, {
-      address: '~/tools/word_count',
-      content: JSON.stringify({
-        description: 'Count words in a text.',
-        input: {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
-        source: 'export default async ({text}) => ({words: text.split(/\\s+/).length})',
-      }),
-    })
-    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
-    const index = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(index).toContain('word_count')
-    const listing = await executeReadVerb(context, {address: '~/tools/'})
-    expect(String(listing.markdown)).toContain('word_count — Count words in a text. (authored)')
-    const contract = await executeReadVerb(context, {address: '~/tools/word_count'})
-    expect(String(contract.markdown)).toContain('## Source')
-    expect(String(contract.cid)).toStartWith('b')
   })
 
   test('expanded set derives from durable read/call events', () => {
@@ -1713,80 +1528,5 @@ describe('write verb: running apps', () => {
     await expect(
       executeWriteVerb(context, {address: appId, options: {action: 'run', privateConfig: 'nope'}}),
     ).rejects.toThrow('privateConfig')
-  })
-})
-
-describe('write verb: running apps on a server with a public URL', () => {
-  test('an app that already names this server is left alone; one that does not gets pointed here', async () => {
-    const owner = blobs.generateNobleKeyPair()
-    const agentSeed = crypto.getRandomValues(new Uint8Array(32))
-    const agentUid = blobs.principalToString(blobs.nobleKeyPairFromSeed(agentSeed).principal)
-    const serverUrl = 'https://hyper.media/hm/api/apps'
-    const context = makeContext({
-      accountId: blobs.principalToString(owner.principal),
-      definition: {name: 'T', systemPrompt: '', modelProvider: 'p', model: 'm', signingKey: 'agent-key'} as never,
-      appServerUrl: serverUrl,
-      runApp: mock(async (signer: string, action: {appId: string}) => ({
-        appId: action.appId,
-        spaceUid: agentUid,
-        startedBy: signer,
-        privateConfigKeys: [],
-        createdAt: 1,
-        updatedAt: 1,
-      })),
-      stopApp: mock(async () => {}),
-    })
-    await new apisvc.Service(context.db, context.stateDir).message(
-      await apisvc.createSignedEnvelope(owner, {
-        action: {
-          _: 'SetSecret',
-          name: 'agent-key',
-          value: agentSeed,
-          metadata: {kind: 'hm-account-key', accountId: agentUid, label: 'Agent'},
-        },
-      }),
-    )
-    const appId = `hm://${agentUid}/apps/weather`
-    let pointer: string | undefined = serverUrl
-    const requests: string[] = []
-    const originalFetch = globalThis.fetch
-    cleanups.push(() => {
-      globalThis.fetch = originalFetch
-    })
-    globalThis.fetch = mock(async (url: string | URL | Request) => {
-      const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
-      requests.push(href)
-      if (href.includes('/api/Resource'))
-        return Response.json(
-          serialize({
-            type: 'document',
-            id: unpackHmId(appId),
-            document: {
-              content: [],
-              metadata: {name: 'Weather', type: 'hm://hyper.media/app', appEnvironmentUrl: pointer},
-              version: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
-              genesis: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
-              account: agentUid,
-              authors: [agentUid],
-              path: '/apps/weather',
-              createTime: '',
-              updateTime: '',
-              visibility: 'PUBLIC',
-            },
-          }),
-        )
-      return new Response('unavailable', {status: 503})
-    }) as unknown as typeof fetch
-
-    const same = await executeWriteVerb(context, {address: appId, options: {action: 'run'}})
-    expect(same).toMatchObject({running: true, appServerUrl: serverUrl})
-    expect(String(same.summary)).not.toContain('names this server')
-    expect(requests.every((href) => href.includes('/api/Resource'))).toBe(true)
-
-    // Pointing elsewhere: the run still succeeds and the agent is told to point the app here.
-    pointer = 'https://elsewhere.example/hm/api/apps'
-    const moved = await executeWriteVerb(context, {address: appId, options: {action: 'run'}})
-    expect(moved).toMatchObject({running: true})
-    expect(String(moved.summary)).toContain(serverUrl)
   })
 })

@@ -107,8 +107,8 @@ export default function MountedAgentDocument({document, route, children}: AgentD
               </SizableText>
               <SizableText color="muted" className="break-words">
                 The app environment at {serverHost} has no agent for this document that your signed-in account can see.
-                Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
-                agent was orphaned or deleted, the server no longer knows this document.
+                Ask the agent's owner to share it with you from its People tab, or sign in as the owner. If the agent
+                was orphaned or deleted, the server no longer knows this document.
               </SizableText>
               <SizableText size="xs" color="muted">
                 This page checks again every few seconds.
