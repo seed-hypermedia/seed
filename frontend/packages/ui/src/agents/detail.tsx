@@ -87,6 +87,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowRight,
   ArrowRightLeft,
+  CircleUserRound,
   Copy,
   ExternalLink,
   Globe,
@@ -98,6 +99,7 @@ import {
   Plug,
   Plus,
   ScrollText,
+  Settings,
   Shield,
   Trash2,
   X,
@@ -137,9 +139,12 @@ import {
   EditAgentAccountDialog,
   EditAgentNameDialog,
   EnableWindowsHypervisorDialog,
+  ManageAgentAccountsDialog,
+  ModelProvidersDialog,
   type AgentAccountRenameStatus,
 } from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
+import {ServerHostSection} from '../server-host-card'
 import {writeStickyAgentSession} from './sticky-session'
 import {MoveAgentDialog} from './move-agent-dialog'
 import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/apps-protocol'
@@ -214,6 +219,9 @@ export function AgentDetailPage({
   const collaborators = useAgentCollaborators(serverUrl, selectedAccountId, agentId)
   const allAgents = useAgentList(serverUrl, selectedAccountId)
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
+  // The server's provider and account lists are reached from the agent that runs on it.
+  const providersDialog = useAppDialog(ModelProvidersDialog)
+  const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
   const accessRole = agent.data?.agent.accessRole ?? 'owner'
   const canWrite = agentAccessCanWrite(accessRole)
@@ -594,6 +602,8 @@ export function AgentDetailPage({
           {deleteAgentDialog.content}
           {moveAgentDialog.content}
           {addProviderDialog.content}
+          {providersDialog.content}
+          {manageAccountsDialog.content}
           {editNameDialog.content}
         </>
       ) : null}
@@ -814,6 +824,26 @@ export function AgentDetailPage({
 
               {tab === 'settings' ? (
                 <section className="flex max-w-2xl flex-col gap-4">
+                  <AgentServerHostSection
+                    serverUrl={serverUrl}
+                    localServerUrl={localServerUrl.data}
+                    health={serverHealth}
+                    onMove={
+                      isOwner && !embedded && selectedAccountId
+                        ? () =>
+                            moveAgentDialog.open({
+                              sourceServerUrl: serverUrl,
+                              selectedAccountId,
+                              agentId,
+                              agentName: name,
+                              modelProvider: agent.data?.agent.definition.modelProvider ?? '',
+                              sessionsCount: sessionCount,
+                              onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
+                                navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
+                            })
+                        : undefined
+                    }
+                  />
                   <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
                     <div className="min-w-0">
                       <SizableText size="sm" weight="bold" className="block">
@@ -848,6 +878,30 @@ export function AgentDetailPage({
                     actionLabel={isOwner ? 'Manage identities' : 'View identities'}
                     onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
                   />
+                  {isOwner ? (
+                    <>
+                      <AgentSettingsPageRow
+                        title="Model providers"
+                        description={`The providers on ${describeAgentServer(
+                          serverUrl,
+                          localServerUrl.data,
+                        )}, where this agent runs.`}
+                        icon={<Settings className="size-4" />}
+                        actionLabel="Manage providers"
+                        onOpen={() => providersDialog.open({serverUrl, selectedAccountId})}
+                      />
+                      <AgentSettingsPageRow
+                        title="Server accounts"
+                        description={`The publishing accounts kept on ${describeAgentServer(
+                          serverUrl,
+                          localServerUrl.data,
+                        )}.`}
+                        icon={<CircleUserRound className="size-4" />}
+                        actionLabel="Manage accounts"
+                        onOpen={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}
+                      />
+                    </>
+                  ) : null}
                   <AgentSettingsPageRow
                     title="MCP servers"
                     description={describeAgentMcpServers(agent.data.agent.definition)}
@@ -3293,6 +3347,34 @@ export default function AgentDetailRoutePage() {
       tab={route.tab}
       triggerId={route.triggerId}
       memoryPath={route.memoryPath}
+    />
+  )
+}
+
+/** The server an agent runs on, first in its settings (shared with app settings). Every agent has one. */
+function AgentServerHostSection({
+  serverUrl,
+  localServerUrl,
+  health,
+  onMove,
+}: {
+  serverUrl: string
+  localServerUrl?: string | null
+  health: {isLoading: boolean; isError: boolean; data?: unknown}
+  onMove?: () => void
+}) {
+  return (
+    <ServerHostSection
+      serverUrl={serverUrl}
+      localServerUrl={localServerUrl}
+      detail={health.isLoading ? 'Checking…' : health.isError ? 'Not reachable' : 'Connected'}
+      action={
+        onMove ? (
+          <Button size="sm" variant="outline" onClick={onMove}>
+            <ArrowRightLeft className="size-4" /> Move…
+          </Button>
+        ) : null
+      }
     />
   )
 }

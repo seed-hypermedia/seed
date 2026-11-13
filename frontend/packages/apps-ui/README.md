@@ -50,7 +50,7 @@ export function Agents() {
   at the server the app environment publishes to when it is not public.
 - `gatewayUrl`: public web origin for `hm://` links (default `https://hyper.media`).
 - `settings`: where small UI settings persist (default: `localStorage`).
-- `openUrl`, `signIn`, `openServerSettings`: host affordances.
+- `openUrl`, `signIn`: host affordances.
 - `Editor`, `MessageViewer`: replace Seed's block editor and message viewer, which otherwise load on first use. A
   replacement editor must round-trip every block it is given; prompts may hold embeds.
 

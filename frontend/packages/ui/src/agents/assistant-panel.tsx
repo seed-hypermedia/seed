@@ -2,6 +2,7 @@ import {TriggerContextView} from './trigger-types'
 import {
   addOptimisticSessionMessage,
   describeAgentServer,
+  isLocalAgentServer,
   removeOptimisticSessionFromLists,
   useAgentLists,
   useAgentServerUrls,
@@ -14,6 +15,7 @@ import {
   useMountedSiteAgents,
   useOrphanAgents,
   useDeleteAgentSession,
+  useForgetAgentServer,
   useLocalAgentServerUrl,
   useMessageAgentSession,
   useRetrySession,
@@ -168,11 +170,12 @@ export function AssistantPanel({
   const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
   // On the web the panel is the site's: only agents mounted in the space on screen, found through
   // their documents, and no server is asked for anything a document did not name. Desktop adds
-  // the account's own agents from every server it is configured for.
+  // the account's own agents from its local server and every server it remembers using.
   const mountedOnly = !!getAgentsPlatform().mountedAgentsOnly
   const configuredServerUrls = useAgentServerUrls()
   const serverUrls = mountedOnly ? {...configuredServerUrls, data: NO_SERVERS} : configuredServerUrls
   const localServerUrl = useLocalAgentServerUrl()
+  const forgetServer = useForgetAgentServer()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
   // Trigger-started sessions are left out (see the list below). The server filters them before
   // paging; filtering only here made the panel page through ~100 empty pages on an account whose
@@ -622,16 +625,28 @@ export function AssistantPanel({
         // there are no agents.
         <div className="flex flex-1 flex-col gap-2 px-3 py-3">
           {serverProblems.map((problem) => (
-            <Notice
-              key={problem.serverUrl}
-              size="sm"
-              tone={problem.notice.tone}
-              title={problem.notice.title}
-              onRetry={problem.refetch}
-              retryPending={problem.isFetching}
-            >
-              {problem.notice.detail}
-            </Notice>
+            <div key={problem.serverUrl} className="flex flex-col items-start gap-1">
+              <Notice
+                size="sm"
+                tone={problem.notice.tone}
+                title={problem.notice.title}
+                onRetry={problem.refetch}
+                retryPending={problem.isFetching}
+              >
+                {problem.notice.detail}
+              </Notice>
+              {/* The app remembers servers on its own; this is how one that is gone stops being asked. */}
+              {isLocalAgentServer(problem.serverUrl, localServerUrl.data) ? null : (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() => forgetServer.mutate(problem.serverUrl)}
+                >
+                  Stop checking this server
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       ) : (

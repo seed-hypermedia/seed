@@ -3,7 +3,6 @@ import type {DocumentDestinationSubmitInput} from '../document-destination-dialo
 import {AgentMountDestination, findFreeAgentMountPath, prepareAgentMount, type PreparedAgentMount} from './mount'
 import {type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
 import {
-  getDefaultAgentServerUrl,
   isLocalAgentServer,
   prefetchAgentDetail,
   useAgentServerHealth,
@@ -16,12 +15,13 @@ import {
   useProviderModels,
   useRefreshProviderModels,
   useSaveModelProvider,
-  useAgentServerUrl,
   useLocalAgentServerUrl,
+  useRememberAgentServer,
   useSigningIdentities,
   useUpdateSigningIdentity,
 } from './models'
 import {useNavigate} from './navigation'
+import {CreateServerChoice, useCreateServerChoice} from './server-picker'
 import {keyfile} from '@seed-hypermedia/client'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
@@ -46,7 +46,7 @@ import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from '@shm/ui/image-processing'
-import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -1007,30 +1007,12 @@ function AgentAccountRow({
   )
 }
 
-/**
- * The server a new agent goes to unless the user picks another: the configured default, else the
- * first server that is not the app's own local one.
- */
-export function pickCreateAgentServer(
-  serverUrls: string[],
-  {
-    defaultServerUrl,
-    localServerUrl,
-  }: {
-    defaultServerUrl?: string | null
-    localServerUrl?: string | null
-  },
-): string {
-  if (defaultServerUrl && serverUrls.includes(defaultServerUrl)) return defaultServerUrl
-  const remote = serverUrls.find((serverUrl) => !isLocalAgentServer(serverUrl, localServerUrl))
-  return remote || serverUrls[0] || getDefaultAgentServerUrl() || ''
-}
-
 export function CreateAgentDialog({
   input,
   onClose,
 }: {
   input: {
+    /** Servers offered by name (see `useAgentServerOptions`); any other can be entered by URL. */
     serverUrls: string[]
     selectedAccountId: string | null | undefined
     /**
@@ -1048,15 +1030,13 @@ export function CreateAgentDialog({
   }
   onClose: () => void
 }) {
-  const localServerUrl = useLocalAgentServerUrl()
-  const defaultServer = useAgentServerUrl()
-  const serverChoice = {defaultServerUrl: defaultServer.data, localServerUrl: localServerUrl.data}
-  const [selectedServerUrl, setSelectedServerUrl] = useState(() =>
-    pickCreateAgentServer(input.serverUrls, serverChoice),
+  const preparedMount = useRef<{to: UnpackedHypermediaId; mount: PreparedAgentMount} | null>(null)
+  // A published mount document names its server; a late-resolving default must not move it.
+  const {serverUrl: selectedServerUrl, setServerUrl: setSelectedServerUrl} = useCreateServerChoice(
+    input.serverUrls,
+    !!preparedMount.current,
   )
-  // The choice stays folded until asked for: agents go to the main server unless the user says so.
-  const [choosingServer, setChoosingServer] = useState(false)
-  const serverPicked = useRef(false)
+  const rememberServer = useRememberAgentServer()
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
@@ -1081,14 +1061,6 @@ export function CreateAgentDialog({
     location.data?.type === 'document' ? getDocumentTitle(location.data.document) : input.location?.path?.at(-1)
   const signingKey = useRef<string>()
   const pendingCreation = useRef<Omit<CreateAgent, '_'>>()
-  const preparedMount = useRef<{to: UnpackedHypermediaId; mount: PreparedAgentMount} | null>(null)
-
-  useEffect(() => {
-    // A published mount document names its server; a late-resolving default must not move it.
-    if (serverPicked.current || preparedMount.current) return
-    setSelectedServerUrl(pickCreateAgentServer(input.serverUrls, serverChoice))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input.serverUrls, defaultServer.data, localServerUrl.data])
 
   // Checked quick-switch entries name providers on one server; a server switch drops them.
   useEffect(() => {
@@ -1159,6 +1131,8 @@ export function CreateAgentDialog({
     if (result._ !== 'CreateAgentResponse' || result.agentId !== mount.documentId) {
       throw new Error('This app environment must be updated to support creating mounted agents.')
     }
+    // The agent now lives there: keep listing that server, and offer it first next time.
+    rememberServer.mutate(selectedServerUrl)
     await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
   }
 
@@ -1212,46 +1186,27 @@ export function CreateAgentDialog({
     )
   }
 
-  // The desktop-managed server is a named place; its localhost address is an implementation
-  // detail whose port moves between launches.
-  const describeServer = (serverUrl: string) =>
-    isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, '')
-  // One server needs no choice. With several, the dropdown stays behind a Change link so the
-  // main server is the default and other servers (the app's own local one included) are opt-in.
-  const serverSelector =
-    input.serverUrls.length > 1 && choosingServer ? (
-      <label className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Run on
-        </SizableText>
-        <SelectDropdown
-          options={input.serverUrls.map((serverUrl) => ({value: serverUrl, label: describeServer(serverUrl)}))}
-          value={selectedServerUrl}
-          onValue={(value) => {
-            serverPicked.current = true
-            setSelectedServerUrl(value)
-          }}
-          // The published document names this server; a retry must create the agent there.
-          disabled={!!preparedMount.current}
-        />
-      </label>
-    ) : selectedServerUrl ? (
-      <div className="flex items-center gap-2">
-        <SizableText size="sm" className="text-muted-foreground">
-          Runs on {describeServer(selectedServerUrl)}
-        </SizableText>
-        {input.serverUrls.length > 1 && !preparedMount.current ? (
-          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setChoosingServer(true)}>
-            Change
-          </Button>
-        ) : null}
-      </div>
-    ) : null
+  const serverSelector = (
+    <CreateServerChoice
+      options={input.serverUrls}
+      value={selectedServerUrl}
+      onChange={setSelectedServerUrl}
+      // The published document names this server; a retry must create the agent there.
+      locked={!!preparedMount.current}
+    >
+      {selectedServerUrl && health.isError ? (
+        <Notice size="sm" tone="warning">
+          Can’t reach this server right now.
+        </Notice>
+      ) : null}
+    </CreateServerChoice>
+  )
 
   // Force provider setup before agent creation when the selected server has
   // none configured. Saving one refetches `providers`, which transitions this
   // dialog to the regular agent creation form automatically.
-  const needsProvider = !providers.isLoading && !providers.data?.length
+  // A server that does not answer has no provider list to judge; the notice above says so instead.
+  const needsProvider = !!selectedServerUrl && !providers.isLoading && !providers.isError && !providers.data?.length
 
   if (needsProvider) {
     return (
@@ -1271,7 +1226,7 @@ export function CreateAgentDialog({
     )
   }
 
-  const canSubmit = !!input.selectedAccountId && !!name.trim() && !!providerName && !!model
+  const canSubmit = !!input.selectedAccountId && !!selectedServerUrl && !!name.trim() && !!providerName && !!model
 
   return (
     <div className="flex flex-col gap-5 sm:min-w-[520px]">

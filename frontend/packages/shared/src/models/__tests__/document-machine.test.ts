@@ -307,6 +307,41 @@ describe('document collection helpers', () => {
     actor.stop()
   })
 
+  it('keeps an app’s published card embeds when its settings change, so publishing deletes no children', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'app-draft', content: input.contentOverride}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    const toolCard = {
+      block: {id: 'tool-card', type: 'Embed', link: `${mockDocumentId.id}/forecast`, attributes: {view: 'Card'}},
+      children: [],
+    }
+    loadDocument(actor, {
+      ...mockDocument,
+      metadata: {...mockDocument.metadata, type: 'hm://hyper.media/app'},
+      content: [toolCard],
+    } as unknown as HMDocument)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', metadata: {appEnvironmentUrl: 'http://localhost:3051'}})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    expect(writeInputs[0].contentOverride).toEqual([expect.objectContaining({id: 'tool-card', type: 'embed'})])
+    actor.stop()
+  })
+
   it('derives a loaded collection without creating a style repair draft', async () => {
     const actor = createTestActor().start()
     const query = createDefaultCollectionQueryBlock('query')

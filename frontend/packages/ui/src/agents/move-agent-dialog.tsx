@@ -1,16 +1,14 @@
 import {
-  describeAgentServer,
   prefetchAgentDetail,
   useAgentServerHealth,
-  useAgentServerUrls,
-  useLocalAgentServerUrl,
+  useAgentServerOptions,
+  useRememberAgentServer,
   useModelProviders,
   useMoveAgent,
 } from './models'
 import {MoveAgentSourceDeleteError} from './move-agent'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -20,9 +18,11 @@ import {ArrowRightLeft, Plus} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {AddModelProviderDialog} from './dialogs'
 import {ProviderSelect} from './provider-select'
+import {AgentServerPicker} from './server-picker'
 
 /**
- * Moves an agent to another configured app environment. The dialog picks the destination, preflights
+ * Moves an agent to another app environment. The dialog picks the destination (a known server or
+ * any other by URL), preflights
  * what the destination can honor (reachability, a model provider for the agent), spells out what
  * moves and what stays, and then runs the copy-then-delete orchestration with live progress.
  */
@@ -43,9 +43,10 @@ export function MoveAgentDialog({
   }
   onClose: () => void
 }) {
-  const serverUrls = useAgentServerUrls()
-  const localServerUrl = useLocalAgentServerUrl()
-  const targetUrls = (serverUrls.data || []).filter((url) => url !== input.sourceServerUrl)
+  // Suggestions only: the picker also takes the URL of a server the app has never talked to.
+  const serverOptions = useAgentServerOptions()
+  const targetUrls = (serverOptions || []).filter((url) => url !== input.sourceServerUrl)
+  const rememberServer = useRememberAgentServer()
   const [targetServerUrl, setTargetServerUrl] = useState('')
   const targetHealth = useAgentServerHealth(targetServerUrl || undefined)
   const targetProviders = useModelProviders(targetServerUrl || undefined, input.selectedAccountId)
@@ -74,6 +75,10 @@ export function MoveAgentDialog({
       toast.error('Choose a destination server')
       return
     }
+    if (targetServerUrl === input.sourceServerUrl) {
+      toast.error('The agent is already on this server')
+      return
+    }
     if (!effectiveProvider) {
       toast.error('Choose a model provider on the destination server')
       return
@@ -87,6 +92,7 @@ export function MoveAgentDialog({
         targetProviderType,
         onProgress: (update) => setProgress(update.label),
       })
+      rememberServer.mutate(targetServerUrl)
       await prefetchAgentDetail(targetServerUrl, input.selectedAccountId, result.newAgentId).catch(() => {})
       toast.success('Agent moved')
       onClose()
@@ -96,6 +102,7 @@ export function MoveAgentDialog({
         // The copy landed; only the source cleanup failed. Follow the agent to its new home and
         // tell the user the original is still on the old server.
         toast.error(error.message)
+        rememberServer.mutate(targetServerUrl)
         onClose()
         input.onMoved({serverUrl: targetServerUrl, agentId: error.newAgentId})
         return
@@ -103,23 +110,6 @@ export function MoveAgentDialog({
       setProgress(null)
       toast.error(error instanceof Error ? error.message : 'Could not move agent')
     }
-  }
-
-  if (serverUrls.data && !targetUrls.length) {
-    return (
-      <div className="flex min-w-[420px] flex-col gap-4">
-        <DialogTitle>Move “{input.agentName}”</DialogTitle>
-        <DialogDescription>
-          This is the only app environment configured. Add another server from the Agents page, then move the agent
-          there.
-        </DialogDescription>
-        <div className="flex justify-end">
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -134,15 +124,14 @@ export function MoveAgentDialog({
         </DialogDescription>
       </div>
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Destination server
         </SizableText>
-        <SelectDropdown
-          options={targetUrls.map((url) => ({value: url, label: describeAgentServer(url, localServerUrl.data)}))}
+        <AgentServerPicker
+          options={targetUrls}
           value={targetServerUrl}
-          onValue={setTargetServerUrl}
-          placeholder="Select a server"
+          onChange={setTargetServerUrl}
           disabled={moving}
         />
         {targetUnreachable ? (
@@ -150,7 +139,7 @@ export function MoveAgentDialog({
             Can’t reach this server right now.
           </Notice>
         ) : null}
-      </label>
+      </div>
 
       {targetServerUrl && !targetUnreachable && targetProviders.data && !providerMatches ? (
         <div className="flex flex-col gap-1">

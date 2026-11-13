@@ -16,7 +16,9 @@ import {
 } from './document-page-permissions'
 import {
   grantPageRun,
+  pagePermissionOwner,
   pagePermissionStorageKey,
+  pageToolCallRequest,
   pageRunAllowed,
   pageRunStorageKey,
   readPageRunTrust,
@@ -30,6 +32,8 @@ import {
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {documentPageStorage, mountDocumentPage} from '@shm/shared/document-page-sandbox'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {HM_APP_TYPE, parentDocumentId} from '@seed-hypermedia/client/apps'
+import type {UniversalClient} from '@shm/shared/universal-client'
 import type {DocumentPagePlatform} from '@shm/shared/document-page'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryAccount} from '@shm/shared/models/queries'
@@ -95,6 +99,18 @@ function DocumentPageLaunch(props: DocumentPageViewProps) {
   const documentId = hmId(props.docId.uid, {path: props.docId.path}).id
   const authors = React.useMemo(() => Array.from(new Set(props.document.authors || [])), [props.document.authors])
   const [trust, saveTrust] = usePageRunTrust(account)
+  // A page directly under an app belongs to it: it can call the app's tools, and its permissions
+  // are the app's, shared by every page of the app.
+  const parentId = parentDocumentId(props.docId)
+  const parent = useResource(parentId)
+  const appDocument =
+    parent?.data?.type === 'document' && parent.data.document.metadata.type === HM_APP_TYPE
+      ? parent.data.document
+      : null
+  const app = React.useMemo(
+    () => (parentId && appDocument ? {id: parentId, document: appDocument} : null),
+    [parentId?.id, appDocument],
+  )
   const implicit =
     props.docId.uid === account ||
     !!contacts.data?.some((contact) => contact.subject === props.docId.uid && contact.subscribe?.site) ||
@@ -106,7 +122,9 @@ function DocumentPageLaunch(props: DocumentPageViewProps) {
     onRevokePage: () => saveTrust(revokePageRun(trust, documentId)),
     onRevokeAuthor: (author) => saveTrust(revokePageRun(trust, '', [author])),
   }
-  if (implicit || pageRunAllowed(trust, documentId, authors)) return <DocumentPageSession {...props} run={run} />
+  if (parentId && parent?.isInitialLoading) return <p className="text-muted-foreground p-3 text-sm">Loading page…</p>
+  if (implicit || pageRunAllowed(trust, documentId, authors))
+    return <DocumentPageSession {...props} run={run} app={app} />
   return (
     <DocumentPageRunPrompt
       pageName={props.document.metadata?.name || 'this page'}
@@ -160,7 +178,13 @@ function usePageRunTrust(account: string | null) {
   return [trust, save] as const
 }
 
-function DocumentPageSession({run, ...props}: DocumentPageViewProps & {run: DocumentPageRunStatus}) {
+type PageApp = {id: UnpackedHypermediaId; document: HMDocument}
+
+function DocumentPageSession({
+  run,
+  app,
+  ...props
+}: DocumentPageViewProps & {run: DocumentPageRunStatus; app: PageApp | null}) {
   const account = useSelectedAccountId()
   const client = useUniversalClient()
   const openUrl = useOpenUrl()
@@ -173,7 +197,7 @@ function DocumentPageSession({run, ...props}: DocumentPageViewProps & {run: Docu
     typeof props.document.metadata.inputSchema === 'string'
       ? props.document.metadata.inputSchema
       : 'hm://hyper.media/page-input'
-  const key = pagePermissionStorageKey(account, documentId)
+  const key = pagePermissionStorageKey(account, pagePermissionOwner(documentId, app?.id.id))
   const source = React.useRef(Symbol())
   const initial = React.useMemo(() => {
     try {
@@ -329,6 +353,7 @@ function DocumentPageSession({run, ...props}: DocumentPageViewProps & {run: Docu
         authorized.throwIfAborted()
         return documentPageStorage(window.localStorage, context, method, params as Record<string, unknown>)
       }
+      if (method === 'app.call') return callPageAppTool({app, account, client, access, params, signal})
       if (method === 'open') {
         try {
           const link = parseDocumentPageLink(params)
@@ -363,7 +388,7 @@ function DocumentPageSession({run, ...props}: DocumentPageViewProps & {run: Docu
       }
       return result
     },
-    [account, client, queryClient, access, documentId, version, visibility, props.cid, openUrl, input],
+    [account, client, queryClient, access, documentId, version, visibility, props.cid, openUrl, input, app],
   )
   const platform = getDocumentPagePlatform()
   const name = props.document.metadata?.name || 'This page'
@@ -615,4 +640,51 @@ export function DocumentPageEmbed({url, height = 420}: {url: string; height?: nu
       <DocumentPageView docId={id} document={document} cid={cid} perspectiveAccountUid={viewer} fill />
     </div>
   )
+}
+
+/**
+ * `seed.app.call(tool, input)`: runs a tool of the page's app on the app's server, signed as the
+ * viewer, once the viewer allows it (this time, this tool, or every tool of the app).
+ */
+export async function callPageAppTool({
+  app,
+  account,
+  client,
+  access,
+  params,
+  signal,
+}: {
+  app: PageApp | null
+  account: string | null
+  client: Pick<UniversalClient, 'request'>
+  access: ReturnType<typeof createDocumentPageAccess>
+  params: unknown
+  signal: AbortSignal
+}): Promise<unknown> {
+  if (!app) throw new Error('This page is not part of an app, so it has no tools to call.')
+  const {tool, input} = (params ?? {}) as {tool?: unknown; input?: unknown}
+  if (typeof tool !== 'string' || !tool.trim()) throw new Error('seed.app.call needs a tool name or hm:// URL.')
+  if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input)))
+    throw new Error('A tool input is an object.')
+  const toolId = tool.startsWith('hm://')
+    ? unpackHmId(tool)
+    : hmId(app.id.uid, {path: [...(app.id.path ?? []), ...tool.split('/').filter(Boolean)]})
+  const appBase = hmId(app.id.uid, {path: app.id.path}).id
+  if (!toolId || parentDocumentId(toolId)?.id !== appBase) throw new Error(`${tool} is not a tool of this app.`)
+  const toolBase = hmId(toolId.uid, {path: toolId.path}).id
+  const authorized = access.signal(signal)
+  await access.authorize(
+    pageToolCallRequest({app: appBase, tool: toolBase, toolName: toolId.path?.at(-1) ?? tool, input: input ?? {}}),
+    authorized,
+  )
+  if (!account) throw new Error('Sign in to run this app’s tools.')
+  // Loaded on first use: the app helpers pull in UI the page host does not otherwise need.
+  const {callAppToolAs, resolveAppServerUrl} = await import('./apps/running')
+  const serverUrl = await resolveAppServerUrl(client, app.id, app.document)
+  authorized.throwIfAborted()
+  if (!serverUrl) throw new Error('This app has no server, so its tools cannot run.')
+  const call = await callAppToolAs(serverUrl, account, {appId: appBase, toolId: toolBase, input: input ?? {}})
+  authorized.throwIfAborted()
+  if (call.error) throw new Error(call.error)
+  return call.output ?? null
 }

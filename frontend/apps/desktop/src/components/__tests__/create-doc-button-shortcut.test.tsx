@@ -17,7 +17,7 @@ vi.mock('@/models/access-control', () => ({
 }))
 vi.mock('@/models/daemon', () => ({useMyAccountIds: () => ({data: ['alice']})}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'alice'}))
-vi.mock('@shm/ui/agents/models', () => ({useAgentServerUrls: () => ({data: []})}))
+vi.mock('@shm/ui/agents/models', () => ({useAgentServerOptions: () => []}))
 vi.mock('@shm/ui/universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))
 vi.mock('@/models/documents', () => ({
   useCreateDraft: () => createDraftMock,

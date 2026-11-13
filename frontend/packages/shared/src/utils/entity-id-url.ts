@@ -64,9 +64,13 @@ export function extractAgentDocumentView(parts: string[]): {
   path: string[]
   agentView: DocumentRoute['agentView']
   appView?: DocumentRoute['appView']
+  toolCallId?: string
   agentSessionId?: string
   agentTriggerId?: string
 } | null {
+  if (parts.at(-2) === ':call' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: undefined, toolCallId: decodeURIComponent(parts.at(-1)!)}
+  }
   const appView = parts.at(-1)
   if (parts.at(-2) === ':app' && appView && (APP_VIEWS as readonly string[]).includes(appView)) {
     return {path: parts.slice(0, -2), agentView: undefined, appView: appView as DocumentRoute['appView']}
@@ -124,7 +128,10 @@ export const APP_VIEWS = ['tools', 'pages', 'settings'] as const
 
 /** Suffix used by every mounted-agent and app-tab URL producer. */
 export function agentDocumentViewPath(route: DocumentRoute): string | undefined {
-  if (!route.agentView) return route.appView ? `:app/${route.appView}` : undefined
+  if (!route.agentView) {
+    if (route.toolCallId) return `:call/${encodeURIComponent(route.toolCallId)}`
+    return route.appView ? `:app/${route.appView}` : undefined
+  }
   if (route.agentView === 'triggers' && route.agentTriggerId)
     return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
   if (route.agentView === 'tools') return ':settings/permissions'
@@ -220,10 +227,20 @@ export function extractViewTermFromUrl(url: string): {
   settingsDomain?: string
   agentView?: DocumentRoute['agentView']
   appView?: DocumentRoute['appView']
+  toolCallId?: string
   agentSessionId?: string
   agentTriggerId?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+  const callMatch = inspectCleanUrl.match(/\/:call\/([^/?#]+)(?=[?#]|$)/)
+  if (callMatch) {
+    return {
+      url: inspectCleanUrl.replace(callMatch[0], ''),
+      isInspect,
+      viewTerm: null,
+      toolCallId: decodeURIComponent(callMatch[1]!),
+    }
+  }
   const appMatch = inspectCleanUrl.match(/\/:app\/(tools|pages|settings)(?=[?#]|$)/)
   if (appMatch) {
     return {
@@ -810,7 +827,9 @@ export function routeToUrl(
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
-      ...(route.agentView || route.appView ? {version: null, latest: true, blockRef: null, blockRange: null} : {}),
+      ...(route.agentView || route.appView || route.toolCallId
+        ? {version: null, latest: true, blockRef: null, blockRange: null}
+        : {}),
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,

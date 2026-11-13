@@ -1,7 +1,7 @@
 import {useAppContext, useIPC} from '@/app-context'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
-import {AgentServersSettings} from '@shm/ui/agents/server-settings'
+import {getDefaultAgentServerUrl, useLocalAgentServerState, useSetLocalAgentServerEnabled} from '@shm/ui/agents/models'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
@@ -74,19 +74,12 @@ import {
   Pencil,
   Plus,
   RadioTower,
-  Server,
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
 import React, {useEffect, useId, useMemo, useState} from 'react'
 
-const SETTINGS_TABS = [
-  'general',
-  'sync',
-  'app-info',
-  'agent-servers',
-  'advanced',
-] as const satisfies readonly SettingsTab[]
+const SETTINGS_TABS = ['general', 'sync', 'app-info', 'advanced'] as const satisfies readonly SettingsTab[]
 
 type SettingsTabConfig = {
   key: SettingsTab
@@ -98,7 +91,6 @@ const SETTINGS_TAB_CONFIG: SettingsTabConfig[] = [
   {key: 'general', icon: Cog, label: 'General settings'},
   {key: 'sync', icon: RadioTower, label: 'Sync options'},
   {key: 'app-info', icon: Info, label: 'App info'},
-  {key: 'agent-servers', icon: Server, label: 'App environments'},
   {key: 'advanced', icon: Code2, label: 'Advanced'},
 ]
 
@@ -131,7 +123,6 @@ export default function Settings() {
                 {activeTab === 'general' && <GeneralSettings />}
                 {activeTab === 'sync' && <GatewaySettings />}
                 {activeTab === 'app-info' && <AppSettings />}
-                {activeTab === 'agent-servers' && <AgentServersSettingsPage />}
                 {activeTab === 'advanced' && <AdvancedSettings />}
               </div>
             </ScrollArea>
@@ -203,14 +194,43 @@ function AdvancedSettings() {
   )
 }
 
-function AgentServersSettingsPage() {
+/**
+ * Runs or stops the bundled local app environment. Off unless the user (or an upgrade that found
+ * agents in it) turned it on; the dev server the app attaches to cannot be switched. Which server
+ * an agent or app runs on is chosen when it is created, not here.
+ */
+function LocalAppEnvironmentSetting() {
+  const state = useLocalAgentServerState()
+  const setEnabled = useSetLocalAgentServerEnabled()
+  const running = state.data?.t === 'attached' || state.data?.t === 'spawned'
+  const attached = state.data?.t === 'attached'
+  const defaultHost = getDefaultAgentServerUrl()?.replace(/^https?:\/\//, '')
   return (
-    <>
-      <SizableText size="2xl" weight="bold">
-        App environments
-      </SizableText>
-      <AgentServersSettings />
-    </>
+    <SettingsCard label="LOCAL APP ENVIRONMENT">
+      <SettingsRow
+        label="Run an app environment on this computer."
+        description={
+          attached
+            ? 'Attached to the app environment already running on this computer.'
+            : state.data?.t === 'error'
+              ? `Could not start: ${state.data.message}`
+              : `Off by default${defaultHost ? `; agents normally run on ${defaultHost}` : ''}.`
+        }
+        right={
+          <Switch
+            aria-label="Run a local app environment"
+            checked={running}
+            disabled={attached || state.isLoading || setEnabled.isLoading}
+            onCheckedChange={(checked) =>
+              setEnabled.mutate(checked, {
+                onError: (error) =>
+                  toast.error(error instanceof Error ? error.message : 'Could not change the local app environment'),
+              })
+            }
+          />
+        }
+      />
+    </SettingsCard>
   )
 }
 
@@ -356,6 +376,7 @@ function GeneralSettings() {
           right={<DocumentMaintenanceTrigger alwaysVisible />}
         />
       </SettingsCard>
+      <LocalAppEnvironmentSetting />
       <SettingsCard label="HISTORY">
         <SettingsRow
           label="Clear all your recent document search history."

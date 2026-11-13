@@ -3,6 +3,8 @@ import {Eye, Play, PenLine, ShieldCheck, Upload} from 'lucide-react'
 import {useQuery} from '@tanstack/react-query'
 import {queryAccount} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
+import {useResource} from '@shm/shared/models/entity'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   pagePermissionLabel,
   pagePermissionScopes,
@@ -37,6 +39,31 @@ function PermissionTarget({site, resource}: {site?: string; resource?: string}) 
       )}
     </div>
   ) : null
+}
+
+/** What a tool call permission covers: the app, and the one tool when it names one. */
+function ToolTarget({app, tool}: {app?: string; tool?: string}) {
+  const appDoc = useResource(app ? unpackHmId(app) : null)
+  const toolDoc = useResource(tool ? unpackHmId(tool) : null)
+  const name = (resource: typeof appDoc, fallback?: string) =>
+    (resource.data?.type === 'document' ? resource.data.document.metadata.name : undefined) ||
+    fallback?.split('/').at(-1) ||
+    ''
+  return app || tool ? (
+    <div className="border-border flex flex-col gap-1 border-b pb-3 text-sm">
+      {app && <span className="font-medium">{name(appDoc, app) || 'This app'}</span>}
+      {tool ? <span className="text-muted-foreground">Tool: {name(toolDoc, tool)}</span> : null}
+    </div>
+  ) : null
+}
+
+/** The target a permission covers, as the kind reads it. */
+function GrantTarget({kind, site, resource}: {kind: PagePermissionRequest['kind']; site?: string; resource?: string}) {
+  return kind === 'call' ? (
+    <ToolTarget app={site} tool={resource} />
+  ) : (
+    <PermissionTarget site={site} resource={resource} />
+  )
 }
 
 function AccountName({uid}: {uid: string}) {
@@ -149,20 +176,25 @@ export function DocumentPagePermissionPrompt({
   const policyDescription =
     choice === 'once'
       ? 'Allow this request only.'
-      : choice === 'resource'
-        ? 'This page can read this resource without asking again.'
-        : choice === 'site'
-          ? 'This page can read content on this site without asking again.'
-          : choice === 'all'
-            ? request.kind === 'read'
-              ? 'This page can read everything available to your account without asking again.'
-              : request.kind === 'sign'
-                ? 'This page can sign anything as your account, including lasting account permissions, without asking again.'
-                : 'This page can publish any data without asking again.'
-            : `This page can ${request.kind === 'sign' ? 'sign' : 'publish'} future requests of this type${
-                choice === 'type-site' ? ' on this site' : ' on any site'
-              } without asking again.`
-  const Icon = request.kind === 'read' ? Eye : request.kind === 'sign' ? PenLine : Upload
+      : request.kind === 'call'
+        ? choice === 'resource'
+          ? 'Pages of this app can run this tool as your account without asking again.'
+          : 'Pages of this app can run any of its tools as your account without asking again.'
+        : choice === 'resource'
+          ? 'This page can read this resource without asking again.'
+          : choice === 'site'
+            ? 'This page can read content on this site without asking again.'
+            : choice === 'all'
+              ? request.kind === 'read'
+                ? 'This page can read everything available to your account without asking again.'
+                : request.kind === 'sign'
+                  ? 'This page can sign anything as your account, including lasting account permissions, without asking again.'
+                  : 'This page can publish any data without asking again.'
+              : `This page can ${request.kind === 'sign' ? 'sign' : 'publish'} future requests of this type${
+                  choice === 'type-site' ? ' on this site' : ' on any site'
+                } without asking again.`
+  const Icon =
+    request.kind === 'read' ? Eye : request.kind === 'call' ? Play : request.kind === 'sign' ? PenLine : Upload
   const details = request.details as {
     payload?: {body?: {text?: string; children?: unknown[]}[]}
     sha256?: string
@@ -194,12 +226,16 @@ export function DocumentPagePermissionPrompt({
           </AlertDialogTitle>
           <AlertDialogDescription>
             <strong className="text-foreground">{pageName}</strong> is asking to{' '}
-            {request.kind === 'read' ? 'access data available to' : 'act as'}{' '}
+            {request.kind === 'read'
+              ? 'access data available to'
+              : request.kind === 'call'
+                ? 'run a tool of its app as'
+                : 'act as'}{' '}
             <strong className="text-foreground">{accountName}</strong>.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="bg-muted/40 border-border flex flex-col gap-3 rounded-lg border p-4">
-          <PermissionTarget site={request.site} resource={request.resource} />
+          <GrantTarget kind={request.kind} site={request.site} resource={request.resource} />
           {comment && (
             <p className="max-h-48 overflow-y-auto text-sm whitespace-pre-wrap">
               {text(comment) || 'Comment contains attachments or embedded content.'}
@@ -217,9 +253,11 @@ export function DocumentPagePermissionPrompt({
           </details>
         </div>
         <p className="text-muted-foreground text-sm">
-          {request.kind === 'read'
-            ? 'Anything shared with this page could be copied or sent elsewhere. Revoking access cannot take it back.'
-            : 'Approved signatures and published content can remain valid after you revoke access.'}
+          {request.kind === 'call'
+            ? 'The tool runs on the app’s server with this input, and the run is recorded with your account as who ran it.'
+            : request.kind === 'read'
+              ? 'Anything shared with this page could be copied or sent elsewhere. Revoking access cannot take it back.'
+              : 'Approved signatures and published content can remain valid after you revoke access.'}
         </p>
         {request.warning && <p className="text-destructive text-sm">{request.warning}</p>}
         <fieldset className="flex flex-col gap-3">
@@ -330,10 +368,16 @@ export function DocumentPagePermissionSettings({
             ))}
           </section>
         )}
-        {(['read', 'sign', 'publish'] as const).map((kind) => (
+        {(['read', 'sign', 'publish', 'call'] as const).map((kind) => (
           <section key={kind} className="border-border flex flex-col gap-3 border-t pt-4">
             <h3 className="text-sm font-semibold">
-              {kind === 'read' ? 'Reading' : kind === 'sign' ? 'Signing' : 'Publishing'}
+              {kind === 'read'
+                ? 'Reading'
+                : kind === 'sign'
+                  ? 'Signing'
+                  : kind === 'call'
+                    ? 'Running app tools'
+                    : 'Publishing'}
             </h3>
             {kind === 'read' && <p className="text-sm">Reading this page’s own space is allowed by default.</p>}
             {!grants.some((grant) => grant.kind === kind) && (
@@ -347,7 +391,7 @@ export function DocumentPagePermissionSettings({
                   <div key={index} className="flex items-start justify-between gap-4 text-sm">
                     <div className="flex min-w-0 flex-col gap-2">
                       <span>{pagePermissionLabel(grant.scope, {kind, type: grant.type || ''})}</span>
-                      <PermissionTarget site={grant.site} resource={grant.resource} />
+                      <GrantTarget kind={kind} site={grant.site} resource={grant.resource} />
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => onRemove(index)}>
                       Revoke

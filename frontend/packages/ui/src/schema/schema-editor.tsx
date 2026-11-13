@@ -691,17 +691,7 @@ function StructSchemaForm({
   // with a picker), and the core types. Anything else is found by searching.
   const fieldTypeOptions: TypeOption[] = [
     ...paramEntries.map(([name]) => ({label: `⟨${name}⟩`, hint: 'type parameter', schema: {var: name}})),
-    unionOption(),
-    {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
-    {label: 'Account', hint: 'string · hm-profile', schema: kindSchema('account')},
-    {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
-    // A core kind applies its canonical property schema (a list gets `items`, a
-    // struct `properties`, a date its library ref) — not a bare type URL.
-    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind) && kind !== 'account').map(({kind, label}) => ({
-      label: HM_SCHEMA_PAGES[kind]?.name ?? label,
-      hint: 'core type',
-      schema: kindSchema(kind),
-    })),
+    ...coreFieldTypeOptions(),
   ]
 
   // The root type is a type reference like any other: a primitive kind URL (map,
@@ -933,16 +923,70 @@ function TargetTypeInput({
  * toggle. Used for the root and, recursively, for every inline struct a field declares. `path`
  * names a nested struct (e.g. `sourceBlob`) so its controls stay distinguishable; absent at the root.
  */
+/**
+ * The types a field can take besides type parameters: a union, the string formats, the core kinds.
+ * A core kind applies its canonical property schema (a list gets `items`, a struct `properties`, a
+ * date its library ref) — not a bare type URL. Anything else is found by searching.
+ */
+function coreFieldTypeOptions(): TypeOption[] {
+  return [
+    unionOption(),
+    {label: 'HM link', hint: 'string · hm-url', schema: kindSchema('hm-url')},
+    {label: 'Account', hint: 'string · hm-profile', schema: kindSchema('account')},
+    {label: 'IPFS file / object', hint: 'string · ipfs', schema: kindSchema('ipfs')},
+    ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind) && kind !== 'account').map(({kind, label}) => ({
+      label: HM_SCHEMA_PAGES[kind]?.name ?? label,
+      hint: 'core type',
+      schema: kindSchema(kind),
+    })),
+  ]
+}
+
+/**
+ * Just the field rows of the struct editor, for a host that owns the rest (an app's config): a
+ * closed struct whose fields may each be any schema. No root sentence, no type parameters.
+ */
+export function StructFieldsSchemaEditor({
+  schema,
+  onSchema,
+  addLabel,
+  emptyLabel,
+}: {
+  schema: HypermediaSchema
+  onSchema: (s: HypermediaSchema) => void
+  addLabel?: string
+  emptyLabel?: string
+}) {
+  const options = useMemo(coreFieldTypeOptions, [])
+  return (
+    <StructFieldsEditor
+      schema={schema}
+      onSchema={onSchema}
+      options={options}
+      addLabel={addLabel}
+      emptyLabel={emptyLabel}
+      closed
+    />
+  )
+}
+
 function StructFieldsEditor({
   schema,
   onSchema,
   options,
   path,
+  addLabel,
+  emptyLabel,
+  closed,
 }: {
   schema: HypermediaSchema
   onSchema: (s: HypermediaSchema) => void
   options: TypeOption[]
   path?: string
+  addLabel?: string
+  emptyLabel?: string
+  /** Always closed: no open/closed switch. */
+  closed?: boolean
 }) {
   const fields = structFields(schema)
   const signed = !path && isSignedBlobType(schema)
@@ -986,7 +1030,7 @@ function StructFieldsEditor({
 
   return (
     <div className="flex flex-col">
-      {visible.length === 0 && <p className="text-muted-foreground py-2 text-sm">No fields yet.</p>}
+      {visible.length === 0 && <p className="text-muted-foreground py-2 text-sm">{emptyLabel ?? 'No fields yet.'}</p>}
       {visible.map(({name, schema: ps, required, description}, index) => (
         // Stable index key: renaming changes the property name but not the
         // row's identity, so the (controlled) name input never remounts and
@@ -1080,38 +1124,42 @@ function StructFieldsEditor({
         className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5"
         data-testid={path ? `schema-values-${path}` : 'schema-values'}
       >
-        <AddAction label={path ? `Add field to ${path}` : undefined} onClick={addField}>
-          Add field
+        <AddAction label={path ? `Add field to ${path}` : addLabel} onClick={addField}>
+          {addLabel ?? 'Add field'}
         </AddAction>
-        <span className="text-muted-foreground/50 text-xs">·</span>
-        <Tooltip
-          content={
-            values !== undefined
-              ? 'Open — fields other than these are allowed, with the type given. Click to close.'
-              : 'Closed — only these fields are allowed. Click to allow other fields.'
-          }
-        >
-          <button
-            type="button"
-            aria-pressed={values !== undefined}
-            aria-label={path ? `Other fields allowed in ${path}` : 'Other fields allowed'}
-            onClick={() => setValues(values !== undefined ? null : {type: ANY_URL})}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted/70 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs"
-          >
-            {values !== undefined ? <LockOpen className="size-3" /> : <Lock className="size-3" />}
-            {values !== undefined ? 'open' : 'closed'}
-          </button>
-        </Tooltip>
-        {values !== undefined && (
-          <span className="inline-flex items-center gap-1">
-            <span className="text-muted-foreground text-xs">other fields are</span>
-            <TypeChip
-              node={values}
-              options={options}
-              onNode={setValues}
-              ariaLabel={path ? `Type of other fields in ${path}` : 'Type of other fields'}
-            />
-          </span>
+        {!closed && <span className="text-muted-foreground/50 text-xs">·</span>}
+        {!closed && (
+          <>
+            <Tooltip
+              content={
+                values !== undefined
+                  ? 'Open — fields other than these are allowed, with the type given. Click to close.'
+                  : 'Closed — only these fields are allowed. Click to allow other fields.'
+              }
+            >
+              <button
+                type="button"
+                aria-pressed={values !== undefined}
+                aria-label={path ? `Other fields allowed in ${path}` : 'Other fields allowed'}
+                onClick={() => setValues(values !== undefined ? null : {type: ANY_URL})}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted/70 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs"
+              >
+                {values !== undefined ? <LockOpen className="size-3" /> : <Lock className="size-3" />}
+                {values !== undefined ? 'open' : 'closed'}
+              </button>
+            </Tooltip>
+            {values !== undefined && (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground text-xs">other fields are</span>
+                <TypeChip
+                  node={values}
+                  options={options}
+                  onNode={setValues}
+                  ariaLabel={path ? `Type of other fields in ${path}` : 'Type of other fields'}
+                />
+              </span>
+            )}
+          </>
         )}
       </div>
     </div>

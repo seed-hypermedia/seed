@@ -27,6 +27,14 @@ vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: undefined}),
   useDirectory: () => ({data: mocks.directory}),
 }))
+vi.mock('../apps/running', () => ({
+  ToolRunSection: () => <div data-testid="tool-run" />,
+  AppRunningSection: () => <div data-testid="app-running" />,
+  AppPublicConfigSection: () => null,
+  AppRunStatus: () => null,
+  useAppRun: () => ({status: {data: null}}),
+  useAppServerUrl: () => ({serverUrl: '', isLoading: false}),
+}))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => mocks.navigate}))
 vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))
 vi.mock('../apps/publish', () => ({

@@ -104,10 +104,14 @@ function assertDocumentRoute(route: NavRoute | undefined): Extract<NavRoute, {ke
 
 describe('settingsRouteSchema', () => {
   test('accepts a deep-linked settings tab', () => {
-    expect(navRouteSchema.parse({key: 'settings', tab: 'agent-servers'})).toEqual({
+    expect(navRouteSchema.parse({key: 'settings', tab: 'sync'})).toEqual({
       key: 'settings',
-      tab: 'agent-servers',
+      tab: 'sync',
     })
+  })
+
+  test('opens the default tab for one that no longer exists', () => {
+    expect(navRouteSchema.parse({key: 'settings', tab: 'agent-servers'})).toEqual({key: 'settings'})
   })
 })
 

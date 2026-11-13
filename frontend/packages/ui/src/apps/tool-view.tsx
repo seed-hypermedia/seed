@@ -2,6 +2,7 @@ import {parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
+import {useResource} from '@shm/shared/models/entity'
 import {useQuery} from '@tanstack/react-query'
 import {Save} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
@@ -18,6 +19,7 @@ import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {setAttribute, toolCodeFolder, useAppsPublisher} from './publish'
+import {ToolRunSection} from './running'
 
 const noSchemaNav = () => {}
 
@@ -62,6 +64,8 @@ export function ToolDocumentView({
     output !== undefined ||
     codeDirty
   const appId = parentDocumentId(docId)
+  const appResource = useResource(appId)
+  const appDocument = appResource.data?.type === 'document' ? appResource.data.document : null
 
   async function schemaRefFor(schema: HypermediaSchema | null) {
     return schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
@@ -114,6 +118,15 @@ export function ToolDocumentView({
             <SizableText color="muted">{saved.summary || 'No description.'}</SizableText>
           )}
         </Section>
+        {appId ? (
+          <ToolRunSection
+            appId={appId}
+            app={appDocument}
+            toolId={docId}
+            inputSchemaRef={saved.inputSchema}
+            onOpenSettings={() => navigate({key: 'document', id: appId, appView: 'settings'})}
+          />
+        ) : null}
         <Section title="Input">
           <SchemaField
             label="Input"
@@ -149,8 +162,8 @@ export function ToolDocumentView({
             />
           )}
           <SizableText size="xs" color="muted">
-            The tool's code: <code>export default async function (input): Promise&lt;output&gt;</code>. Nothing runs
-            tools yet.
+            The tool's code: <code>export default async function (input, ctx): Promise&lt;output&gt;</code>, where{' '}
+            <code>ctx</code> holds the app's <code>publicConfig</code> and <code>privateConfig</code>.
           </SizableText>
         </Section>
       </section>

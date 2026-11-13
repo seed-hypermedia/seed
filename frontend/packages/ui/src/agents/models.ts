@@ -511,69 +511,90 @@ export function useSetLocalAgentServerEnabled() {
 }
 
 /**
- * Loads only the app environment URLs persisted in settings.
+ * The app environments this app remembers, read from its settings store.
  *
- * This is what the settings UI reads and writes. It deliberately excludes the locally spawned
- * server: that URL is chosen at startup, so persisting it would leave a dead entry the first time
- * the port moves. Use {@link useAgentServerUrls} for the list of servers to actually talk to.
+ * Nobody configures this list: a server joins it when the user creates an agent on it or moves one
+ * to it (see {@link useRememberAgentServer}), and the list an earlier version let the user edit is
+ * read as the same memory. The app's own local server is never in it: that URL is chosen at
+ * startup, so persisting it would leave a dead entry the first time the port moves.
  */
-export function useConfiguredAgentServerUrls() {
+async function readKnownAgentServerUrls(): Promise<string[]> {
+  const platform = getAgentsPlatform()
+  const storedList = await platform.getSetting(AGENT_SERVER_URLS_KEY)
+  const storedLastUsed = await platform.getSetting(AGENT_SERVER_URL_KEY)
+  const known = new Set<string>()
+  if (Array.isArray(storedList)) {
+    for (const value of storedList) {
+      if (typeof value === 'string' && value) {
+        const normalized = tryNormalizeAgentServerUrl(value)
+        if (normalized) known.add(normalized)
+      }
+    }
+  }
+  if (typeof storedLastUsed === 'string' && storedLastUsed) {
+    const normalized = tryNormalizeAgentServerUrl(storedLastUsed)
+    if (normalized) known.add(normalized)
+  }
+  // Until anything has been remembered there is still a server to talk to out of the box: the
+  // hosted `agentic.seed.hyper.media` in production, the local dev server in dev. A stored list,
+  // even an empty one, is respected, so forgetting the last server sticks.
+  const defaultServerUrl = getDefaultAgentServerUrl()
+  if (known.size === 0 && !Array.isArray(storedList) && defaultServerUrl) {
+    known.add(defaultServerUrl)
+  }
+  return Array.from(known)
+}
+
+/** Loads the remembered app environments (see {@link readKnownAgentServerUrls}), without the local one. */
+export function useKnownAgentServerUrls() {
   return useQuery({
-    queryKey: ['agents', 'configured-server-urls'],
-    queryFn: async () => {
-      const platform = getAgentsPlatform()
-      const storedList = await platform.getSetting(AGENT_SERVER_URLS_KEY)
-      const storedDefault = await platform.getSetting(AGENT_SERVER_URL_KEY)
-      const configured = new Set<string>()
-      if (Array.isArray(storedList)) {
-        for (const value of storedList) {
-          if (typeof value === 'string' && value) {
-            const normalized = tryNormalizeAgentServerUrl(value)
-            if (normalized) configured.add(normalized)
-          }
-        }
-      }
-      if (typeof storedDefault === 'string' && storedDefault) {
-        const normalized = tryNormalizeAgentServerUrl(storedDefault)
-        if (normalized) configured.add(normalized)
-      }
-      // Seed the list with the built-in default the first time the app runs so
-      // there is a server to connect to out of the box — the hosted
-      // `agentic.seed.hyper.media` in production, the local dev server in dev.
-      // Once the list has been configured (even to empty), respect that choice
-      // so removing the last server still sticks.
-      const defaultServerUrl = getDefaultAgentServerUrl()
-      if (configured.size === 0 && !Array.isArray(storedList) && defaultServerUrl) {
-        configured.add(defaultServerUrl)
-      }
-      return Array.from(configured)
-    },
+    queryKey: ['agents', 'known-server-urls'],
+    queryFn: readKnownAgentServerUrls,
     useErrorBoundary: false,
   })
 }
 
 /**
- * All app environments the app can talk to: the locally spawned one first, then configured servers.
+ * All app environments the app talks to: the locally spawned one first, then the remembered ones.
  *
  * The local server is always present (when running) and is never persisted, so every consumer —
- * the Agents page, the assistant sidebar — sees it without the user configuring anything.
+ * the Agents page, the assistant sidebar — sees it without the user doing anything.
  */
 export function useAgentServerUrls() {
   const localServerUrl = useLocalAgentServerUrl()
-  const configured = useConfiguredAgentServerUrls()
+  const known = useKnownAgentServerUrls()
 
   // Order is meaning: the assistant panel's default agent context is the first agent of the first
   // server, and the app's own local server keeps that spot. The space on screen adds no server of
   // its own here: its agents are found through their mount documents (see useMountedSiteAgents).
   const data = useMemo(() => {
-    if (!configured.data) return undefined
+    if (!known.data) return undefined
     const urls = new Set<string>()
     if (localServerUrl.data) urls.add(localServerUrl.data)
-    for (const url of configured.data) urls.add(url)
+    for (const url of known.data) urls.add(url)
     return Array.from(urls)
-  }, [configured.data, localServerUrl.data])
+  }, [known.data, localServerUrl.data])
 
-  return {...configured, data}
+  return {...known, data}
+}
+
+/**
+ * The app environments offered wherever a server is chosen (a new agent, a new app, a move): the
+ * ones the app talks to, the ones the mount documents of the space on screen name, and the
+ * built-in default. It is a list of suggestions, never a limit: the picker also takes a URL.
+ * Undefined until the remembered list has loaded.
+ */
+export function useAgentServerOptions(): string[] | undefined {
+  const own = useAgentServerUrls()
+  const mounts = useSiteAgentMounts(useSiteUidInView())
+  return useMemo(() => {
+    if (!own.data) return undefined
+    const urls = new Set(own.data)
+    for (const mount of mounts.data ?? []) urls.add(mount.serverUrl)
+    const defaultServerUrl = getDefaultAgentServerUrl()
+    if (defaultServerUrl) urls.add(defaultServerUrl)
+    return Array.from(urls)
+  }, [own.data, mounts.data])
 }
 
 /** Account uid of the space whose document is on screen, or the space serving the app; null elsewhere. */
@@ -675,7 +696,7 @@ export function useMountedSiteAgents(accountUid: string | null | undefined): {
 
 /**
  * The account's orphan agents (see {@link unmountedOwnedAgents}), wherever they may be: on the
- * app's own servers (the local and configured ones; on the web, the deployment default) and on
+ * app's own servers (the local and remembered ones; on the web, the deployment default) and on
  * the servers the mount documents of the space on screen name. Those are the places an agent from
  * before agents were documents can sit unnoticed, and the one `ListAgents` a client makes beyond
  * the mounted agents, since nothing else can surface them: the agents entry point stays visible
@@ -711,20 +732,42 @@ export function siteUidOfRoute(route: NavRoute): string | undefined {
   return undefined
 }
 
-/** Persists the configured app environment URL list. */
-export function useSetAgentServerUrls() {
+/**
+ * Remembers an app environment the user just put something on, so its agents keep showing up
+ * outside the space they are mounted in, and offers it first the next time a server is chosen.
+ * The app's own local server is not remembered: it is always listed while it runs.
+ */
+export function useRememberAgentServer() {
   return useMutation({
-    mutationFn: async (serverUrls: string[]) => {
-      const normalized = Array.from(new Set(serverUrls.map((url) => normalizeAgentServerUrl(url))))
+    mutationFn: async (serverUrl: string) => {
+      const normalized = normalizeAgentServerUrl(serverUrl)
       const platform = getAgentsPlatform()
-      await platform.setSetting(AGENT_SERVER_URLS_KEY, normalized)
-      const currentDefault = await platform.getSetting(AGENT_SERVER_URL_KEY)
-      const normalizedCurrentDefault =
-        typeof currentDefault === 'string' ? tryNormalizeAgentServerUrl(currentDefault) : null
-      if (!normalizedCurrentDefault || !normalized.includes(normalizedCurrentDefault)) {
-        await platform.setSetting(AGENT_SERVER_URL_KEY, normalized[0] || null)
-      }
+      const local = platform.getLocalServerUrl ? await platform.getLocalServerUrl().catch(() => null) : null
+      if (local && tryNormalizeAgentServerUrl(local) === normalized) return normalized
+      const known = await readKnownAgentServerUrls()
+      if (!known.includes(normalized)) await platform.setSetting(AGENT_SERVER_URLS_KEY, [...known, normalized])
+      await platform.setSetting(AGENT_SERVER_URL_KEY, normalized)
       return normalized
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'known-server-urls'])
+      invalidateQueries(['agents', 'server-url'])
+    },
+  })
+}
+
+/** Drops a remembered app environment, e.g. one that no longer answers. Its agents are untouched. */
+export function useForgetAgentServer() {
+  return useMutation({
+    mutationFn: async (serverUrl: string) => {
+      const platform = getAgentsPlatform()
+      const remaining = (await readKnownAgentServerUrls()).filter((url) => url !== serverUrl)
+      await platform.setSetting(AGENT_SERVER_URLS_KEY, remaining)
+      const lastUsed = await platform.getSetting(AGENT_SERVER_URL_KEY)
+      if (typeof lastUsed === 'string' && tryNormalizeAgentServerUrl(lastUsed) === serverUrl) {
+        await platform.setSetting(AGENT_SERVER_URL_KEY, remaining[0] || null)
+      }
+      return remaining
     },
     onSuccess() {
       invalidateQueries(['agents'])
@@ -732,7 +775,7 @@ export function useSetAgentServerUrls() {
   })
 }
 
-/** Loads the configured app environment URL for the desktop Agents page. */
+/** Loads the app environment used last (the one a new agent goes to by default), else the built-in default. */
 export function useAgentServerUrl() {
   return useQuery({
     queryKey: ['agents', 'server-url'],
@@ -745,7 +788,7 @@ export function useAgentServerUrl() {
   })
 }
 
-/** Persists the configured app environment URL for the desktop Agents page. */
+/** Persists the app environment to use by default; the mobile app's single-server setting. */
 export function useSetAgentServerUrl() {
   return useMutation({
     mutationFn: async (serverUrl: string) => {
