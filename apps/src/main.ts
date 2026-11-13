@@ -168,6 +168,8 @@ export function createAPIRoutes(
         protocol: buildInfo.protocol,
         minClientProtocol: buildInfo.minClientProtocol,
         hmServerUrl: svc.hmServerUrl,
+        // Where clients reach this server (null when not configured).
+        publicUrl: svc.publicUrl ?? null,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
@@ -217,7 +219,12 @@ export function createAPIRoutes(
     if (!rollup) return Response.json({error: 'Session not found'}, {status: 404, headers: corsHeaders()})
     return Response.json(rollup, {headers: corsHeaders()})
   }
+  const apps = createRunningAppsHandlers(svc)
   return {
+    // Running apps, as plain JSON: the list, one app with its tools, and tool calls. Only under the
+    // canonical prefix; the exact routes above win over the wildcard.
+    [APPS_API_PREFIX]: {OPTIONS: options, GET: apps.list},
+    [`${APPS_API_PREFIX}/*`]: {OPTIONS: options, GET: apps.read, POST: apps.call},
     // Canonical mount: everything under one prefix, so a site's reverse proxy can route
     // `/hm/api/agents/*` to this service on the site's own origin.
     ...Object.fromEntries(
@@ -248,6 +255,63 @@ export function createAPIRoutes(
     '/agents/api/metrics': {GET: metrics},
     '/api/perf/sessions/:sessionId': {GET: sessionPerf},
     '/agents/api/perf/sessions/:sessionId': {GET: sessionPerf},
+  }
+}
+
+/**
+ * Running apps over plain HTTP, for anything that is not a Seed client (a script, curl, another
+ * service). Reading is open. Calling a tool is not here: it is a signed `CallAppTool` sent to
+ * `/hm/api/apps/message`, so every run names the account that triggered it.
+ *
+ * - `GET /hm/api/apps` lists the apps running here.
+ * - `GET /hm/api/apps/<space>/<app path>` is a running app with its tools; a tool's path gives the
+ *   tool and its recent calls.
+ * - `POST` to a tool answers 405 and says to send a signed `CallAppTool` instead.
+ */
+export function createRunningAppsHandlers(svc: apisvc.Service) {
+  const json = (body: unknown, status = 200) => Response.json(body, {status, headers: corsHeaders()})
+  const failure = (error: unknown) => {
+    if (error instanceof apisvc.APIError) return json({error: error.message}, error.status)
+    throw error
+  }
+  /** `hm://<space>/<path…>` from the URL after the prefix, or null when it names no document. */
+  const target = (req: Request) => {
+    const rest = new URL(req.url).pathname.slice(APPS_API_PREFIX.length).split('/').filter(Boolean)
+    const [space, ...path] = rest.map(decodeURIComponent)
+    if (!space || !/^z[1-9A-HJ-NP-Za-km-z]+$/.test(space) || !path.length) return null
+    return {space, path}
+  }
+  const hmId = (space: string, path: string[]) => `hm://${space}/${path.join('/')}`
+  return {
+    list: () => json({apps: svc.listRunningApps()}),
+    read: async (req: Request) => {
+      const doc = target(req)
+      if (!doc) return json({error: 'Not found'}, 404)
+      try {
+        const app = await svc.describeRunningApp(hmId(doc.space, doc.path))
+        if (app) return json(app)
+        // Not an app running here: maybe a tool of one.
+        if (doc.path.length > 1) {
+          const parent = await svc.describeRunningApp(hmId(doc.space, doc.path.slice(0, -1)))
+          const toolId = hmId(doc.space, doc.path)
+          const tool = parent?.tools.find((candidate) => candidate.id === toolId)
+          if (parent && tool) {
+            const limit = Number(new URL(req.url).searchParams.get('limit') ?? '') || undefined
+            return json({app: parent.run.appId, tool, calls: await svc.listRunningAppToolCalls(toolId, limit)})
+          }
+        }
+        return json({error: `${hmId(doc.space, doc.path)} is not an app running here`}, 404)
+      } catch (error) {
+        return failure(error)
+      }
+    },
+    call: () =>
+      json(
+        {
+          error: `Tool calls are signed: send a CallAppTool action to ${APPS_API_PREFIX}/message, so the run names who triggered it`,
+        },
+        405,
+      ),
   }
 }
 
@@ -591,6 +655,7 @@ async function main(): Promise<void> {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
+    publicUrl: cfg.publicUrl,
     web: cfg.web,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,

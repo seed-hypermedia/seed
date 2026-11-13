@@ -30,6 +30,17 @@ describe('config', () => {
     expect(config.envVar({} as NodeJS.ProcessEnv, 'DATA_DIR')).toBeUndefined()
   })
 
+  test('the public URL is where clients reach this server, without a trailing slash', () => {
+    expect(config.create(config.flags({} as NodeJS.ProcessEnv)).publicUrl).toBeUndefined()
+    expect(
+      config.create(config.flags({SEED_APPS_PUBLIC_URL: 'https://hyper.media/hm/api/apps/'} as NodeJS.ProcessEnv))
+        .publicUrl,
+    ).toBe('https://hyper.media/hm/api/apps')
+    expect(config.create(config.parseArgs(['--public-url=https://site.example/hm/api/apps'], {})).publicUrl).toBe(
+      'https://site.example/hm/api/apps',
+    )
+  })
+
   test('the IPFS server can be split from the HM API or default to the same origin', () => {
     const fromEnv = config.create(
       config.flags({

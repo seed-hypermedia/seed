@@ -7,6 +7,8 @@ import {writeMemoryFile, memoryRootPath} from '@/agent-memory'
 import {perfSnapshot, resetPerfForTests} from '@/perf'
 import {
   buildLambdaProgram,
+  buildAppToolProgram,
+  APP_PRIVATE_CONFIG_ENV,
   CodeExecError,
   EXEC_WORKSPACE_GUEST_PATH,
   LAMBDA_RESULT_PREFIX,
@@ -200,7 +202,8 @@ describe('code exec', () => {
       expect(call.networkPolicy).toBe('profiles:public')
       expect(call.workdir).toBe(EXEC_WORKSPACE_GUEST_PATH)
       expect(call.maxDurationSecs).toBe(90)
-      expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir)}])
+      // Mounted by its real path (macOS tmp dirs sit behind the /var -> /private/var symlink).
+      expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: fs.realpathSync(memoryRootPath(stateDir))}])
       expect(call.exec).toEqual({cmd: 'python', args: ['-c', 'print("hi")'], timeoutMs: 60_000})
       expect(call.stopped).toBe(true)
     })
@@ -467,6 +470,22 @@ describe('code exec', () => {
     expect(pyProgram.startsWith('def main(input):')).toBe(true)
     expect(pyProgram).toContain('__seed_json.loads("{\\"name\\":\\"Ada\\"}")')
     expect(pyProgram).toContain(`print("${LAMBDA_RESULT_PREFIX}"`)
+  })
+
+  test('an app tool gets (input, ctx) with private config from the environment, never from the program', async () => {
+    const program = buildAppToolProgram(
+      'export default async function (input: {city: string}, ctx: any) {\n  return {city: input.city, key: ctx.privateConfig.apiKey, units: ctx.publicConfig.units, app: ctx.app, leaked: process.env.SEED_APP_PRIVATE_CONFIG ?? null}\n}',
+      {city: 'Lisbon'},
+      {app: 'hm://z6MkApp/weather', publicConfig: {units: 'metric'}},
+    )
+    expect(program).not.toContain('sekret')
+    const run = Bun.spawnSync(['bun', '-e', program], {
+      env: {...process.env, [APP_PRIVATE_CONFIG_ENV]: JSON.stringify({apiKey: 'sekret'})},
+    })
+    expect(run.exitCode).toBe(0)
+    const {result} = parseLambdaResult(run.stdout.toString())
+    // The tool sees the key; the env var is gone before its code runs, so it cannot be dumped wholesale.
+    expect(result).toEqual({city: 'Lisbon', key: 'sekret', units: 'metric', app: 'hm://z6MkApp/weather', leaked: null})
   })
 
   test('the TypeScript wrapper really runs a lambda under bun, end to end', async () => {

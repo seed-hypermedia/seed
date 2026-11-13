@@ -14,6 +14,30 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Running apps (hypermedia/apps/apps-and-tools.md). An app runs on this server once a writer of its
+  // space starts it: the row holds who started it and its private config, encrypted like other
+  // secrets. Every tool call is recorded; anyone who can read the tool can read its calls.
+  `CREATE TABLE app_runs (
+      app_id TEXT PRIMARY KEY,
+      space_uid TEXT NOT NULL,
+      started_by TEXT NOT NULL,
+      private_config_ciphertext BLOB,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE TABLE app_tool_calls (
+      id TEXT PRIMARY KEY,
+      app_id TEXT NOT NULL,
+      tool_id TEXT NOT NULL,
+      caller TEXT NOT NULL,
+      tool_version TEXT,
+      input_json TEXT NOT NULL,
+      output_json TEXT,
+      error TEXT,
+      duration_ms INTEGER,
+      created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX app_tool_calls_by_tool ON app_tool_calls (tool_id, created_at DESC);`,
   // Reader privacy of each transcript (see browser-privacy.ts), kept as data so no read ever scans a
   // transcript to decide it. Before this, BrowserPrivacy decoded a session's whole event log (and a
   // run's whole journal) the first time any non-owner frame touched it, and the result lived only

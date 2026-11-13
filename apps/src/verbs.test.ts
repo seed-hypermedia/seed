@@ -15,6 +15,7 @@ import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
 import {BrowserPrivacy} from '@/browser-privacy'
 import * as sqlite from '@/sqlite'
+import * as blobs from '@shm/shared/blobs'
 import type {CodeExecutor} from '@/code-exec'
 
 /**
@@ -1660,5 +1661,132 @@ describe('trigger write safeguards', () => {
     expect(contract).toContain('options {dryRun: true}')
     expect(contract).toContain('never create test triggers')
     expect(contract).toContain('no wildcards')
+  })
+})
+
+describe('write verb: running apps', () => {
+  test("run and stop an app on this server as one of the agent's signers", async () => {
+    const owner = blobs.generateNobleKeyPair()
+    const ownerId = blobs.principalToString(owner.principal)
+    const agentSeed = crypto.getRandomValues(new Uint8Array(32))
+    const agentKey = blobs.nobleKeyPairFromSeed(agentSeed)
+    const agentUid = blobs.principalToString(agentKey.principal)
+    const runApp = mock(async (signer: string, action: {appId: string; privateConfig?: Record<string, unknown>}) => ({
+      appId: action.appId,
+      spaceUid: agentUid,
+      startedBy: signer,
+      privateConfigKeys: Object.keys(action.privateConfig ?? {}),
+      createdAt: 1,
+      updatedAt: 1,
+    }))
+    const stopApp = mock(async () => {})
+    const context = makeContext({
+      accountId: ownerId,
+      definition: {name: 'T', systemPrompt: '', modelProvider: 'p', model: 'm', signingKey: 'agent-key'} as never,
+      runApp,
+      stopApp,
+    })
+    // The agent's signing key lives in its owner's secrets, as SetSecret stores it.
+    const svc = new apisvc.Service(context.db, context.stateDir)
+    await svc.message(
+      await apisvc.createSignedEnvelope(owner, {
+        action: {
+          _: 'SetSecret',
+          name: 'agent-key',
+          value: agentSeed,
+          metadata: {kind: 'hm-account-key', accountId: agentUid, label: 'Agent'},
+        },
+      }),
+    )
+    const appId = `hm://${agentUid}/apps/weather`
+    const run = await executeWriteVerb(context, {
+      address: appId,
+      options: {action: 'run', privateConfig: {apiKey: 'dummy'}},
+    })
+    expect(run).toMatchObject({running: true, run: {appId, startedBy: agentUid, privateConfigKeys: ['apiKey']}})
+    expect(runApp).toHaveBeenCalledWith(agentUid, {appId, privateConfig: {apiKey: 'dummy'}})
+
+    expect(await executeWriteVerb(context, {address: appId, options: {action: 'stop'}})).toMatchObject({
+      running: false,
+    })
+    expect(stopApp).toHaveBeenCalledWith(agentUid, {appId})
+    await expect(
+      executeWriteVerb(context, {address: appId, options: {action: 'run', privateConfig: 'nope'}}),
+    ).rejects.toThrow('privateConfig')
+  })
+})
+
+describe('write verb: running apps on a server with a public URL', () => {
+  test('an app that already names this server is left alone; one that does not gets pointed here', async () => {
+    const owner = blobs.generateNobleKeyPair()
+    const agentSeed = crypto.getRandomValues(new Uint8Array(32))
+    const agentUid = blobs.principalToString(blobs.nobleKeyPairFromSeed(agentSeed).principal)
+    const serverUrl = 'https://hyper.media/hm/api/apps'
+    const context = makeContext({
+      accountId: blobs.principalToString(owner.principal),
+      definition: {name: 'T', systemPrompt: '', modelProvider: 'p', model: 'm', signingKey: 'agent-key'} as never,
+      appServerUrl: serverUrl,
+      runApp: mock(async (signer: string, action: {appId: string}) => ({
+        appId: action.appId,
+        spaceUid: agentUid,
+        startedBy: signer,
+        privateConfigKeys: [],
+        createdAt: 1,
+        updatedAt: 1,
+      })),
+      stopApp: mock(async () => {}),
+    })
+    await new apisvc.Service(context.db, context.stateDir).message(
+      await apisvc.createSignedEnvelope(owner, {
+        action: {
+          _: 'SetSecret',
+          name: 'agent-key',
+          value: agentSeed,
+          metadata: {kind: 'hm-account-key', accountId: agentUid, label: 'Agent'},
+        },
+      }),
+    )
+    const appId = `hm://${agentUid}/apps/weather`
+    let pointer: string | undefined = serverUrl
+    const requests: string[] = []
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+      requests.push(href)
+      if (href.includes('/api/Resource'))
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(appId),
+            document: {
+              content: [],
+              metadata: {name: 'Weather', type: 'hm://hyper.media/app', appEnvironmentUrl: pointer},
+              version: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+              genesis: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+              account: agentUid,
+              authors: [agentUid],
+              path: '/apps/weather',
+              createTime: '',
+              updateTime: '',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      return new Response('unavailable', {status: 503})
+    }) as unknown as typeof fetch
+
+    const same = await executeWriteVerb(context, {address: appId, options: {action: 'run'}})
+    expect(same).toMatchObject({running: true, appServerUrl: serverUrl})
+    expect(String(same.summary)).not.toContain('names this server')
+    expect(requests.every((href) => href.includes('/api/Resource'))).toBe(true)
+
+    // Pointing elsewhere: the run still succeeds and the agent is told to point the app here.
+    pointer = 'https://elsewhere.example/hm/api/apps'
+    const moved = await executeWriteVerb(context, {address: appId, options: {action: 'run'}})
+    expect(moved).toMatchObject({running: true})
+    expect(String(moved.summary)).toContain(serverUrl)
   })
 })

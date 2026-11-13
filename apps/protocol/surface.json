@@ -42,6 +42,14 @@
         "target": "FileUploadTarget"
       }
     },
+    "CallAppTool": {
+      "fields": {
+        "_": "\"CallAppTool\"",
+        "appId": "string",
+        "input": "unknown",
+        "toolId": "string"
+      }
+    },
     "CancelProviderOAuth": {
       "fields": {
         "_": "\"CancelProviderOAuth\"",
@@ -193,6 +201,18 @@
         "triggerId": "string"
       }
     },
+    "GetAppRun": {
+      "fields": {
+        "_": "\"GetAppRun\"",
+        "appId": "string"
+      }
+    },
+    "GetAppToolCall": {
+      "fields": {
+        "_": "\"GetAppToolCall\"",
+        "callId": "string"
+      }
+    },
     "GetProviderOAuthStatus": {
       "fields": {
         "_": "\"GetProviderOAuthStatus\"",
@@ -292,6 +312,14 @@
     "ListAgents": {
       "fields": {
         "_": "\"ListAgents\""
+      }
+    },
+    "ListAppToolCalls": {
+      "fields": {
+        "_": "\"ListAppToolCalls\"",
+        "before?": "number",
+        "limit?": "number",
+        "toolId": "string"
       }
     },
     "ListMcpServers": {
@@ -412,6 +440,13 @@
         "sessionId": "string"
       }
     },
+    "RunApp": {
+      "fields": {
+        "_": "\"RunApp\"",
+        "appId": "string",
+        "privateConfig?": "Record<string, unknown>"
+      }
+    },
     "SaveAgentTool": {
       "fields": {
         "_": "\"SaveAgentTool\"",
@@ -468,6 +503,12 @@
       "fields": {
         "_": "\"StartProviderOAuth\"",
         "providerType": "string"
+      }
+    },
+    "StopApp": {
+      "fields": {
+        "_": "\"StopApp\"",
+        "appId": "string"
       }
     },
     "StopSession": {
@@ -564,6 +605,18 @@
       "fields": {
         "_": "\"AcceptAgentInviteResponse\"",
         "agent": "AgentInfo"
+      }
+    },
+    "AppRunResponse": {
+      "fields": {
+        "_": "\"AppRunResponse\"",
+        "run": "AppRunInfo | null"
+      }
+    },
+    "AppToolCallResponse": {
+      "fields": {
+        "_": "\"AppToolCallResponse\"",
+        "call": "AppToolCallInfo"
       }
     },
     "AppendFileUploadChunkResponse": {
@@ -818,6 +871,12 @@
       "fields": {
         "_": "\"ListAgentsResponse\"",
         "agents": "AgentInfo[]"
+      }
+    },
+    "ListAppToolCallsResponse": {
+      "fields": {
+        "_": "\"ListAppToolCallsResponse\"",
+        "calls": "AppToolCallInfo[]"
       }
     },
     "ListMcpServersResponse": {
@@ -1365,6 +1424,30 @@
             "type": "\"webhook\""
           }
         }
+      }
+    },
+    "AppRunInfo": {
+      "fields": {
+        "appId": "string",
+        "createdAt": "number",
+        "privateConfigKeys": "string[]",
+        "spaceUid": "string",
+        "startedBy": "string",
+        "updatedAt": "number"
+      }
+    },
+    "AppToolCallInfo": {
+      "fields": {
+        "appId": "string",
+        "caller": "string",
+        "createdAt": "number",
+        "durationMs?": "number",
+        "error?": "string",
+        "id": "string",
+        "input": "unknown",
+        "output?": "unknown",
+        "toolId": "string",
+        "toolVersion?": "string"
       }
     },
     "BrowserCommand": {

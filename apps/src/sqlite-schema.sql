@@ -405,3 +405,29 @@ CREATE TABLE server_config (
     key TEXT PRIMARY KEY,
     value BLOB NOT NULL
 ) WITHOUT ROWID;
+
+-- Running apps: who started each app on this server and its private config (encrypted), see app-running.ts.
+CREATE TABLE app_runs (
+    app_id TEXT PRIMARY KEY,
+    space_uid TEXT NOT NULL,
+    started_by TEXT NOT NULL,
+    private_config_ciphertext BLOB,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+-- Every call of a running app's tools; anyone who can read the tool can read its calls.
+CREATE TABLE app_tool_calls (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    tool_id TEXT NOT NULL,
+    caller TEXT NOT NULL,
+    tool_version TEXT,
+    input_json TEXT NOT NULL,
+    output_json TEXT,
+    error TEXT,
+    duration_ms INTEGER,
+    created_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX app_tool_calls_by_tool ON app_tool_calls (tool_id, created_at DESC);
