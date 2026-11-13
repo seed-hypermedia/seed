@@ -29,7 +29,7 @@ import {toast} from '../toast'
 import {setAttribute, useAppsPublisher} from './publish'
 import {appServerErrorMessage, useAppServerUrl, useHostTriggers} from './running'
 
-/** A new trigger's source: an hourly schedule, edited before it matters (triggers start enabled). */
+/** A new trigger's source: an hourly schedule, edited before it matters (it does nothing until it names an action). */
 export const DEFAULT_TRIGGER_SOURCE: AgentTriggerSource = {
   type: 'schedule',
   schedule: {kind: 'interval', every: 1, unit: 'hours'},

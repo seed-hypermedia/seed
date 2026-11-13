@@ -300,8 +300,9 @@ export function useCreateTriggerDocument(host: AppRef | null) {
     setCreating(true)
     try {
       const id = await freeChildId(client, host.id, 'New trigger')
-      // It starts off, as an hourly schedule, until its page says what it does.
-      const fields = await triggerDocumentOps({source: DEFAULT_TRIGGER_SOURCE, enabled: false})
+      // It starts on, as an hourly schedule. Until its page says what it does (a tool, or a
+      // session message) the server cannot use it, so it does nothing yet.
+      const fields = await triggerDocumentOps({source: DEFAULT_TRIGGER_SOURCE})
       await publisher.create(
         id,
         [
