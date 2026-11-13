@@ -323,7 +323,7 @@ Use click handlers for actions rather than form submission. Disable Submit while
     summary: 'Build an app: the only home for pages and tools; its card embeds list them.',
     markdown: `# Building apps and tools
 
-An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
 
 A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools; an agent's tools run whenever the agent is mounted. When someone asks you to make a tool, they always mean this: a tool resource in an app or an agent. You have no private tools, and \`~/tools/<name>\` cannot be written.
 
@@ -359,6 +359,25 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 - A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
 - Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
+
+## Triggers
+
+A **trigger** is a resource too: a document typed \`hm://hyper.media/trigger\` directly under an app or an agent, listed by a card embed like a tool. It says when it fires (its **source**: activity conditions, a schedule, a webhook, or a run finishing; the same shapes as \`~/triggers\`) and what it does:
+
+- **Call a tool** of the same app or agent: \`tool\` is the tool's hm:// URL and \`input\` an input template whose string values \`"$event"\` and \`"$event.<path>"\` are filled from the event (for a webhook, \`"$event.payload"\` is the posted JSON). An app's trigger must call a tool; the call is recorded as made by the trigger's author.
+- **Start a session** (an agent's trigger only): leave out \`tool\` and write the first message as the trigger's content.
+
+Publish one with \`options.trigger\`; the publisher stores the source and input, sets the type and lists the trigger in its host:
+
+\`\`\`json
+{"address":"hm://SIGNER_UID/apps/weather/morning","options":{"name":"Morning forecast","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[1,2,3,4,5],"timeOfDay":"07:00","timezone":"Europe/Lisbon"}},"tool":"hm://SIGNER_UID/apps/weather/forecast","input":{"city":"Lisbon"}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+\`\`\`json
+{"address":"hm://SPACE/agents/helper/on-mention","content":"Someone mentioned you. Read the comment and answer it.","options":{"name":"On mention","trigger":{"source":{"type":"activity","conditions":[{"type":"user-mention","mentionedAccounts":["SIGNER_UID"]}]}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+An app's triggers are active while the app runs on its server; an agent's while the agent is mounted. Turn one off with \`"enabled": false\`, change it by writing the same address with \`options.action: "update"\` and \`options.trigger\` again, and delete it with \`options.action: "delete"\`. A trigger is the document: there is nothing to set up anywhere else.
 
 ## Example
 

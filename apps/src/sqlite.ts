@@ -14,6 +14,78 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Triggers are documents (hypermedia/apps/triggers.md): a trigger document under an agent or an
+  // app is projected into these rows while its host lives on this server. A trigger now belongs to
+  // an agent OR an app, so agent_id becomes nullable beside the new app_id; document_id names the
+  // trigger document a row was projected from (null for a trigger still stored only here), and
+  // author is the account whose trigger it is (an app trigger's tool calls are recorded as theirs).
+  // The tables are rebuilt under their own names (rows parked in temp tables, foreign keys
+  // deferred) so the claims, credentials and runs that reference them by name keep pointing at the
+  // rebuilt tables; a rename would rewrite those references to the old table.
+  `PRAGMA defer_foreign_keys = ON;
+  CREATE TEMP TABLE agent_triggers_before_documents AS SELECT * FROM agent_triggers;
+  DROP TABLE agent_triggers;
+  CREATE TABLE agent_triggers (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT REFERENCES agents (id),
+      app_id TEXT,
+      document_id TEXT,
+      document_version TEXT,
+      author TEXT,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      source_cbor BLOB NOT NULL,
+      prompt TEXT NOT NULL,
+      continuation_cbor BLOB,
+      cooldown_ms INTEGER,
+      merged_into TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_checked_at INTEGER,
+      last_fired_at INTEGER,
+      last_error TEXT,
+      CHECK (agent_id IS NOT NULL OR app_id IS NOT NULL)
+  ) WITHOUT ROWID;
+  INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor,
+      cooldown_ms, merged_into, created_at, updated_at, last_checked_at, last_fired_at, last_error)
+    SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, cooldown_ms,
+      merged_into, created_at, updated_at, last_checked_at, last_fired_at, last_error
+    FROM temp.agent_triggers_before_documents;
+  DROP TABLE temp.agent_triggers_before_documents;
+  CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DESC);
+  CREATE INDEX agent_triggers_by_app ON agent_triggers (app_id);
+  CREATE UNIQUE INDEX agent_triggers_by_document ON agent_triggers (document_id);
+  CREATE TEMP TABLE trigger_firings_before_documents AS SELECT * FROM trigger_firings;
+  DROP TABLE trigger_firings;
+  CREATE TABLE trigger_firings (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT REFERENCES agents (id),
+      app_id TEXT,
+      trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
+      activity_key TEXT NOT NULL,
+      session_id TEXT REFERENCES sessions (id),
+      activity_cbor BLOB NOT NULL,
+      body_digest BLOB,
+      context_cbor BLOB,
+      run_id TEXT,
+      tool_call_id TEXT,
+      status TEXT NOT NULL,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      UNIQUE (account_id, trigger_id, activity_key)
+  ) WITHOUT ROWID;
+  INSERT INTO trigger_firings (id, account_id, agent_id, trigger_id, activity_key, session_id, activity_cbor,
+      body_digest, context_cbor, run_id, status, error, created_at)
+    SELECT id, account_id, agent_id, trigger_id, activity_key, session_id, activity_cbor, body_digest,
+      context_cbor, run_id, status, error, created_at
+    FROM temp.trigger_firings_before_documents;
+  DROP TABLE temp.trigger_firings_before_documents;
+  CREATE INDEX trigger_firings_by_trigger ON trigger_firings (trigger_id, created_at DESC);
+  CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
+  CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
+  PRAGMA defer_foreign_keys = OFF;`,
   // Running apps (hypermedia/apps/apps-and-tools.md). An app runs on this server once a writer of its
   // space starts it: the row holds who started it and its private config, encrypted like other
   // secrets. Every tool call is recorded; anyone who can read the tool can read its calls.
