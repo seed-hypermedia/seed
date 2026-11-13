@@ -2,6 +2,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it, vi} from 'vitest'
 import type {UniversalClient} from '../universal-client'
 import {
+  contentReferencesDocument,
   executeConfirmedChildDeletion,
   inspectChildDeletions,
   reconcileChildRemovalIntent,
@@ -449,5 +450,71 @@ describe('renewed deletion consent', () => {
         authorizingParentVersion: 'parent-v2',
       }),
     ).rejects.toThrow('original child')
+  })
+})
+
+describe('contentReferencesDocument', () => {
+  const target = 'hm://alice/parent/child'
+  const targetId = hmId('alice', {path: ['parent', 'child']})
+  const block = (link: string): HMBlockNode =>
+    ({block: {id: `b-${link}`, type: 'Button', link, attributes: {}}, children: []}) as HMBlockNode
+
+  it('matches an hm link to the target without resolving anything', async () => {
+    resolveUrl.mockReset()
+    const content = [block(`${targetId.id}?v=abc#block-id`)]
+    expect(await contentReferencesDocument(content, target)).toBe(true)
+    expect(resolveUrl).not.toHaveBeenCalled()
+  })
+
+  it('ignores unrelated web links and hm links to other documents', async () => {
+    resolveUrl.mockReset()
+    const content = [
+      block('https://twitter.com/alice'),
+      block('https://github.com/alice'),
+      block(hmId('alice', {path: ['other']}).id),
+    ]
+    expect(await contentReferencesDocument(content, target)).toBe(false)
+    expect(resolveUrl).not.toHaveBeenCalled()
+  })
+
+  it('resolves a web link whose path ends with the target path', async () => {
+    resolveUrl.mockReset()
+    resolveUrl.mockResolvedValueOnce({hmId: targetId})
+    const content = [block('https://alice.example/parent/child/')]
+    expect(await contentReferencesDocument(content, target)).toBe(true)
+    expect(resolveUrl).toHaveBeenCalledTimes(1)
+    expect(resolveUrl).toHaveBeenCalledWith('https://alice.example/parent/child/', {requireSuccessfulResponse: true})
+  })
+
+  it('returns false when a plausible link resolves elsewhere or rejects', async () => {
+    resolveUrl.mockReset()
+    resolveUrl.mockResolvedValueOnce({hmId: hmId('alice', {path: ['parent', 'other']})})
+    expect(await contentReferencesDocument([block('https://alice.example/parent/child')], target)).toBe(false)
+
+    resolveUrl.mockReset()
+    resolveUrl.mockRejectedValueOnce(new Error('Network unavailable'))
+    expect(await contentReferencesDocument([block('https://alice.example/parent/child')], target)).toBe(false)
+  })
+
+  it('matches a gateway URL to the target without resolving it', async () => {
+    resolveUrl.mockReset()
+    expect(await contentReferencesDocument([block('https://hyper.media/hm/alice/parent/child')], target)).toBe(true)
+    expect(resolveUrl).not.toHaveBeenCalled()
+  })
+
+  it('resolves all plausible links in parallel', async () => {
+    resolveUrl.mockReset()
+    const resolvers: Array<(value: unknown) => void> = []
+    resolveUrl.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve)
+        }),
+    )
+    const content = [block('https://alice.example/parent/child'), block('https://www.alice.example/parent/child')]
+    const pending = contentReferencesDocument(content, target)
+    await vi.waitFor(() => expect(resolveUrl).toHaveBeenCalledTimes(2))
+    resolvers.forEach((resolve) => resolve(null))
+    expect(await pending).toBe(false)
   })
 })

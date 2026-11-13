@@ -96,13 +96,3 @@ export function removeBlocks(blocksToRemove: BlockIdentifier[], editor: Editor) 
     throw Error('Blocks with the following IDs could not be found in the editor: ' + notFoundIds)
   }
 }
-
-export function replaceBlocks<BSchema extends BlockSchema>(
-  blocksToRemove: BlockIdentifier[],
-  blocksToInsert: PartialBlock<BSchema>[],
-  editor: Editor,
-) {
-  // @ts-ignore
-  insertBlocks(blocksToInsert, blocksToRemove[0], 'before', editor)
-  removeBlocks(blocksToRemove, editor)
-}

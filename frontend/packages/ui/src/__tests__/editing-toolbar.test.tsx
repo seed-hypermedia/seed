@@ -37,6 +37,7 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
   selectDraftId: (s: any) => s.context.draftId,
   selectMetadata: (s: any) => s.context.metadata,
   selectSaveIndicatorStatus: () => 'hidden',
+  selectDiscardChildDraftIds: () => [],
   selectRenameState: () => selectMock.renameState,
   selectRenameError: () => selectMock.renameError,
   selectPublishPath: () => selectMock.publishPath,
@@ -213,6 +214,30 @@ describe('editing-toolbar publish disabled states', () => {
       expect(publishTrigger).toBeTruthy()
       expect(publishTrigger?.className).not.toContain('bg-neutral-100')
       expect(publishTrigger?.className).not.toContain('text-neutral-500')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('opens the blocked popover when getUnpublishedChildCount reports an unpublished draft', () => {
+    unpublishedChangeCountMock.mockReturnValue(2)
+    const docId = hmId('acct-1', {path: ['my-doc']})
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover
+        docId={docId}
+        existingMenuItems={[]}
+        unpublishedChildCount={0}
+        getUnpublishedChildCount={() => 1}
+      />,
+    )
+
+    try {
+      const publishTrigger = findButtonByText(container, 'Publish')!
+      act(() => {
+        publishTrigger.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+      expect(document.body.textContent).toContain('This document embeds an unpublished draft.')
+      expect(sendMock).not.toHaveBeenCalledWith(expect.objectContaining({type: 'publish.start'}))
     } finally {
       cleanup(root, container)
     }

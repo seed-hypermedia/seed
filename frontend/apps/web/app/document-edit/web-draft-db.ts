@@ -28,6 +28,8 @@ export interface WebDocDraft {
   mineTouchedIds?: string[]
   /** Explicit authored child-reference removals; cleared with the draft. */
   removedChildDocumentIds?: string[]
+  /** Child draft ids whose cards were removed; deleted on publish/discard unless re-referenced. */
+  removedChildDraftIds?: string[]
   /** Baselines invalidated by maintenance; stale autosaves are retained as recovery snapshots instead. */
   maintenancePreviousDeps?: string[][]
   /** Local maintenance epoch, independent of the published version. */

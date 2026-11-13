@@ -114,6 +114,8 @@ export interface EditorEmbedBlock extends EditorBaseBlock {
   props: EditorBlockProps & {
     view: 'Content' | 'Card'
     url: string
+    /** References a child draft while it is unpublished; stripped at the publish boundary. */
+    draftId?: string
   }
   content: Array<HMInlineContent>
 }

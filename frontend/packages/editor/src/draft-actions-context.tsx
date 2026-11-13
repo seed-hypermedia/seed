@@ -12,7 +12,8 @@ export type CreateInlineDraftOptions = {
 /**
  * Callbacks the editor needs for inline draft embeds: create a new child
  * draft, look up an existing draft's metadata, delete draft, and navigate to draft
- * editor route. On web the context value null and the "New document" slash item is hidden.
+ * editor route. When the host provides no onCreateInlineDraft (or the context value is null),
+ * the "New document" slash item is hidden.
  */
 export type DraftActions = {
   onCreateInlineDraft?: (

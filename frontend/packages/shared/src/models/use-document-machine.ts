@@ -479,6 +479,7 @@ export function useDraftResolutionSync(
         deps?: string[] | null
         maintenanceRevision?: number
         removedChildDocumentIds?: string[] | null
+        removedChildDraftIds?: string[] | null
         mineTouchedIds?: string[] | null
         baseBlocks?: HMBlockNode[] | null
         publishPath?: string[] | null
@@ -511,6 +512,7 @@ export function useDraftResolutionSync(
         deps: resolved.deps ?? null,
         maintenanceRevision: resolved.maintenanceRevision ?? 0,
         removedChildDocumentIds: resolved.removedChildDocumentIds ?? null,
+        removedChildDraftIds: resolved.removedChildDraftIds ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
         publishPath: resolved.publishPath ?? null,
@@ -843,6 +845,19 @@ export function selectBaseBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode
 /** Block IDs touched locally during this editing session. */
 export function selectMineTouchedIds(snapshot: DocumentMachineSnapshot): string[] {
   return snapshot.context.mineTouchedIds
+}
+
+// Cached so `useDocumentSelector` sees a stable reference across unchanged snapshots.
+let lastDiscardChildDraftIds: string[] = []
+
+/** Unique child draft ids a discard would target (pending card removals union live card references). */
+export function selectDiscardChildDraftIds(snapshot: DocumentMachineSnapshot): string[] {
+  const ids = new Set([...snapshot.context.pendingDeletedChildDraftIds, ...snapshot.context.referencedChildDraftIds])
+  const changed =
+    ids.size !== lastDiscardChildDraftIds.length ||
+    !Array.from(ids).every((id, index) => id === lastDiscardChildDraftIds[index])
+  if (changed) lastDiscardChildDraftIds = Array.from(ids)
+  return lastDiscardChildDraftIds
 }
 
 /** Remote document stashed while editing (null when no pending update). */

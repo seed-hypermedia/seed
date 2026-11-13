@@ -305,6 +305,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view) blockEmbed.attributes.view = editorBlock.props.view
+    if (editorBlock.props.draftId) blockEmbed.attributes.draftId = editorBlock.props.draftId
   }
 
   const blockParagraph = block.type === 'Paragraph' ? block : undefined

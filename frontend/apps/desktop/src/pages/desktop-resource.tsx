@@ -89,6 +89,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {getDraftIdFromDraftPathSegment, isPrivateDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
@@ -260,6 +261,7 @@ function DraftExternalModificationMachineLogger() {
         deps: draft?.deps ?? null,
         maintenanceRevision: draft?.maintenanceRevision ?? 0,
         removedChildDocumentIds: draft?.removedChildDocumentIds ?? null,
+        removedChildDraftIds: draft?.removedChildDraftIds ?? null,
         mineTouchedIds: draft?.mineTouchedIds ?? null,
         baseBlocks: draft?.baseBlocks ?? null,
       })
@@ -617,6 +619,7 @@ export default function DesktopResourcePage() {
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           maintenanceRevision: input.maintenanceRevision ?? 0,
           removedChildDocumentIds: input.removedChildDocumentIds,
+          removedChildDraftIds: input.removedChildDraftIds,
           baseBlocks: input.baseBlocks ?? undefined,
           publishPath: input.publishPath ?? undefined,
         })
@@ -798,6 +801,7 @@ export default function DesktopResourcePage() {
           cursorPosition: draft.cursorPosition,
           mineTouchedIds: draft.mineTouchedIds,
           removedChildDocumentIds: draft.removedChildDocumentIds,
+          removedChildDraftIds: draft.removedChildDraftIds,
           baseBlocks: draft.baseBlocks,
           publishPath: input.path,
         })
@@ -1227,17 +1231,7 @@ export default function DesktopResourcePage() {
   // Called at Publish click time so the popover always opens
   // when there are unresolved draft embeds
   const getUnpublishedChildCount = useCallback(() => {
-    const editor = editorRef.current
-    const blocks = editor?.topLevelBlocks ?? []
-    const ids = new Set<string>()
-    const walk = (nodes: any[]) => {
-      for (const b of nodes) {
-        if (b?.type === 'embed' && b?.props?.draftId) ids.add(b.props.draftId)
-        if (b?.children?.length) walk(b.children)
-      }
-    }
-    walk(blocks)
-    return ids.size
+    return collectChildDraftIds(editorRef.current?.topLevelBlocks ?? []).length
   }, [])
 
   const editingFloatingActions =
@@ -1326,6 +1320,7 @@ export default function DesktopResourcePage() {
                     existingDraftCursorPosition={draftData?.cursorPosition}
                     existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
                     existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                    existingDraftRemovedChildDraftIds={draftData?.removedChildDraftIds}
                     existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                     existingDraftBaseBlocks={draftData?.baseBlocks}
                     existingDraftPublishPath={draftData?.publishPath}
