@@ -18,6 +18,29 @@ const TOOL_SOURCE = `export default async function (input: {text: string}) {
 const VERSION = 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy'
 
 describe('trigger documents', () => {
+  test('an agent writes a trigger with options.trigger, and an update changes only what it names', async () => {
+    const created = await apisvc.resolveWriteTrigger(
+      {source: {type: 'webhook'}, tool: 'hm://z6Mkspace/app/say', input: {text: '$event.payload.text'}},
+      false,
+    )
+    expect(created.metadata).toMatchObject({
+      type: 'hm://hyper.media/trigger',
+      source: expect.stringMatching(/^ipfs:\/\//),
+      tool: 'hm://z6Mkspace/app/say',
+      input: expect.stringMatching(/^ipfs:\/\//),
+    })
+    expect(created.blobs).toHaveLength(2)
+    // Creating needs a source; turning one off does not.
+    await expect(apisvc.resolveWriteTrigger({tool: 'hm://z6Mkspace/app/say'}, false)).rejects.toThrow()
+    const off = await apisvc.resolveWriteTrigger({enabled: false}, true)
+    expect(off).toEqual({metadata: {type: 'hm://hyper.media/trigger', enabled: false}, blobs: []})
+    // tool: null makes an agent's trigger start a session again.
+    expect((await apisvc.resolveWriteTrigger({tool: null}, true)).metadata).toEqual({
+      type: 'hm://hyper.media/trigger',
+      tool: null,
+    })
+  })
+
   test('principals decode from dag-json bytes', () => {
     const key = blobs.generateNobleKeyPair()
     const bytes = new Uint8Array(key.principal)

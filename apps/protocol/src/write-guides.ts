@@ -53,10 +53,26 @@ Any tool you made before resources existed was moved to \`~/memory/tools/<name>/
 Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`.`,
   },
   triggers: {
-    summary: 'Create, edit, enable, disable, or delete an automation trigger.',
+    summary:
+      'Create, edit, enable, disable, or delete an automation trigger: a trigger document under your agent or an app, or ~/triggers/<name>.',
     markdown: `# Writing triggers
 
-Write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first: it lists current triggers and which source fits which request (mentions, replies, comments, document changes, schedules). New triggers default to enabled.
+## Trigger documents (use these)
+
+A trigger is a document typed \`hm://hyper.media/trigger\` directly under an agent's document (yours, for your own automations) or under an app, listed in it as a card like a tool. Your user sees it there, on the Triggers tab, and can edit it. Publish one with \`options.trigger: {source, tool?, input?, enabled?}\`: the source is the same shape as below; with \`tool\` (a tool of the same agent or app, by hm:// URL) a firing calls that tool with \`input\` as a template, and without it (an agent's trigger only) a firing starts a session with you whose first message is the trigger's content. An app's trigger must call one of the app's tools; it fires while the app runs, and the call is recorded as made by the trigger's author.
+
+\`\`\`json
+{"address":"hm://SPACE/agents/helper/hourly-review","content":"Review current project state.","options":{"name":"Hourly review","trigger":{"source":{"type":"schedule","schedule":{"kind":"interval","every":1,"unit":"hours"}}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+- Edit: write the same address with \`options.action: "update"\` and the fields you change (\`options.trigger: {enabled: false}\` turns it off; a new \`content\` replaces the message).
+- Delete: \`options.action: "delete"\` (it also leaves its agent's or app's list).
+- Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
+- You need write access where the trigger goes. Without it, ask your user to give you write access from your People tab, or to add the trigger themselves.
+
+## Triggers stored on the server: ~/triggers/<name>
+
+For what a document cannot express yet (a workflow script, a wake, or calling a built-in tool such as search), write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first: it lists current triggers and which source fits which request (mentions, replies, comments, document changes, schedules). New triggers default to enabled.
 
 Check a trigger before saving it with \`options: {dryRun: true}\`: the write is validated and, for activity sources, replayed against recent activity to show how often it would have fired. Nothing is saved, so never create test triggers. If no source expresses the request, tell the user instead of approximating with a broad filter.
 
@@ -70,7 +86,7 @@ A trigger's \`continuation\` decides what a firing does. The default starts a th
 {"address":"~/triggers/deploy-hook","content":"{\"source\":{\"type\":\"webhook\"},\"continuation\":{\"kind\":\"tool\",\"tool\":\"record-deploy\",\"input\":{\"payload\":\"$event.payload\"},\"onFailure\":\"thread\"},\"prompt\":\"The deploy recorder failed; investigate and fix the record.\"}"}
 \`\`\`
 
-Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. An edit keeps the kind of source that starts the trigger; switching kinds needs \`options: {replaceSource: true}\`, and interval schedules under 5 minutes need \`options: {frequentSchedule: true}\`, only when the user asked for exactly that. Trigger writes do not use a signer.`,
+Replace the stored trigger to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. An edit keeps the kind of source that starts the trigger; switching kinds needs \`options: {replaceSource: true}\`, and interval schedules under 5 minutes need \`options: {frequentSchedule: true}\`, only when the user asked for exactly that. Writes to ~/triggers do not use a signer. A stored trigger that a document can express is published as a trigger document under you once you can write your document, and from then on it is that document.`,
   },
   ipfs: {
     summary: 'Publish a file to IPFS, or a JSON object: a schema, an object that follows one, or a signed blob.',

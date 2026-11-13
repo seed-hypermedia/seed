@@ -14269,24 +14269,29 @@ async function resolveWritePageFolder(
  * Turns `options.trigger` ({source, tool?, input?, enabled?}) into a trigger document's metadata and
  * the DAG-CBOR blobs it references. The source is validated like any trigger's.
  */
-async function resolveWriteTrigger(raw: unknown): Promise<{metadata: Record<string, unknown>; blobs: CollectedBlob[]}> {
+export async function resolveWriteTrigger(
+  raw: unknown,
+  isUpdate: boolean,
+): Promise<{metadata: Record<string, unknown>; blobs: CollectedBlob[]}> {
   if (!isRecord(raw))
-    throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/apps (Triggers)')
-  const source = normalizeAgentTriggerSource(raw.source as api.AgentTriggerSource)
+    throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/triggers')
+  // An update changes only what it names: {enabled: false} alone turns a trigger off.
+  const source =
+    raw.source === undefined && isUpdate ? undefined : normalizeAgentTriggerSource(raw.source as api.AgentTriggerSource)
   if (raw.tool !== undefined && raw.tool !== null && (typeof raw.tool !== 'string' || !raw.tool.startsWith('hm://')))
     throw new APIError(400, 'options.trigger.tool is the hm:// URL of a tool of the same app or agent')
   if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean')
     throw new APIError(400, 'options.trigger.enabled is true or false')
   const {ops, blobs} = await triggerDocumentOps({
-    source,
-    ...(typeof raw.tool === 'string' ? {tool: raw.tool} : {}),
+    ...(source ? {source} : {}),
+    ...(typeof raw.tool === 'string' ? {tool: raw.tool} : raw.tool === null ? {tool: null} : {}),
     ...(raw.input !== undefined ? {input: raw.input} : {}),
     ...(raw.enabled !== undefined ? {enabled: raw.enabled as boolean} : {}),
   })
   const metadata: Record<string, unknown> = {type: HM_TRIGGER_TYPE}
+  // A null clears an attribute: tool: null makes an agent's trigger start a session again.
   for (const op of ops)
-    if (op.type === 'SetAttributes')
-      for (const attr of op.attrs) if (attr.value !== null) metadata[attr.key[0]!] = attr.value
+    if (op.type === 'SetAttributes') for (const attr of op.attrs) metadata[attr.key[0]!] = attr.value
   return {metadata, blobs}
 }
 
@@ -14805,6 +14810,8 @@ function triggerListingEntry(row: AgentTriggerRow): Record<string, unknown> {
     name: row.name,
     id: row.id,
     status: row.merged_into ? 'combined' : row.enabled ? 'active' : 'disabled',
+    // A trigger document is edited as that document, not through ~/triggers.
+    ...(row.document_id ? {document: row.document_id} : {}),
     ...(row.merged_into ? {mergedInto: row.merged_into} : {}),
     type: source.type,
     when: triggerSourceSummaryLine(source),
@@ -15309,7 +15316,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
             )}) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.`,
           ]
         : []),
-      'Prefer trigger documents: publish a trigger under your agent document (or an app) with write and options.trigger (read ~/tools/write/apps, Triggers); it is listed in your document and your user sees it there. Triggers written to ~/triggers/<name> are published as documents for you when you can write your document. Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
+      'Prefer trigger documents: publish a trigger under your agent document (or an app) with write and options.trigger (read ~/tools/write/triggers); it is listed in your document and your user sees it there. Triggers written to ~/triggers/<name> are published as documents for you when you can write your document. Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
       'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
       "Delegation is budgeted: `delegation` shows your thoroughness preset and its maximum depth and children per run; a session may override the preset. Each turn's system prompt tells you your current depth and how much room your children have; a leaf worker gets no delegate verb at all.",
       'Your definition (name, model, system prompt, grants, signing keys, thoroughness) is edited by the user in the desktop; you cannot change it yourself.',
@@ -16138,7 +16145,8 @@ export async function executeWriteVerb(
     // input template, or for an agent nothing: the document's body starts a session). The source
     // and input are published as DAG-CBOR blobs beside the change. A trigger lives under an app or
     // an agent, like a tool.
-    const triggerFields = options.trigger === undefined ? null : await resolveWriteTrigger(options.trigger)
+    const triggerFields =
+      options.trigger === undefined ? null : await resolveWriteTrigger(options.trigger, action === 'update')
     if (triggerFields && (pageFolder || toolFolder))
       throw new APIError(400, 'A document is one of a page, a tool or a trigger.')
     let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined

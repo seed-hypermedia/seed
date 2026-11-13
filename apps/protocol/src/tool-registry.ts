@@ -96,7 +96,7 @@ const readVerb = {
     'Read anything you can address. One verb for your whole world; the address shape picks the source:',
     '- `~/memory/<path>` — a file in your persistent memory. A directory path (or `~/memory/`) lists entries with sizes.',
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
-    '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all.',
+    '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all, including your trigger documents (read those by their hm:// address too).',
     '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
     '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to). A typed document (metadata `attributesSchema`, or a parent with `childAttributesSchema`) also returns `schema`: the type it conforms to, `via` (own or inherited), the `required` metadata fields, the `missing` ones, and `violations`.',
     '- A comment id is `<authorUid>/<tsid>` (the value in replyTo, replyParent, threadRoot and activity `comment.id` fields). Read a comment at `hm://<authorUid>/<tsid>` — a bare `<authorUid>/<tsid>` works too — and the result includes the whole thread it belongs to (oldest first, the requested comment marked) plus the exact write call that replies to it. Never prefix a comment id with the target document: `hm://<docUid>/<authorUid>/<tsid>` is not an address (it is corrected when recognizable, but do not rely on it).',
@@ -157,7 +157,7 @@ const writeVerb = {
   description: [
     'Write anything you can address. The address shape picks the destination:',
     '- `~/memory/<path>` — files: replace content, delete, download a URL, or save an attachment. Details: `~/tools/write/memory`.',
-    '- `~/triggers/<name>` — automations: create, edit, enable, disable, or delete. Details: `~/tools/write/triggers`.',
+    '- triggers — automations. Prefer a trigger document under your agent document or an app (`hm://…` with `options.trigger`); `~/triggers/<name>` stores one on the server, for what a document cannot express yet. Details: `~/tools/write/triggers`.',
     '- `ipfs://` — publish a memory file or attachment, or a JSON object given as `content` (a schema, an object that follows one, a signed blob). Details: `~/tools/write/ipfs`.',
     '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
     '  - `~/tools/write/apps` — build an app: the only home for tools and pages. "Make a tool" means a tool resource in an app (or an agent); there are no private tools (`~/tools/write/tools`).',

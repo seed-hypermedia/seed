@@ -26,7 +26,7 @@ export type AppParent = {id: UnpackedHypermediaId; document: HMDocument}
 export const TOOL_OUTSIDE_APP_ERROR = `A tool lives directly under an app or an agent. Write the app first (a document with metadata.type "${HM_APP_TYPE}"), or use an agent's document, then write the tool at hm://<account>/<app or agent path>/<tool name>. Read ~/tools/write/apps.`
 
 /** Why a trigger was refused: it was not written directly under an app or an agent. */
-export const TRIGGER_OUTSIDE_APP_ERROR = `A trigger lives directly under an app or an agent, like a tool: write it at hm://<account>/<app or agent path>/<trigger name>. Read ~/tools/write/apps (Triggers).`
+export const TRIGGER_OUTSIDE_APP_ERROR = `A trigger lives directly under an app or an agent, like a tool: write it at hm://<account>/<app or agent path>/<trigger name>. Read ~/tools/write/triggers.`
 
 /**
  * The app that a new document of `type` at `childId` belongs to (`app` is null when it is not an

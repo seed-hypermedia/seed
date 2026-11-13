@@ -38,6 +38,6 @@ Apps get a **Triggers** tab beside Tools and Pages, and agents list their trigge
 
 # For agents
 
-Agents publish triggers with the write verb's `options.trigger` (`{source, tool?, input?, enabled?}`): the publisher stores the source and input, sets the type and lists the trigger in its host. See the Triggers section of `~/tools/write/apps`. An agent's prompt lists its own triggers beside its tools.
+Agents publish triggers with the write verb's `options.trigger` (`{source, tool?, input?, enabled?}`): the publisher stores the source and input, sets the type and lists the trigger in its host. An update changes only what it names (`{enabled: false}` turns a trigger off, `{tool: null}` makes an agent's trigger start a session again). Agents learn this from `~/tools/write/triggers`, which leads with trigger documents and keeps `~/triggers/<name>` for what a document cannot express yet, and from the Triggers section of `~/tools/write/apps`. An agent's prompt lists its own trigger documents beside its tools, and `~/triggers/` lists all its triggers with their firings, naming each trigger's document.
 
 Source: `frontend/packages/client/src/apps.ts` (`triggerDocumentOps`, `triggerDocumentRefs`), `apps/src/trigger-documents.ts` (reading a host's triggers), `apps/src/api-service.ts` (`syncTriggerDocuments`, `migrateStoredTriggersToDocuments`, `#fireAppTrigger`), `frontend/packages/ui/src/apps/trigger-view.tsx`.
