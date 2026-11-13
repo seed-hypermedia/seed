@@ -2,7 +2,7 @@
 name: Seed CLI
 summary: The seed-cli reference, from install and signing keys through every command group and flag, with the commands this documentation folder is published with.
 ---
-The Seed CLI (`seed-cli`) reads and writes the Hypermedia network from a terminal. It signs everything locally with an Ed25519 [key](./keys.md) you hold. It talks to any Seed [site](../protocol/sites.md) over the [Seed API](./web-api.md), and prints [documents](../protocol/documents.md) as markdown you can edit and send back. Agents script Seed with it too: a Claude Code session with the [seed-cli skill](./app-environment.md) runs these same commands. <!-- id:BvAYnvta -->
+The Seed CLI (`seed-cli`) reads and writes the Hypermedia network from a terminal. It signs everything locally with an Ed25519 [key](./keys.md) you hold. It talks to any Seed [site](../protocol/sites.md) over the [Seed API](./web-api.md), and prints [documents](../protocol/documents.md) as markdown you can edit and send back. Agents script Seed with it too: a Claude Code session with the [seed-cli skill](./agents.md) runs these same commands. <!-- id:BvAYnvta -->
 
 # Install <!-- id:XCJLULjs -->
 
@@ -112,7 +112,7 @@ Two things are refused before anything is published: frontmatter whose YAML does
 
 # draft <!-- id:s6g4Q_0z -->
 
-[Drafts](../protocol/documents.md) are local files the [desktop app](../apps/desktop.md) also sees. `draft create -f <file>` parses and validates input and saves it as `<slug>_<id>.md` in the `drafts/` folder of the [desktop app](../apps/desktop.md)'s user data directory (`Seed-local` with `--dev`; `SEED_CLI_DRAFTS_DIR` overrides), with an entry in the app's `index.json` draft index. `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, and `--visibility PUBLIC|PRIVATE` sets its [visibility](../protocol/privacy.md). `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app. See [Using Seed from your own agent](./app-environment.md). <!-- id:1AfMtS9j -->
+[Drafts](../protocol/documents.md) are local files the [desktop app](../apps/desktop.md) also sees. `draft create -f <file>` parses and validates input and saves it as `<slug>_<id>.md` in the `drafts/` folder of the [desktop app](../apps/desktop.md)'s user data directory (`Seed-local` with `--dev`; `SEED_CLI_DRAFTS_DIR` overrides), with an entry in the app's `index.json` draft index. `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, and `--visibility PUBLIC|PRIVATE` sets its [visibility](../protocol/privacy.md). `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app. See [Using Seed from your own agent](./agents.md). <!-- id:1AfMtS9j -->
 
 # space <!-- id:VYbYjx_0 -->
 
@@ -182,7 +182,7 @@ The CLI is a client of the [Seed API](./web-api.md) and nothing else, except `sp
 
 ## Agents <!-- id:4PWuqJLM -->
 
-The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./app-environment.md) has the workflow. [Seed Agents](../agent.md) expose the same operations through their [`read`](../app-environment/read.md) and [`write`](../app-environment/write.md) verbs. <!-- id:bSJNd5GE -->
+The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./agents.md) has the workflow. [Seed Agents](../agent.md) expose the same operations through their [`read`](../app-environment/read.md) and [`write`](../app-environment/write.md) verbs. <!-- id:bSJNd5GE -->
 
 # See also <!-- id:lZnXkUAB -->
 
@@ -190,6 +190,6 @@ The CLI is the recommended way for an external agent to touch Seed. Run it as `n
 - [The Seed CLI app page](../apps/cli.md), for where the code lives and how it is tested <!-- id:PEaV_SgZ -->
 - [Publish a folder](./publish-a-folder.md) <!-- id:DQ2RF-Di -->
 - [Query grammar](./query-grammar.md) <!-- id:hogVlMfc -->
-- [Using Seed from your own agent](./app-environment.md) <!-- id:tGU9ay8W -->
+- [Using Seed from your own agent](./agents.md) <!-- id:tGU9ay8W -->
 - [SDK](./sdk.md) <!-- id:Txl_sF-C -->
 - [Seed API](./web-api.md) <!-- id:9goznpU9 -->
