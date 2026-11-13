@@ -2,10 +2,7 @@ import {reconcileChildRemovalIntent} from '@shm/shared/utils/confirmed-child-del
 import {getCleanupJobParent} from '@shm/shared/models/document-card-cleanup-machine'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {
-  executeConfirmedChildDeletion,
-  resolveDirectDocumentReferences,
-} from '@shm/shared/utils/confirmed-child-deletion'
+import {contentReferencesDocument, executeConfirmedChildDeletion} from '@shm/shared/utils/confirmed-child-deletion'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {rebaseDocumentReferenceDraft, findPublishedCardPosition} from '@shm/shared/utils/document-reference-rebase'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
@@ -236,16 +233,9 @@ async function reconcileParentDraft(
     base = prepareHMDocument(document).content || []
   }
   const previousContent = editorBlocksToHMBlockNodes(draft.content || [])
-  function resolveTemporaryCards(blocks: any[]): any[] {
-    return blocks.map((block) => ({
-      ...block,
-      ...(job.operation === 'add' && job.childDraftId && block.props?.draftId === job.childDraftId
-        ? {props: {...block.props, draftId: '', url: getJobTargetDocumentId(job), revision: undefined}}
-        : {}),
-      children: resolveTemporaryCards(block.children || []),
-    }))
-  }
-  const mine = editorBlocksToHMBlockNodes(resolveTemporaryCards(draft.content || []))
+  // draftId survives the HM conversion, so the shared transform converts the
+  // tracked card and removes any duplicates for the same child.
+  const mine = editorBlocksToHMBlockNodes(draft.content || [])
   const result = rebaseDocumentReferenceDraft(
     {...job, sourceDocumentId: job.source?.id, targetDocumentId: job.target?.id},
     base,
@@ -393,8 +383,8 @@ function createCleanupActor() {
         removedBlockIds: 'removedBlockIds' in plan ? plan.removedBlockIds : [],
       })
       if (operation === 'add' && plan.changes.length && targetDocumentId) {
-        const references = await resolveDirectDocumentReferences((parentDocument as HMDocument).content || [])
-        if (references.ids.some((id) => id.id === targetDocumentId)) return {changes: [], removedBlockIds: []}
+        if (await contentReferencesDocument((parentDocument as HMDocument).content || [], targetDocumentId))
+          return {changes: [], removedBlockIds: []}
         if (job.cardParentId !== undefined) {
           for (const change of plan.changes) {
             if (change.op.case === 'moveBlock') {

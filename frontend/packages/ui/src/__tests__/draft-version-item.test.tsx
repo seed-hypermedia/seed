@@ -33,6 +33,7 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
       },
     }),
   useDocumentSend: () => sendMock,
+  selectDiscardChildDraftIds: () => [],
   selectDraftHidden: (s: any) => s.context.draftHidden,
   selectPublishedVersion: (s: any) => s.context.publishedVersion,
 }))

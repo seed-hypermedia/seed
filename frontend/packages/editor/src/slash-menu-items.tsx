@@ -21,8 +21,6 @@ import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/ge
 import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
 import {HMBlockSchema} from './schema'
 
-const SHOW_NEW_DOCUMENT_SLASH_COMMAND = false
-
 function selectInsertedBlock(editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) {
   setTimeout(() => {
     const {view} = editor._tiptapEditor
@@ -61,7 +59,7 @@ export function getSlashMenuItems({
   const slashMenuItems = []
 
   // Embeds
-  if (SHOW_NEW_DOCUMENT_SLASH_COMMAND && onCreateInlineDraft && docId) {
+  if (onCreateInlineDraft && docId) {
     slashMenuItems.push({
       name: 'New document',
       aliases: ['document', 'new', 'subdoc', 'child', 'draft'],

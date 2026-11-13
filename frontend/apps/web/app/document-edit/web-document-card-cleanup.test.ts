@@ -238,6 +238,76 @@ describe('web document card cleanup', () => {
     })
   })
 
+  it('converts a stored draft card to a real card, drops duplicates, and keeps other draft cards', async () => {
+    const parentId = makeId('alice', ['conv-parent'])
+    const childId = makeId('alice', ['conv-parent', 'child'])
+    const draftCard = (id: string, draftId: string): HMBlockNode => ({
+      block: {id, type: 'Embed', link: '', attributes: {view: 'Card', draftId}} as any,
+      children: [],
+    })
+    await putWebDocDraft({
+      draftId: 'parent-draft-conv',
+      docId: parentId.id,
+      signingAccountId: 'alice',
+      content: [
+        paragraph('published'),
+        draftCard('temp-card', 'child-draft'),
+        draftCard('dup-card', 'child-draft'),
+        draftCard('other-card', 'other-draft'),
+      ],
+      baseBlocks: [paragraph('published')],
+      mineTouchedIds: [],
+      metadata: {name: 'Parent draft'},
+      deps: ['parent-version'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: 'alice',
+      editPath: ['conv-parent'],
+      cursorPosition: 5,
+    })
+    let publishedCard: HMBlockNode | null = null
+    const client = {
+      request: vi.fn(async () => ({
+        type: 'document',
+        document: {
+          ...makeDocument(parentId, [paragraph('published'), ...(publishedCard ? [publishedCard] : [])]),
+          version: publishedCard ? 'included-version' : 'parent-version',
+        },
+      })),
+      publishDocument: vi.fn(async () => {
+        publishedCard = {
+          block: {id: 'temp-card', type: 'Embed', link: childId.id, attributes: {view: 'Card'}},
+          children: [],
+        } as any
+      }),
+    }
+    const mod = await import('./web-document-card-cleanup')
+
+    await mod.enqueueWebDocumentCardCleanup(
+      {
+        operation: 'add',
+        parentDocumentId: parentId.id,
+        targetDocumentId: childId.id,
+        childDraftId: 'child-draft',
+        signingAccountUid: 'alice',
+      },
+      {client} as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
+
+    expect(client.publishDocument).toHaveBeenCalledTimes(1)
+    const move = (client.publishDocument.mock.calls[0] as any)[0].changes.find(
+      (change: any) => change.op.case === 'moveBlock',
+    )
+    expect(move.op.value).toMatchObject({blockId: 'temp-card', parent: '', leftSibling: 'published'})
+    const draft = await getWebDocDraft('parent-draft-conv')
+    expect(draft?.content.map((node) => node.block.id)).toEqual(['published', 'temp-card', 'other-card'])
+    expect(draft?.content[1]?.block).toMatchObject({type: 'Embed', link: childId.id})
+    expect((draft?.content[1]?.block as any).attributes?.draftId).toBeUndefined()
+    expect((draft?.content[2]?.block as any).attributes?.draftId).toBe('other-draft')
+  })
+
   it('includes a child even when an unrelated web link cannot be resolved', async () => {
     vi.stubGlobal(
       'fetch',

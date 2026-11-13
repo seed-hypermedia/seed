@@ -75,7 +75,8 @@ describe('EmbedEditorView', () => {
     })
 
     const options = useBlockNoteMock.mock.calls.at(-1)?.[0]
-    expect(options?.linkExtensionOptions?.openUrl).toBe(openUrl)
+    options?.linkExtensionOptions?.openUrl('https://example.com/docs', true)
+    expect(openUrl).toHaveBeenCalledWith('https://example.com/docs', true)
     expect(options?.linkExtensionOptions?.handleModifiedClicks).toBe(true)
     expect(options?.linkExtensionOptions?.renderHref('hm://uid1/docs')).toBe('https://dev.hyper.media/docs')
   })
