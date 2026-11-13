@@ -41,7 +41,6 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {FileCode2, FileInput, Globe, Settings} from 'lucide-react'
-import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,
@@ -186,7 +185,7 @@ function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | 
 
 export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
   const DocumentContentComponent = useClientDocumentEditor()
-  const {origin, originHomeId, experiments} = useUniversalAppContext()
+  const {origin, originHomeId} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
   const publishSpaceDraft = usePublishSpaceDraft()
@@ -201,15 +200,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {createAccount, content: createAccountContent} = useCreateAccount()
   const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
-
-  // Building-block entry points (desktop shows these under Developer Mode; web
-  // enables developerMode by default). "New Schema" is a new instance of the
-  // built-in meta-schema. The editor's own menu offers these too once open.
-  // Hidden when logged out: there is no key to publish the blob with.
-  const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
-    () => (experiments?.developerMode && userKeyPair ? blobBuilderMenuItems(navigate) : []),
-    [experiments?.developerMode, userKeyPair, navigate],
-  )
 
   // Editor accessor — populated by the editor's onEditorReady callback.
   const editorRef = useRef<any>(null)
@@ -727,7 +717,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           : null,
         moveMenuItem,
         deleteMenuItem,
-        ...schemaBuilderMenuItems,
       ].filter(Boolean) as MenuItemType[],
     [
       agentProfileMenuItem,
@@ -735,7 +724,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       deleteMenuItem,
       moveMenuItem,
       webMenuItems,
-      schemaBuilderMenuItems,
       isHomeTarget,
       canOpenSpaceSettings,
       navigate,

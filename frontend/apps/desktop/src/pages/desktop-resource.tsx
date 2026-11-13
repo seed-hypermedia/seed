@@ -110,7 +110,6 @@ import {pageFrameStyles} from '@shm/ui/container'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split, Globe} from 'lucide-react'
-import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {WorldBuilderDialog} from '@/components/world-builder-dialog'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -1137,11 +1136,9 @@ export default function DesktopResourcePage() {
   })
 
   // Experimental building blocks live behind the Hypermedia Schemas dev toggle
-  // (Settings → Developers → Developer Tools); the blob/schema editor pages offer these too.
+  // (Settings → Developers → Developer Tools).
   // They publish signed blobs, so they need a selected account.
   if (experiments?.hypermediaSchemas && selectedAccountId) {
-    menuItems.push(...blobBuilderMenuItems(navigate))
-
     // The World Builder: scaffold a typed ontology (types + folders + starter
     // pages) under this document — the showcase for typed documents.
     if (canEdit) {

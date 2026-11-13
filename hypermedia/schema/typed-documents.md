@@ -65,8 +65,8 @@ Three kinds of field make a typed document work like a record: <!-- id:7vSmoGzD 
 
 # Doing it yourself <!-- id:lasXj_Va -->
 
-Turn on Developer Mode, then work from any document's options menu: <!-- id:eTXH_hda -->
-  1. **New Schema** opens the schema editor. Build the struct of attributes. Publishing mints the blob and gives you an `ipfs://` CID. <!-- id:jpM2R4ld -->
+Turn on Developer Mode, then: <!-- id:eTXH_hda -->
+  1. **New Schema**, in the options menu of a type's page, opens the schema editor. Build the struct of attributes. Publishing mints the blob and gives you an `ipfs://` CID. <!-- id:jpM2R4ld -->
   2. On the page that should be the type's home, set `schemaDefinition` to that CID in the Attributes editor. The page now shows the schema tag and the New Document and New Collection buttons. <!-- id:r5qfTMyI -->
   3. On a page that should be an instance, set `attributesSchema` to the home page's `hm://` URL, or press **New Document** on the type's page. Required fields appear immediately. <!-- id:fTgpB37E -->
   4. On a folder, set `childAttributesSchema` to the same URL to type everything beneath it, or press **New Collection** on the type's page. To type a folder's children without a separate type page, choose **Children Attributes Schema** from the folder's options menu and add the fields there. <!-- id:aKAQIRBf -->
