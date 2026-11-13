@@ -14,7 +14,7 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
-import {CreateAppDialog, CreateToolDialog} from '@shm/ui/apps/create-dialogs'
+import {CreateAppDialog, CreateToolDialog, CreateTriggerDialog} from '@shm/ui/apps/create-dialogs'
 import type {AppRef} from '@shm/ui/apps/publish'
 import {appResourceKind} from '@shm/ui/apps/tabs'
 import {useAgentServerOptions} from '@shm/ui/agents/models'
@@ -32,7 +32,7 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench} from 'lucide-react'
+import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench, Zap} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -69,6 +69,7 @@ export function useCreateDocumentMenuItem({
   const locationKind = appResourceKind(locationDocument?.metadata.type)
   const createApp = useAppDialog(CreateAppDialog)
   const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -84,7 +85,7 @@ export function useCreateDocumentMenuItem({
   const menuItem = useMemo<MenuItemType | null>(() => {
     if (!myAccountIds.data?.length) return null
     if (!canEdit || !canCreateChildren) return null
-    if (locationKind === 'tool') return null
+    if (locationKind === 'tool' || locationKind === 'trigger') return null
     if (locationKind === 'app')
       return {
         key: 'new',
@@ -96,6 +97,12 @@ export function useCreateDocumentMenuItem({
             label: 'Tool',
             icon: <Wrench className="size-4" />,
             onClick: () => locationDocument && createTool.open({app: {id: locationId, document: locationDocument}}),
+          },
+          {
+            key: 'new-trigger',
+            label: 'Trigger',
+            icon: <Zap className="size-4" />,
+            onClick: () => locationDocument && createTrigger.open({host: {id: locationId, document: locationDocument}}),
           },
         ],
       }
@@ -184,6 +191,7 @@ export function useCreateDocumentMenuItem({
         {createAgent.content}
         {createApp.content}
         {createTool.content}
+        {createTrigger.content}
       </>
     ),
   }
@@ -433,9 +441,9 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
   if (!currentDocument || !canEditCurrent) return null
   // Only documents and collections take children; an agent's page is the agent.
   if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
-  // An app's New makes its tools; a tool takes no children.
+  // An app's New makes its tools and triggers; a tool or trigger takes no children.
   const kind = appResourceKind(currentDocument.metadata?.type)
-  if (kind === 'tool') return null
+  if (kind === 'tool' || kind === 'trigger') return null
   if (kind === 'app') return <NewToolButton app={{id: locationId, document: currentDocument}} />
 
   return (
@@ -452,9 +460,10 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
   )
 }
 
-/** The New button on an app: tools are the only children made here (agents build its pages). */
+/** The New button on an app: tools and triggers are made here (agents build its pages). */
 function NewToolButton({app}: {app: AppRef}) {
   const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
   return (
     <>
       <DocumentCreateButton
@@ -462,9 +471,16 @@ function NewToolButton({app}: {app: AppRef}) {
         onImport={() => {}}
         options={[
           {key: 'new-tool', label: 'Tool', icon: <Wrench className="size-4" />, onSelect: () => createTool.open({app})},
+          {
+            key: 'new-trigger',
+            label: 'Trigger',
+            icon: <Zap className="size-4" />,
+            onSelect: () => createTrigger.open({host: app}),
+          },
         ]}
       />
       {createTool.content}
+      {createTrigger.content}
     </>
   )
 }

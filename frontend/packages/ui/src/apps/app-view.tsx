@@ -1,11 +1,4 @@
-import {
-  appChildKind,
-  appEmbeddedChildren,
-  HM_TRIGGER_TYPE,
-  isAppChildId,
-  triggerDocumentOps,
-  type AppChildKind,
-} from '@seed-hypermedia/client/apps'
+import {appChildKind, appEmbeddedChildren, isAppChildId, type AppChildKind} from '@seed-hypermedia/client/apps'
 import {
   packHmId,
   unpackHmId,
@@ -16,9 +9,8 @@ import {
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import type {DocumentRoute} from '@shm/shared/routes'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Blocks, FileCode2, Plus, Wrench, Zap} from 'lucide-react'
-import {useMemo, useState, type ReactNode} from 'react'
-import {useUniversalClient} from '@shm/shared'
+import {Blocks, FileCode2, Wrench, Zap} from 'lucide-react'
+import {useMemo, type ReactNode} from 'react'
 import {Button} from '../button'
 import {DocumentPageView, documentPageCid} from '../document-page'
 import {SizableText} from '../text'
@@ -26,8 +18,6 @@ import {toast} from '../toast'
 import {useAppsPublisher, type AppRef} from './publish'
 import {AppSettingsTab} from './app-settings'
 import {AppRunStatus, useAppRun, useAppServerUrl} from './running'
-import {freeChildId} from './create-dialogs'
-import {DEFAULT_TRIGGER_SOURCE} from './trigger-view'
 
 /** One of an app's children, as its tabs list them. */
 export type AppChildItem = {id: UnpackedHypermediaId; kind: AppChildKind | null; metadata?: HMMetadata}
@@ -179,7 +169,6 @@ function AppChildrenTab({
   const noun = kind
   return (
     <TabColumn>
-      {kind === 'trigger' && canEdit ? <NewTriggerButton host={app} /> : null}
       {!children.isLoading && !listed.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
           <SizableText weight="bold">No {noun}s yet.</SizableText>
@@ -187,7 +176,7 @@ function AppChildrenTab({
             {kind === 'tool'
               ? 'A tool is one function of this app: what it takes, what it returns, and its code. Add one with New in the toolbar.'
               : kind === 'trigger'
-                ? 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs.'
+                ? 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
                 : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
           </SizableText>
         </div>
@@ -286,54 +275,5 @@ function AppHomeRunStatus({app}: {app: AppRef}) {
         error={status.isError ? status.error : undefined}
       />
     </button>
-  )
-}
-
-/** Creates a trigger under an app or agent (listed on it in the same publish) and opens it. */
-export function useCreateTriggerDocument(host: AppRef | null) {
-  const client = useUniversalClient()
-  const publisher = useAppsPublisher()
-  const navigate = useNavigate()
-  const [creating, setCreating] = useState(false)
-  async function create() {
-    if (!host) return
-    setCreating(true)
-    try {
-      const id = await freeChildId(client, host.id, 'New trigger')
-      // It starts on, as an hourly schedule. Until its page says what it does (a tool, or a
-      // session message) the server cannot use it, so it does nothing yet.
-      const fields = await triggerDocumentOps({source: DEFAULT_TRIGGER_SOURCE})
-      await publisher.create(
-        id,
-        [
-          {
-            type: 'SetAttributes',
-            attrs: [
-              {key: ['name'], value: 'New trigger'},
-              {key: ['type'], value: HM_TRIGGER_TYPE},
-            ],
-          },
-          ...fields.ops,
-        ],
-        host,
-        fields.blobs,
-      )
-      navigate({key: 'document', id})
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setCreating(false)
-    }
-  }
-  return {create, creating}
-}
-
-/** The New trigger button of an app's or agent's Triggers tab. */
-export function NewTriggerButton({host}: {host: AppRef}) {
-  const {create, creating} = useCreateTriggerDocument(host)
-  return (
-    <Button size="sm" variant="outline" className="w-fit" disabled={creating} onClick={() => void create()}>
-      <Plus className="size-4" /> New trigger
-    </Button>
   )
 }

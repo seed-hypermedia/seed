@@ -64,7 +64,7 @@ import {
   type AgentWriteScope,
 } from './write-access'
 import {useAppsPublisher} from '../apps/publish'
-import {useCreateTriggerDocument} from '../apps/app-view'
+import {CreateTriggerDialog} from '../apps/create-dialogs'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {agentSigningKeys, primaryAgentSigningKey} from './primary-identity'
@@ -230,7 +230,7 @@ export function AgentDetailPage({
     agentDocId && agentDocument.data?.type === 'document'
       ? {id: agentDocId, document: agentDocument.data.document}
       : null
-  const createTriggerDocument = useCreateTriggerDocument(agentHost)
+  const createTriggerDocumentDialog = useAppDialog(CreateTriggerDialog)
   const editNameDialog = useAppDialog(EditAgentNameDialog)
   const publisher = useAppsPublisher()
   const modelProviders = useModelProviders(serverUrl, selectedAccountId, agentId)
@@ -573,7 +573,7 @@ export function AgentDetailPage({
           ? () =>
               // A mounted agent's triggers are documents under it.
               agentHost
-                ? void createTriggerDocument.create()
+                ? createTriggerDocumentDialog.open({host: agentHost})
                 : createTriggerDialog.open({serverUrl, selectedAccountId, agentId})
           : undefined
       }
@@ -639,6 +639,7 @@ export function AgentDetailPage({
           {providersDialog.content}
           {manageAccountsDialog.content}
           {editNameDialog.content}
+          {createTriggerDocumentDialog.content}
         </>
       ) : null}
       {agent.data && isTriggerDetail ? (

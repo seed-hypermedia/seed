@@ -34,7 +34,7 @@ An app opens as tabs instead of a text document, like an agent:
 
 A tool opens inside its app: the app's tabs stay above it with **Tools** selected, and the tool shows like an agent session, a header with a back button and its name, then one page with its description, input and output schemas (edited with the schema editor) and its `index.ts`. **Save** publishes every change as one new version; a code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes it and takes it off its app's list.
 
-**New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settings`. A trigger calls one of the app's tools when something happens, while the app runs: see [triggers](./triggers.md).
+**New → App** in a space's New menu creates an app. Inside an app, New offers **Tool** and **Trigger**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settings`. A trigger calls one of the app's tools when something happens, while the app runs: see [triggers](./triggers.md).
 
 # For agents
 

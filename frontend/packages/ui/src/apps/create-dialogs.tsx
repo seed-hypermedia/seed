@@ -1,4 +1,10 @@
-import {HM_APP_TYPE, HM_TOOL_TYPE, TOOL_CODE_TEMPLATE} from '@seed-hypermedia/client/apps'
+import {
+  HM_APP_TYPE,
+  HM_TOOL_TYPE,
+  HM_TRIGGER_TYPE,
+  TOOL_CODE_TEMPLATE,
+  triggerDocumentOps,
+} from '@seed-hypermedia/client/apps'
 import type {DocumentOperation} from '@seed-hypermedia/client/change'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
@@ -15,6 +21,7 @@ import {Textarea} from '../components/textarea'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {toolCodeFolder, useAppsPublisher, type AppRef} from './publish'
+import {DEFAULT_TRIGGER_SOURCE} from './trigger-view'
 
 function attrs(values: Record<string, string>): DocumentOperation {
   return {
@@ -26,7 +33,7 @@ function attrs(values: Record<string, string>): DocumentOperation {
 }
 
 /** The free path for `name` under `parent`: its slug, or the slug with a number when taken. */
-export async function freeChildId(
+async function freeChildId(
   client: ReturnType<typeof useUniversalClient>,
   parent: UnpackedHypermediaId,
   name: string,
@@ -170,6 +177,43 @@ export function CreateToolDialog({input, onClose}: {input: {app: AppRef}; onClos
           [attrs({name, summary, type: HM_TOOL_TYPE, code: folder.code})],
           input.app,
           folder.blobs,
+        )
+        toast.success(`Created ${name}`)
+        navigate({key: 'document', id})
+      }}
+    />
+  )
+}
+
+/**
+ * Creates a trigger inside an app or agent, lists it there and opens it, like a new tool. It starts
+ * on, as an hourly schedule, and does nothing until its page says what it does.
+ */
+export function CreateTriggerDialog({input, onClose}: {input: {host: AppRef}; onClose: () => void}) {
+  const client = useUniversalClient()
+  const publisher = useAppsPublisher()
+  const navigate = useNavigate()
+  const isAgent = input.host.document.metadata.type === 'hm://hyper.media/agent'
+  return (
+    <NameAndSummaryForm
+      title="New trigger"
+      description={
+        isAgent
+          ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, a webhook, or activity in Hypermedia.'
+          : 'A trigger calls one of this app’s tools when something happens: on a schedule, a webhook, or activity in Hypermedia. It fires while the app runs.'
+      }
+      namePlaceholder="morning-forecast"
+      summaryPlaceholder="What the trigger is for"
+      submitLabel="Create trigger"
+      onClose={onClose}
+      onSubmit={async ({name, summary}) => {
+        const id = await freeChildId(client, input.host.id, name)
+        const fields = await triggerDocumentOps({source: DEFAULT_TRIGGER_SOURCE})
+        await publisher.create(
+          id,
+          [attrs({name, summary, type: HM_TRIGGER_TYPE}), ...fields.ops],
+          input.host,
+          fields.blobs,
         )
         toast.success(`Created ${name}`)
         navigate({key: 'document', id})
