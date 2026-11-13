@@ -122,7 +122,7 @@ The vault's `/vault/delegate` page and the client's redirect page are ordinary p
 
 ## Agents <!-- id:nvCY8ikE -->
 
-[Seed Agents](../agent.md) do not use this flow. An agent signs with a server-held identity of its own and holds a capability from the account, which is the headless shape of the same idea. An external agent running in a browser could use it exactly as a site does. See [Using Seed from your own agent](./app-environment.md). <!-- id:mieGcINK -->
+[Seed Agents](../agent.md) do not use this flow. An agent signs with a server-held identity of its own and holds a capability from the account, which is the headless shape of the same idea. An external agent running in a browser could use it exactly as a site does. See [Using Seed from your own agent](./agents.md). <!-- id:mieGcINK -->
 
 # See also <!-- id:6dmizUGd -->
 

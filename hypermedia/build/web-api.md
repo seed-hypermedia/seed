@@ -307,7 +307,7 @@ The [Seed CLI](./cli.md) is a Seed API client. `seed-cli --server https://exampl
 
 ## Agents <!-- id:_2P6hGy6 -->
 
-Seed Agents read and write hypermedia through this API with delegated keys. Their `search`, `query` and `attributes` tools map to the `Search`, `Query`/`QueryDocuments` and attribute keys, and their [`write`](../app-environment/write.md) verb ends in `PublishBlobs`. An external agent, such as Claude Code with the seed-cli skill, uses the CLI or `curl` exactly as above. An agent with no key of its own can read everything public. To write, it needs a key and a capability from the space owner, which [Using Seed from your own agent](./app-environment.md) walks through. <!-- id:vvHfEBMh -->
+Seed Agents read and write hypermedia through this API with delegated keys. Their `search`, `query` and `attributes` tools map to the `Search`, `Query`/`QueryDocuments` and attribute keys, and their [`write`](../app-environment/write.md) verb ends in `PublishBlobs`. An external agent, such as Claude Code with the seed-cli skill, uses the CLI or `curl` exactly as above. An agent with no key of its own can read everything public. To write, it needs a key and a capability from the space owner, which [Using Seed from your own agent](./agents.md) walks through. <!-- id:vvHfEBMh -->
 
 # See also <!-- id:ueo6GDk6 -->
 

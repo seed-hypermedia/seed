@@ -226,7 +226,7 @@ The client is a thin layer over the [Seed API](./web-api.md). Anything the SDK d
 
 ## Agents <!-- id:RZwid2d1 -->
 
-Seed Agents call these same functions when an agent's [`write`](../app-environment/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./app-environment.md). <!-- id:H20iogTF -->
+Seed Agents call these same functions when an agent's [`write`](../app-environment/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
 
 # See also <!-- id:WLNqrO8T -->
 
