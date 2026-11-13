@@ -1038,8 +1038,8 @@ export class Service {
   readonly #agentDocumentPromptCache = new Map<string, AgentDocumentPrompt>()
   /** Trigger documents already read, by id; an entry is reused while its version is unchanged. */
   readonly #triggerDocumentCache = new Map<string, triggerDocuments.TriggerDocument>()
-  /** Stored triggers this process already tried to publish as documents (retried after a restart). */
-  readonly #triggerMigrationTried = new Set<string>()
+  /** When each stored trigger may next be tried as a document (never, for one with no document form). */
+  readonly #triggerMigrationRetryAt = new Map<string, number>()
   /** Why listed trigger documents could not be used, by host id then document id. */
   readonly #triggerDocumentErrors = new Map<string, Map<string, string>>()
   /** Where each mounted agent's keys may write, by agent id: refreshed at most once a minute. */
@@ -3765,7 +3765,8 @@ export class Service {
    * Publishes triggers stored only on this server as trigger documents under their mounted agent,
    * signed by the agent's primary account, and links each row to its document so it keeps its id
    * (and webhook URL), firings and claims. A trigger whose agent cannot write there yet stays stored
-   * here and is tried again after a restart. Returns how many were published.
+   * here and is tried again every few minutes; one whose action has no document form yet (a script,
+   * a wake, a built-in tool) stays stored. Returns how many were published.
    */
   async migrateStoredTriggersToDocuments(options: {signal?: AbortSignal} = {}): Promise<number> {
     const rows = stmt<AgentTriggerRow, []>(
@@ -3776,11 +3777,14 @@ export class Service {
     let migrated = 0
     for (const row of rows) {
       if (options.signal?.aborted) break
-      if (this.#triggerMigrationTried.has(row.id)) continue
-      this.#triggerMigrationTried.add(row.id)
+      if ((this.#triggerMigrationRetryAt.get(row.id) ?? 0) > Date.now()) continue
       try {
         if (await this.#publishStoredTrigger(row)) migrated += 1
+        // One with no document form is not tried again until a restart brings new code.
+        else this.#triggerMigrationRetryAt.set(row.id, Number.POSITIVE_INFINITY)
       } catch (error) {
+        // No write access yet, or the network: try again in a while.
+        this.#triggerMigrationRetryAt.set(row.id, Date.now() + TRIGGER_MIGRATION_RETRY_MS)
         console.warn('[Agents Triggers] Trigger stays stored on the server', {
           triggerId: row.id,
           agentId: row.agent_id,
@@ -3791,7 +3795,7 @@ export class Service {
     return migrated
   }
 
-  /** Publishes one stored trigger as a document under its agent; false when it cannot be expressed as one. */
+  /** Publishes one stored trigger as a document under its agent; false when it has no document form. */
   async #publishStoredTrigger(row: AgentTriggerRow): Promise<boolean> {
     const trigger = agentTriggerRowToInfo(row)
     const agentDocId = unpackHmId(trigger.agentId)
@@ -3805,7 +3809,7 @@ export class Service {
         !continuation.systemPrompt &&
         continuation.includeAgentSystemPrompt !== false &&
         !continuation.tools)
-    if (!toolCall && !plainSession) throw new Error(`a ${continuation?.kind} trigger has no document form yet`)
+    if (!toolCall && !plainSession) return false
     const definition = this.#getAgentInfo(trigger.account, trigger.agentId)?.definition
     const keyName = definition ? primarySigningKeyOf(definition) : undefined
     if (!keyName) throw new Error('the agent has no signing account')
@@ -8127,17 +8131,32 @@ export class Service {
           'agent document card',
         ).catch(() => null)
         const meta = found?.type === 'document' ? found.document.metadata : undefined
-        const kind = meta?.type === HM_TOOL_TYPE ? 'tool' : meta?.type === HM_PAGE_TYPE ? 'page' : 'document'
+        const kind =
+          meta?.type === HM_TOOL_TYPE
+            ? 'tool'
+            : meta?.type === HM_PAGE_TYPE
+              ? 'page'
+              : meta?.type === HM_TRIGGER_TYPE
+                ? 'trigger'
+                : 'document'
         return {kind, url: link, name: meta?.name || child.path?.at(-1) || link, summary: meta?.summary}
       }),
     )
     const line = (entry: NonNullable<(typeof entries)[number]>) =>
       `- ${entry.name}${entry.summary ? ` — ${entry.summary}` : ''} (${entry.url})`
     const tools = entries.filter((entry) => entry?.kind === 'tool') as NonNullable<(typeof entries)[number]>[]
-    const others = entries.filter((entry) => entry && entry.kind !== 'tool') as NonNullable<(typeof entries)[number]>[]
+    const triggers = entries.filter((entry) => entry?.kind === 'trigger') as NonNullable<(typeof entries)[number]>[]
+    const others = entries.filter((entry) => entry && entry.kind !== 'tool' && entry.kind !== 'trigger') as NonNullable<
+      (typeof entries)[number]
+    >[]
     const listing = [
       tools.length
         ? `\n\nYour tools (card embeds in your document; call one with call and its hm:// URL, read it for its input contract):\n${tools
+            .map(line)
+            .join('\n')}`
+        : '',
+      triggers.length
+        ? `\n\nYour triggers (documents that start a session with you, or call one of your tools, when something happens; read one to see when it fires, write it with options.trigger to change it):\n${triggers
             .map(line)
             .join('\n')}`
         : '',
@@ -14669,6 +14688,9 @@ function triggerIsDocumentMessage(documentId: string, verb: 'edit' | 'delete'): 
     ? `This trigger is the document ${documentId}: edit and publish that document to change it.`
     : `This trigger is the document ${documentId}: delete it, or remove its card from its app or agent, to delete the trigger.`
 }
+
+/** How long a stored trigger that could not be published waits before the next try. */
+const TRIGGER_MIGRATION_RETRY_MS = 10 * 60_000
 
 /** How long a trigger row linked to a document survives its host not listing it (propagation lag). */
 const TRIGGER_DOCUMENT_GRACE_MS = 10 * 60_000

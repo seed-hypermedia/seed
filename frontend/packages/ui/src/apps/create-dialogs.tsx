@@ -26,7 +26,7 @@ function attrs(values: Record<string, string>): DocumentOperation {
 }
 
 /** The free path for `name` under `parent`: its slug, or the slug with a number when taken. */
-async function freeChildId(
+export async function freeChildId(
   client: ReturnType<typeof useUniversalClient>,
   parent: UnpackedHypermediaId,
   name: string,

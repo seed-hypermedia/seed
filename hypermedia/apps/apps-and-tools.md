@@ -1,8 +1,8 @@
 ---
 name: Apps and Tools
-summary: An app is a document typed hm://hyper.media/app whose card embeds list its tools and pages; apps are the only home for pages and tools. A tool is a child document with schemas and an index.ts that runs on the app's server.
+summary: An app is a document typed hm://hyper.media/app whose card embeds list its tools, pages and triggers; apps are the only home for pages and tools. A tool is a child document with schemas and an index.ts that runs on the app's server.
 ---
-An **app** is a [document](../protocol/documents.md) whose [metadata](../metadata.md) declares `type: hm://hyper.media/app`. Its children are its **tools** and its [custom HTML pages](./document-pages.md), and nothing else. Apps are the only home for pages and tools: there is no standalone page, and an agent has no private tools. An agent's document can host tools and pages the same way (apps and agents are converging into one concept). Every child lives directly under the app, one path segment down (`/apps/weather/forecast` under `/apps/weather`), and is listed by a card embed in the app's content. The embeds are the source of truth: which children belong to the app, and in what order. Sharing the app shares the list; a reader who can see the app can fork it like any document.
+An **app** is a [document](../protocol/documents.md) whose [metadata](../metadata.md) declares `type: hm://hyper.media/app`. Its children are its **tools**, its [custom HTML pages](./document-pages.md) and its [triggers](./triggers.md), and nothing else. Apps are the only home for pages and tools: there is no standalone page, and an agent has no private tools. An agent's document can host tools and pages the same way (apps and agents are converging into one concept). Every child lives directly under the app, one path segment down (`/apps/weather/forecast` under `/apps/weather`), and is listed by a card embed in the app's content. The embeds are the source of truth: which children belong to the app, and in what order. Sharing the app shares the list; a reader who can see the app can fork it like any document.
 
 A **tool** is a document with `type: hm://hyper.media/tool`. Its metadata holds:
 
@@ -29,12 +29,12 @@ A writer of the app's space runs the app on an app server (its `appEnvironmentUr
 An app opens as tabs instead of a text document, like an agent:
 
 - **Home** shows the app's `homePage` (one of its own pages) running in place, or an overview with its tool and page counts.
-- **Tools** and **Pages** list the embedded children in order. Documents under the app that it does not list appear under **Not in this app**, with an **Add** button that lists them.
+- **Tools**, **Pages** and **Triggers** list the embedded children in order. Documents under the app that it does not list appear under **Not in this app**, with an **Add** button that lists them.
 - **Settings** edits the name and description. **Delete App** in the options menu removes the app with its tools and pages.
 
 A tool opens inside its app: the app's tabs stay above it with **Tools** selected, and the tool shows like an agent session, a header with a back button and its name, then one page with its description, input and output schemas (edited with the schema editor) and its `index.ts`. **Save** publishes every change as one new version; a code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes it and takes it off its app's list.
 
-**New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
+**New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settings`. A trigger calls one of the app's tools when something happens, while the app runs: see [triggers](./triggers.md).
 
 # For agents
 
