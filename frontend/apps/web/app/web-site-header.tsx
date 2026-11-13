@@ -1,6 +1,9 @@
 import {useState, type ReactNode} from 'react'
 import {useNavigate} from '@shm/shared/utils/navigation'
+import {CreateSpaceProvider} from '@shm/ui/create-space-context'
 import {SiteFileBrowserLayout} from '@shm/ui/site-file-browser-layout'
+import {useCreateSpaceDialog} from './web-create-space-dialog'
+import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {useWebCreateDocumentMenuItem} from './web-utils'
 import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -117,24 +120,28 @@ export function WebSidebarLayout({siteHomeId, children}: {siteHomeId: UnpackedHy
     canCreate: canEdit && !!signingAccountId,
     capabilityCid: capability && capability.id !== '_owner' ? capability.id : undefined,
   })
+  const createSpaceDialog = useCreateSpaceDialog()
   return (
-    <>
-      <SiteFileBrowserLayout
-        siteId={siteHomeId}
-        activeDocumentId={null}
-        siteName="Site"
-        mobileOpen={mobileOpen}
-        onMobileOpenChange={setMobileOpen}
-        createMenuItem={menuItem}
-        showDocumentBrowser={home ? readSpaceSettings(home.metadata).showDocumentBrowser : undefined}
-        onNavigate={(id) => {
-          setMobileOpen(false)
-          navigate({key: 'document', id})
-        }}
-      >
-        <div className="h-full overflow-y-auto">{children}</div>
-      </SiteFileBrowserLayout>
+    <CreateSpaceProvider open={createSpaceDialog.open}>
+      <WebDraftBreadcrumbProvider>
+        <SiteFileBrowserLayout
+          siteId={siteHomeId}
+          activeDocumentId={null}
+          siteName="Site"
+          mobileOpen={mobileOpen}
+          onMobileOpenChange={setMobileOpen}
+          createMenuItem={menuItem}
+          showDocumentBrowser={home ? readSpaceSettings(home.metadata).showDocumentBrowser : undefined}
+          onNavigate={(id) => {
+            setMobileOpen(false)
+            navigate({key: 'document', id})
+          }}
+        >
+          <div className="h-full overflow-y-auto">{children}</div>
+        </SiteFileBrowserLayout>
+      </WebDraftBreadcrumbProvider>
       {content}
-    </>
+      {createSpaceDialog.content}
+    </CreateSpaceProvider>
   )
 }

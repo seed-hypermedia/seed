@@ -8,6 +8,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {defaultJoinedSiteUid, hmId} from '@shm/shared'
 import {getRouteSpaceUid} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useOwnSpaceMissing} from '@shm/ui/create-space-context'
 import {SiteSidebar, SiteSidebarDocuments} from '@shm/ui/site-sidebar'
 import {useSiteSidebar} from '@shm/ui/site-sidebar-context'
 import {useEffect, useState} from 'react'
@@ -46,9 +47,12 @@ export function AppSidebar() {
   }, [routeSite])
   const sidebarSpaceUid = routeSite || lastSite || selectedAccountId || null
   const siteId = hmId(sidebarSpaceUid || defaultJoinedSiteUid)
+  // A space that doesn't exist yet is not somewhere a new window can open.
+  const ownSpaceMissing = useOwnSpaceMissing()
+  const reportedSpaceUid = ownSpaceMissing && sidebarSpaceUid === selectedAccountId ? null : sidebarSpaceUid
   useEffect(() => {
-    ipc.send('windowSidebarSpace', {spaceUid: sidebarSpaceUid})
-  }, [sidebarSpaceUid])
+    ipc.send('windowSidebarSpace', {spaceUid: reportedSpaceUid})
+  }, [reportedSpaceUid])
   const navigate = useNavigate()
   const sidebar = useSiteSidebar()
   return (

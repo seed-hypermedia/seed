@@ -42,7 +42,10 @@ import {AutoUpdater} from '../components/auto-updater'
 import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
+import {useCreateSpaceDialog} from '../components/create-space-dialog'
+import {DesktopDraftBreadcrumbProvider} from '../components/desktop-draft-breadcrumb-provider'
 import {AppSidebar} from '../components/sidebar'
+import {CreateSpaceProvider} from '@shm/ui/create-space-context'
 import {TitleBar} from '../components/titlebar'
 import {WindowTitle} from '../components/window-title'
 import {BaseLoading, NotFoundPage} from './base'
@@ -218,6 +221,7 @@ export default function Main({className}: {className?: string}) {
     }),
     [isAssistantAvailable, shouldRenderAssistantPanel, assistantSessionId, handleSessionChange, handleCloseAssistant],
   )
+  const createSpaceDialog = useCreateSpaceDialog()
   const windowType = getWindowType()
   let titlebar: ReactElement | null = null
   let sidebar: ReactElement | null = null
@@ -279,38 +283,43 @@ export default function Main({className}: {className?: string}) {
           <ActivityPanelProvider>
             <BookmarksPanelProvider>
               <SidebarContextProvider>
-                {titlebar}
-                <PanelContent assistant={accessoryAssistant}>
-                  {sidebar}
-                  <Panel id="page">
-                    <div className="flex h-full min-h-0 flex-col">
-                      <div className="min-h-0 flex-1">
-                        <ErrorBoundary
-                          resetKeys={[routeKey]}
-                          FallbackComponent={RootAppError}
-                          onReset={() => {
-                            window.location.reload()
-                          }}
-                        >
-                          {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+                <DesktopDraftBreadcrumbProvider>
+                  <CreateSpaceProvider open={createSpaceDialog.open}>
+                    {titlebar}
+                    <PanelContent assistant={accessoryAssistant}>
+                      {sidebar}
+                      <Panel id="page">
+                        <div className="flex h-full min-h-0 flex-col">
+                          <div className="min-h-0 flex-1">
+                            <ErrorBoundary
+                              resetKeys={[routeKey]}
+                              FallbackComponent={RootAppError}
+                              onReset={() => {
+                                window.location.reload()
+                              }}
+                            >
+                              {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                          <Suspense fallback={<Fallback />}>
-                            {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                            {navR.key !== 'web' && (
-                              <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                                <NotificationInboxProvider value={DesktopNotificationInbox}>
-                                  <PageComponent />
-                                </NotificationInboxProvider>
-                              </AssistantPanelToggleContext.Provider>
-                            )}
-                          </Suspense>
-                        </ErrorBoundary>
-                      </div>
-                    </div>
-                  </Panel>
-                  <DesktopAccessoryPanel assistant={accessoryAssistant} />
-                </PanelContent>
+                              <Suspense fallback={<Fallback />}>
+                                {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                                {navR.key !== 'web' && (
+                                  <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                                    <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                      <PageComponent />
+                                    </NotificationInboxProvider>
+                                  </AssistantPanelToggleContext.Provider>
+                                )}
+                              </Suspense>
+                            </ErrorBoundary>
+                          </div>
+                        </div>
+                      </Panel>
+                      <DesktopAccessoryPanel assistant={accessoryAssistant} />
+                    </PanelContent>
+                  </CreateSpaceProvider>
+                </DesktopDraftBreadcrumbProvider>
+                {createSpaceDialog.content}
 
                 <Footer />
 
