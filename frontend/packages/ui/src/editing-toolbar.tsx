@@ -595,8 +595,16 @@ export function PublishButtonWithPopover({
     return () => cancelAnimationFrame(frame)
   }, [popoverState.open, canPublish])
 
+  // Typed resources (tools, triggers, agents) hide Publish while clean; once they hold changes,
+  // Discard sits beside Publish as a button rather than only in the menu.
+  const discardItem = editingTrailingItems.find((item) => item.key === 'discard-changes')
   return (
     <div className="flex items-center gap-2">
+      {hidePublishWhenClean && discardItem ? (
+        <Button size="sm" variant="ghost" onClick={discardItem.onClick}>
+          {isUnpublishedDraft ? 'Delete Draft' : 'Discard'}
+        </Button>
+      ) : null}
       {showPublish ? (
         <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
           <PopoverAnchor asChild>

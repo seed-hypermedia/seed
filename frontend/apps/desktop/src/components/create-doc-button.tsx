@@ -1,3 +1,5 @@
+import {isToolHostType} from '@seed-hypermedia/client/apps'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useSelectedAccountId} from '@/selected-account'
@@ -393,6 +395,9 @@ function DesktopActorButton({
 /** Actor-backed document creation split button for the desktop document toolbar. */
 export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedHypermediaId}) {
   const client = useUniversalClient()
+  const route = useNavRoute()
+  const appView = route.key === 'document' ? route.appView : undefined
+  const agentView = route.key === 'document' ? route.agentView : undefined
   const current = useResource(locationId)
   const currentDocument = current.data?.type === 'document' ? current.data.document : undefined
   const currentCapability = useSelectedAccountCapability(locationId)
@@ -439,12 +444,26 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   }
   if (!currentDocument || !canEditCurrent) return null
-  // Only documents and collections take children; an agent's page is the agent.
-  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
-  // An app's New makes its tools and triggers; a tool or trigger takes no children.
   const kind = appResourceKind(currentDocument.metadata?.type)
-  if (kind === 'tool' || kind === 'trigger') return null
-  if (kind === 'app') return <NewToolButton app={{id: locationId, document: currentDocument}} />
+  const isAgent = currentDocument.metadata?.type === 'hm://hyper.media/agent'
+  // On a tool or a trigger, New makes another one of the same kind in its app or agent.
+  if (kind === 'tool' || kind === 'trigger') {
+    if (!parentId || !parentDocument || !isToolHostType(parentDocument.metadata?.type) || !canEditParent) return null
+    return <NewHostChildButton host={{id: parentId, document: parentDocument}} first={kind} />
+  }
+  // An agent's page is the agent: New appears on its Triggers tab, and makes a trigger.
+  if (isAgent)
+    return agentView === 'triggers' ? (
+      <NewHostChildButton host={{id: locationId, document: currentDocument}} first="trigger" />
+    ) : null
+  // An app's New makes its tools and triggers: on its Triggers tab a trigger first, else a tool.
+  if (kind === 'app')
+    return (
+      <NewHostChildButton
+        host={{id: locationId, document: currentDocument}}
+        first={appView === 'triggers' ? 'trigger' : 'tool'}
+      />
+    )
 
   return (
     <DesktopActorButton
@@ -460,24 +479,31 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
   )
 }
 
-/** The New button on an app: tools and triggers are made here (agents build its pages). */
-function NewToolButton({app}: {app: AppRef}) {
+/**
+ * The New button in an app or agent (or on one of its tools or triggers): it makes tools and
+ * triggers (agents build pages). `first` is what New makes on a click; the menu lists both.
+ */
+function NewHostChildButton({host, first}: {host: AppRef; first: 'tool' | 'trigger'}) {
   const createTool = useAppDialog(CreateToolDialog)
   const createTrigger = useAppDialog(CreateTriggerDialog)
+  const tool = {
+    key: 'new-tool',
+    label: 'Tool',
+    icon: <Wrench className="size-4" />,
+    onSelect: () => createTool.open({app: host}),
+  }
+  const trigger = {
+    key: 'new-trigger',
+    label: 'Trigger',
+    icon: <Zap className="size-4" />,
+    onSelect: () => createTrigger.open({host}),
+  }
   return (
     <>
       <DocumentCreateButton
         onCreate={() => {}}
         onImport={() => {}}
-        options={[
-          {key: 'new-tool', label: 'Tool', icon: <Wrench className="size-4" />, onSelect: () => createTool.open({app})},
-          {
-            key: 'new-trigger',
-            label: 'Trigger',
-            icon: <Zap className="size-4" />,
-            onSelect: () => createTrigger.open({host: app}),
-          },
-        ]}
+        options={first === 'trigger' ? [trigger, tool] : [tool, trigger]}
       />
       {createTool.content}
       {createTrigger.content}

@@ -671,7 +671,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     return {
       key: 'delete',
       // A mounted agent's document is deleted as the agent (server side included).
-      label: currentDocument?.metadata.type === 'hm://hyper.media/agent' ? 'Delete Agent' : 'Delete Document',
+      label: deleteLabel(currentDocument?.metadata.type),
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {
@@ -907,4 +907,13 @@ export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
       <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} />} />
     </WebSitePageShell>
   )
+}
+
+/** The delete action's name for a document of `type`: typed resources say what they are. */
+function deleteLabel(type: unknown): string {
+  if (type === 'hm://hyper.media/agent') return 'Delete Agent'
+  if (type === 'hm://hyper.media/app') return 'Delete App'
+  if (type === 'hm://hyper.media/tool') return 'Delete Tool'
+  if (type === 'hm://hyper.media/trigger') return 'Delete Trigger'
+  return 'Delete Document'
 }

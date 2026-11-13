@@ -4,18 +4,24 @@ import {
   appEmbeddedChildren,
   HM_AGENT_TYPE,
   HM_TOOL_TYPE,
+  ipfsRefCid,
   parentDocumentId,
-  replaceContentOps,
   triggerDocumentOps,
   triggerDocumentRefs,
 } from '@seed-hypermedia/client/apps'
-import {unpackHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DocumentOperation} from '@seed-hypermedia/client/change'
+import {
+  unpackHmId,
+  type HMBlockNode,
+  type HMDocument,
+  type UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {useQuery, useQueryClient} from '@tanstack/react-query'
-import {Copy, Save} from 'lucide-react'
-import {useEffect, useMemo, useState} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {Copy} from 'lucide-react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
 import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
@@ -26,7 +32,7 @@ import {Textarea} from '../components/textarea'
 import {copyTextToClipboard} from '../copy-to-clipboard'
 import {SizableText} from '../text'
 import {toast} from '../toast'
-import {setAttribute, useAppsPublisher} from './publish'
+import {useResourceDraft} from './resource-draft'
 import {appServerErrorMessage, useAppServerUrl, useHostTriggers} from './running'
 
 /** A new trigger's source: an hourly schedule, edited before it matters (it does nothing until it names an action). */
@@ -38,8 +44,10 @@ export const DEFAULT_TRIGGER_SOURCE: AgentTriggerSource = {
 /**
  * A trigger document, opened inside its app or agent: when it fires (its source), what it does
  * (call one of the host's tools with an input template, or, under an agent, start a session with a
- * message), whether it is on, and its recent firings as the host's server reports them. Save
- * publishes every change as one new version of the document; the server picks it up at once.
+ * message), whether it is on, and its recent firings as the host's server reports them. Edits stage
+ * into the document's draft like any document's: it saves itself, the top bar's Publish button
+ * appears once there are changes, and Discard Changes drops them. The server picks up what is
+ * published.
  */
 export function TriggerDocumentView({
   docId,
@@ -52,15 +60,14 @@ export function TriggerDocumentView({
 }) {
   const client = useUniversalClient()
   const navigate = useNavigate()
-  const publisher = useAppsPublisher()
-  const queryClient = useQueryClient()
+  const draft = useResourceDraft(document)
   const hostId = parentDocumentId(docId)
   const hostResource = useResource(hostId)
   const host = hostResource.data?.type === 'document' ? hostResource.data.document : null
   const hostIsAgent = host?.metadata.type === HM_AGENT_TYPE
   const server = useAppServerUrl(hostId ?? docId, host ?? ({metadata: {}} as HMDocument))
   const hostTriggers = useHostTriggers(server.serverUrl, hostId?.id ?? '')
-  const refs = triggerDocumentRefs(document.metadata as Record<string, unknown>)
+  const refs = triggerDocumentRefs(draft.metadata as Record<string, unknown>)
   const stored = useQuery({
     queryKey: ['trigger-document-blobs', refs.sourceCid, refs.inputCid],
     queryFn: async () => {
@@ -70,90 +77,95 @@ export function TriggerDocumentView({
     },
   })
   const tools = useHostTools(hostId, host)
-  const savedMessage = useMemo(
-    () => (document.content?.length ? blocksToMarkdown({metadata: {}, content: document.content} as HMDocument) : ''),
-    [document.content],
-  )
 
-  const [name, setName] = useState(document.metadata.name ?? '')
-  const [summary, setSummary] = useState(document.metadata.summary ?? '')
+  // The source editor and the two text fields hold what is typed; the draft follows them.
   const [source, setSource] = useState<AgentTriggerSource | null>(null)
-  const [action, setAction] = useState<'tool' | 'session'>(refs.tool || !hostIsAgent ? 'tool' : 'session')
-  const [tool, setTool] = useState(refs.tool ?? '')
   const [input, setInput] = useState('')
-  const [message, setMessage] = useState(savedMessage)
-  const [enabled, setEnabled] = useState(refs.enabled)
-  const [saving, setSaving] = useState(false)
+  const [inputError, setInputError] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+  const [chosenAction, setChosenAction] = useState<'tool' | 'session' | null>(null)
+  const written = useRef<{inputCid: string | null; content: HMBlockNode[] | null}>({inputCid: null, content: null})
+  const action: 'tool' | 'session' = !hostIsAgent ? 'tool' : chosenAction ?? (refs.tool ? 'tool' : 'session')
 
-  // A new version (saved here or elsewhere) resets the form to what it says.
-  useEffect(() => {
-    setName(document.metadata.name ?? '')
-    setSummary(document.metadata.summary ?? '')
-    setTool(refs.tool ?? '')
-    setEnabled(refs.enabled)
-    setMessage(savedMessage)
-    setAction(refs.tool || !hostIsAgent ? 'tool' : 'session')
-  }, [document.version, hostIsAgent])
+  // What the draft says (a new version, a discarded draft) replaces what the fields hold, unless the
+  // fields wrote it themselves.
   useEffect(() => {
     if (!stored.data) return
     setSource(stored.data.source ?? null)
-    setInput(stored.data.input === undefined ? '' : JSON.stringify(stored.data.input, null, 2))
+    if (refs.inputCid !== written.current.inputCid) {
+      setInput(stored.data.input === undefined ? '' : JSON.stringify(stored.data.input, null, 2))
+      setInputError(null)
+      written.current.inputCid = refs.inputCid
+    }
   }, [stored.data])
+  useEffect(() => {
+    if (draft.content === written.current.content) return
+    setMessage(draft.content.length ? blocksToMarkdown({metadata: {}, content: draft.content} as HMDocument) : '')
+    written.current.content = draft.content
+  }, [draft.content])
+  useEffect(() => setChosenAction(null), [document.version])
 
-  const savedInput = stored.data?.input === undefined ? '' : JSON.stringify(stored.data.input, null, 2)
-  const sourceDirty = !!source && JSON.stringify(source) !== JSON.stringify(stored.data?.source ?? null)
-  const toolValue = action === 'tool' ? tool : ''
-  const dirty =
-    name !== (document.metadata.name ?? '') ||
-    summary !== (document.metadata.summary ?? '') ||
-    sourceDirty ||
-    toolValue !== (refs.tool ?? '') ||
-    (action === 'tool' && input.trim() !== savedInput.trim()) ||
-    (action === 'session' && message !== savedMessage) ||
-    enabled !== refs.enabled
+  async function changeSource(next: AgentTriggerSource) {
+    setSource(next)
+    const fields = await triggerDocumentOps({source: next})
+    await draft.storeBlobs(fields.blobs)
+    draft.change(attributesOf(fields.ops))
+  }
+
+  // Typing in the input or the message stages a new draft after a pause.
+  const inputTimer = useRef<ReturnType<typeof setTimeout>>()
+  function changeInput(text: string) {
+    setInput(text)
+    clearTimeout(inputTimer.current)
+    inputTimer.current = setTimeout(async () => {
+      if (!text.trim()) {
+        setInputError(null)
+        written.current.inputCid = null
+        draft.change({input: null})
+        return
+      }
+      let value: unknown
+      try {
+        value = JSON.parse(text)
+      } catch {
+        setInputError('Not valid JSON yet: the draft keeps the last valid input.')
+        return
+      }
+      setInputError(null)
+      const fields = await triggerDocumentOps({input: value})
+      await draft.storeBlobs(fields.blobs)
+      const attrs = attributesOf(fields.ops)
+      written.current.inputCid = ipfsRefCid(attrs.input)
+      draft.change(attrs)
+    }, 400)
+  }
+  const messageTimer = useRef<ReturnType<typeof setTimeout>>()
+  function changeMessage(text: string) {
+    setMessage(text)
+    clearTimeout(messageTimer.current)
+    messageTimer.current = setTimeout(() => {
+      const blocks = text.trim()
+        ? markdownBlockNodesToHMBlockNodes(parseMarkdown(text, {strictFrontmatter: false}).tree)
+        : []
+      written.current.content = blocks
+      draft.change({}, blocks)
+    }, 300)
+  }
+  function changeAction(next: 'tool' | 'session') {
+    setChosenAction(next)
+    // A session trigger calls no tool; a tool trigger has no message.
+    if (next === 'session') draft.change({tool: null, input: null})
+    else if (draft.content.length) {
+      written.current.content = []
+      setMessage('')
+      draft.change({}, [])
+    }
+  }
 
   const state = hostTriggers.data?.triggers.find((entry) => entry.trigger.documentId === docId.id)
   const problem = hostTriggers.data?.errors.find((entry) => entry.documentId === docId.id)?.error
-
-  async function save() {
-    setSaving(true)
-    try {
-      let parsedInput: unknown = null
-      if (action === 'tool' && input.trim()) {
-        try {
-          parsedInput = JSON.parse(input)
-        } catch {
-          throw new Error('The input is not valid JSON')
-        }
-      }
-      if (action === 'tool' && !tool) throw new Error('Choose the tool this trigger calls')
-      if (action === 'session' && !message.trim()) throw new Error('Write the message the session starts with')
-      const fields = await triggerDocumentOps({
-        ...(sourceDirty || !refs.sourceCid ? {source: source ?? DEFAULT_TRIGGER_SOURCE} : {}),
-        ...(toolValue !== (refs.tool ?? '') ? {tool: toolValue || null} : {}),
-        ...(action === 'tool' && input.trim() !== savedInput.trim() ? {input: parsedInput} : {}),
-        ...(action === 'session' && refs.inputCid ? {input: null} : {}),
-        ...(enabled !== refs.enabled ? {enabled} : {}),
-      })
-      const ops = [...fields.ops]
-      if (name !== (document.metadata.name ?? '')) ops.push(setAttribute('name', name.trim()))
-      if (summary !== (document.metadata.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
-      // The body is a session trigger's message; a tool trigger has none.
-      const nextContent =
-        action === 'session'
-          ? markdownBlockNodesToHMBlockNodes(parseMarkdown(message, {strictFrontmatter: false}).tree)
-          : []
-      if ((action === 'session' && message !== savedMessage) || (action === 'tool' && document.content?.length))
-        ops.push(...replaceContentOps(document.content, nextContent))
-      await publisher.update(docId, ops, fields.blobs)
-      void queryClient.invalidateQueries({queryKey: ['host-triggers']})
-      toast.success('Trigger saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSaving(false)
-    }
-  }
+  const name = typeof draft.metadata.name === 'string' ? draft.metadata.name : ''
+  const summary = typeof draft.metadata.summary === 'string' ? draft.metadata.summary : ''
 
   const backRoute = hostId
     ? hostIsAgent
@@ -164,25 +176,18 @@ export function TriggerDocumentView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AgentSubpageHeader
-        title={canEdit ? name : document.metadata.name || docId.path?.at(-1) || ''}
+        title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Trigger name"
-        onTitleChange={canEdit ? setName : undefined}
+        onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent triggers' : 'Back to app triggers'}
         onBack={() => backRoute && navigate(backRoute)}
-        actions={
-          canEdit && dirty ? (
-            <Button size="sm" variant="default" disabled={saving || !name.trim()} onClick={() => void save()}>
-              <Save className="size-3.5" /> {saving ? 'Saving…' : 'Save'}
-            </Button>
-          ) : null
-        }
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
           {canEdit ? (
             <Textarea
               value={summary}
-              onChange={(event) => setSummary(event.target.value)}
+              onChange={(event) => draft.change({summary: event.target.value || null})}
               placeholder="What this trigger is for"
               rows={2}
             />
@@ -196,9 +201,9 @@ export function TriggerDocumentView({
             active={hostTriggers.data?.active}
             loading={server.isLoading || hostTriggers.isInitialLoading}
             error={hostTriggers.isError ? appServerErrorMessage(hostTriggers.error) : problem}
-            enabled={enabled}
+            enabled={refs.enabled}
             canEdit={canEdit}
-            onEnabledChange={setEnabled}
+            onEnabledChange={(enabled) => draft.change({enabled})}
             onOpenSettings={() =>
               hostId && !hostIsAgent && navigate({key: 'document', id: hostId, appView: 'settings'})
             }
@@ -208,14 +213,19 @@ export function TriggerDocumentView({
             <SizableText weight="bold">When</SizableText>
             {source ? (
               canEdit ? (
-                <TriggerSourceFields source={source} onChange={setSource} />
+                <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
               ) : (
                 <SizableText size="sm">
                   <TriggerSourceSummary source={source} />
                 </SizableText>
               )
             ) : stored.isLoading ? null : canEdit ? (
-              <Button variant="outline" size="sm" className="w-fit" onClick={() => setSource(DEFAULT_TRIGGER_SOURCE)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => void changeSource(DEFAULT_TRIGGER_SOURCE)}
+              >
                 Set when it fires
               </Button>
             ) : (
@@ -233,7 +243,7 @@ export function TriggerDocumentView({
                   size="sm"
                   variant={action === 'session' ? 'default' : 'outline'}
                   disabled={!canEdit}
-                  onClick={() => setAction('session')}
+                  onClick={() => changeAction('session')}
                 >
                   Start a session
                 </Button>
@@ -241,7 +251,7 @@ export function TriggerDocumentView({
                   size="sm"
                   variant={action === 'tool' ? 'default' : 'outline'}
                   disabled={!canEdit}
-                  onClick={() => setAction('tool')}
+                  onClick={() => changeAction('tool')}
                 >
                   Call a tool
                 </Button>
@@ -255,7 +265,7 @@ export function TriggerDocumentView({
                 <Textarea
                   value={message}
                   readOnly={!canEdit}
-                  onChange={(event) => setMessage(event.target.value)}
+                  onChange={(event) => changeMessage(event.target.value)}
                   placeholder="Someone mentioned you. Read the comment and answer it."
                   rows={5}
                 />
@@ -264,9 +274,9 @@ export function TriggerDocumentView({
               <>
                 <select
                   aria-label="Tool to call"
-                  value={tool}
+                  value={refs.tool ?? ''}
                   disabled={!canEdit}
-                  onChange={(event) => setTool(event.currentTarget.value)}
+                  onChange={(event) => draft.change({tool: event.currentTarget.value || null})}
                   className="border-border bg-background text-foreground w-fit rounded-md border px-3 py-2 text-sm"
                 >
                   <option value="">Choose a tool…</option>
@@ -275,7 +285,9 @@ export function TriggerDocumentView({
                       {entry.name}
                     </option>
                   ))}
-                  {tool && !tools.some((entry) => entry.id === tool) ? <option value={tool}>{tool}</option> : null}
+                  {refs.tool && !tools.some((entry) => entry.id === refs.tool) ? (
+                    <option value={refs.tool}>{refs.tool}</option>
+                  ) : null}
                 </select>
                 <SizableText size="sm" color="muted">
                   Input, as JSON. String values <code>"$event"</code> and <code>"$event.path"</code> are filled from the
@@ -284,10 +296,15 @@ export function TriggerDocumentView({
                 <CodeTextArea
                   value={input}
                   readOnly={!canEdit}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => changeInput(event.target.value)}
                   rows={5}
                   placeholder='{"text": "$event.payload.message"}'
                 />
+                {inputError ? (
+                  <SizableText size="xs" color="destructive">
+                    {inputError}
+                  </SizableText>
+                ) : null}
               </>
             )}
           </section>
@@ -296,11 +313,23 @@ export function TriggerDocumentView({
             <WebhookSection serverUrl={server.serverUrl} triggerId={state.trigger.id} secret={state.webhookSecret} />
           ) : null}
 
-          <FiringsSection firings={state?.firings ?? []} hostId={hostId} toolId={tool} hostIsAgent={hostIsAgent} />
+          <FiringsSection
+            firings={state?.firings ?? []}
+            hostId={hostId}
+            toolId={refs.tool ?? ''}
+            hostIsAgent={hostIsAgent}
+          />
         </div>
       </div>
     </div>
   )
+}
+
+/** The attributes a `SetAttributes` op list sets, as a metadata patch. */
+function attributesOf(ops: DocumentOperation[]): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  for (const op of ops) if (op.type === 'SetAttributes') for (const attr of op.attrs) patch[attr.key[0]!] = attr.value
+  return patch
 }
 
 /** The tools a host lists, by URL and name, for choosing what a trigger calls. */
