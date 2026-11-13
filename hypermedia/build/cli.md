@@ -70,7 +70,7 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 | `document get <id>` | prints a document or comment as markdown with YAML frontmatter and `<!-- id:… -->` block comments; `-m` metadata only, `-r` resolves embeds, mentions and queries, `-o <file>` writes to a file. Follows redirects and republishes and says so. <!-- id:k7DwdrM6 --> |
 | `document create` | creates a document from `-f <file>` (`.md`, `.json` blocks, or `.pdf`) or stdin. Input and place: `-p, --path` (default: a slug of the name; `/` is the [home document](../protocol/spaces.md)), `--grobid-url` (for PDF input), `-k`, `-a`. <!-- id:OIS2RpKN --> |
 | `document create`, metadata flags | `--name`, `--summary`, `--display-author`, `--display-publish-time`, `--icon`, `--cover`, `--site-url`, `--layout`, `--show-outline` / `--no-show-outline`, `--show-activity` / `--no-show-activity`, `--content-width` (`S`, `M` or `L`), `--children-type`, `--seed-experimental-logo`, `--seed-experimental-home-order`, `--import-categories`, `--import-tags`, `--metadata <json>` (any keys, merged last) |
-| `document create`, schema and safety flags | `--attributes-schema <ref>`, `--child-attributes-schema <ref>`, `--schema-definition <file>`, `--dry-run`, `--force` (overwrite an occupied path with a new lineage) |
+| `document create`, schema and safety flags | `--attributes-schema <ref>`, `--child-attributes-schema <ref>`, `--schema-definition <file>`, `--no-defaults` (a new [typed document](../schema/typed-documents.md) starts from its schema's property [defaults](../schema/property.md) for every attribute you did not pass; this turns that off), `--dry-run`, `--force` (overwrite an occupied path with a new lineage) |
 | `document update <id>` | diffs `-f <file>` (`.md` or `.json` only, not `.pdf`) against the current content by block id and publishes only what changed; the metadata flags of `document create`, `--delete-blocks <ids>`, `-k`. When nothing changed it says the document is already up to date, publishes no version and exits 0. Takes over the address of a redirect or republish, unless nothing changed. `--parent` is accepted but has no effect. <!-- id:tnRmEpG5 --> |
 | `document delete <id>` | publishes a tombstone [Ref](../ref.md) <!-- id:-VbBSHZ_ --> |
 | `document fork <source> <destination>` | a new path on the source's history <!-- id:eyvdqDUC --> |
@@ -153,7 +153,7 @@ Two things are refused before anything is published: frontmatter whose YAML does
 | `blob sign -f <file> [-s <ref>] [-t <type>] [--ts <ms>] [-k] [--force] [--dry-run]` | adds the [signed envelope](../blob.md) (`signer`, `ts`, `sig`) and publishes <!-- id:mt3aTOW- --> |
 | `blob verify <cid> [-s <ref>]` | checks the signature and the schema <!-- id:TQZAGmBj --> |
 | `schema get <ref> [--resolve]` | a schema with its CID; `--resolve` follows references and merges extensions <!-- id:zSrsps2J --> |
-| `schema validate <ref>` | is this a valid Hypermedia schema <!-- id:rmUqkhgh --> |
+| `schema validate <ref>` | is this a valid Hypermedia schema, with every property default matching its property <!-- id:rmUqkhgh --> |
 
 To publish a schema of your own, use `document create --schema-definition <file>`. [Hypermedia Schemas](../schema.md) and [the one-page reference](../schema/workflows.md) show the whole workflow. <!-- id:uMkNH8QA -->
 

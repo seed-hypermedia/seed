@@ -33,11 +33,12 @@ import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {
-  META_SCHEMA,
   encodeBlob,
   loadEffectiveSchema,
   metadataViolations,
+  newDocumentDefaults,
   readJsonFile,
+  schemaViolations,
   violations,
 } from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
@@ -411,6 +412,10 @@ export function registerDocumentCommands(program: Command) {
       '--schema-definition <file>',
       'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
     )
+    .option(
+      '--no-defaults',
+      'Do not set the attributes the document’s schema gives a default (a new typed document starts from them)',
+    )
     .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
     .option('--dry-run', 'Preview extracted content without publishing')
     .option('--force', 'Overwrite existing document at the same path (creates new lineage)')
@@ -500,6 +505,16 @@ export function registerDocumentCommands(program: Command) {
               if ((e as Error).message.includes('already exists')) throw e
             }
           }
+        }
+
+        // A new typed document starts from its schema's property defaults: every attribute the type
+        // gives a default and this document does not set. Written as ordinary attributes.
+        const newId = options.defaults === false ? null : unpackHmId(`hm://${account}${path}`)
+        const defaults = newId ? await newDocumentDefaults(client, newId, resolvedMeta as Record<string, unknown>) : {}
+        const defaultKeys = Object.keys(defaults)
+        if (defaultKeys.length) {
+          Object.assign(resolvedMeta as Record<string, unknown>, defaults)
+          if (!globalOpts.quiet) printInfo(`Set from the schema's defaults: ${defaultKeys.join(', ')}`)
         }
 
         const ops: DocumentOperation[] = []
@@ -1266,7 +1281,7 @@ async function applySchemaDefinition(
   if (typeof file !== 'string') return null
   const schema = readJsonFile(file)
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error(`${file} does not hold a schema`)
-  const errors = violations(META_SCHEMA, schema)
+  const errors = schemaViolations(schema)
   if (errors.length)
     throw new Error(`${file} is not a valid Hypermedia schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
   const blob = await encodeBlob(schema)

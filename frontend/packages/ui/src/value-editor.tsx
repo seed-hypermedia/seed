@@ -39,7 +39,7 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {seedValue} from './schema/data-editor'
-import {subschemaAt, useSchemaContext, useSubschema} from './schema/schema-context'
+import {propertyDefaultAt, subschemaAt, useSchemaContext, useSubschema} from './schema/schema-context'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {DateValueField, type DateFieldMode} from './schema/date-field'
 
@@ -2601,7 +2601,8 @@ function SuggestionPopover<T>({
 }
 
 /**
- * Builds the value for a newly-added field/item: a schema-instantiated starter
+ * Builds the value for a newly-added field/item: the field's property default when its struct
+ * declares one, else a schema-instantiated starter
  * when the target path declares one and it matches the chosen type (so an enum
  * lands on a member, a required-nested object comes pre-populated), else the
  * plain default for the type. Respects an explicit type override — if the user
@@ -2613,7 +2614,10 @@ function useCreateFieldValue() {
     (targetPath: ValuePath, type: NewFieldType, rules: ValueEditorRules): unknown => {
       if (ctx) {
         const sub = subschemaAt(ctx.rootSchema, targetPath, ctx.registry)
-        const starter = sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
+        // A field its struct gives a default starts from it; any other starts from a seed of its type.
+        const declared = propertyDefaultAt(ctx.rootSchema, targetPath, ctx.registry)
+        const starter =
+          declared !== undefined ? declared : sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
         if (starter !== undefined && valueToFieldType(starter) === type && findInvalidValue(starter, rules) === null) {
           return starter
         }

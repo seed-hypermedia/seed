@@ -2,7 +2,7 @@
 name: Struct schema
 summary: The variant for a struct, with known fields under properties and optionally extra keys of one type under values.
 ---
-A struct schema describes a [struct](../struct.md): a map with named fields. Its `type` is `struct`. `properties` names the fields, with one [property](./property.md) per field. Each property carries the schema of its value, whether a value must include the field, and a description. <!-- id:xBr-gnCA -->
+A struct schema describes a [struct](../struct.md): a map with named fields. Its `type` is `struct`. `properties` names the fields, with one [property](./property.md) per field. Each property carries the schema of its value, whether a value must include the field, a description, and optionally the [default](./property.md) a new value starts with. <!-- id:xBr-gnCA -->
 
 A struct is [closed](./closed-map.md): it rejects keys that `properties` does not list. An optional `values` opens the struct to more keys, and every extra value must match the `values` schema.
 

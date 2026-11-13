@@ -124,6 +124,70 @@ describe('SchemaEditor (struct form)', () => {
   })
 })
 
+describe('SchemaEditor (property defaults)', () => {
+  const STRUCT = 'hm://hyper.media/struct'
+  const STRING = 'hm://hyper.media/string'
+  const type = (el: Element, text: string) =>
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      setter.call(el, text)
+      el.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+  const entry = (name: string) => latest.properties[name]
+
+  it('sets, edits and removes a default on a field', () => {
+    act(() => root.render(<Harness initial={{type: STRUCT, properties: {title: {value: {type: STRING}}}}} />))
+    expect(container.querySelector('[data-testid="schema-default-title"]')).toBeNull()
+    click(container.querySelector('[aria-label="Set default value of title"]')!)
+    // The default starts as an empty value of the field's type and is stored on the property.
+    expect(entry('title')).toEqual({value: {type: STRING}, default: ''})
+    const input = container.querySelector('[aria-label="Default value of title"] input')!
+    type(input, 'Untitled')
+    expect(entry('title').default).toBe('Untitled')
+    expect(isHypermediaSchema(latest)).toBe(true)
+    click(container.querySelector('[aria-label="Remove default value of title"]')!)
+    expect(entry('title')).toEqual({value: {type: STRING}})
+    expect(container.querySelector('[aria-label="Set default value of title"]')).not.toBeNull()
+  })
+
+  it('offers the members of a literal union as the default', () => {
+    const status = {value: {anyOf: ['todo', 'doing', 'done']}, required: true, default: 'todo'}
+    act(() => root.render(<Harness initial={{type: STRUCT, properties: {status}}} />))
+    const select = container.querySelector('[aria-label="Default value of status"] select') as HTMLSelectElement
+    expect(select.value).toBe('"todo"')
+    act(() => {
+      select.value = '"doing"'
+      select.dispatchEvent(new Event('change', {bubbles: true}))
+    })
+    expect(entry('status')).toEqual({...status, default: 'doing'})
+  })
+
+  it('keeps the default through other edits to the field, and flags one that no longer matches', () => {
+    const initial = {type: STRUCT, properties: {count: {value: {type: STRING}, default: 'three'}}}
+    act(() => root.render(<Harness initial={initial} />))
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    click(container.querySelector('[aria-label="Required count"]')!)
+    expect(entry('count')).toEqual({value: {type: STRING}, required: true, default: 'three'})
+    // The same default under an integer type is reported, and stays for the author to fix.
+    act(() =>
+      root.render(
+        <Harness
+          key="mismatch"
+          initial={{type: STRUCT, properties: {count: {value: {type: 'hm://hyper.media/integer'}, default: 'three'}}}}
+        />,
+      ),
+    )
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain('expected integer, got string')
+  })
+
+  it('edits the default of a field inside a nested struct', () => {
+    const inner = {type: STRUCT, properties: {done: {value: {type: 'hm://hyper.media/boolean'}}}}
+    act(() => root.render(<Harness initial={{type: STRUCT, properties: {checklist: {value: inner}}}} />))
+    click(container.querySelector('[aria-label="Set default value of checklist.done"]')!)
+    expect(entry('checklist').value.properties.done.default).toBe(false)
+  })
+})
+
 describe('SchemaEditor (nested structs)', () => {
   const STRUCT = 'hm://hyper.media/struct'
   const STRING = 'hm://hyper.media/string'

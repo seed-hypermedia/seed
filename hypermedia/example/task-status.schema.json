@@ -1,0 +1,8 @@
+{
+  "anyOf": [
+    "todo",
+    "doing",
+    "done"
+  ],
+  "description": "The state of a task: `todo`, `doing` or `done`."
+}

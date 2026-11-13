@@ -1,10 +1,10 @@
 ---
 name: Examples
-summary: This page lists all 37 example schemas and instances in the Hypermedia Schemas library, grouped by the feature each one shows.
+summary: This page lists all 39 example schemas and instances in the Hypermedia Schemas library, grouped by the feature each one shows.
 ---
 This page lists the examples in the [Hypermedia Schemas](./schema.md) library. Each example is small and shows one feature, so you can learn the schema language by reading them. Each has its own page under `example/`, with its schema beside it as `example/<name>.schema.json`, and links to the types it uses.
 
-There are 37 examples. Thirty-two are schemas. Five are instances: [documents](./protocol/documents.md) whose attributes are the data. [The catalogue of types](./schema/types.md) lists the rest of the library. <!-- id:-wxYRM0Q -->
+There are 39 examples. Thirty-four are schemas. Five are instances: [documents](./protocol/documents.md) whose attributes are the data. [The catalogue of types](./schema/types.md) lists the rest of the library. <!-- id:-wxYRM0Q -->
 
 # Structs <!-- id:oGPlvmvN -->
 
@@ -34,6 +34,7 @@ A [list](./list.md) says what its `items` must be. A [map](./map.md) says what i
 
 A [union](./schema/anyof.md) accepts a value that matches any one of its arms. A bare [literal](./schema/literal-schema.md) accepts exactly one value. So a union of literals is a fixed set of choices. <!-- id:BIvxHvFy -->
   - [status](./example/status.md) is the union of three literals, `draft`, `published` and `archived`. <!-- id:25xmLnuT -->
+  - [task-status](./example/task-status.md) is the union of three literals, `todo`, `doing` and `done`. <!-- id:2Z1RHfo9 -->
   - [value](./example/value.md) is `anyOf` string, integer, boolean or null. <!-- id:Ml4Hpn53 -->
   - [entry](./example/entry.md) is a filesystem entry: a folder or a file. <!-- id:SMzNJ2fD -->
 
@@ -55,6 +56,7 @@ These show how an application adds its own [block](./protocol/blocks.md) type an
 
 An attributes schema is a plain struct of the fields a document's [metadata](./metadata.md) carries. A document names it with `attributesSchema`, and a folder names it for its children with `childAttributesSchema`. See [typed documents](./schema/typed-documents.md). <!-- id:Rj_hZP7M -->
   - [person-doc](./example/person-doc.md) is a required `surname` and an optional `givenName`. <!-- id:0kQ0dPm5 -->
+  - [task-doc](./example/task-doc.md) shows [defaults](./schema/property.md): a new task starts as `todo` with priority 2, an empty tag list and an unfinished checklist, and has no due date. <!-- id:IldpUbAY -->
   - [world-doc](./example/world-doc.md) is a genre chosen from five literals, an epoch date and a tagline. It types the page at the root of [the World Builder](./schema/world-builder.md). <!-- id:-HbeKOjb -->
   - [character-doc](./example/character-doc.md) has birth and death dates, a role, `hm://` links to a home place and a faction, and `ipfs://` links to a portrait, stats and notes. <!-- id:mUSezYPg -->
   - [place-doc](./example/place-doc.md) has a kind, a founding date, links to a containing region and a ruling faction, and `ipfs://` links to geo coordinates and a map. <!-- id:YFU2iKYe -->
@@ -163,3 +165,7 @@ seed-cli blob validate -f value.json --schema <type URL>
 <./example/value.md> <!-- id:SA7USxeM type:Embed attrs:{"view":"Card"} -->
 
 <./example/world-doc.md> <!-- id:nMeBplZZ type:Embed attrs:{"view":"Card"} -->
+
+<./example/task-doc.md> <!-- id:4rjnKGtm type:Embed attrs:{"view":"Card"} -->
+
+<./example/task-status.md> <!-- id:u5NTXr1e type:Embed attrs:{"view":"Card"} -->

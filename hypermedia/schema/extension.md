@@ -6,7 +6,7 @@ An **extension** is a schema that names another schema and adds to it. It is an 
 
 `{ "type": "hm://…/example/person", "properties": {…} }` <!-- id:vG52Mjgo -->
 
-An extension is a subtype. It has the parent's fields plus the new ones. Each new field is a [property](./property.md) that says whether it is required. <!-- id:lJDeDmj1 -->
+An extension is a subtype. It has the parent's fields plus the new ones. Each new field is a [property](./property.md) that says whether it is required. A property's `default` travels with it: the extension inherits the parent's defaults, and restating a property replaces its default. <!-- id:lJDeDmj1 -->
 
 There is no `extends` keyword. `type` names the parent. A refining key on the node (`properties`, `values`, `items` or `target`) is what makes it an extension instead of a bare [include](./include-schema.md). [The schema language](./schema-language.md) has the merge rules. <!-- id:drnWeK9F -->
 

@@ -1177,6 +1177,38 @@ export type HMExampleStatus = 'draft' | 'published' | 'archived'
 export type HMExampleTags = string[]
 
 /**
+ * Example: Task Document
+ * A document type for a task that shows property defaults: a new task starts as todo with priority 2, no tags and an unfinished checklist.
+ * A document type for a task, showing property defaults: the values a new task starts with.
+ * Schema: hm://hyper.media/example/task-doc
+ */
+export type HMExampleTaskDoc = {
+  /** Where the task stands. A new task starts as `todo`. · default: "todo" */
+  status: HMExampleTaskStatus
+  /** 1 is most urgent and 3 is least. A new task starts in the middle. · minimum: 1 · maximum: 3 · default: 2 */
+  priority?: number
+  /** Labels for the task. A new task starts with an empty list. · default: [] */
+  tags?: string[]
+  /** The steps of the task. It has no default of its own, so a new task builds it from the defaults of its fields. */
+  checklist: {
+    /** Whether every step is finished. · default: false */
+    done: boolean
+    /** The steps, in order. */
+    steps: string[]
+  }
+  /** The day the task is due. It has no default, so a new task leaves it out. */
+  due?: HMDate
+}
+
+/**
+ * Example: Task Status
+ * The state of a task: todo, doing, or done.
+ * The state of a task: `todo`, `doing` or `done`.
+ * Schema: hm://hyper.media/example/task-status
+ */
+export type HMExampleTaskStatus = 'todo' | 'doing' | 'done'
+
+/**
  * Example: Tree
  * A node holding an integer value and links to child nodes.
  * A tree node holding an integer value and links to child nodes, showing a self-referencing type.
@@ -1636,8 +1668,8 @@ export type HMSchemaMapSchema = {
 
 /**
  * Property
- * One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
- * One field of a struct: the schema its value must match, whether it is required, and what it is for.
+ * One field of a struct, holding its value schema, whether a value must include it, a description of what it is for, and the default a new value starts with.
+ * One field of a struct: the schema its value must match, whether it is required, what it is for, and the value a new struct starts with.
  * Schema: hm://hyper.media/schema/property
  */
 export type HMSchemaProperty = {
@@ -1647,6 +1679,8 @@ export type HMSchemaProperty = {
   required?: boolean
   /** What the field is for, for people and for the editors that show it. */
   description?: string
+  /** The value an editor writes into a new struct for this field. It must match `value`. It only initializes: a struct that lacks the field is not read as if it had this value. */
+  default?: unknown
 }
 
 /**
