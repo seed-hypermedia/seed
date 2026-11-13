@@ -40,4 +40,4 @@ A tool opens inside its app: the app's tabs stay above it with **Tools** selecte
 
 Agents read `~/tools/write/apps`. They write the app as an ordinary document with `metadata.type`, then each tool with `options.tool` naming a memory folder (with an `index.ts`) or one `.ts` file. The publisher checks that `index.ts` parses and default-exports, publishes the folder beside the change, sets `type` and `code`, and requires `inputSchema`. When a tool or page is created directly under an app, the publisher adds its card embed to the app in the same publish, and deleting it removes the embed. A tool anywhere else is refused.
 
-Source: `frontend/packages/client/src/apps.ts` (types and embed rules), `agents/src/app-children.ts` and `agents/src/tool-code.ts` (publisher), `frontend/packages/ui/src/apps/` (views).
+Source: `frontend/packages/client/src/apps.ts` (types and embed rules), `apps/src/app-children.ts` and `apps/src/tool-code.ts` (publisher), `frontend/packages/ui/src/apps/` (views).

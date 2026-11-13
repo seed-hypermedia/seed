@@ -97,7 +97,7 @@ The grammar lives in `@seed-hypermedia/client/explore-query`: `parseExploreQuery
 
 ## Agents <!-- id:PsKjae1a -->
 
-Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the [`call`](../agent/call.md) verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../agent/call.md) and [Using Seed from your own agent](./agents.md). <!-- id:Q-PPApnx -->
+Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the [`call`](../app-environment/call.md) verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../app-environment/call.md) and [Using Seed from your own agent](./app-environment.md). <!-- id:Q-PPApnx -->
 
 # See also <!-- id:UmFeD-YS -->
 

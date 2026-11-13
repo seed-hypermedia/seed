@@ -1,6 +1,6 @@
 import {useExperiments} from '@/models/experiments'
 import {useNavigate} from '@/utils/useNavigate'
-import type {BrowserCommand, UnsignedAgentAction} from '@seed-hypermedia/agents-protocol'
+import type {BrowserCommand, UnsignedAgentAction} from '@seed-hypermedia/apps-protocol'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {setAssistantBrowserStatus} from '@shm/ui/agents/assistant-window-context'
 import {sendAgentAction} from '@shm/ui/agents/client'
@@ -150,7 +150,7 @@ export function BrowserAgentTools({
           const response = await send({_: 'PollSessionBrowser', sessionId, connectionId})
           if (disposed) break
           if (response._ !== 'SessionBrowserResponse')
-            throw new Error('Agent server does not support browser tools; update the server.')
+            throw new Error('App environment does not support browser tools; update the server.')
           if (!response.request) continue
           const request = response.request
           const time = new Date().toISOString()
@@ -269,7 +269,7 @@ export function BrowserAgentTools({
           <p>
             Let <strong>{agentLabel}</strong> on {serverHost} read and screenshot{' '}
             <strong>{pageOrigin ?? 'this page'}</strong>? It uses your signed-in session there, and what it reads is
-            sent to the agent server.
+            sent to the app environment.
           </p>
           {granted ? (
             <p className="text-muted-foreground mt-1">Access covers only the websites you allowed in this session.</p>

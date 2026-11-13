@@ -345,11 +345,11 @@ export const router = t.router({
   sites: sitesApi,
   prompting: promptingApi,
   appSettings: appSettingsApi,
-  /** Reports the local agents server the desktop spawned or attached to, if any. */
+  /** Reports the local app environment the desktop spawned or attached to, if any. */
   localAgentsServer: t.procedure.query(async () => {
     return {url: getLocalAgentsServerUrl(), state: getAgentsServerState()}
   }),
-  /** Persists whether the desktop runs its bundled agents server, and starts or stops it now. */
+  /** Persists whether the desktop runs its bundled app environment, and starts or stops it now. */
   setLocalAgentsServerEnabled: t.procedure.input(z.boolean()).mutation(async ({input}) => {
     const url = await setLocalAgentsServerEnabled(input)
     return {url, state: getAgentsServerState()}

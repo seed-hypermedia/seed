@@ -156,7 +156,7 @@ export function AgentRichMessageComposer({
   const uploadContextRef = useRef({accountId, sessionId})
   uploadContextRef.current = {accountId, sessionId}
 
-  // Dropped/pasted files upload as session-private attachments on the agent server — never to
+  // Dropped/pasted files upload as session-private attachments on the app environment — never to
   // IPFS or agent memory. The agent sees metadata and pulls content on demand (view_attachment);
   // it can persist or publish one only via its explicit attachment tools. Large files go in
   // chunks so signing never freezes the renderer, with progress shown above the composer.

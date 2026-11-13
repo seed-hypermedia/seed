@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 /**
- * Resolution order for the local agents server.
+ * Resolution order for the local app environment.
  *
  * This runs in the Electron main process, so nothing here is exercised by rendering tests — yet it
  * decides whether the app has a local server at all, and therefore whether "Local Agents" ever
@@ -68,6 +68,9 @@ beforeEach(() => {
   mockState.settings = {[AGENTS_LOCAL_SERVER_SETTING_KEY]: 'on'}
   delete process.env.SEED_NO_AGENTS_SPAWN
   delete process.env.SEED_AGENTS_SERVER_URL
+  delete process.env.SEED_NO_APPS_SPAWN
+  delete process.env.SEED_APPS_SERVER_URL
+  delete process.env.SEED_APPS_HTTP_PORT
   // The dev shell exports this (.env.vars); tests exercise the release default unless set explicitly.
   delete process.env.SEED_AGENTS_HTTP_PORT
 
@@ -84,7 +87,7 @@ afterEach(() => {
   process.env = {...ORIGINAL_ENV}
 })
 
-describe('local agents server resolution', () => {
+describe('local app environment resolution', () => {
   it('skips entirely when disabled by env', async () => {
     process.env.SEED_NO_AGENTS_SPAWN = '1'
 
@@ -119,6 +122,14 @@ describe('local agents server resolution', () => {
 
     expect(await startLocalAgentsServer()).toBe('http://127.0.0.1:4000')
     expect(getAgentsServerState()).toEqual({t: 'attached', url: 'http://127.0.0.1:4000'})
+  })
+
+  it('attaches to the server SEED_APPS_SERVER_URL names, the app environment spelling of the same setting', async () => {
+    process.env.SEED_APPS_SERVER_URL = 'http://127.0.0.1:4001'
+    mockState.healthy.add('http://127.0.0.1:4001')
+
+    expect(await startLocalAgentsServer()).toBe('http://127.0.0.1:4001')
+    expect(getAgentsServerState()).toEqual({t: 'attached', url: 'http://127.0.0.1:4001'})
   })
 
   it('fails loudly when the configured server is unreachable rather than silently spawning', async () => {

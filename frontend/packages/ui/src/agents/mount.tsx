@@ -1,5 +1,5 @@
 import {createDocumentBlobs} from '@seed-hypermedia/client'
-import {isMountableAgentServerUrl, type CreateAgent} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl, type CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {encodeDagCbor} from '@seed-hypermedia/client/signed-blob'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient, useUniversalAppContext} from '@shm/shared'
@@ -110,7 +110,7 @@ export async function prepareAgentMount({
   name: string
 }): Promise<PreparedAgentMount> {
   if (!isMountableAgentServerUrl(serverUrl))
-    throw new Error('Use an HTTP or HTTPS agent server address without credentials')
+    throw new Error('Use an HTTP or HTTPS app environment address without credentials')
   if (!client.getSigner) throw new Error('Signing is unavailable')
   const existing = await client.request('Resource', to)
   if (!canUseDocumentDestination(existing)) throw new Error('A document already exists here. Choose a different path.')

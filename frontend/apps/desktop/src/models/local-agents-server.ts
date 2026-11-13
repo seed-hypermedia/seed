@@ -13,7 +13,7 @@ import {useQueries} from '@tanstack/react-query'
 import {useEffect, useRef} from 'react'
 
 /**
- * Settling the local agents server setting after an upgrade.
+ * Settling the local app environment setting after an upgrade.
  *
  * Builds before the setting always ran the bundled server, so a user may have agents in it. The
  * main process spawns it one last time while the setting is unset (see `resolveLocalAgentsServerSpawn`)

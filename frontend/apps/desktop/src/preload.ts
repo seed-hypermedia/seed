@@ -8,7 +8,7 @@ import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
-import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
+import type {BrowserCommand} from '@seed-hypermedia/apps-protocol'
 
 // Declare global window extension for TypeScript
 declare global {

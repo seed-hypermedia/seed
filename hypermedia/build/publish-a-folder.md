@@ -91,7 +91,7 @@ The import is ordinary `PublishBlobs` requests. Nothing here needs more than the
 
 ## Agents <!-- id:2zRDnAm1 -->
 
-An agent that maintains a documentation site should work in the git checkout and let the push publish, so every change is reviewed as a diff. If an agent edits the site directly (a [Seed Agents](../agent.md) [`write`](../agent/write.md) to `hm://…`), the next `pull` brings the edit back into git. Both keep block ids, so neither loses the other's work. <!-- id:QVJJckLz -->
+An agent that maintains a documentation site should work in the git checkout and let the push publish, so every change is reviewed as a diff. If an agent edits the site directly (a [Seed Agents](../agent.md) [`write`](../app-environment/write.md) to `hm://…`), the next `pull` brings the edit back into git. Both keep block ids, so neither loses the other's work. <!-- id:QVJJckLz -->
 
 # See also <!-- id:tp-mbUCj -->
 

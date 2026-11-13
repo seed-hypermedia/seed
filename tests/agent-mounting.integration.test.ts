@@ -22,7 +22,7 @@ import {createSignerFromKey} from '../frontend/apps/cli/src/utils/signer'
 import {createDocumentUpdate, generateTestAccount, registerAccount} from '../frontend/apps/cli/src/test/account-helpers'
 import {FIXTURE_ACCOUNT} from '../frontend/apps/cli/src/test/fixture-seed'
 import {postSignedAgentAction, signAgentActionWith} from '../frontend/packages/ui/src/agents/client'
-import type {UnsignedAgentAction} from '../agents/protocol/src'
+import type {UnsignedAgentAction} from '../apps/protocol/src'
 import {setupTestEnv, type TestEnv} from './integration'
 
 let env: TestEnv | undefined
@@ -51,20 +51,20 @@ beforeAll(async () => {
     daemonGrpcPort: 59412,
     daemonP2pPort: 59413,
     skipBuild: process.env.SKIP_BUILD === 'true',
-    // The web app's default agents server, which the New menu's Create Agent dialog targets.
+    // The web app's default app environment, which the New menu's Create Agent dialog targets.
     agentServerUrl: localServerUrl,
   })
   agentDataDir = mkdtempSync(path.join(tmpdir(), 'seed-agent-mount-'))
   agentProcess = spawn('bun', ['src/main.ts'], {
-    cwd: path.resolve(__dirname, '../agents'),
+    cwd: path.resolve(__dirname, '../apps'),
     env: {
       ...process.env,
-      SEED_AGENTS_HTTP_HOSTNAME: '127.0.0.1',
-      SEED_AGENTS_HTTP_PORT: '59415',
-      SEED_AGENTS_DB_PATH: path.join(agentDataDir, 'agents.sqlite'),
-      SEED_AGENTS_DATA_DIR: agentDataDir,
-      SEED_AGENTS_HM_SERVER_URL: env.web.baseUrl,
-      SEED_AGENTS_TITLE_GENERATION: 'false',
+      SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',
+      SEED_APPS_HTTP_PORT: '59415',
+      SEED_APPS_DB_PATH: path.join(agentDataDir, 'agents.sqlite'),
+      SEED_APPS_DATA_DIR: agentDataDir,
+      SEED_APPS_HM_SERVER_URL: env.web.baseUrl,
+      SEED_APPS_TITLE_GENERATION: 'false',
     },
     stdio: 'pipe',
   })

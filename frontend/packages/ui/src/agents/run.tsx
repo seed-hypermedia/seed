@@ -233,7 +233,7 @@ export default function AgentRunRoutePage() {
   const route = useNavRoute()
   const selectedAccountId = useSelectedAccountId()
   if (route.key !== 'agent-run') return null
-  // Agent servers reject unauthenticated requests; without an account there is nothing to load.
+  // App environments reject unauthenticated requests; without an account there is nothing to load.
   if (!selectedAccountId) return <AgentsNoAccountPage />
   return (
     <AgentRunPage

@@ -16,7 +16,7 @@ Windows and Linux and is downloadable from seed.hyper.media. <!-- id:PTCFN6-q --
 
 The app is four processes. The main process spawns the [daemon](./daemon.md) with `-http.port`, `-grpc.port`, `-p2p.port` and `-data-dir`, waits for `/debug/version`, then starts its own HTTP server and finally a local <!-- id:Ih-hbijp -->
 
-[agents server](./agents.md). <!-- id:xI63BhMX -->
+[app environment](./app-environment.md). <!-- id:xI63BhMX -->
 
 <!-- id:JxLy__4e type:Table -->
 
@@ -25,10 +25,10 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 | --- | --- | --- |
 | Daemon P2P / HTTP / gRPC / metrics | 56000 / 56001 / 56002 / 56003 | 58000 / 58001 / 58002 / 58003 <!-- id:pfSgGZBl --> |
 | Desktop API bridge | 56004 | 58004 <!-- id:Uej7oqAh --> |
-| Agents server | 3050 | 3051 <!-- id:p5cNV7sO --> |
+| App environment | 3050 | 3051 <!-- id:p5cNV7sO --> |
 | Electron user data | `Seed` | `Seed-local` <!-- id:b3AXGUKt --> |
 
-The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge <!-- id:vBQ_4i5w -->
+The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local app environment and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge <!-- id:vBQ_4i5w -->
 
 refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
@@ -102,13 +102,13 @@ with the daemon's `SignData` RPC, so the private key never enters the renderer. 
 
 ## Web API <!-- id:N56osENV -->
 
-`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled agents server uses this <!-- id:9yPbD6dG -->
+`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled app environment uses this <!-- id:9yPbD6dG -->
 
 endpoint. <!-- id:0nrximg2 -->
 
 ## Agents <!-- id:n3tPWtmN -->
 
-The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under <!-- id:tUaDmTAs -->
+The desktop app starts a local [app environment](./app-environment.md) and shows the agents interface. You can configure hosted or self-hosted app environments in its place. The chat, tools and [triggers](../app-environment/triggers.md) are described under <!-- id:tUaDmTAs -->
 
 [Seed Agents](../agent.md). <!-- id:OQnaBari -->
 
@@ -118,7 +118,7 @@ The inbox page reads a local copy of the account's notification state that the m
 
 # The web browser <!-- id:73UsGmWy -->
 
-The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links and any website typed into the omnibar open in the system browser, the omnibar itself only resolves Hypermedia addresses, and agents are not offered the `browser` tool. Every link asks the main process at the moment it is opened, so flipping the toggle takes effect in every open window at once. The toggle is also forced off when the bundled Chromium is older than the release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and the blocklists are described in the agents service's browser notes (`agents/docs/integrated-browser.md` in the repo). <!-- id:bZN58TYv -->
+The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links and any website typed into the omnibar open in the system browser, the omnibar itself only resolves Hypermedia addresses, and agents are not offered the `browser` tool. Every link asks the main process at the moment it is opened, so flipping the toggle takes effect in every open window at once. The toggle is also forced off when the bundled Chromium is older than the release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and the blocklists are described in the app environment's browser notes (`apps/docs/integrated-browser.md` in the repo). <!-- id:bZN58TYv -->
 
 The pane's header shows the page's icon and title, a private-page button, the tracking-protection shield with the number of requests blocked, reload, **Open in default browser** and a menu; the address itself is in the omnibar. Websites are opened over https first: a plain `http://` address, whether typed, clicked, redirected to, restored from history or asked for by an agent, is tried as `https://` before any unencrypted request is sent, so a site that merely redirects to https never loads over http. When the encrypted address does not answer (refused, unresolved, a bad certificate, or nothing after ten seconds), the pane shows a warning inside a thick red frame that names the host and offers **Show the page anyway** or **Go back**. Accepting it, with a real click, allows that origin for the rest of the session (private pages keep their own list; **Clear browsing data** forgets both), and the website is then shown inside a red frame for as long as the page on screen is http. Loopback addresses such as `http://localhost:3000` are secure contexts and need no warning. An agent whose `navigate` command would land on the warning is refused and told that the user has to allow the site first. <!-- id:md1Ct6ly -->
 
@@ -140,7 +140,7 @@ The pane's header shows the page's icon and title, a private-page button, the tr
 
 - [Custom HTML pages](./document-pages.md): documents that open as sandboxed HTML pages, built by agents and shared like any document.
 - [Apps and tools](./apps-and-tools.md): an app collects tools and pages, listed by card embeds and shown as Home, Tools, Pages and Settings tabs.
-- [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md)
+- [The daemon](./daemon.md), [The app environment](./app-environment.md), [The CLI](./cli.md), [The web app](./web.md)
   <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md),
   [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->

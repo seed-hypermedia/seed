@@ -15,7 +15,7 @@ import React, {useCallback} from 'react'
  * Signing uses the local web identity (non-extractable WebCrypto Ed25519 device key in IndexedDB).
  * When the vault delegated an account to this device key, the device signs envelopes *as that
  * account* — so web and desktop see the same agents — and {@link getWebAgentsDelegation} names the
- * vault-issued Capability in every envelope so any agent server can verify the delegation itself.
+ * vault-issued Capability in every envelope so any app environment can verify the delegation itself.
  * Without a delegation the device key is its own account, as before.
  */
 async function getWebAgentsSigner(accountUid: string): Promise<blobs.Signer> {
@@ -36,7 +36,7 @@ async function getWebAgentsSigner(accountUid: string): Promise<blobs.Signer> {
  * getDelegation).
  *
  * The CID has been stored at sign-in since web auth shipped; the blob bytes only since agents
- * came to web, so older sessions hand out the CID alone and the agent server fetches the published
+ * came to web, so older sessions hand out the CID alone and the app environment fetches the published
  * blob from its own HM node. Nothing here touches the network.
  */
 async function getWebAgentsDelegation(accountUid: string): Promise<AgentsSignerDelegation | null> {

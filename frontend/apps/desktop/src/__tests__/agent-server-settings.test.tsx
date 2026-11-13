@@ -30,7 +30,7 @@ vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => mockPlatform
 
 vi.mock('@shm/ui/agents/models', () => ({
   getDefaultAgentServerUrl: () => 'http://localhost:3050',
-  LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  LOCAL_AGENT_SERVER_LABEL: 'Local app environment',
   useAgentServerHealth: () => ({isError: true, isLoading: false}),
   useAgentServerUrl: () => ({data: mockDefaultServer}),
   useConfiguredAgentServerUrls: () => ({data: mockServers}),
@@ -177,12 +177,12 @@ describe('AgentServersSettings', () => {
     cleanupRendered(root, container)
   })
 
-  it('shows an empty state when no agent servers are configured', () => {
+  it('shows an empty state when no app environments are configured', () => {
     mockServers = []
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('No agent servers configured.')
+    expect(container.textContent).toContain('No app environments configured.')
 
     cleanupRendered(root, container)
   })
@@ -207,7 +207,7 @@ describe('AgentServersSettings', () => {
     const toggle = container.querySelector<HTMLButtonElement>('button[role="switch"]')!
     expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(toggle.disabled).toBe(true)
-    expect(container.textContent).toContain('Attached to the agents server already running')
+    expect(container.textContent).toContain('Attached to the app environment already running')
     act(() => root.unmount())
 
     mockPlatform = {}
@@ -225,8 +225,8 @@ describe('AgentServersSettings', () => {
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('Local Agents')
-    // "Local Agents" alone says it; a "Built-in" tag next to it was redundant.
+    expect(container.textContent).toContain('Local app environment')
+    // "Local app environment" alone says it; a "Built-in" tag next to it was redundant.
     expect(container.textContent).not.toContain('Built-in')
     expect(container.textContent).toContain('https://agentic.seed.hyper.media')
 
@@ -245,8 +245,8 @@ describe('AgentServersSettings', () => {
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('Local Agents')
-    expect(container.textContent).not.toContain('No agent servers configured.')
+    expect(container.textContent).toContain('Local app environment')
+    expect(container.textContent).not.toContain('No app environments configured.')
 
     cleanupRendered(root, container)
   })

@@ -153,7 +153,7 @@ The [SDK](../build/sdk.md) has no notify client. The transport lives in `@shm/sh
 
 ## Agents <!-- id:aLUTu-Ae -->
 
-[Seed Agents](../agent.md) do not use the notify service. They watch the network themselves through the activity feed. See [triggers](../agent/triggers.md). <!-- id:UEEYnLed -->
+[Seed Agents](../agent.md) do not use the notify service. They watch the network themselves through the activity feed. See [triggers](../app-environment/triggers.md). <!-- id:UEEYnLed -->
 
 # Where this is going <!-- id:yyVBTJBG -->
 

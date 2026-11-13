@@ -1,4 +1,4 @@
-import {isReasoningLevel, REASONING_LEVEL_LABELS} from '@seed-hypermedia/agents-protocol'
+import {isReasoningLevel, REASONING_LEVEL_LABELS} from '@seed-hypermedia/apps-protocol'
 import type {AgentRunUsage, SessionEventMeta} from './client'
 
 /**

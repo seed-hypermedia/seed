@@ -10,7 +10,7 @@ These are the things a person should be able to do with the type system, written
 
 **The CLI.** Point it at the node you are working with and sign with a key it holds. Use `--server http://localhost:58004` for the desktop dev app's API, `--server https://hyper.media` (the default) for the public [gateway](../protocol/sites.md), and `--key <name>` for the signing key (`key list` shows them). `--dev` selects the development keyring. The command reference is [CLI](../build/cli.md), and [keys](../build/keys.md) covers the keyring. <!-- id:l0yc6wyb -->
 
-**An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`. Publishing needs the **publish** [grant](../agent/grants.md) on the agent. The contracts are in [tools](../agent/tools.md), and the verbs have their own pages: [read](../agent/read.md) and [write](../agent/write.md). <!-- id:jCZEzRiL -->
+**An agent.** An agent reads hypermedia with `read <address>` and publishes with `write <address>`. Publishing needs the **publish** [grant](../app-environment/grants.md) on the agent. The contracts are in [tools](../app-environment/tools.md), and the verbs have their own pages: [read](../app-environment/read.md) and [write](../app-environment/write.md). <!-- id:jCZEzRiL -->
 
 **Running the automated tests.** The CLI and agent steps of every story run against a real daemon and the built web app. From `tests/`, run `SKIP_BUILD=true pnpm exec vitest --run user-stories`. Drop `SKIP_BUILD` for the first run, which builds the web app. The two automated app stories run against a packaged desktop app: from `frontend/apps/desktop`, run `pnpm package:e2e` once, then `pnpm e2e:stories`. The desktop suite uses its own account, appdata (`Seed-e2e`) and ports (58100 to 58106), so it never touches a dev or installed app. <!-- id:4wHdEdfA -->
 
@@ -170,9 +170,9 @@ These are the things a person should be able to do with the type system, written
 
 # Where each surface stands <!-- id:dZwbHVf8 -->
 
-All three surfaces now cover all eight stories. The resolver, validator and signing rule live in `@seed-hypermedia/client` (`schema-engine`, `schema-resolve`, `signed-blob`). The app, the CLI and the agents service share that code, so the three agree about what a schema means. See the [SDK](../build/sdk.md). <!-- id:YzHMO1GS -->
+All three surfaces now cover all eight stories. The resolver, validator and signing rule live in `@seed-hypermedia/client` (`schema-engine`, `schema-resolve`, `signed-blob`). The app, the CLI and the app environment share that code, so the three agree about what a schema means. See the [SDK](../build/sdk.md). <!-- id:YzHMO1GS -->
 
-The CLI and agent columns are fully automated. Every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The agent steps run through `agents/scripts/user-stories.ts`, which calls the same `read` and `write` verbs a person uses from the agent UI. The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`. The rest of the app column is tested by hand with the steps above. An isolated test daemon cannot browse the public library, and the desktop unit tests already cover the schema and blob editors. <!-- id:P7-KXoKT -->
+The CLI and agent columns are fully automated. Every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The agent steps run through `apps/scripts/user-stories.ts`, which calls the same `read` and `write` verbs a person uses from the agent UI. The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`. The rest of the app column is tested by hand with the steps above. An isolated test daemon cannot browse the public library, and the desktop unit tests already cover the schema and blob editors. <!-- id:P7-KXoKT -->
 
 # See also <!-- id:WvQ9u3os -->
 

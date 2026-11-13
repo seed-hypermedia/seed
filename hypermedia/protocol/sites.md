@@ -55,6 +55,7 @@ This route describes the site. Any client that has only a web URL starts here: <
   "isGateway": true,
   "notifyServiceUrl": "https://hyper.media/hm/api/notify",
   "notifyServiceHost": "https://hyper.media",
+  "appEnvironmentUrl": "https://agentic.seed.hyper.media",
   "agentServerUrl": "https://agentic.seed.hyper.media"
 }
 ```
@@ -66,7 +67,7 @@ This route describes the site. Any client that has only a web URL starts here: <
 - `signerAccountUid` is a key the web app generated for itself. The server signs with it on its own behalf, for example when a web visitor edits through the site. <!-- id:US2kbkxG -->
 - `isGateway` is explained below. <!-- id:77d8-6PY -->
 - `notifyServiceUrl` is the base URL of the notify service the site uses, normally `<origin>/hm/api/notify` on the site itself or on hyper.media. `notifyServiceHost` is the same service's origin, kept for older apps, which append `/hm/api/notifications` to it. See [notify](../apps/notify.md). <!-- id:XshHZBYw -->
-- `agentServerUrl` is the site's default agents server: `<origin>/hm/api/agents` when the site hosts one, otherwise a standalone server such as `https://agentic.seed.hyper.media`, or null. <!-- id:f7j5k8HS -->
+- `agentServerUrl` is the site's default app environment: `<origin>/hm/api/agents` when the site hosts one, otherwise a standalone server such as `https://agentic.seed.hyper.media`, or null. `appEnvironmentUrl` carries the same value under the environment's current name; readers take it first and fall back to `agentServerUrl`. <!-- id:f7j5k8HS -->
 
 The route is public and answers any origin. The daemon's own HTTP port serves the same path with only `peerId`, `addrs` and `protocolId`, which is enough to bootstrap a libp2p connection from a URL. <!-- id:9Ba7hmw7 -->
 
@@ -123,7 +124,7 @@ The site services under `/hm/api/*` define a site: `GET /hm/api/config` (above),
 
 ## Agents <!-- id:A5u2SJzU -->
 
-[Seed Agents](../agent.md) and external agents address sites the same way the CLI does. A hosted agent reads and writes through `https://hyper.media` (or the server it was configured with). It can [`read`](../agent/read.md) `https://example.com/about`, which resolves through the site's headers to an `hm://` id before reading. A space can name an [agents server](../apps/agents.md) in its home document [metadata](../metadata.md) as `agentServerUrl`, and list the agents it exposes to visitors as `spaceAgents`. Then a site's readers see the site's agents in the assistant panel. An agent that drives a site with `curl` uses `/hm/api/config` to learn the account and `/api/DiscoveryStatus` to wait for a document. See [using Seed from your own agent](../build/agents.md). <!-- id:8gEtDl6R -->
+[Seed Agents](../agent.md) and external agents address sites the same way the CLI does. A hosted agent reads and writes through `https://hyper.media` (or the server it was configured with). It can [`read`](../app-environment/read.md) `https://example.com/about`, which resolves through the site's headers to an `hm://` id before reading. A space can name an [app environment](../apps/app-environment.md) in its home document [metadata](../metadata.md) as `agentServerUrl`, and list the agents it exposes to visitors as `spaceAgents`. Then a site's readers see the site's agents in the assistant panel. An agent that drives a site with `curl` uses `/hm/api/config` to learn the account and `/api/DiscoveryStatus` to wait for a document. See [using Seed from your own agent](../build/agents.md). <!-- id:8gEtDl6R -->
 
 # Where this is going <!-- id:FDKsYfXW -->
 
@@ -136,4 +137,4 @@ As of September 2026, the open items around sites are the canonical-URL and robo
 - [URLs](./urls.md): the full `hm://` grammar behind the web mapping. <!-- id:F-gd7IHD -->
 - [Identity](./identity.md) and [Permissions](./permissions.md): accounts, the site's own signing key, and who may write to a space. <!-- id:M5ipgAsr -->
 - [Self-hosting](../build/self-hosting.md) and [Web API](../build/web-api.md): running a site and talking to one. <!-- id:U1Ahpril -->
-- [Metadata](../metadata.md): the `siteUrl` and `agentServerUrl` keys on the home document. <!-- id:zJmqnVNa -->
+- [Metadata](../metadata.md): the `siteUrl`, `appEnvironmentUrl` and `agentServerUrl` keys on the home document. <!-- id:zJmqnVNa -->

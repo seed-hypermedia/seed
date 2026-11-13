@@ -1,0 +1,1109 @@
+import {beforeEach, describe, expect, test} from 'bun:test'
+import {availableParallelism} from 'node:os'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import {writeMemoryFile, memoryRootPath} from '@/agent-memory'
+import {perfSnapshot, resetPerfForTests} from '@/perf'
+import {
+  buildLambdaProgram,
+  CodeExecError,
+  EXEC_WORKSPACE_GUEST_PATH,
+  LAMBDA_RESULT_PREFIX,
+  parseLambdaResult,
+  MAX_EXEC_OUTPUT_BYTES,
+  createCodeExecutor,
+  defaultCodeExecConfig,
+  withConcurrencyCap,
+  withMemoryRootLock,
+  type CodeExecProgress,
+  type ExecOutputLike,
+  type ExecStreamEventLike,
+  type SandboxSdk,
+  type SandboxLease,
+  type SandboxLike,
+  type SandboxSource,
+  type SandboxSourceFactory,
+  type SandboxSpec,
+} from '@/code-exec'
+
+function withStateDir(run: (stateDir: string) => Promise<void>): Promise<void> {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'code-exec-test-'))
+  return run(stateDir).finally(() => fs.rmSync(stateDir, {recursive: true, force: true}))
+}
+
+type FakeCall = {
+  name?: string
+  image?: string
+  cpus?: number
+  memoryMib?: number
+  workdir?: string
+  ephemeral?: boolean
+  security?: string
+  networkDisabled?: boolean
+  networkEnabled?: boolean
+  dnsServers?: string[]
+  networkPolicy?: string
+  maxDurationSecs?: number
+  mounts: {guest: string; host?: string; quotaMib?: number}[]
+  exec?: {cmd: string; args: string[]; timeoutMs?: number}
+  stopped?: boolean
+  killed?: boolean
+  streamKilled?: boolean
+}
+
+/** Fake microsandbox SDK capturing builder configuration and returning a canned exec output. */
+function fakeSdk(
+  call: FakeCall,
+  behavior: {
+    output?: Partial<ExecOutputLike> & {stdoutText?: string; stderrText?: string}
+    /** When set, the sandbox also offers execStreamWith replaying these events. */
+    stream?: ExecStreamEventLike[]
+    /** After replaying `stream`, recv hangs forever instead of ending — a wedged guest. */
+    streamHangs?: boolean
+    /** Buffered execWith never resolves — a wedged guest with no streaming API. */
+    execHangs?: boolean
+    /** Graceful stop never resolves, forcing the kill escalation. */
+    stopHangs?: boolean
+    onExec?: () => void
+    createError?: Error
+    execError?: Error
+  } = {},
+): SandboxSdk {
+  return {
+    Sandbox: {
+      builder(name: string) {
+        call.name = name
+        const builder = {
+          image: (image: string) => ((call.image = image), builder),
+          cpus: (count: number) => ((call.cpus = count), builder),
+          memory: (mib: number) => ((call.memoryMib = mib), builder),
+          workdir: (workdir: string) => ((call.workdir = workdir), builder),
+          ephemeral: (ephemeral: boolean) => ((call.ephemeral = ephemeral), builder),
+          security: (profile: string) => ((call.security = profile), builder),
+          disableNetwork: () => ((call.networkDisabled = true), builder),
+          network: (configure: (n: any) => any) => {
+            const networkBuilder = {
+              enabled: (enabled: boolean) => ((call.networkEnabled = enabled), networkBuilder),
+              dns: (dnsConfigure: (d: any) => any) => {
+                const dnsBuilder = {
+                  nameservers: (servers: string[]) => ((call.dnsServers = servers), dnsBuilder),
+                }
+                dnsConfigure(dnsBuilder)
+                return networkBuilder
+              },
+              policy: (policy: unknown) => ((call.networkPolicy = policy as string), networkBuilder),
+            }
+            configure(networkBuilder)
+            return builder
+          },
+          maxDuration: (secs: number) => ((call.maxDurationSecs = secs), builder),
+          volume: (guest: string, configure: (mount: any) => any) => {
+            const mount: {guest: string; host?: string; quotaMib?: number} = {guest}
+            const mountBuilder = {
+              bind: (host: string) => ((mount.host = host), mountBuilder),
+              quota: (mib: number) => ((mount.quotaMib = mib), mountBuilder),
+            }
+            configure(mountBuilder)
+            call.mounts.push(mount)
+            return builder
+          },
+          create: async () => {
+            if (behavior.createError) throw behavior.createError
+            const captureExec = (cmd: string, configure: (b: any) => any) => {
+              const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
+              const optionsBuilder = {
+                args: (args: string[]) => ((exec.args = args), optionsBuilder),
+                timeout: (ms: number) => ((exec.timeoutMs = ms), optionsBuilder),
+              }
+              configure(optionsBuilder)
+              call.exec = exec
+            }
+            const streaming = behavior.stream
+              ? {
+                  execStreamWith: async (cmd: string, configure: (b: any) => any) => {
+                    captureExec(cmd, configure)
+                    behavior.onExec?.()
+                    if (behavior.execError) throw behavior.execError
+                    const events = [...behavior.stream!]
+                    return {
+                      recv: () => {
+                        const next = events.shift()
+                        if (next) return Promise.resolve(next)
+                        if (behavior.streamHangs) return new Promise<never>(() => {})
+                        return Promise.resolve(null)
+                      },
+                      kill: async () => {
+                        call.streamKilled = true
+                      },
+                    }
+                  },
+                }
+              : {}
+            return {
+              ...streaming,
+              execWith: async (cmd: string, configure: (b: any) => any) => {
+                const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
+                const optionsBuilder = {
+                  args: (args: string[]) => ((exec.args = args), optionsBuilder),
+                  timeout: (ms: number) => ((exec.timeoutMs = ms), optionsBuilder),
+                }
+                configure(optionsBuilder)
+                call.exec = exec
+                behavior.onExec?.()
+                if (behavior.execError) throw behavior.execError
+                if (behavior.execHangs) return new Promise<never>(() => {})
+                return {
+                  code: behavior.output?.code ?? 0,
+                  success: behavior.output?.success ?? true,
+                  stdout: () => behavior.output?.stdoutText ?? 'ok\n',
+                  stderr: () => behavior.output?.stderrText ?? '',
+                }
+              },
+              stop: () => {
+                if (behavior.stopHangs) return new Promise<never>(() => {})
+                call.stopped = true
+                return Promise.resolve()
+              },
+              kill: async () => {
+                call.killed = true
+              },
+            }
+          },
+        }
+        return builder as never
+      },
+    },
+    NetworkPolicy: {fromProfiles: (profiles: Iterable<string>) => `profiles:${[...profiles].join(',')}`},
+  }
+}
+
+const principal = {accountId: 'test-account', agentId: 'test-agent', sessionId: 'test-session'}
+
+describe('code exec', () => {
+  test('runs python inside an ephemeral restricted sandbox with memory bind-mounted', async () => {
+    await withStateDir(async (stateDir) => {
+      writeMemoryFile(stateDir, 'notes.md', 'hello')
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
+
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'print("hi")'})
+      expect(result).toMatchObject({exitCode: 0, success: true, stdout: 'ok\n', truncated: false, changedFiles: []})
+
+      expect(call.image).toBe('python')
+      expect(call.ephemeral).toBe(true)
+      expect(call.security).toBe('restricted')
+      // Network is on by default, with public DNS and a non-local (SSRF-safe) policy.
+      expect(call.networkDisabled).toBeUndefined()
+      expect(call.networkEnabled).toBe(true)
+      expect(call.dnsServers).toEqual(['1.1.1.1', '8.8.8.8'])
+      expect(call.networkPolicy).toBe('profiles:public')
+      expect(call.workdir).toBe(EXEC_WORKSPACE_GUEST_PATH)
+      expect(call.maxDurationSecs).toBe(90)
+      expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir)}])
+      expect(call.exec).toEqual({cmd: 'python', args: ['-c', 'print("hi")'], timeoutMs: 60_000})
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('offers ts only when an image with bun is configured, and runs it there with bun -e', async () => {
+    await withStateDir(async (stateDir) => {
+      // An operator can withhold the ts image; the runtime is then simply not offered…
+      const withoutBun = createCodeExecutor({...defaultCodeExecConfig(), tsImage: ''}, async () =>
+        fakeSdk({mounts: []}),
+      )
+      expect(withoutBun.runtimes).toEqual(['python', 'shell'])
+      // `availability()` probes the real host before it reports runtimes, so its exact set is not
+      // ours to assert here: a machine without virtualization answers `[]` however this executor is
+      // configured (that case has its own test below, and CI runners have no /dev/kvm). What holds
+      // on every host is the claim this test is named for — withhold the image, and ts is not on
+      // offer. The configured set itself is asserted through `runtimes` above.
+      expect((await withoutBun.availability()).runtimes).not.toContain('ts')
+      await expect(withoutBun.execute({principal, stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
+        'needs a sandbox image with bun',
+      )
+
+      // …and when the operator configures one, ts runs in THAT image, not the python one.
+      const call: FakeCall = {mounts: []}
+      const withBun = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => fakeSdk(call))
+      expect(withBun.runtimes).toEqual(['ts', 'python', 'shell'])
+      await withBun.execute({principal, stateDir, runtime: 'ts', code: 'console.log(1)'})
+      expect(call.image).toBe('oven/bun')
+      expect(call.exec).toEqual({cmd: 'bun', args: ['-e', 'console.log(1)'], timeoutMs: 60_000})
+    })
+  })
+
+  test('an unavailable host offers no runtimes at all', async () => {
+    const broken = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => {
+      throw new Error('no virtualization')
+    })
+    const availability = await broken.availability()
+    expect(availability.available).toBe(false)
+    expect(availability.runtimes).toEqual([])
+  })
+
+  test('disables networking when allowNetwork is false and honors custom DNS servers', async () => {
+    await withStateDir(async (stateDir) => {
+      const offCall: FakeCall = {mounts: []}
+      const off = createCodeExecutor({...defaultCodeExecConfig(), allowNetwork: false}, async () => fakeSdk(offCall))
+      await off.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(offCall.networkDisabled).toBe(true)
+      expect(offCall.networkEnabled).toBeUndefined()
+
+      const dnsCall: FakeCall = {mounts: []}
+      const custom = createCodeExecutor({...defaultCodeExecConfig(), dnsServers: ['9.9.9.9']}, async () =>
+        fakeSdk(dnsCall),
+      )
+      await custom.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(dnsCall.dnsServers).toEqual(['9.9.9.9'])
+    })
+  })
+
+  test('falls back to the older nonLocal policy dialect when the staged SDK lacks fromProfiles', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const oldSdk = {...fakeSdk(call), NetworkPolicy: {nonLocal: () => 'nonLocal'}}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () => oldSdk)
+      await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(call.networkPolicy).toBe('nonLocal')
+    })
+  })
+
+  test('runs shell code through sh -c with a clamped timeout override', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
+      await executor.execute({principal, stateDir, runtime: 'shell', code: 'ls -la', timeoutSecs: 10_000})
+      expect(call.exec).toEqual({cmd: '/bin/sh', args: ['-c', 'ls -la'], timeoutMs: 300_000})
+    })
+  })
+
+  test('reports memory files changed by the execution', async () => {
+    await withStateDir(async (stateDir) => {
+      writeMemoryFile(stateDir, 'keep.md', 'same')
+      writeMemoryFile(stateDir, 'gone.md', 'bye')
+      writeMemoryFile(stateDir, 'edit.md', 'v1')
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          onExec: () => {
+            // Simulate what sandboxed code did to the mounted workspace.
+            writeMemoryFile(stateDir, 'new.md', 'created')
+            fs.rmSync(path.join(memoryRootPath(stateDir), 'gone.md'))
+            fs.writeFileSync(path.join(memoryRootPath(stateDir), 'edit.md'), 'v2 with more text')
+          },
+        }),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(result.changedFiles).toEqual([
+        {path: 'edit.md', change: 'modified'},
+        {path: 'gone.md', change: 'removed'},
+        {path: 'new.md', change: 'added'},
+      ])
+      expect(result.changedFilesTotal).toBe(3)
+    })
+  })
+
+  test('caps the reported change list while keeping the true total', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          onExec: () => {
+            for (let i = 0; i < 250; i++) writeMemoryFile(stateDir, `bulk-${String(i).padStart(3, '0')}.md`, 'x')
+          },
+        }),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(result.changedFiles).toHaveLength(200)
+      expect(result.changedFilesTotal).toBe(250)
+      expect(result.changedFiles[0]).toEqual({path: 'bulk-000.md', change: 'added'})
+    })
+  })
+
+  test('truncates oversized output and preserves exit codes', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {output: {code: 3, success: false, stdoutText: 'x'.repeat(MAX_EXEC_OUTPUT_BYTES + 100)}}),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
+      expect(result.exitCode).toBe(3)
+      expect(result.success).toBe(false)
+      expect(result.truncated).toBe(true)
+      expect(result.stdout.endsWith('[output truncated]')).toBe(true)
+    })
+  })
+
+  test('streams output with live progress when the backend supports streaming exec', async () => {
+    await withStateDir(async (stateDir) => {
+      const encode = (text: string) => new TextEncoder().encode(text)
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: encode('hello\n')},
+            {kind: 'stderr', data: encode('warn\n')},
+            {kind: 'stdout', data: encode('done\n')},
+            {kind: 'exited', code: 0},
+          ],
+        }),
+      )
+      const progress: CodeExecProgress[] = []
+      const result = await executor.execute({
+        principal,
+        stateDir,
+        runtime: 'python',
+        code: 'print("hi")',
+        onProgress: (update) => progress.push(update),
+      })
+      expect(result).toMatchObject({exitCode: 0, success: true, stdout: 'hello\ndone\n', stderr: 'warn\n'})
+      expect(call.exec).toEqual({cmd: 'python', args: ['-c', 'print("hi")'], timeoutMs: 60_000})
+      // Stage progression: starting (sandbox boot), running (exec begins), then output-driven updates.
+      expect(progress[0]).toEqual({stage: 'starting'})
+      expect(progress[1]).toEqual({stage: 'running'})
+      const withTail = progress.filter((update) => update.outputTail)
+      expect(withTail.length).toBeGreaterThan(0)
+      expect(withTail[0]!.outputTail).toContain('hello')
+    })
+  })
+
+  test('reports a failed execution when the stream ends without an exit status', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: new TextEncoder().encode('partial\n')},
+          ],
+        }),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999'})
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      expect(result.stdout).toBe('partial\n')
+      expect(result.stderr).toContain('without an exit status')
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('the host watchdog kills a streaming execution the sandbox fails to stop', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      // The guest wedges: it emits some output, then the SDK's own timeout never fires and recv
+      // hangs forever — exactly the production failure this watchdog exists for.
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), timeoutGraceMs: 50}, async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: new TextEncoder().encode('compiling…\n')},
+          ],
+          streamHangs: true,
+        }),
+      )
+      const startedAt = Date.now()
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      expect(Date.now() - startedAt).toBeLessThan(5_000)
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      // The model still sees what ran before the kill, and why it ended.
+      expect(result.stdout).toBe('compiling…\n')
+      expect(result.stderr).toContain('killed by the server')
+      expect(call.streamKilled).toBe(true)
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('the host watchdog also bounds a buffered execution with no streaming API', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), timeoutGraceMs: 50}, async () =>
+        fakeSdk(call, {execHangs: true}),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      expect(result.stderr).toContain('killed by the server')
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('teardown escalates to kill when the graceful stop hangs', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), teardownTimeoutMs: 50}, async () =>
+        fakeSdk(call, {stopHangs: true}),
+      )
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'print("hi")'})
+      // The execution itself succeeded; a wedged stop must not lose the result or leak the VM.
+      expect(result.success).toBe(true)
+      expect(call.stopped).toBeUndefined()
+      expect(call.killed).toBe(true)
+    })
+  })
+
+  test('sandbox is stopped even when execution throws', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {execError: new Error('boom')}),
+      )
+      await expect(executor.execute({principal, stateDir, runtime: 'shell', code: 'x'})).rejects.toThrow('boom')
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('wraps a lambda into a program that hands it the input and marks the value it returns', async () => {
+    const tsProgram = buildLambdaProgram('ts', 'export default (input) => ({hi: input.name})', {name: 'Ada'})
+    // The input is a literal, never interpolated code, and the source is imported as a module so
+    // it keeps its natural `export default` shape.
+    expect(tsProgram).toContain('JSON.parse("{\\"name\\":\\"Ada\\"}")')
+    expect(tsProgram).toContain('data:text/typescript;base64,')
+    expect(tsProgram).toContain(LAMBDA_RESULT_PREFIX)
+
+    const pyProgram = buildLambdaProgram('python', 'def main(input):\n    return {"hi": input["name"]}', {name: 'Ada'})
+    expect(pyProgram.startsWith('def main(input):')).toBe(true)
+    expect(pyProgram).toContain('__seed_json.loads("{\\"name\\":\\"Ada\\"}")')
+    expect(pyProgram).toContain(`print("${LAMBDA_RESULT_PREFIX}"`)
+  })
+
+  test('the TypeScript wrapper really runs a lambda under bun, end to end', async () => {
+    // The sandbox is not available in tests, but the PROGRAM is just bun input — so run it with the
+    // same runtime the sandbox would, and prove the ABI (input in, return value out) holds.
+    const program = buildLambdaProgram(
+      'ts',
+      'export default async function (input: {name: string}) {\n  console.log("working")\n  return {greeting: `hi ${input.name}`}\n}',
+      {name: 'Ada'},
+    )
+    const run = Bun.spawnSync(['bun', '-e', program])
+    const parsed = parseLambdaResult(run.stdout.toString())
+    expect(run.exitCode).toBe(0)
+    expect(parsed.result).toEqual({greeting: 'hi Ada'})
+    // What the tool printed stays separate from what it returned.
+    expect(parsed.logs).toBe('working')
+  })
+
+  test('the python wrapper runs a lambda, sync or async, end to end', () => {
+    // Same idea as the bun case: the program is just python input, so run it with python and prove
+    // the ABI holds. Skipped where the test host has no python — the sandbox image always does.
+    const hasPython = Bun.spawnSync(['python3', '-c', 'print(1)']).exitCode === 0
+    if (!hasPython) return
+
+    for (const source of [
+      'def main(input):\n    print("working")\n    return {"greeting": "hi " + input["name"]}',
+      'async def main(input):\n    print("working")\n    return {"greeting": "hi " + input["name"]}',
+    ]) {
+      const run = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', source, {name: 'Ada'})])
+      const parsed = parseLambdaResult(run.stdout.toString())
+      expect(run.exitCode).toBe(0)
+      expect(parsed.result).toEqual({greeting: 'hi Ada'})
+      expect(parsed.logs).toBe('working')
+    }
+
+    // A module with no main is a broken tool, and says so instead of failing obscurely.
+    const noMain = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', 'x = 1', {})])
+    expect(noMain.exitCode).not.toBe(0)
+    expect(noMain.stderr.toString()).toContain('must define a top-level main(input) function')
+  })
+
+  test('reads back the marked result, and reports its absence rather than guessing', () => {
+    expect(parseLambdaResult(`noise\n${LAMBDA_RESULT_PREFIX}{"ok":true}\n`)).toMatchObject({
+      hasResult: true,
+      result: {ok: true},
+      logs: 'noise',
+    })
+    // A tool that printed but never returned is a broken tool, not an empty result.
+    expect(parseLambdaResult('just logs\n')).toMatchObject({hasResult: false, logs: 'just logs'})
+    expect(parseLambdaResult(`${LAMBDA_RESULT_PREFIX}not-json\n`).hasResult).toBe(false)
+  })
+
+  test('probe boots a fresh sandbox outside any agent memory and tears it down', async () => {
+    resetPerfForTests()
+    const call: FakeCall = {mounts: []}
+    const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk(call, {output: {stdoutText: 'seed-exec-probe-ok\n'}}),
+    )
+    const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'probe-parent-')))
+    const result = await executor.probe(parent)
+    expect(result.ok).toBe(true)
+    expect(result.error).toBeUndefined()
+    expect(call.exec).toMatchObject({cmd: '/bin/sh', args: ['-c', 'echo seed-exec-probe-ok']})
+    expect(call.ephemeral).toBe(true)
+    expect(call.stopped).toBe(true)
+    // Its workspace is a throwaway directory, removed once the probe is done.
+    expect(path.dirname(call.mounts[0]!.host!)).toBe(parent)
+    expect(fs.existsSync(call.mounts[0]!.host!)).toBe(false)
+    fs.rmSync(parent, {recursive: true, force: true})
+  })
+
+  test('probe reports a failed boot without throwing and counts it', async () => {
+    resetPerfForTests()
+    const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk(
+        {mounts: []},
+        {createError: new Error('sandbox process exited (signal: 6 (SIGABRT)) before agent relay became available')},
+      ),
+    )
+    const result = await executor.probe(os.tmpdir())
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('SIGABRT')
+    expect(perfSnapshot().counters['exec.boot_failed']?.count).toBe(1)
+
+    const wrongOutput = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk({mounts: []}, {output: {stdoutText: '', stderrText: 'sh: not found', code: 127, success: false}}),
+    )
+    expect(await wrongOutput.probe(os.tmpdir())).toMatchObject({
+      ok: false,
+      error: 'Probe command exited 127: sh: not found',
+    })
+
+    const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
+    expect((await disabled.probe(os.tmpdir())).ok).toBe(false)
+  })
+
+  test('rejects when disabled, empty code, an unknown runtime, or SDK unavailable', async () => {
+    await withStateDir(async (stateDir) => {
+      const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
+      expect(disabled.enabled).toBe(false)
+      await expect(disabled.execute({principal, stateDir, runtime: 'python', code: 'x'})).rejects.toThrow('not enabled')
+
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk({mounts: []}))
+      expect(executor.enabled).toBe(true)
+      await expect(executor.execute({principal, stateDir, runtime: 'python', code: '  '})).rejects.toThrow(
+        'Code is required',
+      )
+      await expect(executor.execute({principal, stateDir, runtime: 'ruby' as never, code: 'x'})).rejects.toThrow(
+        'Runtime must be one of: ts, python, shell',
+      )
+
+      const broken = createCodeExecutor(defaultCodeExecConfig(), async () => {
+        throw new Error('no virtualization')
+      })
+      await expect(broken.execute({principal, stateDir, runtime: 'python', code: 'x'})).rejects.toThrow(
+        'unavailable on this server',
+      )
+      expect(
+        await broken.execute({principal, stateDir, runtime: 'python', code: 'x'}).catch((error) => error),
+      ).toBeInstanceOf(CodeExecError)
+    })
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// SandboxSource seam contract (the seam the warm pool implements; see hypermedia/app-environment/plans/exec-warm-pool.md)
+// ------------------------------------------------------------------------------------------------
+
+/** Minimal healthy sandbox: buffered exec returning the given exit code. */
+function fakeSandbox(behavior: {code?: number; execError?: Error; stream?: ExecStreamEventLike[]}): SandboxLike {
+  const optionsBuilder = {args: () => optionsBuilder, timeout: () => optionsBuilder} as never
+  const base: SandboxLike = {
+    async execWith(_cmd, configure) {
+      configure(optionsBuilder)
+      if (behavior.execError) throw behavior.execError
+      const code = behavior.code ?? 0
+      return {code, success: code === 0, stdout: () => 'out', stderr: () => ''}
+    },
+    stop: async () => {},
+    kill: async () => {},
+  }
+  if (behavior.stream) {
+    const events = [...behavior.stream]
+    base.execStreamWith = async (_cmd, configure) => {
+      configure(optionsBuilder)
+      return {recv: async () => events.shift() ?? null, kill: async () => {}}
+    }
+  }
+  return base
+}
+
+/** A source handing out one canned lease, recording the spec it saw and every release. */
+function fakeSource(sandbox: SandboxLike, opts: {bootMs?: number; reused?: boolean} = {}) {
+  const releases: Array<{healthy: boolean}> = []
+  const specs: SandboxSpec[] = []
+  const factory: SandboxSourceFactory = () => ({
+    drain: async () => {},
+    async acquire(spec) {
+      specs.push(spec)
+      const lease: SandboxLease = {
+        sandbox,
+        bootMs: opts.bootMs ?? 0,
+        reused: opts.reused ?? false,
+        release: async (o) => {
+          releases.push(o)
+        },
+      }
+      return lease
+    },
+  })
+  return {factory, releases, specs}
+}
+
+const unusedSdk = async (): Promise<SandboxSdk> => {
+  throw new Error('the injected source never loads the SDK')
+}
+
+describe('sandbox source seam', () => {
+  test('a normal exit releases the lease healthy, exactly once, with bootMs passed through', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases, specs} = fakeSource(fakeSandbox({code: 0}), {bootMs: 123})
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'echo hi'})
+      expect(result.exitCode).toBe(0)
+      expect(result.bootMs).toBe(123)
+      expect(releases).toEqual([{healthy: true}])
+      // The spec carries typed identity and the runtime-resolved image — the pool's security key.
+      expect(specs[0]!.principal).toEqual(principal)
+      expect(specs[0]!.image).toBe(defaultCodeExecConfig().image)
+    })
+  })
+
+  test('a non-zero exit is still a healthy VM', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases} = fakeSource(fakeSandbox({code: 2}))
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'exit 2'})
+      expect(result.exitCode).toBe(2)
+      expect(result.success).toBe(false)
+      expect(releases).toEqual([{healthy: true}])
+    })
+  })
+
+  test('a stream that vanishes without an exit status releases unhealthy', async () => {
+    await withStateDir(async (stateDir) => {
+      const sandbox = fakeSandbox({stream: [{kind: 'stdout', data: new TextEncoder().encode('partial')}]})
+      const {factory, releases} = fakeSource(sandbox)
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'x'})
+      expect(result.exitCode).toBe(-1)
+      expect(releases).toEqual([{healthy: false}])
+    })
+  })
+
+  test('an exec error releases unhealthy, exactly once, and surfaces as CodeExecError', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases} = fakeSource(fakeSandbox({execError: new Error('sdk wedged')}))
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const error = await executor
+        .execute({principal, stateDir, runtime: 'shell', code: 'x'})
+        .catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(CodeExecError)
+      expect(releases).toEqual([{healthy: false}])
+    })
+  })
+
+  test('a reused lease reports bootMs 0 on the result', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory} = fakeSource(fakeSandbox({code: 0}), {bootMs: 0, reused: true})
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'echo hi'})
+      expect(result.bootMs).toBe(0)
+    })
+  })
+
+  test('executor drain settles through the source', async () => {
+    let drained = false
+    const factory: SandboxSourceFactory = () => ({
+      drain: async () => {
+        drained = true
+      },
+      acquire: async () => {
+        throw new Error('unused')
+      },
+    })
+    const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+    await executor.drain()
+    expect(drained).toBe(true)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// Host-wide sandbox concurrency cap (withConcurrencyCap)
+// ------------------------------------------------------------------------------------------------
+
+/** A sandbox whose exec blocks until `open()` is called, so a lease can be held "in use" on purpose. */
+function gatedSandbox() {
+  let open!: () => void
+  const gate = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  const optionsBuilder = {args: () => optionsBuilder, timeout: () => optionsBuilder} as never
+  const sandbox: SandboxLike = {
+    async execWith(_cmd, configure) {
+      configure(optionsBuilder)
+      await gate
+      return {code: 0, success: true, stdout: () => 'out', stderr: () => ''}
+    },
+    stop: async () => {},
+    kill: async () => {},
+  }
+  return {sandbox, open}
+}
+
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 15))
+
+describe('sandbox concurrency cap', () => {
+  test('the default leaves two vCPUs to the control plane and is never below one', () => {
+    expect(defaultCodeExecConfig().maxConcurrent).toBe(Math.max(1, availableParallelism() - 2))
+    expect(defaultCodeExecConfig().maxConcurrent).toBeGreaterThanOrEqual(1)
+  })
+
+  test('past the cap, the next acquire waits for a release instead of booting an overflow VM', async () => {
+    await withStateDir(async (stateDir) => {
+      const {sandbox, open} = gatedSandbox()
+      const {factory, releases, specs} = fakeSource(sandbox)
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 1}, unusedSdk, factory)
+      const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      // The second call is parked in the cap; the source has not been asked for a second sandbox.
+      expect(specs).toHaveLength(1)
+      expect(releases).toHaveLength(0)
+      open()
+      const results = await Promise.all([first, second])
+      expect(results.map((r) => r.exitCode)).toEqual([0, 0])
+      expect(specs).toHaveLength(2)
+      expect(releases).toEqual([{healthy: true}, {healthy: true}])
+    })
+  })
+
+  test('a waiter that outlives acquireWaitMs fails with a retryable 503 and the slot is not lost', async () => {
+    await withStateDir(async (stateDir) => {
+      await withStateDir(async (otherStateDir) => {
+        const {sandbox, open} = gatedSandbox()
+        const {factory, specs} = fakeSource(sandbox)
+        const executor = createCodeExecutor(
+          {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
+          unusedSdk,
+          factory,
+        )
+        const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
+        await tick()
+        // A different agent (its own memory root), so the host-wide cap is the only thing in the way.
+        const other = {...principal, agentId: 'other-agent'}
+        const error = await executor
+          .execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'b'})
+          .catch((thrown: unknown) => thrown)
+        expect(error).toBeInstanceOf(CodeExecError)
+        expect((error as CodeExecError).status).toBe(503)
+        expect((error as CodeExecError).message).toContain('at capacity')
+        expect(specs).toHaveLength(1)
+        open()
+        expect((await first).exitCode).toBe(0)
+        // The slot came back with the first release: a fresh call proceeds without waiting.
+        const third = await executor.execute({principal, stateDir, runtime: 'shell', code: 'c'})
+        expect(third.exitCode).toBe(0)
+        expect(specs).toHaveLength(2)
+      })
+    })
+  })
+
+  test('a boot that throws hands its slot back', async () => {
+    await withStateDir(async (stateDir) => {
+      let boots = 0
+      const factory: SandboxSourceFactory = () => ({
+        drain: async () => {},
+        async acquire() {
+          boots += 1
+          if (boots === 1) throw new Error('boot failed')
+          return {sandbox: fakeSandbox({code: 0}), bootMs: 0, reused: false, release: async () => {}}
+        },
+      })
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
+        unusedSdk,
+        factory,
+      )
+      await expect(executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})).rejects.toThrow('boot failed')
+      // If the failed boot had kept its slot, this would time out at 40 ms with a 503 instead.
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'b'})
+      expect(result.exitCode).toBe(0)
+    })
+  })
+
+  test('a release whose teardown throws still frees the slot, and a second release is a no-op', async () => {
+    let releases = 0
+    const inner: SandboxSource = {
+      drain: async () => {},
+      async acquire() {
+        return {
+          sandbox: fakeSandbox({code: 0}),
+          bootMs: 0,
+          reused: false,
+          release: async () => {
+            releases += 1
+            throw new Error('teardown exploded')
+          },
+        }
+      },
+    }
+    const capped = withConcurrencyCap(inner, {maxConcurrent: 1, acquireWaitMs: 40})
+    const spec = {principal, image: 'python', memoryRoot: '/tmp', timeoutSecs: 1}
+    const first = await capped.acquire(spec)
+    await expect(first.release({healthy: true})).rejects.toThrow('teardown exploded')
+    await first.release({healthy: true}) // second release: swallowed, frees nothing twice
+    expect(releases).toBe(1)
+    // The slot is free despite the throwing teardown; this would 503 at 40 ms otherwise.
+    const second = await capped.acquire(spec)
+    expect(second.reused).toBe(false)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// One sandbox per memory root at a time (withMemoryRootLock)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * A source that boots a fresh gated sandbox per acquire and watches the mount it was asked for:
+ * `overlap` is the most leases that were ever out at once on one memory root — the number this
+ * whole layer exists to keep at 1.
+ */
+function mountWatchingSource() {
+  const specs: SandboxSpec[] = []
+  const gates: Array<() => void> = []
+  const live = new Map<string, number>()
+  let overlap = 0
+  const factory: SandboxSourceFactory = () => ({
+    drain: async () => {},
+    async acquire(spec) {
+      specs.push(spec)
+      const {sandbox, open} = gatedSandbox()
+      gates.push(open)
+      const now = (live.get(spec.memoryRoot) ?? 0) + 1
+      live.set(spec.memoryRoot, now)
+      overlap = Math.max(overlap, now)
+      return {
+        sandbox,
+        bootMs: 0,
+        reused: false,
+        release: async () => {
+          live.set(spec.memoryRoot, (live.get(spec.memoryRoot) ?? 1) - 1)
+        },
+      }
+    },
+  })
+  return {factory, specs, open: (index: number) => gates[index]!(), overlap: () => overlap}
+}
+
+const sessionA = {...principal, sessionId: 'session-a'}
+const sessionB = {...principal, sessionId: 'session-b'}
+/** What a headless trigger firing carries: a real agent, no session. */
+const headless = {...principal, sessionId: ''}
+
+describe('memory-root lock', () => {
+  beforeEach(() => {
+    resetPerfForTests()
+  })
+
+  test('two sessions of one agent serialize: the second starts only after the first releases', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      // Capacity is plentiful; the second call is parked on the memory root alone.
+      expect(source.specs).toHaveLength(1)
+      expect(perfSnapshot().counters['exec.memroot_wait']!.count).toBe(1)
+      source.open(0)
+      expect((await first).exitCode).toBe(0)
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      expect(source.specs[1]!.principal).toEqual(sessionB)
+      source.open(1)
+      expect((await second).exitCode).toBe(0)
+      expect(source.overlap()).toBe(1)
+      expect(perfSnapshot().metrics['exec.memroot_wait_ms']!.count).toBe(1)
+    })
+  })
+
+  test('a second call in the same session waits too, instead of getting a second VM on the same root', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      expect(source.specs).toHaveLength(1)
+      source.open(0)
+      await first
+      await tick()
+      source.open(1)
+      await second
+      expect(source.specs).toHaveLength(2)
+      expect(source.overlap()).toBe(1)
+    })
+  })
+
+  test('a headless firing (no sessionId) waits for the in-flight session VM of the same agent', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const session = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const firing = executor.execute({principal: headless, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      expect(source.specs).toHaveLength(1)
+      source.open(0)
+      await session
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      expect(source.specs[1]!.principal).toEqual(headless)
+      source.open(1)
+      await firing
+      expect(source.overlap()).toBe(1)
+
+      // And the other way round: a session call waits for a firing that is already in.
+      const firingFirst = executor.execute({principal: headless, stateDir, runtime: 'shell', code: 'c'})
+      await tick()
+      const sessionNext = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'd'})
+      await tick()
+      expect(source.specs).toHaveLength(3)
+      source.open(2)
+      await firingFirst
+      await tick()
+      source.open(3)
+      await sessionNext
+      expect(source.overlap()).toBe(1)
+    })
+  })
+
+  test('different agents still run at the same time', async () => {
+    await withStateDir(async (stateDir) => {
+      await withStateDir(async (otherStateDir) => {
+        const source = mountWatchingSource()
+        const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+        const other = {...principal, agentId: 'other-agent'}
+        const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+        const second = executor.execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'b'})
+        await tick()
+        // Both are in flight: two roots, two sandboxes, nobody waited.
+        expect(source.specs).toHaveLength(2)
+        expect(perfSnapshot().counters['exec.memroot_wait']).toBeUndefined()
+        source.open(0)
+        source.open(1)
+        const results = await Promise.all([first, second])
+        expect(results.map((r) => r.exitCode)).toEqual([0, 0])
+        expect(source.overlap()).toBe(1)
+      })
+    })
+  })
+
+  test('a boot that throws releases the memory root', async () => {
+    await withStateDir(async (stateDir) => {
+      let boots = 0
+      const factory: SandboxSourceFactory = () => ({
+        drain: async () => {},
+        async acquire() {
+          boots += 1
+          if (boots === 1) throw new Error('boot failed')
+          return {sandbox: fakeSandbox({code: 0}), bootMs: 0, reused: false, release: async () => {}}
+        },
+      })
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 4, memoryRootWaitMs: 40},
+        unusedSdk,
+        factory,
+      )
+      await expect(executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})).rejects.toThrow(
+        'boot failed',
+      )
+      // A leaked root would make this wait 40 ms and fail with the memory-root 503 instead.
+      const result = await executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+      expect(result.exitCode).toBe(0)
+      expect(perfSnapshot().counters['exec.memroot_wait']).toBeUndefined()
+    })
+  })
+
+  test('a waiter that outlives memoryRootWaitMs fails with a retryable 503 that names the cause', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 4, memoryRootWaitMs: 40},
+        unusedSdk,
+        source.factory,
+      )
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const error = await executor
+        .execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+        .catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(CodeExecError)
+      expect((error as CodeExecError).status).toBe(503)
+      expect((error as CodeExecError).message).toContain('memory workspace')
+      expect(source.specs).toHaveLength(1)
+      expect(perfSnapshot().counters['exec.memroot_rejected']!.count).toBe(1)
+      source.open(0)
+      expect((await first).exitCode).toBe(0)
+      // The root came back with the first release; a fresh call proceeds without waiting.
+      const third = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'c'})
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      source.open(1)
+      expect((await third).exitCode).toBe(0)
+    })
+  })
+
+  test('a release whose teardown throws still frees the root, and a second release is a no-op', async () => {
+    let releases = 0
+    const inner: SandboxSource = {
+      drain: async () => {},
+      async acquire() {
+        return {
+          sandbox: fakeSandbox({code: 0}),
+          bootMs: 0,
+          reused: false,
+          release: async () => {
+            releases += 1
+            throw new Error('teardown exploded')
+          },
+        }
+      },
+    }
+    const locked = withMemoryRootLock(inner, {memoryRootWaitMs: 40})
+    const spec = {principal: sessionA, image: 'python', memoryRoot: '/tmp/some-agent/memory/', timeoutSecs: 1}
+    const first = await locked.acquire(spec)
+    await expect(first.release({healthy: true})).rejects.toThrow('teardown exploded')
+    await first.release({healthy: true})
+    expect(releases).toBe(1)
+    // Same directory spelled without the trailing slash: the same root, free again (else a 503 at 40 ms).
+    const second = await locked.acquire({...spec, principal: sessionB, memoryRoot: '/tmp/some-agent/memory'})
+    expect(second.reused).toBe(false)
+  })
+
+  test('a call waiting for its memory root holds no capacity slot, so other agents go ahead of it', async () => {
+    await withStateDir(async (stateDir) => {
+      await withStateDir(async (otherStateDir) => {
+        const source = mountWatchingSource()
+        const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 1}, unusedSdk, source.factory)
+        const other = {...principal, agentId: 'other-agent'}
+        const busy = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+        await tick()
+        const sameRoot = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+        await tick()
+        const otherAgent = executor.execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'c'})
+        await tick()
+        expect(source.specs).toHaveLength(1)
+        source.open(0)
+        await busy
+        await tick()
+        // The one slot went to the other agent, which was queued on the cap; the same-root call was
+        // queued on its root instead and only now moves on to wait for a slot.
+        expect(source.specs).toHaveLength(2)
+        expect(source.specs[1]!.principal).toEqual(other)
+        source.open(1)
+        await otherAgent
+        await tick()
+        expect(source.specs).toHaveLength(3)
+        expect(source.specs[2]!.principal).toEqual(sessionB)
+        source.open(2)
+        await sameRoot
+        expect(source.overlap()).toBe(1)
+      })
+    })
+  })
+})

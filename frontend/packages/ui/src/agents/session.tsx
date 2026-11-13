@@ -651,8 +651,8 @@ function DeleteAgentSessionDialog({
     <div className="flex flex-col gap-4 rounded-lg p-4">
       <AlertDialogTitle>Delete session?</AlertDialogTitle>
       <AlertDialogDescription>
-        This will permanently delete “{input.sessionTitle}” and its messages from the agent server. This action cannot
-        be undone.
+        This will permanently delete “{input.sessionTitle}” and its messages from the app environment. This action
+        cannot be undone.
       </AlertDialogDescription>
       <AlertDialogFooter>
         <AlertDialogCancel asChild>

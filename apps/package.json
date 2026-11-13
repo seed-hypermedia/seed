@@ -1,0 +1,65 @@
+{
+  "name": "@seed-hypermedia/apps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "SEED_APPS_SEARXNG_URL=${SEED_APPS_SEARXNG_URL:-http://127.0.0.1:8899} SEED_APPS_CRAWLER_URL=${SEED_APPS_CRAWLER_URL:-http://127.0.0.1:11235} SEED_APPS_CRAWLER_TOKEN=${SEED_APPS_CRAWLER_TOKEN:-dev-crawl-token} SEED_APPS_SUBSCRIPTION_AUTH=${SEED_APPS_SUBSCRIPTION_AUTH:-true} bun ../scripts/watch-file-deps.ts bun --watch src/main.ts",
+    "build": "NODE_ENV=production bun build.ts",
+    "build:binary": "bun scripts/build-binary.ts",
+    "test:build": "bun run build && bun scripts/smoke-build.ts",
+    "test:docker": "bun scripts/smoke-docker.ts",
+    "test:trigger": "bun scripts/smoke-trigger.ts",
+    "test:outbox": "bun scripts/smoke-outbox.ts",
+    "typecheck": "bun tsgo --noEmit",
+    "protocol:snapshot": "bun scripts/protocol-surface.ts write",
+    "protocol:check": "bun scripts/protocol-surface.ts check",
+    "protocol:diff": "bun scripts/protocol-surface.ts diff",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "check": "conc 'bun typecheck' 'bun format:write'"
+  },
+  "overrides": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "@seed-hypermedia/client": "file:../frontend/packages/client",
+    "zod": "4.6.6"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "1.2.0",
+    "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-durable": "1.2.0",
+    "@jitl/quickjs-singlefile-cjs-release-sync": "0.32.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@mozilla/readability": "0.6.0",
+    "@seed-hypermedia/apps-protocol": "file:./protocol",
+    "@seed-hypermedia/client": "file:../frontend/packages/client",
+    "@shm/shared": "file:../frontend/packages/shared",
+    "acorn": "8.16.0",
+    "linkedom": "0.18.12",
+    "mermaid": "^11.4.0",
+    "microsandbox": "0.6.18",
+    "multiformats": "^13.4.1",
+    "quickjs-emscripten-core": "0.32.0",
+    "react": "^19",
+    "react-dom": "^19",
+    "turndown": "7.2.4",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@connectrpc/connect-web": "1.4.0",
+    "@types/bun": "latest",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/turndown": "^5.0.6",
+    "@typescript/native-preview": "^7.0.0-dev.20260224.1",
+    "concurrently": "^9.2.1",
+    "prettier": "3.1.1",
+    "prettier-plugin-tailwindcss": "0.6.14",
+    "superjson": "2.2.1",
+    "typescript": "5.8.3"
+  },
+  "patchedDependencies": {
+    "zod@4.6.6": "patches/zod@4.6.6.patch"
+  }
+}

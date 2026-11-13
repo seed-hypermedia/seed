@@ -74,7 +74,7 @@ If you want to publish on your own domain without relying on our service, …
 
 # 3. Read it with the CLI <!-- id:lgao_UOU -->
 
-The Seed CLI wraps the same API for the terminal and for scripts. [Agent skills](./agents.md) use it too. <!-- id:lj_AofZ8 -->
+The Seed CLI wraps the same API for the terminal and for scripts. [Agent skills](./app-environment.md) use it too. <!-- id:lj_AofZ8 -->
 
 ```sh <!-- id:GUkcvOXv -->
 npm install -g @seed-hypermedia/cli
@@ -163,7 +163,7 @@ Nothing was logged in. Your authority to publish at `hm://z6Mk…/hello` is that
 
 - Publish a whole folder of markdown and keep it in sync with git: [publish a folder](./publish-a-folder.md). <!-- id:-3Mnam0M -->
 - Build the blobs yourself in TypeScript, with `createDocumentBlobs`, `createComment` and `createCapability`: [SDK](./sdk.md). <!-- id:kykE3X_B -->
-- Let an agent read and write your space with a delegated key: [using Seed from your own agent](./agents.md). <!-- id:rrfnOUBm -->
+- Let an agent read and write your space with a delegated key: [using Seed from your own agent](./app-environment.md). <!-- id:rrfnOUBm -->
 - Sign in a browser visitor to your own app with their Seed account: [sign in](./sign-in.md). <!-- id:XuPImF9N -->
 - Serve your space on your own domain: [self-hosting](./self-hosting.md). <!-- id:wY5wLGHU -->
 - Understand what you just used, from keys to sync: [the protocol](../protocol.md). <!-- id:2ZN96Db6 -->

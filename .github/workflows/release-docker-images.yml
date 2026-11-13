@@ -65,14 +65,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: agents-bun-${{ runner.os }}-${{ hashFiles('agents/bun.lock') }}
+          key: agents-bun-${{ runner.os }}-${{ hashFiles('apps/bun.lock') }}
           restore-keys: |
             agents-bun-${{ runner.os }}-
       - name: Install dependencies
-        working-directory: agents
+        working-directory: apps
         run: bun install --frozen-lockfile
       - name: Run ${{ matrix.task }}
-        working-directory: agents
+        working-directory: apps
         run: |
           if [ "${{ matrix.task }}" = "test" ]; then
             bun test
@@ -437,13 +437,13 @@ jobs:
       - name: Get commit date
         run: echo "COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})" >> "$GITHUB_ENV"
 
-      - name: DockerHub Release seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
+      - name: DockerHub Release seedhypermedia/apps:${{ needs.image-tag.outputs.tag }}
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          file: agents/Dockerfile
-          tags: seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
+          file: apps/Dockerfile
+          tags: seedhypermedia/apps:${{ needs.image-tag.outputs.tag }},seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
           build-args: |
             VERSION=${{ needs.image-tag.outputs.tag }}
             COMMIT_HASH=${{ github.sha }}

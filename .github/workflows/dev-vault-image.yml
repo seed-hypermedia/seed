@@ -9,7 +9,7 @@ on:
       - "frontend/packages/shared/**"
       - "frontend/packages/client/**"
       - "frontend/packages/ui/**"
-      - "agents/protocol/**"
+      - "apps/protocol/**"
       - ".github/workflows/dev-vault-image.yml"
 
 concurrency:

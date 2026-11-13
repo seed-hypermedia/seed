@@ -12,7 +12,7 @@
  *   - a `waiting` run stays visible rather than collapsing, because it may be waiting on you.
  */
 
-import type {RunPlanStep} from '@seed-hypermedia/agents-protocol'
+import type {RunPlanStep} from '@seed-hypermedia/apps-protocol'
 import type {RunInfo, RunPlan} from '@shm/ui/agents/client'
 import React, {useEffect, useState} from 'react'
 import {StyleSheet, View} from 'react-native'

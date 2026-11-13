@@ -1,4 +1,4 @@
-import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {
   getAgentServerHealth,
   getAgentWebSocketUrl,
@@ -44,7 +44,7 @@ import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
 import {useSiteAgentMounts} from '../site-agents'
 import {unmountedOwnedAgents} from './orphan-agents'
-import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/apps-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {UniversalAppContext} from '@shm/shared/routing'
@@ -62,7 +62,7 @@ import {randomUUID} from './random-id'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
-/** Returns the built-in default agent server URL for the host app's runtime, when it has one. */
+/** Returns the built-in default app environment URL for the host app's runtime, when it has one. */
 export function getDefaultAgentServerUrl(): string | null {
   return getAgentsPlatform().defaultServerUrl()
 }
@@ -413,20 +413,20 @@ function tryNormalizeAgentServerUrl(input: string): string | null {
   try {
     return normalizeAgentServerUrl(input)
   } catch (error) {
-    console.warn('Ignoring invalid agent server URL setting', {input, error})
+    console.warn('Ignoring invalid app environment URL setting', {input, error})
     return null
   }
 }
 
 /**
- * Display name for the desktop-managed agents server.
+ * Display name for the desktop-managed app environment.
  *
  * It is presented as a named place rather than a URL: its port is assigned at startup, so the
  * address is an implementation detail that changes between runs and means nothing to the user.
  */
-export const LOCAL_AGENT_SERVER_LABEL = 'Local Agents'
+export const LOCAL_AGENT_SERVER_LABEL = 'Local app environment'
 
-/** True when `serverUrl` is the agents server this desktop app runs itself. */
+/** True when `serverUrl` is the app environment this desktop app runs itself. */
 export function isLocalAgentServer(serverUrl: string, localServerUrl: string | null | undefined): boolean {
   return !!localServerUrl && serverUrl === localServerUrl
 }
@@ -437,7 +437,7 @@ export function agentRouteServerUrl(route: {key: string; serverUrl?: string}): s
   return route.serverUrl || getDefaultAgentServerUrl()
 }
 
-/** Human-readable name for an agent server: the fixed local label, or the remote host. */
+/** Human-readable name for an app environment: the fixed local label, or the remote host. */
 export function describeAgentServer(serverUrl: string, localServerUrl: string | null | undefined): string {
   if (isLocalAgentServer(serverUrl, localServerUrl)) return LOCAL_AGENT_SERVER_LABEL
   try {
@@ -447,7 +447,7 @@ export function describeAgentServer(serverUrl: string, localServerUrl: string | 
   }
 }
 
-/** Loads the URL of the agents server the host app runs locally, when there is one. */
+/** Loads the URL of the app environment the host app runs locally, when there is one. */
 export function useLocalAgentServerUrl() {
   const getLocalServerUrl = getAgentsPlatform().getLocalServerUrl
   return useQuery({
@@ -465,7 +465,7 @@ export function useLocalAgentServerUrl() {
   })
 }
 
-/** Lifecycle of the app-managed local agents server; `disabled` on platforms without one. */
+/** Lifecycle of the app-managed local app environment; `disabled` on platforms without one. */
 export function useLocalAgentServerState() {
   const getLocalServerState = getAgentsPlatform().getLocalServerState
   return useQuery({
@@ -484,7 +484,7 @@ export function useLocalAgentServerState() {
   })
 }
 
-/** The persisted choice about the local agents server: `'on'`, `'off'`, or null before one is made. */
+/** The persisted choice about the local app environment: `'on'`, `'off'`, or null before one is made. */
 export function useLocalAgentServerSetting() {
   return useQuery({
     queryKey: ['agents', 'settings', AGENTS_LOCAL_SERVER_SETTING_KEY],
@@ -496,12 +496,12 @@ export function useLocalAgentServerSetting() {
   })
 }
 
-/** Turns the local agents server on or off (desktop only), persistently and right away. */
+/** Turns the local app environment on or off (desktop only), persistently and right away. */
 export function useSetLocalAgentServerEnabled() {
   return useMutation({
     mutationFn: async (enabled: boolean) => {
       const setLocalServerEnabled = getAgentsPlatform().setLocalServerEnabled
-      if (!setLocalServerEnabled) throw new Error('This app runs no local agents server')
+      if (!setLocalServerEnabled) throw new Error('This app runs no local app environment')
       return setLocalServerEnabled(enabled)
     },
     onSettled() {
@@ -511,7 +511,7 @@ export function useSetLocalAgentServerEnabled() {
 }
 
 /**
- * Loads only the agent server URLs persisted in settings.
+ * Loads only the app environment URLs persisted in settings.
  *
  * This is what the settings UI reads and writes. It deliberately excludes the locally spawned
  * server: that URL is chosen at startup, so persisting it would leave a dead entry the first time
@@ -553,7 +553,7 @@ export function useConfiguredAgentServerUrls() {
 }
 
 /**
- * All agent servers the app can talk to: the locally spawned one first, then configured servers.
+ * All app environments the app can talk to: the locally spawned one first, then configured servers.
  *
  * The local server is always present (when running) and is never persisted, so every consumer —
  * the Agents page, the assistant sidebar — sees it without the user configuring anything.
@@ -711,7 +711,7 @@ export function siteUidOfRoute(route: NavRoute): string | undefined {
   return undefined
 }
 
-/** Persists the configured agent server URL list. */
+/** Persists the configured app environment URL list. */
 export function useSetAgentServerUrls() {
   return useMutation({
     mutationFn: async (serverUrls: string[]) => {
@@ -732,7 +732,7 @@ export function useSetAgentServerUrls() {
   })
 }
 
-/** Loads the configured agent server URL for the desktop Agents page. */
+/** Loads the configured app environment URL for the desktop Agents page. */
 export function useAgentServerUrl() {
   return useQuery({
     queryKey: ['agents', 'server-url'],
@@ -745,7 +745,7 @@ export function useAgentServerUrl() {
   })
 }
 
-/** Persists the configured agent server URL for the desktop Agents page. */
+/** Persists the configured app environment URL for the desktop Agents page. */
 export function useSetAgentServerUrl() {
   return useMutation({
     mutationFn: async (serverUrl: string) => {
@@ -759,7 +759,7 @@ export function useSetAgentServerUrl() {
   })
 }
 
-/** Polls the configured agent server's status endpoint. */
+/** Polls the configured app environment's status endpoint. */
 export function useAgentServerHealth(serverUrl: string | undefined) {
   return useQuery({
     queryKey: ['agents', 'health', serverUrl],
@@ -774,7 +774,7 @@ export function useAgentServerHealth(serverUrl: string | undefined) {
 }
 
 /**
- * Ensures the desktop's local Seed node is peered with the agent server's HM node.
+ * Ensures the desktop's local Seed node is peered with the app environment's HM node.
  *
  * Agents publish documents/comments to their configured `hmServerUrl` — a different node than the desktop's
  * local embedded daemon. Discovery only queries the node's current set of connected peers, so unless the
@@ -810,7 +810,7 @@ async function connectLocalNodeToAgentHmServer(hmServerUrl: string): Promise<{pe
 
 /**
  * Syncs a newly created agent's HM account onto the local node so it can immediately be searched and
- * @mentioned. The agent account profile/home is published to the agent server's HM node, so we first peer the
+ * @mentioned. The agent account profile/home is published to the app environment's HM node, so we first peer the
  * local node with that HM node (same logic as {@link useConnectLocalNodeToAgentHmServer}) and then discover the
  * account recursively — its profile lives in the account subtree. Best-effort and fire-and-forget; failures
  * are non-fatal and logged under `[agents-discovery]`.
@@ -892,7 +892,7 @@ function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: s
  * an agents page is on screen.
  *
  * Mentions and hm:// navigation elsewhere in the app only resolve accounts the local node has
- * synced, but agent signing accounts live on the agent server's HM node (or a shared agent owner's
+ * synced, but agent signing accounts live on the app environment's HM node (or a shared agent owner's
  * node) — so without this, the user could watch an agent publish as an account and still be unable
  * to @mention it or open its site. This extends the existing screen-driven sync used for session
  * references ({@link subscribeToAgentReferences}) and resource pages: `platform.subscribeToEntity`
@@ -901,7 +901,7 @@ function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: s
  * enough here — it can race the HM-server peering or settle before new content is published.
  *
  * Three account sets, gathered across every configured server:
- * - the signed-in account's own signing identities (the "Agent Server Accounts" dialog set),
+ * - the signed-in account's own signing identities (the "App environment accounts" dialog set),
  *   subscribed recursively so their sites arrive whole;
  * - the granted signing identities of agents shared with this account (`ListSigningIdentities`
  *   scoped by agentId returns exactly the granted set for collaborators), also recursive;
@@ -1188,7 +1188,7 @@ export function useProviderModels(
 export function useRefreshProviderModels(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (provider: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -1272,7 +1272,7 @@ export function useSigningIdentities(
 export function useCreateSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (label?: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1294,14 +1294,14 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
 /**
  * Imports an existing HM account key (a decrypted `.hmkey.json` seed) for the server to sign with.
  *
- * The seed travels inside the signed action envelope to the agent server, which stores it in its
+ * The seed travels inside the signed action envelope to the app environment, which stores it in its
  * own encrypted secrets store — callers are responsible for warning the user when that server is
  * not their local machine. Unlike creation, the server publishes nothing for imported keys.
  */
 export function useImportSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({seed, label}: {seed: Uint8Array; label?: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -1323,12 +1323,12 @@ export function useImportSigningIdentity(serverUrl: string | undefined, accountU
 export function useUpdateSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({name, label, icon}: {name: string; label: string; icon?: SigningIdentityIcon}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateSigningIdentity', name, label, icon}})
     },
     onSuccess(result) {
       invalidateQueries(['agents', 'signing-identities'])
-      // The profile (name/avatar) was republished to the agent server's HM node. Re-sync it onto the local
+      // The profile (name/avatar) was republished to the app environment's HM node. Re-sync it onto the local
       // node and refresh the account metadata so the new icon/name shows in the UI without a manual reload.
       if (result._ === 'UpdateSigningIdentityResponse' && result.identity.accountId) {
         const updatedAccountId = result.identity.accountId
@@ -1343,7 +1343,7 @@ export function useUpdateSigningIdentity(serverUrl: string | undefined, accountU
 export function useDeleteSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (name: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteSigningIdentity', name}})
     },
     async onMutate(name) {
@@ -1387,7 +1387,7 @@ export function useModelProviderLists(serverUrls: string[] | undefined, accountU
 export function useDeleteModelProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (name: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteModelProvider', name}})
     },
     async onMutate(name) {
@@ -1432,7 +1432,7 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
        */
       oauthSecretName?: string
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const providerName = name.trim()
       if (!providerName) throw new Error('Provider name is required')
       if (oauthSecretName) {
@@ -1451,7 +1451,7 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
       // Only guard the secret transport when a key is actually being sent; local
       // providers (Ollama/custom) can be saved without one.
       if (trimmed && !isSafeAgentServerSecretTarget(serverUrl)) {
-        throw new Error('Refusing to send API key to a non-local HTTP agent server. Use HTTPS for remote servers.')
+        throw new Error('Refusing to send API key to a non-local HTTP app environment. Use HTTPS for remote servers.')
       }
       const trimmedBaseUrl = baseUrl?.trim() || undefined
       const provider: ModelProviderConfig = {type}
@@ -1489,14 +1489,14 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
 
 /**
  * Starts a subscription OAuth sign-in (OpenAI: “Sign in with ChatGPT”) on the
- * agent server. Returns the browser URL to open; completion is observed with
+ * app environment. Returns the browser URL to open; completion is observed with
  * `useProviderOAuthStatus`, and `useSubmitProviderOAuthCode` covers servers the
  * browser redirect cannot reach (the user pastes the redirect URL instead).
  */
 export function useStartProviderOAuth(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (providerType: ModelProviderType) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'StartProviderOAuth', providerType}})
       if (res._ !== 'StartProviderOAuthResponse') throw new Error('Unexpected StartProviderOAuth response')
       return res
@@ -1529,7 +1529,7 @@ export function useProviderOAuthStatus(
 export function useSubmitProviderOAuthCode(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({loginId, code}: {loginId: string; code: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const trimmed = code.trim()
       if (!trimmed) throw new Error('Paste the authorization code or redirect URL first')
       return sendAgentAction({
@@ -1548,7 +1548,7 @@ export function useSubmitProviderOAuthCode(serverUrl: string | undefined, accoun
 export function useCancelProviderOAuth(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (loginId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'CancelProviderOAuth', loginId}})
     },
     onSuccess(_res, loginId) {
@@ -1561,9 +1561,9 @@ export function useCancelProviderOAuth(serverUrl: string | undefined, accountUid
 export function useSaveOpenAIProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (apiKey: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       if (!isSafeAgentServerSecretTarget(serverUrl)) {
-        throw new Error('Refusing to send API key to a non-local HTTP agent server. Use HTTPS for remote servers.')
+        throw new Error('Refusing to send API key to a non-local HTTP app environment. Use HTTPS for remote servers.')
       }
       const trimmed = apiKey.trim()
       if (!trimmed) throw new Error('OpenAI API key is required')
@@ -1593,7 +1593,7 @@ export function useSaveOpenAIProvider(serverUrl: string | undefined, accountUid:
 export function useEnsureAgentProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async () => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1611,7 +1611,7 @@ export function useEnsureAgentProvider(serverUrl: string | undefined, accountUid
 export function useCreateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (input: Omit<CreateAgent, '_'>) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1664,7 +1664,7 @@ export function useInviteAgentCollaborator(serverUrl: string | undefined, accoun
       collaboratorAccountId: string
       role: AgentCollaboratorRole
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1722,7 +1722,7 @@ function optimisticPublicFlagUpdates(
 export function useSetAgentPublicRead(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, publicRead}: {agentId: string; publicRead: boolean}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicRead', agentId, publicRead}})
     },
     async onMutate({agentId, publicRead}) {
@@ -1746,7 +1746,7 @@ export function useSetAgentPublicRead(serverUrl: string | undefined, accountUid:
 export function useSetAgentPublicChat(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, publicChat}: {agentId: string; publicChat: boolean}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicChat', agentId, publicChat}})
     },
     async onMutate({agentId, publicChat}) {
@@ -1770,7 +1770,7 @@ export function useSetAgentPublicChat(serverUrl: string | undefined, accountUid:
 export function useRemoveAgentCollaborator(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, collaboratorAccountId}: {agentId: string; collaboratorAccountId: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1818,7 +1818,7 @@ function optimisticInviteRemoval(serverUrl: string, accountUid: string, agentId:
 export function useAcceptAgentInvite(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'AcceptAgentInvite', agentId}})
     },
     async onMutate(agentId) {
@@ -1840,7 +1840,7 @@ export function useAcceptAgentInvite(serverUrl: string | undefined, accountUid: 
 export function useDeclineAgentInvite(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeclineAgentInvite', agentId}})
     },
     async onMutate(agentId) {
@@ -1861,7 +1861,7 @@ export function useDeclineAgentInvite(serverUrl: string | undefined, accountUid:
 export function useUnmountAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'UnmountAgent', agentId}})
       if (res._ !== 'GetAgentResponse') throw new Error('Unexpected UnmountAgent response')
       return res
@@ -1875,7 +1875,7 @@ export function useUnmountAgent(serverUrl: string | undefined, accountUid: strin
 export function useDeleteAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgent', agentId}})
     },
     async onMutate(agentId) {
@@ -1906,7 +1906,7 @@ export function useDeleteAgent(serverUrl: string | undefined, accountUid: string
 }
 
 /**
- * Moves one agent to another configured agent server: copies its portable state (definition,
+ * Moves one agent to another configured app environment: copies its portable state (definition,
  * memory, authored tools, triggers) to the target, then deletes the original. See
  * {@link moveAgentToServer} for what moves and what each server keeps.
  */
@@ -2121,7 +2121,7 @@ export function useSaveAgentTool(serverUrl: string | undefined, accountUid: stri
       tool: AgentToolInput
       previousName?: string
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -2140,7 +2140,7 @@ export function useSaveAgentTool(serverUrl: string | undefined, accountUid: stri
 export function useDeleteAgentTool(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, name}: {agentId: string; name: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentTool', agentId, name}})
       if (res._ !== 'DeleteAgentToolResponse') throw new Error('Unexpected DeleteAgentTool response')
       return res
@@ -2198,7 +2198,7 @@ export type SaveMcpServerInput = {
 export function useSaveMcpServer(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({name, url, transport, authHeaderName, authHeaderValue}: SaveMcpServerInput) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const serverName = name.trim()
       if (!serverName) throw new Error('Server name is required')
       const trimmedUrl = url.trim()
@@ -2210,7 +2210,7 @@ export function useSaveMcpServer(serverUrl: string | undefined, accountUid: stri
       if (headerValue) {
         if (!isSafeAgentServerSecretTarget(serverUrl)) {
           throw new Error(
-            'Refusing to send a secret header to a non-local HTTP agent server. Use HTTPS for remote servers.',
+            'Refusing to send a secret header to a non-local HTTP app environment. Use HTTPS for remote servers.',
           )
         }
         const secretName = `mcp-${serverName}-${headerName.toLowerCase()}`
@@ -2255,7 +2255,7 @@ function upsertMcpServerInCaches(
 export function useRefreshMcpServer(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (name: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RefreshMcpServer', name}})
       if (res._ !== 'SetMcpServerResponse') throw new Error('Unexpected RefreshMcpServer response')
       return res.server
@@ -2271,7 +2271,7 @@ export function useRefreshMcpServer(serverUrl: string | undefined, accountUid: s
 export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (name: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteMcpServer', name}})
       if (res._ !== 'DeleteMcpServerResponse') throw new Error('Unexpected DeleteMcpServer response')
       return res
@@ -2324,7 +2324,7 @@ export function useAgentMemoryFile(
 export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path, content}: {agentId: string; path: string; content: string | Uint8Array}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'WriteAgentMemoryFile', agentId, path, content}})
     },
     async onMutate({agentId, path, content}) {
@@ -2359,7 +2359,7 @@ export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUi
 export function useDownloadAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, url, path}: {agentId: string; url: string; path?: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -2380,7 +2380,7 @@ export function useDownloadAgentMemoryFile(serverUrl: string | undefined, accoun
 export function useUploadAgentMemoryFileToIpfs(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -2397,7 +2397,7 @@ export function useUploadAgentMemoryFileToIpfs(serverUrl: string | undefined, ac
 export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentMemoryFile', agentId, path}})
     },
     async onMutate({agentId, path}) {
@@ -2429,8 +2429,8 @@ export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountU
 /** Combines activity triggers and refreshes both active configuration and retained history. */
 export function useCombineAgentTriggers(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async (input: Omit<import('@seed-hypermedia/agents-protocol').CombineAgentTriggers, '_'>) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+    mutationFn: async (input: Omit<import('@seed-hypermedia/apps-protocol').CombineAgentTriggers, '_'>) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'CombineAgentTriggers', ...input}})
     },
     onSuccess() {
@@ -2452,10 +2452,10 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
       trigger: AgentTriggerInput
       clientRequestId?: string
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       if (trigger.source.type === 'webhook' && !isSafeAgentServerSecretTarget(serverUrl)) {
         throw new Error(
-          'Refusing to create a webhook over a non-local HTTP agent server. Use HTTPS for remote servers.',
+          'Refusing to create a webhook over a non-local HTTP app environment. Use HTTPS for remote servers.',
         )
       }
       return sendAgentAction({
@@ -2492,7 +2492,7 @@ export function useInvokeSessionTool(serverUrl: string | undefined, accountUid: 
       verb: 'read' | 'write' | 'call'
       input: unknown
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'InvokeSessionTool', sessionId, verb, input}})
     },
     onSuccess(_result, {sessionId}) {
@@ -2517,7 +2517,7 @@ export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid:
       patch: AgentTriggerPatch
       expectedUpdatedAt?: number
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -2568,7 +2568,7 @@ export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid:
 export function useDeleteAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (triggerId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentTrigger', triggerId}})
     },
     async onMutate(triggerId) {
@@ -2930,7 +2930,7 @@ export function useRunTree(
 export function useCancelRun(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (runId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'CancelRun', runId}})
       if (res._ !== 'CancelRunResponse') throw new Error('Unexpected CancelRun response')
       return res
@@ -2953,7 +2953,7 @@ export function useCancelRun(serverUrl: string | undefined, accountUid: string |
 export function useSignalRun(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({runId, signal, payload}: {runId: string; signal: string; payload?: unknown}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -2979,7 +2979,7 @@ export function useSignalRun(serverUrl: string | undefined, accountUid: string |
 export function useUpdateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, definition}: {agentId: string; definition: AgentDefinition}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateAgent', agentId, definition}})
     },
     async onMutate({agentId, definition}) {
@@ -3039,7 +3039,7 @@ const SINGLE_SHOT_UPLOAD_BYTES = 2 * 1024 * 1024
 const UPLOAD_CHUNK_BYTES = 3 * 1024 * 1024
 
 /**
- * Uploads a file to the agent server (agent memory or session attachment). Large files go in
+ * Uploads a file to the app environment (agent memory or session attachment). Large files go in
  * bounded chunks so each signed action stays small — signing hashes the whole payload, and a
  * single 300MB action freezes the renderer for many seconds — and `onProgress` fires per chunk.
  */
@@ -3133,7 +3133,7 @@ export function useUploadSessionAttachment(serverUrl: string | undefined, accoun
       mimeType?: string
       content: Uint8Array
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -3206,7 +3206,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
       sessionId: string
       message: AgentSessionDraftMessage | AgentSessionDraftMessage[]
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const messages = Array.isArray(message) ? message : [message]
       // Context describes the sending window as a whole, so all lines collapse into one part.
       const contextLines = messages.flatMap((message) => message.contextLines ?? [])
@@ -3249,7 +3249,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
 export function useStopAgentSession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'StopSession', sessionId}})
       if (res._ !== 'StopSessionResponse') throw new Error('Unexpected StopSession response')
       return res
@@ -3272,7 +3272,7 @@ export function useStopAgentSession(serverUrl: string | undefined, accountUid: s
 export function useRetrySession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RetrySession', sessionId}})
       if (res._ !== 'RetrySessionResponse') throw new Error('Unexpected RetrySession response')
       return res
@@ -3737,7 +3737,7 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
     // No title by default: the agent names its session, with a server-side fallback from the first
     // user message. Sending a display placeholder as a real title defeats both.
     mutationFn: async ({agentId, title}: {agentId: string; title?: string}) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -3806,7 +3806,7 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
       /** Pins the session's delegation budget; null returns it to the agent's own thoroughness. */
       thoroughness?: Thoroughness | null
     }) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
@@ -3866,7 +3866,7 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
 export function useDeleteAgentSession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (!serverUrl || !accountUid) throw new Error('Select an account and app environment first')
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteSession', sessionId}})
       if (res._ !== 'DeleteSessionResponse') throw new Error('Unexpected DeleteSession response')
       return res

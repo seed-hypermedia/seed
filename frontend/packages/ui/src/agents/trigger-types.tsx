@@ -1,6 +1,6 @@
 import {type AgentSessionTriggerContext, type AgentTriggerSource, type TriggerContinuation} from './client'
 import {CodeTextArea} from '../code-text-area'
-import {activityConditions, type AgentActivitySource, type AgentToolInfo} from '@seed-hypermedia/agents-protocol'
+import {activityConditions, type AgentActivitySource, type AgentToolInfo} from '@seed-hypermedia/apps-protocol'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
 import {Textarea} from '@shm/ui/components/textarea'

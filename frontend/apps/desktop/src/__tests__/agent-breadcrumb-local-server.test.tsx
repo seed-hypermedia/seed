@@ -46,11 +46,11 @@ afterEach(() => {
 })
 
 describe('AgentBreadcrumb server label', () => {
-  it('names the local server "Local Agents" instead of its ephemeral address', () => {
+  it('names the local server "Local app environment" instead of its ephemeral address', () => {
     act(() => {
       root.render(<AgentBreadcrumb serverUrl="http://localhost:3051" agentName="Assistant" agentId="a1" />)
     })
-    expect(container.textContent).toContain('Local Agents')
+    expect(container.textContent).toContain('Local app environment')
     expect(container.textContent).not.toContain('localhost')
   })
 

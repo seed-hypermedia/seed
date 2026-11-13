@@ -8,7 +8,7 @@ The `signer` is both the issuer and the space. Only the space owner's key can si
 
 There is no expiry and no revocation. A capability that names a Ref's signer gives the same result whether it arrives before that Ref or after it: the daemon stashes an unauthorized Ref and retries it when a capability naming its signer is indexed. A late grant one hop up an AGENT chain names a different key and does not trigger that retry. An AGENT delegate inherits the issuer's own space and the issuer's direct grants elsewhere for exactly one hop. <!-- id:bbIv8daq -->
 
-Create one with `seed-cli capability create --delegate <uid> --role WRITER --path /team` in the [CLI](./build/cli.md), with `createCapability` in the [SDK](./build/sdk.md), from a document's Collaborators view in the [Seed app](./apps/desktop.md), or with the agent [write](./agent/write.md) action `capability.grant`. <!-- id:jBYfdmtC -->
+Create one with `seed-cli capability create --delegate <uid> --role WRITER --path /team` in the [CLI](./build/cli.md), with `createCapability` in the [SDK](./build/sdk.md), from a document's Collaborators view in the [Seed app](./apps/desktop.md), or with the agent [write](./app-environment/write.md) action `capability.grant`. <!-- id:jBYfdmtC -->
 
 # See also <!-- id:JzIvRXS3 -->
 

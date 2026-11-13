@@ -20,7 +20,7 @@ import {setupTestEnv, type TestEnv} from './integration'
 
 const REPO = path.resolve(__dirname, '..')
 const CLI = path.join(REPO, 'frontend/apps/cli')
-const AGENTS = path.join(REPO, 'agents')
+const AGENTS = path.join(REPO, 'apps')
 const LIBRARY = 'hm://hyper.media'
 const KIND = (k: string) => `${LIBRARY}/${k}`
 const TIMEOUT = 180_000
@@ -501,7 +501,7 @@ describe('CLI · 8. Create an instance of the signed type and sign it', () => {
 
 // ── An agent ─────────────────────────────────────────────────────────────────
 //
-// The agents service is Bun-only, so its stories run in agents/scripts/user-stories.ts and
+// The agents service is Bun-only, so its stories run in apps/scripts/user-stories.ts and
 // report one JSON line per step. The steps below are declared here, by name, so each is one
 // test; the runner and this list must agree.
 

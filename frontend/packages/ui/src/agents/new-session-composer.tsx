@@ -1,4 +1,4 @@
-import type {AgentInfo, SessionModelOverride, Thoroughness} from '@seed-hypermedia/agents-protocol'
+import type {AgentInfo, SessionModelOverride, Thoroughness} from '@seed-hypermedia/apps-protocol'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {errorMessage} from './errors'
 import {SessionModelBadge, type SessionModelPatch} from './header'

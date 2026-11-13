@@ -1,4 +1,4 @@
-import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {CreateAgent} from '@seed-hypermedia/apps-protocol'
 import type {DocumentDestinationSubmitInput} from '../document-destination-dialog'
 import {AgentMountDestination, findFreeAgentMountPath, prepareAgentMount, type PreparedAgentMount} from './mount'
 import {type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
@@ -66,7 +66,7 @@ import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-
 
 /**
  * A new agent's default system prompt is a single Embed of the Agent Guide rather than inline text, so every new
- * agent picks up the current published guidance. The agent server names the guide (`defaultPromptUrl` in health).
+ * agent picks up the current published guidance. The app environment names the guide (`defaultPromptUrl` in health).
  */
 export function defaultAgentSystemPrompt(url: string): HMBlockNode[] {
   return [
@@ -588,7 +588,7 @@ export function ManageAgentAccountsDialog({
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3">
-        <DialogTitle>Agent Server Accounts</DialogTitle>
+        <DialogTitle>App environment accounts</DialogTitle>
         <DialogDescription>
           Hypermedia accounts that can be used by your agents on this server to write content.
         </DialogDescription>
@@ -1072,7 +1072,7 @@ export function CreateAgentDialog({
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const health = useAgentServerHealth(selectedServerUrl)
   // Servers from before `defaultPromptUrl` resolve this address to their docs space.
-  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
+  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/app-environment/guide'
   const [choosingLocation, setChoosingLocation] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -1157,7 +1157,7 @@ export function CreateAgentDialog({
     }
     const result = await createAgent.mutateAsync(pendingCreation.current)
     if (result._ !== 'CreateAgentResponse' || result.agentId !== mount.documentId) {
-      throw new Error('This agent server must be updated to support creating mounted agents.')
+      throw new Error('This app environment must be updated to support creating mounted agents.')
     }
     await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
   }

@@ -258,7 +258,7 @@ The Seed CLI signs locally and talks to a site's [Seed API](./web-api.md). The o
 
 ## Agents <!-- id:-1e2cEC0 -->
 
-[Seed Agents](../agent.md) run beside a site and use the Seed API. They do not use gRPC. An [external agent](./agents.md) on a machine with a daemon can use `grpcurl` from its shell. It can fully control any daemon it can reach, which is one more reason to keep daemon ports off the network. <!-- id:Apkp-ASE -->
+[Seed Agents](../agent.md) run beside a site and use the Seed API. They do not use gRPC. An [external agent](./app-environment.md) on a machine with a daemon can use `grpcurl` from its shell. It can fully control any daemon it can reach, which is one more reason to keep daemon ports off the network. <!-- id:Apkp-ASE -->
 
 # See also <!-- id:jOvd1DfV -->
 

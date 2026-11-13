@@ -42,9 +42,9 @@ export function isSubscriptionSignInAvailable(
 
 /**
  * Drives a subscription OAuth sign-in ("Sign in with ChatGPT") against the
- * agent server: starts the flow, opens the provider's authorization page in the
+ * app environment: starts the flow, opens the provider's authorization page in the
  * system browser, and polls for completion. The OAuth client redirects to
- * `localhost:1455` — this machine, not the (possibly remote) agent server — so
+ * `localhost:1455` — this machine, not the (possibly remote) app environment — so
  * the desktop main process listens there, catches the redirect, and this
  * component forwards it to the server via `SubmitProviderOAuthCode`. A
  * paste-the-redirect-URL fallback covers the port being taken.
@@ -91,7 +91,7 @@ export function SubscriptionSignIn({
   }, [status.data, onConnected])
 
   // While a sign-in is pending, poll the main process for the browser redirect
-  // it caught on localhost:1455 and forward it to the agent server. The
+  // it caught on localhost:1455 and forward it to the app environment. The
   // submittedRef guards against re-submitting the same redirect across polls.
   const pending = Boolean(login) && (!status.data || status.data.status === 'pending')
   const submittedRef = useRef<string | null>(null)

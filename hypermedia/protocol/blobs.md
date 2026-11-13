@@ -137,7 +137,7 @@ The request catalogue is in the [Seed API guide](../build/web-api.md). <!-- id:X
 
 ## Agents <!-- id:2pyg3rmk -->
 
-[Seed Agents](../agent.md) read and write blobs through two address verbs. [`read`](../agent/read.md) of `ipfs://<cid>` returns a file, or for a DAG-CBOR blob the decoded object together with a signature check and, when the blob names a schema, a validation result. [`write`](../agent/write.md) to `ipfs://<cid>` publishes a memory file, an attachment or a JSON object as blobs. Writes to `hm://` addresses sign Change, Ref, Comment, Capability, Contact and Profile blobs for the agent with the key its [grant](../agent/grants.md) allows. An external agent such as Claude Code with the seed-cli skill uses the CLI commands above; see [Agents](../build/agents.md). <!-- id:sH6hAmMT -->
+[Seed Agents](../agent.md) read and write blobs through two address verbs. [`read`](../app-environment/read.md) of `ipfs://<cid>` returns a file, or for a DAG-CBOR blob the decoded object together with a signature check and, when the blob names a schema, a validation result. [`write`](../app-environment/write.md) to `ipfs://<cid>` publishes a memory file, an attachment or a JSON object as blobs. Writes to `hm://` addresses sign Change, Ref, Comment, Capability, Contact and Profile blobs for the agent with the key its [grant](../app-environment/grants.md) allows. An external agent such as Claude Code with the seed-cli skill uses the CLI commands above; see [Agents](../build/agents.md). <!-- id:sH6hAmMT -->
 
 # See also <!-- id:U8_iES-_ -->
 

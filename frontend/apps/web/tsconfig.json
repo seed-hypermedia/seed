@@ -44,7 +44,7 @@
       "@shm/ui/*": ["../../packages/ui/src/*"],
       "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
       "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
-      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
+      "@seed-hypermedia/apps-protocol": ["../../../apps/protocol/src/index.ts"]
     },
     "noEmit": true
   },

@@ -2,7 +2,7 @@ import {
   CONTINUATION_HANDOFF_KEYS,
   CONTINUATION_HOISTED_ARGS,
   continuationSectionTitle,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from './client'
 import {type ChatToolPart} from './chat-parts'
 import {Markdown} from './markdown'
