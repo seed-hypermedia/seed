@@ -31,7 +31,7 @@ These pages explain the system from the top down: <!-- id:XwK2BBFL -->
 
 # Using Hypermedia Schemas in the Seed app <!-- id:L_DgXvRt -->
 
-Typed documents need no setting: any [document](./protocol/documents.md)'s **Attributes** tab shows its [schema bindings](./schema/typed-documents.md). The raw building blocks, **New Blob** and **New Schema**, sit behind a switch on desktop. Open Settings, Developers, press **Enable Debug Tools**, then turn on **Hypermedia Schemas**. With it on, a document's options menu shows both entries, and the **New** menu gains **Schema**. The web app shows the options menu entries by default. <!-- id:5Fs6bCbF -->
+Typed documents need no setting: any [document](./protocol/documents.md)'s **Attributes** tab shows its [schema bindings](./schema/typed-documents.md). Creating schemas sits behind a switch on desktop. Open Settings, Developers, press **Enable Debug Tools**, then turn on **Hypermedia Schemas**. With it on, the **New** menu gains **Schema**. <!-- id:5Fs6bCbF -->
 
 ## Browse the schemas <!-- id:aRoEaieX -->
 
@@ -43,11 +43,11 @@ Every schema is a page of this site, starting at the meta-schema on this page. I
 
 ## Create a schema <!-- id:pGXQjMrq -->
 
-Choose **New Schema** from the options menu. The editor opens against the meta-schema, so the form offers only choices a valid schema can make: pick a [kind](./schema/kind.md), add [properties](./schema/property.md), mark them required, add literals or unions. Publishing stores the schema as a content-addressed [blob](./protocol/blobs.md) that you can reference by CID or by name. <!-- id:ggmcQl7m -->
+Choose **New Schema** from the options menu of a type's page or of the inspector. The editor opens against the meta-schema, so the form offers only choices a valid schema can make: pick a [kind](./schema/kind.md), add [properties](./schema/property.md), mark them required, add literals or unions. Publishing stores the schema as a content-addressed [blob](./protocol/blobs.md) that you can reference by CID or by name. <!-- id:ggmcQl7m -->
 
 ## Create typed data <!-- id:X0q30aDs -->
 
-To start a value that matches a schema, choose **New Blob** for a blank [DAG-CBOR](./schema/dag-cbor.md) object, **New Raw Value** on a type's page, or **New Instance of this Schema** on a schema blob in the inspector. The editor follows the schema. It suggests the schema's fields, offers dropdowns for [unions of literals](./schema/literal-schema.md) and pickers for union [variants](./schema/variant.md), shows the right controls for `link` and `bytes`, and flags anything that does not match without blocking you. <!-- id:o1oySfG7 -->
+To start a value that matches a schema, choose **New Blob** in the inspector's options menu for a blank [DAG-CBOR](./schema/dag-cbor.md) object, **New Raw Value** on a type's page, or **New Instance of this Schema** on a schema blob in the inspector. The editor follows the schema. It suggests the schema's fields, offers dropdowns for [unions of literals](./schema/literal-schema.md) and pickers for union [variants](./schema/variant.md), shows the right controls for `link` and `bytes`, and flags anything that does not match without blocking you. <!-- id:o1oySfG7 -->
 
 ## Type a document's metadata with a schema <!-- id:94quIzFe -->
 
