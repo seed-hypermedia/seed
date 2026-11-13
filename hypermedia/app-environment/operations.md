@@ -58,7 +58,7 @@ The image records what it was built from and exposes it at runtime. `/api/versio
 The `commit`, `branch`, and `date` fields mirror the [daemon](../apps/daemon.md) `/debug/version` and [web](../apps/web.md) `/hm/api/version` shape. `version` (the image tag) is specific to agents. `/api/health` also includes the `version` field for quick checks. To see what a host is running: <!-- id:YpXAAaEN -->
 
 ```bash <!-- id:T46AIml8 -->
-curl -s https://agentic.seed.hyper.media/agents/api/version
+curl -s https://hyper.media/hm/api/apps/version
 ```
 
 The values come from `apps/src/build-info.ts`, populated by Docker build args (`VERSION`, `COMMIT_HASH`, `BRANCH`, `DATE`; the web and daemon images use the same `COMMIT_HASH`, `BRANCH`, and `DATE` names). `apps/Dockerfile` maps them to namespaced `SEED_AGENTS_*` runtime `ENV`. Without build args (for example local `bun dev` or a plain `docker build`) they fall back to `dev` or `unknown`. <!-- id:3EKhBIqX -->
@@ -87,11 +87,11 @@ One host runs `/opt/agentic/docker-compose.yml` with three agents containers beh
 <!-- id:SIM6kqVF -->
 | Hostname <!-- col:LqSuj2MH --> | Container <!-- col:69XPEtJw --> | Image tag <!-- col:iCY30j_y --> | Code <!-- col:y0qrOEXZ --> | Data <!-- col:leHGcMht --> <!-- id:Exwz3Qfb --> |
 | --- | --- | --- | --- | --- |
-| `agentic.seed.hyper.media` | `agents-stable` | `:latest` | newest release | mainnet <!-- id:JGFQErsK --> |
-| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev` | `main` | mainnet, via `staging.hyper.media` <!-- id:rPtV9zjA --> |
-| `dev.agentic.seed.hyper.media` | `agents-dev` | `:dev` | `main` | devnet <!-- id:sKgI7CtP --> |
+| `apps.seed.hyper.media` (on `sae-prod`) | `agents-stable` | `:latest` | newest release | mainnet <!-- id:JGFQErsK --> |
+| `staging.apps.seed.hyper.media` (on `sae-dev`) | `agents-staging` | `:dev` | `main` | mainnet, via `staging.hyper.media` <!-- id:rPtV9zjA --> |
+| `dev.apps.seed.hyper.media` (on `sae-dev`) | `agents-dev` | `:dev` | `main` | devnet <!-- id:sKgI7CtP --> |
 
-Staging is the release gate: same code as dev, real mainnet data. Before cutting a release, land on `main`, wait for `:dev` to deploy, exercise `staging.agentic.seed.hyper.media`, then tag. See [environments](./environments.md) for the full picture, including why each container needs its own data volume. <!-- id:4aRdm50_ -->
+Staging is the release gate: same code as dev, real mainnet data. Before cutting a release, land on `main`, wait for `:dev` to deploy, exercise `https://staging.hyper.media/hm/api/apps` (served by `staging.apps.seed.hyper.media`), then tag. See [environments](./environments.md) for the full picture, including why each container needs its own data volume. <!-- id:4aRdm50_ -->
 
 Watchtower (`nickfedor/watchtower:1.18.1`, label-enabled, 5-minute interval) auto-pulls the labeled containers. After pushing a new image it deploys within the poll interval, or force it immediately: <!-- id:hwGCsVgy -->
 

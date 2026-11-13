@@ -72,9 +72,11 @@ The three deployments differ in exactly two ways: which image tag they track, an
 <!-- id:kkpozSX- -->
 | Hostname <!-- col:sXrNq-0H --> | Container <!-- col:1FEmsSXu --> | Image tag <!-- col:d1bQOJd8 --> | Code <!-- col:kG1ioF-3 --> | Data <!-- col:ty-3yWjB --> <!-- id:-S4MK1Hh --> |
 | --- | --- | --- | --- | --- |
-| `agentic.seed.hyper.media` | `agents-stable` | `:latest` | newest release | mainnet <!-- id:EKhrmFMc --> |
-| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev` | `main` | mainnet, via `staging.hyper.media` <!-- id:hEF6ChWm --> |
-| `dev.agentic.seed.hyper.media` | `agents-dev` | `:dev` | `main` | devnet <!-- id:c63XBVSE --> |
+| `apps.seed.hyper.media` (on `sae-prod`) | `agents-stable` | `:latest` | newest release | mainnet <!-- id:EKhrmFMc --> |
+| `staging.apps.seed.hyper.media` (on `sae-dev`) | `agents-staging` | `:dev` | `main` | mainnet, via `staging.hyper.media` <!-- id:hEF6ChWm --> |
+| `dev.apps.seed.hyper.media` (on `sae-dev`) | `agents-dev` | `:dev` | `main` | devnet <!-- id:c63XBVSE --> |
+
+Clients do not use these host names: each environment is reached on its gateway's own origin, `https://hyper.media/hm/api/apps`, `https://staging.hyper.media/hm/api/apps` and `https://dev.hyper.media/hm/api/apps`, which proxy to the host. The former `*.agentic.seed.hyper.media` names resolve to the same hosts for clients that saved them; production moved from the agentic host to `sae-prod` on 2026-11-13.
 
 Staging is the release gate. It runs the _same code_ as dev against _production data_, so you can validate behavior on real mainnet content before a release tag promotes that code to `agents-stable`. Dev keeps devnet data, which is where you want to be while a change may still write nonsense. <!-- id:pDjXSwim -->
 
