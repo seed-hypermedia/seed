@@ -192,7 +192,7 @@ export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
     process.env.SEED_AGENT_SERVER_URL ??
     WEB_ENV.SEED_AGENT_SERVER_URL // web client
   if (typeof configured === 'string') return configured || undefined
-  return process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051'
+  return process.env.NODE_ENV === 'production' ? 'https://hyper.media/hm/api/apps' : 'http://localhost:3051'
 })()
 
 // Discovery timeouts

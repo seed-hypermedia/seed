@@ -326,6 +326,8 @@ export const documentRouteSchema = z.object({
     .optional(),
   /** The tab of an app (`hm://hyper.media/app`) or the Settings tab of a tool; Home / Tool when absent. */
   appView: z.enum(['tools', 'pages', 'settings']).optional(),
+  /** One recorded run (call) of a tool, shown as its own page: `<tool>/:call/<id>`. */
+  toolCallId: z.string().optional(),
   agentSessionId: z.string().optional(),
   agentTriggerId: z.string().optional(),
   agentMemoryPath: z.string().optional(),
@@ -370,12 +372,13 @@ export const draftsSchema = z.object({
 })
 export type DraftsRoute = z.infer<typeof draftsSchema>
 
-export const settingsTabSchema = z.enum(['general', 'sync', 'app-info', 'agent-servers', 'advanced'])
+export const settingsTabSchema = z.enum(['general', 'sync', 'app-info', 'advanced'])
 export type SettingsTab = z.infer<typeof settingsTabSchema>
 
 export const settingsRouteSchema = z.object({
   key: z.literal('settings'),
-  tab: settingsTabSchema.optional(),
+  // A tab that no longer exists (a window restored from an older version) opens the default one.
+  tab: settingsTabSchema.optional().catch(undefined),
 })
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 

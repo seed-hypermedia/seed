@@ -45,6 +45,7 @@ vi.mock('@shm/ui/agents/activity', async (importOriginal) => ({
   },
 }))
 vi.mock('@shm/ui/agents/models', () => ({
+  useForgetAgentServer: () => ({mutate: vi.fn()}),
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   LOCAL_AGENT_SERVER_LABEL: 'Local app environment',

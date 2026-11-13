@@ -147,6 +147,7 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 - Move: \`options: {action: "move", toPath: "/new-path"}\`. Use \`"/"\` for account home.
 - Redirect: \`options: {action: "redirect", toUrl: "hm://OTHER_UID/path"}\`.
 - Fork: the address is the destination; use \`options: {action: "fork", fromUrl: "hm://SOURCE_UID/path"}\`.
+- Run or stop an app on this server: \`options: {action: "run", privateConfig: {…}}\` or \`{action: "stop"}\` (read ~/tools/write/apps).
 - Delete: the address is the document; use \`options: {action: "delete"}\`.
 - Publish a memory markdown file: use \`options: {fromPath: "~/memory/file.md", signer: {...}}\`; frontmatter supplies metadata and the destination path may be derived when writing to account home.
 
@@ -299,7 +300,7 @@ SDK calls return promises except \`seed.stringify(value)\`, a display-only JSON 
 
 Reads of documents, the space profile, and queries confined to the page document's own space work by default, using the viewer's existing protocol access. This does not grant access to the viewer's other spaces. Cross-space redirects and unbounded queries still need approval. Seed asks separately before disclosing the viewer identity (including \`context\`, \`profile\`, or public-key reads), reading other spaces or saved state, signing, and publishing unapproved blobs. Call the operation from a user action; \`seed.permissions.request()\` only reports \`{grants}\`, it does not grant authority. Approval defaults to **Allow once**. The viewer can remember reading a resource/site, signing comments on one site, or all comments. Unknown signatures require a separate explicit approval; advanced **Any signing** does not grant reading. Seed classifies the actual signed bytes, not a helper name. Exact recognized blobs signed with approval can be published without a second prompt; added/changed blobs require publication approval.
 
-Remembered rules belong to the selected viewer and canonical page document ID on this device, **including future page updates**. \`seed.permissions.revoke()\` or **Page permissions** in the breadcrumb menu removes them. Closing, changing account or updating code cancels in-flight calls; it does not erase remembered rules. Pages on joined sites, the viewer's own site or the current web site's identity may run automatically; other sites show **Run page**, without requiring a join. Running allows reads within the page's own space, but grants no signing authority. Handle denial visibly without retry loops. Do not claim that the sandbox prevents exfiltration after data is shared.
+Remembered rules belong to the selected viewer and canonical page document ID on this device, **including future page updates**. For a page inside an app they belong to the app instead: every page of the app shares them, so allowing one page of an app to read everything allows them all. \`seed.permissions.revoke()\` or **Page permissions** in the breadcrumb menu removes them. Closing, changing account or updating code cancels in-flight calls; it does not erase remembered rules. Pages on joined sites, the viewer's own site or the current web site's identity may run automatically; other sites show **Run page**, without requiring a join. Running allows reads within the page's own space, but grants no signing authority. Handle denial visibly without retry loops. Do not claim that the sandbox prevents exfiltration after data is shared.
 
 The same APIs work on web and desktop, subject to those independent approvals:
 
@@ -309,6 +310,7 @@ The same APIs work on web and desktop, subject to those independent approvals:
 - \`seed.signer.getPublicKey()\` and \`seed.signer.sign(new Uint8Array(bytes))\` implement the SDK's HMSigner interface. They return public key/signature bytes; private keys never leave Seed. Web sign-in may use a delegated device key, so its signing principal can differ from the selected account UID; existing protocol delegation still applies. A prebundled SDK can use this signer; do not fetch dependencies at runtime.
 - \`seed.hm.createComment(input)\`, \`updateComment\`, \`deleteComment\`, \`createDocumentBlobs\`, \`createVersionRef\`, \`createRedirectRef\`, \`createTombstoneRef\`, \`createCapability\`, \`createContact\`, \`updateContact\`, \`deleteContact\`, and \`signDocumentChange\` use the corresponding SDK input and return types, with the host supplying the signer. Helpers sign but do not publish. The signed-change result uses a string for \`changeCid\` so it survives the bridge. \`seed.hm.signBlob(body)\` signs a custom dag-json blob body, returning \`{cid, data, ts, signer}\`; publish its cid/data through \`seed.publish\`.
 - A new document can be created with \`const {account} = await seed.context(); const {blobs} = await seed.hm.createDocumentBlobs({space: account, path: "/pages/data", ops: [{type: "SetAttributes", attrs: [{key: ["name"], value: "Page data"}]}]}); await seed.publish({blobs});\`. Use document changes with a base version for edits; do not recreate an existing document.
+- \`seed.app.call(tool, input)\` runs a tool of the app this page belongs to (a page written directly under an app) on the app's server, signed as the viewer, and resolves to the tool's output (rejecting with its error). \`tool\` is the tool's name in the app, its path segment such as \`"get-weather"\`, or its hm:// URL. The viewer approves it once, for that tool, or for every tool of the app. Example: \`const forecast = await seed.app.call("get-weather", {city: cityInput.value});\`. Server-side work (anything needing a secret, an API key or another service) belongs in a tool, never in the page.
 - \`seed.comments.create({content: blockNodes, target?, version?})\` signs AND publishes a comment, returning \`{commentId, version}\`. It defaults to this page's document and displayed version. Another target needs its version in the URL or version field; visibility follows the target document. Example: \`const content = await seed.hm.parseMarkdown(messageInput.value); const posted = await seed.comments.create({content});\`.
 
 Use click handlers for actions rather than form submission. Disable Submit while pending, preserve input on errors/denial, and only clear it on success. Calls awaiting trust stay pending until the viewer decides; at most 32 requests may be pending, with 8 MiB per request including binary bytes. Do not try to export keys, read another page's local state, or access parent DOM/cookies. Advanced Any signing includes lasting permission grants and arbitrary signatures. Do not push users toward broad trust to make a page work. Revocation stops further operations and late results; it cannot recall completed signatures, published writes or capabilities already granted. The sandbox does not guarantee data cannot leave through navigation. Verify the rendered page and SDK calls before claiming they work.
@@ -321,25 +323,37 @@ Use click handlers for actions rather than form submission. Disable Submit while
 
 An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Every child lives directly under the app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
 
-A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Nothing runs app tools yet; publish them so people can read, review and edit them. These are different from the private callables in \`~/tools/<name>\` (read ~/tools/write/tools): an app tool is a shared, signed Seed document.
+A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools. These are different from the private callables in \`~/tools/<name>\` (read ~/tools/write/tools): an app tool is a shared, signed Seed document.
 
 ## Steps
 
 1. Write the app: an ordinary document with a name, a one-line description in \`metadata.summary\`, and \`metadata.type: "hm://hyper.media/app"\`. Leave its content empty; the publisher fills it in.
 2. For each tool, publish its input schema (and output schema, if it returns something structured) as an HM struct with write ipfs:// and \`options.schema: "schema"\` (read ~/tools/write/ipfs). Reference each by its \`ipfs://\` CID, or bind it to a type document and use that document's hm:// URL.
-3. Write the tool's code to memory as \`~/memory/apps/<app>/<tool>/index.ts\`. The entry point default-exports one async function that takes the input and resolves to the output:
+3. Write the tool's code to memory as \`~/memory/apps/<app>/<tool>/index.ts\`. The entry point default-exports one async function that takes the input and a context, and resolves to the output. \`ctx.app\` is the app's hm:// id, \`ctx.publicConfig\` the app's public config and \`ctx.privateConfig\` its private config (API keys and the like). Tools run in a sandbox with network access; the latest published code always runs:
 
 \`\`\`ts
 type Input = {city: string}
 type Output = {summary: string; highC: number}
 
-export default async function (input: Input): Promise<Output> {
+export default async function (input: Input, ctx: {publicConfig: {units?: string}; privateConfig: {apiKey?: string}}): Promise<Output> {
+  if (!ctx.privateConfig.apiKey) throw new Error('This app needs an apiKey in its private config')
   return {summary: \`Sunny in \${input.city}\`, highC: 21}
 }
 \`\`\`
 
+Never put a secret in the code, the app or a tool document: declare it in the app's private config schema instead.
+
 4. Publish the tool under the app with \`options.tool\` naming that folder (or one .ts file). The publisher checks that index.ts parses and default-exports a function, publishes the folder, sets \`type\` and \`code\`, and adds the tool's card embed to the app in the same publish. A tool anywhere but directly under an app is refused.
 5. Pages work the same way: a page written directly under an app (with \`options.page\`, read ~/tools/write/pages) is added to the app's list too. Set the app's \`metadata.homePage\` to one of its pages' hm:// URL to make that page the app's Home tab.
+6. An app's pages are its interface and its tools are its server side: a page calls the app's tools with \`seed.app.call("<tool name>", input)\`, which runs the tool on the app's server as the viewer and returns its output. Put anything that needs a secret, a private config value, another service or heavy work in a tool, and have the page call it; never put that logic or a key in the page. Pages of one app share their permissions, so a viewer who allows a tool on one page has allowed it on all of them.
+
+## Config and running
+
+- An app declares its config as two HM struct schemas, referenced like tool schemas: \`metadata.publicConfigSchema\` (values anyone can read, stored on the app as \`metadata.publicConfig\`) and \`metadata.privateConfigSchema\` (secrets such as API keys, which the person running the app enters and the app server keeps; they are never published).
+- An app runs on the app server its \`metadata.appEnvironmentUrl\` names (or, without one, the server the space's site names). A person who can write the app's space runs it from the app's Settings, choosing the server and filling in the config.
+- You run apps on the server you run on. Write the app's address with \`options.action: "run"\` and its private config: \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
+- A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
+- Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
 
 ## Example
 

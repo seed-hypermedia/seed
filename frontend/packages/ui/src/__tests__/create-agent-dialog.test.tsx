@@ -4,12 +4,14 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {CreateAgentDialog, pickCreateAgentServer} from '../agents/dialogs'
+import {CreateAgentDialog} from '../agents/dialogs'
+import {pickCreateAgentServer} from '../agents/server-picker'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const mocks = vi.hoisted(() => ({
   defaultServer: null as string | null,
+  rememberServer: vi.fn(),
   createAgent: vi.fn(),
   createIdentity: vi.fn(),
   publish: vi.fn(),
@@ -27,6 +29,9 @@ const mountId = hmId('alice', {path: ['notes', 'amber-wolf']})
 vi.mock('../agents/models', () => ({
   getDefaultAgentServerUrl: () => 'http://local.test',
   isLocalAgentServer: (url: string, local: string | null) => url === local,
+  describeAgentServer: (url: string, local: string | null) =>
+    url === local ? 'Local app environment' : new URL(url).host,
+  useRememberAgentServer: () => ({mutate: mocks.rememberServer}),
   prefetchAgentDetail: vi.fn(async () => {}),
   useAgentServerHealth: () => ({
     data: {defaultPromptUrl: 'hm://hyper.media/app-environment/guide'},
@@ -79,6 +84,23 @@ vi.mock('../components/dialog', () => ({
   DialogTitle: ({children}: {children: React.ReactNode}) => <h2>{children}</h2>,
   DialogDescription: ({children}: {children: React.ReactNode}) => <p>{children}</p>,
 }))
+vi.mock('../select-dropdown', () => ({
+  SelectDropdown: ({
+    options,
+    onValue,
+  }: {
+    options: {value: string; label: string}[]
+    onValue: (value: string) => void
+  }) => (
+    <div>
+      {options.map((option) => (
+        <button key={option.value} type="button" onClick={() => onValue(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
+}))
 vi.mock('../toast', () => ({toast: {success: mocks.toastSuccess, error: vi.fn(), promise: vi.fn()}}))
 vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))
 
@@ -127,7 +149,7 @@ describe('CreateAgentDialog', () => {
     const onClose = render({serverUrls: ['http://local.test'], selectedAccountId: 'alice', location})
     await flush()
     expect(container.textContent).toContain('"Notes"')
-    // A single server is stated, never chosen; reasoning, thoroughness and the prompt are not offered.
+    // The server is stated, with the choice folded away; reasoning, thoroughness and the prompt are not offered.
     expect(container.textContent).toContain('Runs on Local')
     expect(container.textContent).not.toContain('Run on')
     expect(container.textContent).not.toContain('Reasoning')
@@ -158,6 +180,8 @@ describe('CreateAgentDialog', () => {
     })
     expect(request.definition.reasoningLevel).toBeUndefined()
     expect(request.definition.thoroughness).toBeUndefined()
+    // The server the agent landed on is remembered, so it stays listed and is offered first next time.
+    expect(mocks.rememberServer).toHaveBeenCalledWith('http://local.test')
     expect(mocks.toastSuccess).toHaveBeenCalledWith('Agent created')
     expect(onClose).toHaveBeenCalled()
     expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId, agentView: 'sessions'})
@@ -220,10 +244,45 @@ describe('CreateAgentDialog', () => {
     expect(container.textContent).toContain('Run on')
   })
 
-  it('offers no Change link with a single server', async () => {
+  it('takes the URL of a server the app has never used, even when only one is offered', async () => {
+    mocks.createAgent.mockResolvedValue({_: 'CreateAgentResponse', agentId: mountId.id})
     render({serverUrls: ['http://local.test'], selectedAccountId: 'alice', location})
     await flush()
-    expect(button('Change')).toBeUndefined()
+    act(() => button('Change')!.click())
+    act(() => button('Another server…')!.click())
+    const urlInput = container.querySelector('input[aria-label="Server URL"]') as HTMLInputElement
+    expect(button('Use server')!.disabled).toBe(true)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(urlInput, 'agents.example.com')
+      urlInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    act(() => button('Use server')!.click())
+    // Not a URL: the picker says so and the server stays as it was.
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        urlInput,
+        'https://agents.example.com/',
+      )
+      urlInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    act(() => button('Use server')!.click())
+    await flush()
+    expect(container.querySelector('input[aria-label="Server URL"]')).toBeNull()
+
+    await act(async () => button('Create Agent')!.click())
+    await flush()
+    expect(mocks.prepareAgentMount).toHaveBeenCalledWith(
+      expect.objectContaining({serverUrl: 'https://agents.example.com'}),
+    )
+    expect(mocks.rememberServer).toHaveBeenCalledWith('https://agents.example.com')
+  })
+
+  it('asks for a server URL when there is none to offer', async () => {
+    render({serverUrls: [], selectedAccountId: 'alice', location})
+    await flush()
+    // The mocked built-in default stands in, so the choice starts stated rather than empty.
+    expect(container.textContent).toContain('Runs on Local')
   })
 
   it('prefers the configured default, then any remote over the local server', () => {

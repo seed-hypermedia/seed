@@ -425,13 +425,23 @@ export function notifyHost(config: SeedConfig): string {
 }
 
 /**
- * Public base URL of the agents service, or '' when it is not deployed. It is
- * the site itself under /hm/api/agents; on an enterprise node that path sits
+ * Public base URL of the app environment, or '' when it is not deployed. It is
+ * the site itself under /hm/api/apps; on an enterprise node that path sits
  * behind the same sign-in gate, so agents are for members only.
  */
 export function agentsHost(config: SeedConfig): string {
   if (!config.agents) return ''
-  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`
+}
+
+/**
+ * Where clients reach the app server: the site itself under /hm/api/apps (Caddy
+ * routes it to seed-agents), or '' when it is not deployed. The app server names
+ * it as the `appEnvironmentUrl` of apps its agents run.
+ */
+export function appsPublicUrl(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`
 }
 
 /**
@@ -1265,7 +1275,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
         }),
       agents: () =>
         p.confirm({
-          message: 'Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)',
+          message: 'Run the agents service? (served at <your domain>/hm/api/apps; calls model providers)',
           initialValue: existing?.agents ?? false,
         }),
       email: () =>
@@ -1657,8 +1667,7 @@ async function runEnterpriseWizard(
         }),
       agents: () =>
         p.confirm({
-          message:
-            'Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)',
+          message: 'Run the agents service? (served at <your domain>/hm/api/apps, members only; calls model providers)',
           initialValue: existing?.agents ?? false,
         }),
       // The hosting service's email relay replaces the SMTP account; it is
@@ -2368,6 +2377,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_NOTIFY_HOST = notifyHost(config)
     vars.SEED_AGENTS_HOST = agentsHost(config)
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config)
     vars.SEED_SMTP_HOST = config.smtp?.host ?? ''
     vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : '587'
     vars.SEED_SMTP_USER = config.smtp?.user ?? ''
@@ -2380,6 +2390,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     // hosted agents service) and existing sites' env hash does not change.
     vars.SEED_AGENTS_HOST = agentsHost(config)
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config)
   }
 
   const profiles = composeProfiles(config)

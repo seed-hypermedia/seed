@@ -1,3 +1,4 @@
+import {HM_APP_TYPE, HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
 import {
   draftBindingSchemaDrafts,
   draftSchemaDraft,
@@ -423,6 +424,11 @@ export function getCollectionEditorBlocks(context: DocumentMachineContext): Edit
 
 function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
   const publishedType = deriveDocumentType(context.document?.content, context.documentId)
+  // An app's or tool's body (the card embeds that list an app's tools and pages) is kept by the
+  // publisher, and their views edit metadata only, with no editor showing the body: writing the
+  // editor would publish an empty body and offer to delete every child.
+  const type = getEffectiveDocumentMetadata(context).type
+  if (type === HM_APP_TYPE || type === HM_TOOL_TYPE) return contentToEditorBlocks(context.document?.content)
   if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined
   // A collection's body is its query block, owned by the machine. Before any query edit there is no
   // draft content yet, so fall back to the published query rather than letting the writer read an

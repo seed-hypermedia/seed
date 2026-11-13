@@ -21,6 +21,15 @@ vi.mock('@shm/shared', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared')>()),
   useUniversalClient: () => ({request: vi.fn()}),
 }))
+vi.mock('../apps/running', () => ({
+  ToolRunSection: () => <div data-testid="tool-run" />,
+  AppRunningSection: () => <div data-testid="app-running" />,
+  AppPublicConfigSection: () => null,
+  AppRunStatus: () => null,
+  useAppRun: () => ({status: {data: null}}),
+  useAppServerUrl: () => ({serverUrl: '', isLoading: false}),
+}))
+vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => mocks.navigate}))
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),

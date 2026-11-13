@@ -4,7 +4,9 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
-import {useState} from 'react'
+import {useState, type ReactNode} from 'react'
+import {useAgentServerOptions, useRememberAgentServer} from '../agents/models'
+import {CreateServerChoice, useCreateServerChoice} from '../agents/server-picker'
 import {Button} from '../button'
 import {DialogDescription, DialogTitle} from '../components/dialog'
 import {Input} from '../components/input'
@@ -45,6 +47,7 @@ function NameAndSummaryForm({
   namePlaceholder,
   summaryPlaceholder,
   submitLabel,
+  extra,
   onSubmit,
   onClose,
 }: {
@@ -53,6 +56,8 @@ function NameAndSummaryForm({
   namePlaceholder: string
   summaryPlaceholder: string
   submitLabel: string
+  /** Further fields, shown under the description. */
+  extra?: ReactNode
   onSubmit: (values: {name: string; summary: string}) => Promise<void>
   onClose: () => void
 }) {
@@ -95,6 +100,7 @@ function NameAndSummaryForm({
           onChange={(event) => setSummary(event.target.value)}
         />
       </div>
+      {extra}
       {error ? (
         <SizableText size="sm" className="text-destructive" role="alert">
           {error}
@@ -112,11 +118,17 @@ function NameAndSummaryForm({
   )
 }
 
-/** Creates an app under `location` and opens it. */
+/**
+ * Creates an app under `location` and opens it. The app document names the app environment it runs
+ * on (`appEnvironmentUrl`), chosen here the way an agent's server is.
+ */
 export function CreateAppDialog({input, onClose}: {input: {location: UnpackedHypermediaId}; onClose: () => void}) {
   const client = useUniversalClient()
   const publisher = useAppsPublisher()
   const navigate = useNavigate()
+  const serverOptions = useAgentServerOptions()
+  const {serverUrl, setServerUrl} = useCreateServerChoice(serverOptions)
+  const rememberServer = useRememberAgentServer()
   return (
     <NameAndSummaryForm
       title="New app"
@@ -124,10 +136,12 @@ export function CreateAppDialog({input, onClose}: {input: {location: UnpackedHyp
       namePlaceholder="Weather"
       summaryPlaceholder="What the app is for"
       submitLabel="Create app"
+      extra={<CreateServerChoice options={serverOptions ?? []} value={serverUrl} onChange={setServerUrl} />}
       onClose={onClose}
       onSubmit={async ({name, summary}) => {
         const id = await freeChildId(client, input.location, name)
-        await publisher.create(id, [attrs({name, summary, type: HM_APP_TYPE})])
+        await publisher.create(id, [attrs({name, summary, type: HM_APP_TYPE, appEnvironmentUrl: serverUrl})])
+        if (serverUrl) rememberServer.mutate(serverUrl)
         toast.success(`Created ${name}`)
         navigate({key: 'document', id})
       }}

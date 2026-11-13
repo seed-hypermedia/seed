@@ -214,7 +214,7 @@ function ServerSheet({visible, onClose, currentUrl}: {visible: boolean; onClose:
         label="Server URL"
         value={draft}
         onChangeText={setDraft}
-        placeholder="https://agentic.seed.hyper.media"
+        placeholder="https://hyper.media/hm/api/apps"
         keyboardType="url"
         hint="The agents runtime this device talks to. Your identity signs every request it sends."
         testID="agents-server-url-input"

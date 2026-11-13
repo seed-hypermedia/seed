@@ -30,6 +30,11 @@ export type Config = {
   subscriptionAuth: boolean
   /** Generate titles for untitled sessions with a dedicated model call. */
   titleGeneration: boolean
+  /**
+   * The URL clients reach this server's API at, such as `https://hyper.media/hm/api/apps` (the web
+   * host proxies `/hm/api/apps` here). Apps run here name it as their `appEnvironmentUrl`.
+   */
+  publicUrl?: string
   /** The document a new agent's system prompt embeds (the Agent Guide), reported in /api/health. */
   defaultPromptUrl: string
   /** Where `hm://hyper.media` (the Hypermedia knowledge base) resolves. See docs-space.ts. */
@@ -140,6 +145,7 @@ export type Flags = {
   'db-path': string
   'data-dir': string
   'hm-server-url': string
+  'public-url': string
   'ipfs-server-url': string
   'default-prompt-url': string
   'docs-account': string
@@ -220,6 +226,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'db-path': v('DB_PATH') || './data/agents.sqlite',
     'data-dir': v('DATA_DIR') || './data',
     'hm-server-url': v('HM_SERVER_URL') || 'https://hyper.media',
+    'public-url': v('PUBLIC_URL') || '',
     'ipfs-server-url': v('IPFS_SERVER_URL') || '',
     'default-prompt-url':
       v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/app-environment/guide',
@@ -331,6 +338,7 @@ export function create(pflags: Flags): Config {
     dataDir: pflags['data-dir'],
     logLevel: parseLogLevel(pflags['log-level']),
     defaultPromptUrl: pflags['default-prompt-url'].trim(),
+    publicUrl: optionalHttpUrl(pflags['public-url'], 'Public URL')?.replace(/\/+$/, ''),
     docs: {
       account: pflags['docs-account'].trim() || undefined,
       accountFile: pflags['docs-account-file'].trim() || undefined,

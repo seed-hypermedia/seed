@@ -2,7 +2,8 @@ import {DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 
 // Dev runs the app environment on the port from .env.vars; release builds use the baked-in default.
 const LOCAL_DEFAULT_AGENT_SERVER_URL = DEFAULT_DESKTOP_AGENTS_URL
-const PRODUCTION_DEFAULT_AGENT_SERVER_URL = 'https://agentic.seed.hyper.media'
+// The app environment on the gateway's own origin: hyper.media proxies /hm/api/apps to it.
+const PRODUCTION_DEFAULT_AGENT_SERVER_URL = 'https://hyper.media/hm/api/apps'
 
 /** Returns the built-in default app environment URL for the current desktop runtime. */
 export function getDefaultAgentServerUrl() {

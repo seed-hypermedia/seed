@@ -196,13 +196,13 @@ describe('app environment models', () => {
     }
   })
 
-  it('seeds the configured server list with the built-in default in development', async () => {
+  it('knows the built-in default in development before any server is remembered', async () => {
     process.env.NODE_ENV = 'development'
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -211,13 +211,13 @@ describe('app environment models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('seeds the configured server list with the hosted default in production', async () => {
+  it('knows the hosted default in production before any server is remembered', async () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -226,13 +226,13 @@ describe('app environment models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('does not re-seed the built-in default after the list is emptied in production', async () => {
+  it('does not bring the built-in default back after the last server is forgotten in production', async () => {
     process.env.NODE_ENV = 'production'
     storeData['agent-server-urls'] = []
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -241,16 +241,39 @@ describe('app environment models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('clears the stored default when the configured server list becomes empty', async () => {
+  it('remembers a server an agent was put on, keeping the ones already known', async () => {
+    process.env.NODE_ENV = 'production'
+
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
+    const rendered = renderHook(() => mod.useRememberAgentServer())
+
+    await act(async () => {
+      await rendered.result().mutateAsync('https://agents.example.com/')
+    })
+
+    // The built-in default was only implied until now; remembering another must not drop it.
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-urls', [
+      DEFAULT_AGENT_SERVER_URL,
+      'https://agents.example.com',
+    ])
+    // It is also the server offered first the next time one is chosen.
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-url', 'https://agents.example.com')
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+  })
+
+  it('forgets a server and the default that pointed at it', async () => {
     storeData['agent-server-url'] = 'http://localhost:3050'
     storeData['agent-server-urls'] = ['http://localhost:3050']
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
-    const rendered = renderHook(() => mod.useSetAgentServerUrls())
+    const rendered = renderHook(() => mod.useForgetAgentServer())
 
     await act(async () => {
-      await rendered.result().mutateAsync([])
+      await rendered.result().mutateAsync('http://localhost:3050')
     })
 
     expect(setSettingMock).toHaveBeenCalledWith('agent-server-urls', [])
@@ -267,7 +290,7 @@ describe('app environment models', () => {
     vi.resetModules()
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
 
-    expect(DEFAULT_AGENT_SERVER_URL).toBe('https://agentic.seed.hyper.media')
+    expect(DEFAULT_AGENT_SERVER_URL).toBe('https://hyper.media/hm/api/apps')
   })
 
   it('syncs references only for the mounted session and unsubscribes when it closes', async () => {

@@ -144,6 +144,19 @@ describe('hypermediaUrlToRoute', () => {
     }
   })
 
+  test('a tool run lives at <tool>/:call/<id> and round trips on every URL form', () => {
+    const id = hmId('alice', {path: ['apps', 'weather', 'forecast']})
+    const route = {key: 'document' as const, id, toolCallId: 'run-1'}
+    expect(routeToHmUrl(route)).toBe('hm://alice/apps/weather/forecast/:call/run-1')
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/apps/weather/forecast/:call/run-1')
+    for (const url of [
+      'hm://alice/apps/weather/forecast/:call/run-1',
+      'https://seed.example/hm/alice/apps/weather/forecast/:call/run-1',
+    ]) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, toolCallId: 'run-1'})
+    }
+  })
+
   test('app tabs live at /:app/<view> and round trip on every URL form', () => {
     const id = hmId('alice', {path: ['apps', 'weather']})
     for (const appView of ['tools', 'pages', 'settings'] as const) {

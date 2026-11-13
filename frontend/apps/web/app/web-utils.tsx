@@ -23,7 +23,7 @@ import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shar
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
-import {useAgentServerUrls} from '@shm/ui/agents/models'
+import {useAgentServerOptions} from '@shm/ui/agents/models'
 import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
@@ -302,7 +302,7 @@ export function useWebCreateDocumentMenuItem({
 
 /**
  * Agent creation under `locationId` for the web New menus: `open` is undefined while no app environment
- * is known (none configured) or nobody is signed in, hiding the entry.
+ * is known (the deployment names none and the visitor has used none) or nobody is signed in, hiding the entry.
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.
  */
@@ -314,7 +314,7 @@ function useWebCreateAgentAtLocation(
 ): {open?: () => void; content: ReactNode} {
   registerWebAgentsPlatform()
   const dialog = useAppDialog(CreateAgentDialog)
-  const serverUrls = useAgentServerUrls().data
+  const serverUrls = useAgentServerOptions()
   const open = useMemo(() => {
     if (!serverUrls?.length || !signingAccountId || !atHome || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})

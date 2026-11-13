@@ -53,6 +53,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     settingsDomain,
     agentView,
     appView,
+    toolCallId,
     agentSessionId,
     agentTriggerId,
   } = extractViewTermFromUrl(url)
@@ -61,6 +62,8 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   if (!id) return null
   if (appView)
     return {key: 'document', id: {...id, version: null, latest: true, blockRef: null, blockRange: null}, appView}
+  if (toolCallId)
+    return {key: 'document', id: {...id, version: null, latest: true, blockRef: null, blockRange: null}, toolCallId}
   if (agentView || (viewTerm === ':settings' && id.path?.length && !settingsTab)) {
     const params = new URLSearchParams(url.split('?')[1]?.split('#')[0])
     return {

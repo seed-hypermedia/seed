@@ -213,6 +213,12 @@ export type UnsignedAgentAction =
   | DeleteModelProvider
   | ListMcpServers
   | SetMcpServer
+  | RunApp
+  | StopApp
+  | GetAppRun
+  | CallAppTool
+  | ListAppToolCalls
+  | GetAppToolCall
   | DeleteMcpServer
   | RefreshMcpServer
   | StartProviderOAuth
@@ -407,6 +413,52 @@ export type ListProviderModels = {
   agentId?: string
   /** Skips server-side caches behind the listing (e.g. the looked-up Codex client version). */
   refresh?: boolean
+}
+
+/**
+ * Runs an app document (`hm://hyper.media/app`) on this server, or updates a running app's private
+ * config. The signer must be able to write the app's space. `privateConfig` replaces the stored
+ * values; omit it to keep them. Private config is kept encrypted and never returned.
+ */
+export type RunApp = {
+  _: 'RunApp'
+  appId: string
+  privateConfig?: Record<string, unknown>
+}
+
+/** Stops an app running on this server and forgets its private config. Writers of the app's space. */
+export type StopApp = {
+  _: 'StopApp'
+  appId: string
+}
+
+/** Whether an app runs on this server. Answers `AppRunResponse` with `run: null` when it does not. */
+export type GetAppRun = {
+  _: 'GetAppRun'
+  appId: string
+}
+
+/** Calls a tool of an app running on this server with its latest code. Anyone may call. */
+export type CallAppTool = {
+  _: 'CallAppTool'
+  appId: string
+  toolId: string
+  input: unknown
+}
+
+/** A tool's recorded calls on this server, newest first. */
+export type ListAppToolCalls = {
+  _: 'ListAppToolCalls'
+  toolId: string
+  limit?: number
+  /** Only calls made before this time (ms since epoch), for paging. */
+  before?: number
+}
+
+/** One recorded run (call) of a tool, by id: who triggered it, the tool version that ran, input and result. */
+export type GetAppToolCall = {
+  _: 'GetAppToolCall'
+  callId: string
 }
 
 /** Lists uploaded Seed account keys available to the signed account. */
@@ -2061,6 +2113,51 @@ export type CancelProviderOAuthResponse = {
   loginId: string
 }
 
+/** An app running on this server. */
+export type AppRunInfo = {
+  appId: string
+  spaceUid: string
+  startedBy: string
+  /** Names of the private config fields that are set; the values never leave the server. */
+  privateConfigKeys: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+/** Response for `RunApp`, `StopApp` and `GetAppRun`: the app's run on this server, or null. */
+export type AppRunResponse = {
+  _: 'AppRunResponse'
+  run: AppRunInfo | null
+}
+
+/** One recorded call of an app tool. `output` is set on success, `error` on failure. */
+export type AppToolCallInfo = {
+  id: string
+  appId: string
+  toolId: string
+  /** The account that triggered the run: the signer of the request, or the agent's own account. */
+  caller: string
+  /** The tool version (its document version) that ran. */
+  toolVersion?: string
+  input: unknown
+  output?: unknown
+  error?: string
+  durationMs?: number
+  createdAt: number
+}
+
+/** Response for `CallAppTool`. A failed run is still a response, with `call.error` set. */
+export type AppToolCallResponse = {
+  _: 'AppToolCallResponse'
+  call: AppToolCallInfo
+}
+
+/** Response for `ListAppToolCalls`. */
+export type ListAppToolCallsResponse = {
+  _: 'ListAppToolCallsResponse'
+  calls: AppToolCallInfo[]
+}
+
 /** Successful response for `ListSigningIdentities`. */
 export type ListSigningIdentitiesResponse = {
   _: 'ListSigningIdentitiesResponse'
@@ -2495,6 +2592,9 @@ export type AgentResponse =
   | ListModelProvidersResponse
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
+  | AppRunResponse
+  | AppToolCallResponse
+  | ListAppToolCallsResponse
   | CreateSigningIdentityResponse
   | ImportSigningIdentityResponse
   | UpdateSigningIdentityResponse

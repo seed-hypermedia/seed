@@ -66,6 +66,7 @@ export const DOCUMENT_PAGE_METHODS = [
   'hm.validateContent',
   'hm.unpackHmId',
   'comments.create',
+  'app.call',
   'permissions.request',
   'permissions.revoke',
   'request',
@@ -115,6 +116,7 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
     )}.map((name) => [name, (input) => call('hm.' + name, {input})])),
   }),
   comments: Object.freeze({create: (input) => call('comments.create', input)}),
+  app: Object.freeze({call: (tool, input = {}) => call('app.call', {tool, input})}),
 })`
 
 export type DocumentPageMethod = (typeof DOCUMENT_PAGE_METHODS)[number]
@@ -192,6 +194,16 @@ export type DocumentPageSDK = {
       target?: string
       version?: string
     }): Promise<{commentId: string; version: string}>
+  }
+  /**
+   * The app this page belongs to. `call` runs one of the app's tools on the app's server, signed as
+   * the viewer (who is recorded as having run it), after the viewer allows it: once, for this tool,
+   * or for every tool of the app. `tool` is the tool's name in the app (its path segment, such as
+   * `get-weather`) or its hm:// URL. Resolves to the tool's output; rejects with its error, or when
+   * the page is not in an app, the app is not running, or the viewer declines.
+   */
+  app: {
+    call(tool: string, input?: Record<string, unknown>): Promise<unknown>
   }
 }
 

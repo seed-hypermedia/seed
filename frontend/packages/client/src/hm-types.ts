@@ -601,6 +601,12 @@ export const HMDocumentMetadataSchema = z
     code: z.string().optional(),
     /** hm:// URL of the app's own page that its Home tab shows. */
     homePage: z.string().optional(),
+    /** Published HM struct schema of an app's public config (readable by anyone who can read the app). */
+    publicConfigSchema: z.string().optional(),
+    /** Published HM struct schema of an app's private config, which the server running the app keeps. */
+    privateConfigSchema: z.string().optional(),
+    /** An app's public config values, shaped by its publicConfigSchema. */
+    publicConfig: z.record(z.string(), z.unknown()).optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -653,7 +659,8 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
-  appEnvironmentUrl: 'App environment a space is bound to, on its home document; read before agentServerUrl.',
+  appEnvironmentUrl:
+    'App environment a space is bound to, on its home document (read before agentServerUrl), or the one an app document was created for.',
   agentServerUrl: 'App environment that hosts the agent this document mounts.',
   type: 'Resource type, such as a custom HTML page, an app or a tool.',
   html: 'UnixFS folder holding a custom HTML page.',
@@ -661,6 +668,9 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   outputSchema: 'Schema of what a tool returns.',
   code: 'UnixFS folder holding a tool’s code, entry point index.ts.',
   homePage: 'The app page its Home tab shows.',
+  publicConfigSchema: 'Schema of an app’s public config.',
+  privateConfigSchema: 'Schema of an app’s private config, kept by the server running it.',
+  publicConfig: 'An app’s public config values.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',

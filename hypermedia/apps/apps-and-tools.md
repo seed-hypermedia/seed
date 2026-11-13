@@ -34,7 +34,7 @@ An app opens as tabs instead of a text document, like an agent:
 
 A tool opens inside its app: the app's tabs stay above it with **Tools** selected, and the tool shows like an agent session, a header with a back button and its name, then one page with its description, input and output schemas (edited with the schema editor) and its `index.ts`. **Save** publishes every change as one new version; a code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes it and takes it off its app's list.
 
-**New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
+**New → App** in a space's New menu creates an app. The dialog states the app environment the app will run on, with a **Change** link that offers the known servers and takes any other by URL; the choice is written to the app document as `appEnvironmentUrl` ([metadata](../metadata.md)). Nothing reads it yet, since nothing runs app tools yet. Inside an app, New offers only **Tool**: agents build pages for now. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
 
 # For agents
 

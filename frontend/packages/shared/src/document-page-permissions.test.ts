@@ -1,6 +1,9 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
   pagePermissionScopes,
+  pagePermissionLabel,
+  pagePermissionOwner,
+  pageToolCallRequest,
   pageReadRequest,
   pagePermissionStorageKey,
   createDocumentPageAccess,
@@ -139,5 +142,54 @@ describe('page run trust', () => {
     expect(readPageRunTrust({getItem: () => JSON.stringify(trust)}, key)).toEqual(trust)
     expect(readPageRunTrust({getItem: () => '{"pages":"x"}'}, key)).toEqual(empty)
     expect(readPageRunTrust({getItem: () => null}, key)).toEqual(empty)
+  })
+})
+
+describe('app tool calls from pages', () => {
+  const forecast = pageToolCallRequest({
+    app: 'hm://alice/weather',
+    tool: 'hm://alice/weather/forecast',
+    toolName: 'forecast',
+    input: {city: 'Lisbon'},
+  })
+  const radar = pageToolCallRequest({
+    app: 'hm://alice/weather',
+    tool: 'hm://alice/weather/radar',
+    toolName: 'radar',
+    input: {},
+  })
+
+  it('offers once, this tool, or every tool of the app', () => {
+    expect(pagePermissionScopes(forecast)).toEqual(['once', 'resource', 'site'])
+    expect(pagePermissionLabel('resource', forecast)).toBe('Always allow this tool')
+    expect(pagePermissionLabel('site', forecast)).toBe('Always allow all tools in this app')
+  })
+
+  it('remembers one tool, or every tool of the app', async () => {
+    const approve = vi.fn(async (): Promise<PagePermissionDecision> => 'resource')
+    const access = createDocumentPageAccess(approve)
+    await access.authorize(forecast, new AbortController().signal)
+    await access.authorize(forecast, new AbortController().signal)
+    expect(approve).toHaveBeenCalledTimes(1)
+    approve.mockResolvedValue('site')
+    await access.authorize(radar, new AbortController().signal)
+    await access.authorize(radar, new AbortController().signal)
+    await access.authorize(forecast, new AbortController().signal)
+    expect(approve).toHaveBeenCalledTimes(2)
+    expect(access.snapshot()).toEqual([
+      {kind: 'call', scope: 'resource', resource: 'hm://alice/weather/forecast'},
+      {kind: 'call', scope: 'site', site: 'hm://alice/weather'},
+    ])
+  })
+
+  it('keeps an app’s permissions under the app, shared by all its pages', () => {
+    expect(pagePermissionOwner('hm://alice/weather/radar-page', 'hm://alice/weather')).toBe('hm://alice/weather')
+    expect(pagePermissionOwner('hm://alice/notes', null)).toBe('hm://alice/notes')
+    expect(
+      readPagePermissionGrants(
+        {getItem: () => JSON.stringify([{kind: 'call', scope: 'site', site: 'hm://alice/weather'}])},
+        'k',
+      ),
+    ).toEqual([{kind: 'call', scope: 'site', site: 'hm://alice/weather'}])
   })
 })

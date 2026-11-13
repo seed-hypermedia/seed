@@ -217,6 +217,8 @@ services:
       # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
       # injects the device and sets this to "microsandbox".
       - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND}'
+      # Where clients reach this server: the site itself, under /hm/api/apps.
+      - 'SEED_AGENTS_PUBLIC_URL=${SEED_AGENTS_PUBLIC_URL:-}'
 
   prometheus:
     image: prom/prometheus:latest

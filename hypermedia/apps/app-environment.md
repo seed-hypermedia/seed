@@ -94,9 +94,11 @@ cd apps && bun run test:build   # the compiled binary boots
 <!-- id:K1JGMcDQ -->
 | Server <!-- col:HN6aWcmo --> | Image <!-- col:D6xbwiK7 --> | Site it uses <!-- col:_7AxZeTv --> <!-- id:OTLS0d33 --> |
 | --- | --- | --- |
-| `https://agentic.seed.hyper.media` | `latest` | `https://hyper.media` <!-- id:fALJ7RzU --> |
-| `https://staging.agentic.seed.hyper.media` | a `dev` build | `https://staging.hyper.media` <!-- id:JRdvk-Eo --> |
-| `https://dev.agentic.seed.hyper.media` | `dev` | `https://dev.hyper.media` <!-- id:fShITKT6 --> |
+| `https://hyper.media/hm/api/apps` | `latest` | `https://hyper.media` <!-- id:fALJ7RzU --> |
+| `https://staging.hyper.media/hm/api/apps` | a `dev` build | `https://staging.hyper.media` <!-- id:JRdvk-Eo --> |
+| `https://dev.hyper.media/hm/api/apps` | `dev` | `https://dev.hyper.media` <!-- id:fShITKT6 --> |
+
+Clients reach each server on its site's own origin: the gateway proxies `/hm/api/apps` (on `*.hyper.media` subdomains too) to the host the server runs on, so the web API and the app environment share one host. Desktops released before `/hm/api/apps` existed must update to keep using agents.
 
 **Self-hosted.** Run the image with a volume on `/data`, a model provider configured by each [account](../protocol/identity.md), and `--hm-server-url` pointing at your site. [Environments](../app-environment/environments.md) explains how clients choose a server and how a site advertises one with the `agentServerUrl` metadata key. <!-- id:BYxO5fzs -->
 

@@ -1018,7 +1018,12 @@ function notifyHost(config) {
 function agentsHost(config) {
   if (!config.agents)
     return "";
-  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`;
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`;
+}
+function appsPublicUrl(config) {
+  if (!config.agents)
+    return "";
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`;
 }
 function enterpriseTestnetName(domain) {
   return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, "-")}`;
@@ -1614,7 +1619,7 @@ async function runFreshWizard(paths, existing, advanced = false) {
       initialValue: existing?.gateway ?? false
     }),
     agents: () => me({
-      message: "Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)",
+      message: "Run the agents service? (served at <your domain>/hm/api/apps; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
     email: () => ue({
@@ -1875,7 +1880,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       ]
     }),
     agents: () => me({
-      message: "Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)",
+      message: "Run the agents service? (served at <your domain>/hm/api/apps, members only; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
     email_relay_url: () => advanced ? ue({
@@ -2387,6 +2392,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_NOTIFY_HOST = notifyHost(config);
     vars.SEED_AGENTS_HOST = agentsHost(config);
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config);
     vars.SEED_SMTP_HOST = config.smtp?.host ?? "";
     vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : "587";
     vars.SEED_SMTP_USER = config.smtp?.user ?? "";
@@ -2397,6 +2403,7 @@ function buildComposeEnv(config, paths) {
   } else if (config.agents) {
     vars.SEED_AGENTS_HOST = agentsHost(config);
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config);
   }
   const profiles = composeProfiles(config);
   if (profiles.length > 0) {
@@ -4278,6 +4285,7 @@ export {
   backupMembers,
   autoUpdates,
   assertNoForeignStack,
+  appsPublicUrl,
   agentsHost,
   VERSION,
   VAULT_ADMIN_SECRET_LENGTH,

@@ -10,17 +10,16 @@ import {useDirectory, useResource, useResources} from '@shm/shared/models/entity
 import type {DocumentRoute} from '@shm/shared/routes'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Blocks, FileCode2, Plus, Wrench} from 'lucide-react'
-import {useEffect, useMemo, useState, type ReactNode} from 'react'
+import {useMemo, type ReactNode} from 'react'
 import {Button} from '../button'
-import {Input} from '../components/input'
-import {Label} from '../components/label'
-import {Textarea} from '../components/textarea'
 import {DocumentPageView, documentPageCid} from '../document-page'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
 import {CreateToolDialog} from './create-dialogs'
-import {setAttribute, useAppsPublisher, type AppRef} from './publish'
+import {useAppsPublisher, type AppRef} from './publish'
+import {AppSettingsTab} from './app-settings'
+import {AppRunStatus, useAppRun, useAppServerUrl} from './running'
 
 /** One of an app's children, as its tabs list them. */
 export type AppChildItem = {id: UnpackedHypermediaId; kind: AppChildKind | null; metadata?: HMMetadata}
@@ -142,6 +141,7 @@ function AppHomeTab({
           <FileCode2 className="size-4" /> {pages} {pages === 1 ? 'page' : 'pages'}
         </Button>
       </div>
+      <AppHomeRunStatus app={app} />
       {updated && !Number.isNaN(updated.getTime()) ? (
         <SizableText size="xs" color="muted">
           Updated {updated.toLocaleString()}
@@ -264,53 +264,23 @@ function AppChildRow({
   )
 }
 
-function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) {
-  const publisher = useAppsPublisher()
-  const saved = app.document.metadata
-  const [name, setName] = useState(saved.name ?? '')
-  const [summary, setSummary] = useState(saved.summary ?? '')
-  const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    setName(saved.name ?? '')
-    setSummary(saved.summary ?? '')
-  }, [saved.name, saved.summary])
-  const dirty = name !== (saved.name ?? '') || summary !== (saved.summary ?? '')
-  async function save() {
-    setBusy(true)
-    try {
-      const ops = []
-      if (name !== (saved.name ?? '')) ops.push(setAttribute('name', name.trim()))
-      if (summary !== (saved.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
-      await publisher.update(app.id, ops)
-      toast.success('App saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
-  }
+/** Home's one line about running, linking to Settings where it is managed. */
+function AppHomeRunStatus({app}: {app: AppRef}) {
+  const navigate = useNavigate()
+  const server = useAppServerUrl(app.id, app.document)
+  const {status} = useAppRun(server.serverUrl, app.id.id)
   return (
-    <TabColumn>
-      <div className="grid gap-1">
-        <Label htmlFor="app-settings-name">Name</Label>
-        <Input id="app-settings-name" value={name} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="grid gap-1">
-        <Label htmlFor="app-settings-summary">Description</Label>
-        <Textarea
-          id="app-settings-summary"
-          value={summary}
-          disabled={!canEdit}
-          onChange={(e) => setSummary(e.target.value)}
-        />
-      </div>
-      {canEdit ? (
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button variant="default" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      ) : null}
-    </TabColumn>
+    <button
+      type="button"
+      className="w-fit text-left"
+      onClick={() => navigate({key: 'document', id: app.id, appView: 'settings'})}
+    >
+      <AppRunStatus
+        serverUrl={server.serverUrl}
+        run={status.data}
+        loading={server.isLoading || status.isInitialLoading}
+        error={status.isError ? status.error : undefined}
+      />
+    </button>
   )
 }

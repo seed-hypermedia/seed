@@ -17,7 +17,7 @@ import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
 import {CreateAppDialog, CreateToolDialog} from '@shm/ui/apps/create-dialogs'
 import type {AppRef} from '@shm/ui/apps/publish'
 import {appResourceKind} from '@shm/ui/apps/tabs'
-import {useAgentServerUrls} from '@shm/ui/agents/models'
+import {useAgentServerOptions} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
 import {DocumentCreateButton} from '@shm/ui/document-create-button'
 import {toast} from '@shm/ui/toast'
@@ -190,8 +190,9 @@ export function useCreateDocumentMenuItem({
 }
 
 /**
- * Agent creation under `locationId`, for the New menus: `open` is undefined while no app environment
- * is reachable (the local server is still starting) or no account is selected, which hides the entry.
+ * Agent creation under `locationId`, for the New menus: `open` is undefined while the known app
+ * environments are still loading or no account is selected, which hides the entry. The dialog offers
+ * those servers and takes any other by URL, so there need not be one to offer.
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.
  */
@@ -204,10 +205,10 @@ function useCreateAgentAtLocation(
   content: ReactNode
 } {
   const dialog = useAppDialog(CreateAgentDialog)
-  const serverUrls = useAgentServerUrls().data
+  const serverUrls = useAgentServerOptions()
   const selectedAccountId = useSelectedAccountId()
   const open = useMemo(() => {
-    if (!serverUrls?.length || !selectedAccountId || !atHome || locationId.path?.length) return undefined
+    if (!serverUrls || !selectedAccountId || !atHome || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId, location: locationId})
   }, [atHome, dialog.open, locationId, selectedAccountId, serverUrls])
   return {open, content: dialog.content}

@@ -2,6 +2,7 @@ import {ActivityPanelPortal} from './activity-panel-layout'
 import {AppDocumentView} from './apps/app-view'
 import {appResourceKind, appResourceTabs} from './apps/tabs'
 import {parentDocumentId} from '@seed-hypermedia/client/apps'
+import {ToolCallView} from './apps/tool-call-view'
 import {ToolDocumentView} from './apps/tool-view'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
@@ -85,7 +86,7 @@ import {useMentionNames} from '@shm/shared/models/inline-mentions'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {sortTermToDocumentSort} from '@shm/shared/models/query-block-sort'
-import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
+import {ATTRIBUTE_BINDING_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -3327,6 +3328,8 @@ function DocumentBody({
             onPageAccessChange={onPageAccessChange}
             onPageParametersChange={onPageParametersChange}
           />
+        ) : route.key === 'document' && appKind === 'tool' && route.toolCallId ? (
+          <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
         ) : route.key === 'document' && appKind === 'tool' ? (
           <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
         ) : route.key === 'document' && (route.agentView || isAgentDocument) ? (
@@ -4404,7 +4407,7 @@ function DocumentMetadataPage({
           }
         }}
       />
-      {BINDING_SCHEMA_KEYS.map((bindingKey) => (
+      {ATTRIBUTE_BINDING_KEYS.map((bindingKey) => (
         <BindingSchemaSection key={bindingKey} docId={docId} document={document} bindingKey={bindingKey} />
       ))}
       <SchemaDefinitionSection document={document} />

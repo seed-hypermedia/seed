@@ -36,7 +36,10 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
  * the hosted server by default and lets a dev point at their own machine's LAN address through the
  * Expo env var. Either way the user can change it; the value is only the first suggestion.
  */
-const DEFAULT_AGENT_SERVER_URL = process.env.EXPO_PUBLIC_SEED_APPS_ENVIRONMENT_URL || process.env.EXPO_PUBLIC_SEED_AGENT_SERVER_URL || 'https://agentic.seed.hyper.media'
+const DEFAULT_AGENT_SERVER_URL =
+  process.env.EXPO_PUBLIC_SEED_APPS_ENVIRONMENT_URL ||
+  process.env.EXPO_PUBLIC_SEED_AGENT_SERVER_URL ||
+  'https://hyper.media/hm/api/apps'
 
 const SETTING_KEY_PREFIX = 'agents_setting:'
 

@@ -8,7 +8,8 @@ import {packBaseId, type HMRequest, type HMDocumentFilter, type HMQuery} from '@
 
 /** A host-derived request. Pages never choose its kind, type, or permission scope. */
 export type PagePermissionRequest = {
-  kind: 'read' | 'sign' | 'publish'
+  /** `call` runs a tool of the page's app; its `resource` is the tool and its `site` the app. */
+  kind: 'read' | 'sign' | 'publish' | 'call'
   type: string
   title: string
   site?: string
@@ -28,6 +29,8 @@ export type PagePermissionDecision = 'deny' | 'once' | PagePermissionGrant['scop
 
 /** Offer scopes only when the host has established the corresponding boundary. */
 export function pagePermissionScopes(request: PagePermissionRequest): PagePermissionDecision[] {
+  if (request.kind === 'call')
+    return ['once', ...(request.resource ? ['resource' as const] : []), ...(request.site ? ['site' as const] : [])]
   if (request.kind === 'read')
     return [
       'once',
@@ -50,6 +53,12 @@ export function pagePermissionLabel(
 ): string {
   if (scope === 'once') return 'Allow once'
   if (scope === 'deny') return 'Deny'
+  if (request.kind === 'call')
+    return scope === 'resource'
+      ? 'Always allow this tool'
+      : scope === 'site'
+        ? 'Always allow all tools in this app'
+        : 'Allow running any tool'
   if (scope === 'resource') return 'Allow reading this resource'
   if (scope === 'site') return 'Allow reading this site'
   if (scope === 'all')
@@ -89,7 +98,7 @@ export function readPagePermissionGrants(storage: Pick<Storage, 'getItem'>, key:
       .array(
         z
           .object({
-            kind: z.enum(['read', 'sign', 'publish']),
+            kind: z.enum(['read', 'sign', 'publish', 'call']),
             scope: z.enum(['resource', 'site', 'type-site', 'type', 'all']),
             type: z.string().optional(),
             site: z.string().optional(),
@@ -196,6 +205,34 @@ export function createDocumentPageAccess(
       publications.clear()
     },
   }
+}
+
+/**
+ * Running a tool of the page's own app: a signed call to the app's server that names the viewer as
+ * who ran it. Granted per tool or for every tool of the app.
+ */
+export function pageToolCallRequest(input: {
+  app: string
+  tool: string
+  toolName: string
+  input: unknown
+}): PagePermissionRequest {
+  return {
+    kind: 'call',
+    type: 'AppTool',
+    title: `Run the tool “${input.toolName}”`,
+    site: input.app,
+    resource: input.tool,
+    details: {tool: input.tool, input: input.input},
+  }
+}
+
+/**
+ * Where a page's permissions are remembered: the app a page belongs to, so every page of one app
+ * shares them (allowing one page to read everything allows them all); the page itself otherwise.
+ */
+export function pagePermissionOwner(page: string, app: string | null | undefined): string {
+  return app || page
 }
 
 /** Fingerprint exact payload bytes, also used for recognizable signing previews. */

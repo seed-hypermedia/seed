@@ -157,6 +157,8 @@ export type CodeExecRequest = {
   code: string
   /** Optional timeout override in seconds, clamped to [1, MAX_EXEC_TIMEOUT_SECS]. */
   timeoutSecs?: number
+  /** Environment variables for this run only (an app's private config); never written into the program. */
+  env?: Record<string, string>
   /** Called with live progress while the execution runs, so callers can show what is happening. */
   onProgress?: (progress: CodeExecProgress) => void
 }
@@ -252,6 +254,7 @@ export type SandboxBuilderLike = {
 export type ExecOptionsBuilderLike = {
   args(args: string[]): ExecOptionsBuilderLike
   timeout(ms: number): ExecOptionsBuilderLike
+  envs?(vars: Record<string, string>): ExecOptionsBuilderLike
 }
 
 export type ExecOutputLike = {
@@ -1243,8 +1246,9 @@ export function createCodeExecutor(
       }
       const timeoutSecs = Math.max(1, Math.min(MAX_EXEC_TIMEOUT_SECS, request.timeoutSecs ?? config.timeoutSecs))
 
-      const memoryRoot = memoryRootPath(request.stateDir)
-      fs.mkdirSync(memoryRoot, {recursive: true})
+      // Mounted by its real path: a data dir reached through a symlink (a linked volume, a renamed
+      // checkout) cannot be mounted into the VM ("Not a directory").
+      const memoryRoot = realMemoryRoot(request.stateDir)
       const before = snapshotMemory(request.stateDir)
 
       const startedAt = Date.now()
@@ -1261,7 +1265,7 @@ export function createCodeExecutor(
       // watchdog kill) disposes the sandbox instead of ever letting a pool source reuse it.
       let healthy = false
       try {
-        const command = runtimeCommand(request.runtime, code)
+        const command = {...runtimeCommand(request.runtime, code), ...(request.env ? {env: request.env} : {})}
         request.onProgress?.({stage: 'running'})
         const runStartedAt = Date.now()
         // The SDK gets the timeout too, but a wedged guest can outlive it; this deadline is the
@@ -1306,7 +1310,11 @@ export function createCodeExecutor(
 
 type RawExecResult = {code: number; success: boolean; stdout: string; stderr: string}
 
-type ExecCommand = {cmd: string; args: string[]}
+type ExecCommand = {
+  cmd: string
+  args: string[] /** Per-run environment variables (an app's private config). */
+  env?: Record<string, string>
+}
 
 /**
  * How each runtime runs a program. Nothing goes through a shell unless the runtime IS the shell —
@@ -1380,6 +1388,39 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
   ].join('\n')
 }
 
+/** The env var an app tool's private config travels in, so the secret never enters the program text. */
+export const APP_PRIVATE_CONFIG_ENV = 'SEED_APP_PRIVATE_CONFIG'
+
+/**
+ * Wraps an app tool's TypeScript source like {@link buildLambdaProgram}, and also hands it a context:
+ * `export default async function (input, ctx)` with `ctx.app` (the app's hm:// id),
+ * `ctx.publicConfig` and `ctx.privateConfig`. Public config is baked in like the input; private config
+ * is read inside the sandbox from {@link APP_PRIVATE_CONFIG_ENV}, which the caller passes as `env`.
+ */
+export function buildAppToolProgram(
+  source: string,
+  input: unknown,
+  context: {app: string; publicConfig: unknown},
+): string {
+  const inputLiteral = JSON.stringify(JSON.stringify(input ?? null))
+  const contextLiteral = JSON.stringify(JSON.stringify({app: context.app, publicConfig: context.publicConfig ?? {}}))
+  const sourceUrl = `data:text/typescript;base64,${Buffer.from(source, 'utf8').toString('base64')}`
+  return [
+    `const __seedInput = JSON.parse(${inputLiteral})`,
+    `const __seedContext = JSON.parse(${contextLiteral})`,
+    `__seedContext.privateConfig = JSON.parse(process.env.${APP_PRIVATE_CONFIG_ENV} || "{}")`,
+    `delete process.env.${APP_PRIVATE_CONFIG_ENV}`,
+    `const __seedModule = await import(${JSON.stringify(sourceUrl)})`,
+    'const __seedEntry = __seedModule.default',
+    'if (typeof __seedEntry !== "function") {',
+    '  throw new Error("An app tool must `export default` a function taking (input, ctx)")',
+    '}',
+    'const __seedResult = await __seedEntry(__seedInput, __seedContext)',
+    `console.log(${JSON.stringify(LAMBDA_RESULT_PREFIX)} + JSON.stringify(__seedResult ?? null))`,
+    '',
+  ].join('\n')
+}
+
 /**
  * Splits a lambda run's stdout into its returned value and everything it printed along the way.
  * `result` is absent when the program never marked a result line — a tool that exited cleanly
@@ -1435,6 +1476,21 @@ function timedOutResult(timeoutSecs: number, stdout: string, stderr: string): Ra
   return {code: -1, success: false, stdout, stderr: stderr ? `${stderr}\n${note}` : note}
 }
 
+/** The memory root to mount for a state dir, created if missing and resolved through symlinks. */
+function realMemoryRoot(stateDir: string): string {
+  const root = memoryRootPath(stateDir)
+  fs.mkdirSync(root, {recursive: true})
+  return fs.realpathSync(root)
+}
+
+/** Applies a command's arguments, timeout and per-run environment to an exec builder. */
+function configureExec(builder: ExecOptionsBuilderLike, command: ExecCommand, timeoutSecs: number) {
+  const configured = builder.args(command.args).timeout(timeoutSecs * 1000)
+  if (!command.env || !Object.keys(command.env).length) return configured
+  if (!configured.envs) throw new CodeExecError(502, 'This sandbox cannot pass environment variables to a run')
+  return configured.envs(command.env)
+}
+
 async function runBufferedExec(
   sandbox: SandboxLike,
   command: ExecCommand,
@@ -1444,7 +1500,7 @@ async function runBufferedExec(
   const deadline = createDeadline(deadlineMs)
   try {
     const output = await raceDeadline(
-      sandbox.execWith(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      sandbox.execWith(command.cmd, (builder) => configureExec(builder, command, timeoutSecs)),
       deadline.promise,
     )
     if (output === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')
@@ -1469,7 +1525,7 @@ async function runStreamingExec(
   const deadline = createDeadline(deadlineMs)
   try {
     const handle = await raceDeadline(
-      sandbox.execStreamWith!(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      sandbox.execStreamWith!(command.cmd, (builder) => configureExec(builder, command, timeoutSecs)),
       deadline.promise,
     )
     if (handle === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')

@@ -86,7 +86,7 @@ export type SeedAgentsNavigationMode = 'push' | 'replace' | 'spawn'
 export type SeedAgentsHost = {
   /**
    * Base URL of the app environment, as the browser can reach it. A canonical base ends in
-   * `/hm/api/apps` or `/hm/api/agents` (a site serving it on its own origin, or `https://agentic.seed.hyper.media/hm/api/agents`)
+   * `/hm/api/apps` or `/hm/api/agents` (a site serving it on its own origin, such as `https://hyper.media/hm/api/apps`)
    * and the kit calls `<serverUrl>/message`, `/ws` and `/health`. Any other base is a legacy server:
    * the kit calls `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`,
    * so a host may point this at its own reverse proxy of an app environment.
@@ -107,8 +107,6 @@ export type SeedAgentsHost = {
   openUrl?: (url: string, newWindow?: boolean) => void
   /** Starts the host's sign-in flow when {@link signer} is null. */
   signIn?: () => void
-  /** Opens the host's own agent-server settings. Without it, the agents list manages servers in a dialog. */
-  openServerSettings?: () => void
   /**
    * Replaces Seed's block editor (`CommentEditor`, loaded on first use) in the composer and the
    * prompt editors. It must round-trip every block it is given: prompts may hold embeds.

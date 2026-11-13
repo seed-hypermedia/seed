@@ -121,6 +121,7 @@ import {
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
 import {appEmbedBlobs, findListingApp, resolveAppParent} from '@/app-children'
+import * as appRunning from '@/app-running'
 import {collectToolCodeFiles, validateToolCode} from '@/tool-code'
 import {HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
 import {loadMermaidParser} from './mermaid-parser'
@@ -970,6 +971,7 @@ export class Service {
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
+  readonly #publicUrl: string | undefined
   readonly #ipfsServerUrl: string
   readonly #fetchCapability: auth.CapabilityFetcher
   readonly #web: WebToolsConfig
@@ -1055,6 +1057,8 @@ export class Service {
     options: {
       onEvent?: (event: ServiceEvent) => void
       hmServerUrl?: string
+      /** The URL clients reach this server's API at (`https://hyper.media/hm/api/apps`); see config.ts. */
+      publicUrl?: string
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
       ipfsServerUrl?: string
       /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
@@ -1092,6 +1096,7 @@ export class Service {
     this.#onEvent = options.onEvent
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
+    this.#publicUrl = options.publicUrl || undefined
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
@@ -1295,6 +1300,11 @@ export class Service {
     return this.#hmServerUrl
   }
 
+  /** The URL clients reach this server's API at, when configured. */
+  get publicUrl(): string | undefined {
+    return this.#publicUrl
+  }
+
   /** The HTTP server used for direct IPFS gateway reads. */
   get ipfsServerUrl(): string {
     return this.#ipfsServerUrl
@@ -1386,6 +1396,48 @@ export class Service {
       }),
       verified.accountId,
     )
+  }
+
+  /** What running apps needs from this server (see app-running.ts). */
+  #appRunDeps(): appRunning.AppRunDeps {
+    return {
+      db: this.#db,
+      client: createSeedClient(this.#hmServerUrl),
+      ipfsServerUrl: this.#ipfsServerUrl,
+      dataDir: this.#dataDir,
+      codeExec: this.#codeExec,
+      encrypt: (plain) => encryptSecret(this.#db, plain),
+      decrypt: (ciphertext) => decryptSecret(this.#db, ciphertext),
+    }
+  }
+
+  /** Runs an app-running step, turning its errors into API errors with the same status. */
+  async #appRun<T>(step: () => Promise<T>): Promise<T> {
+    try {
+      return await step()
+    } catch (error) {
+      if (error instanceof appRunning.AppRunError) throw new APIError(error.status, error.message)
+      throw error
+    }
+  }
+
+  /**
+   * The plain HTTP face of running apps (`GET /hm/api/apps`, `GET /hm/api/apps/<space>/<app>[/<tool>]`):
+   * anyone may list running apps and read one with its tools and calls. Calling a tool is a signed
+   * `CallAppTool`, so every run names the account that triggered it. Errors keep their status.
+   */
+  listRunningApps(): api.AppRunInfo[] {
+    return appRunning.listAppRuns(this.#appRunDeps())
+  }
+
+  /** A running app with its tools, or null when it does not run here. */
+  describeRunningApp(appId: string) {
+    return this.#appRun(() => appRunning.describeRunningApp(this.#appRunDeps(), appId))
+  }
+
+  /** A tool's recorded calls, newest first. */
+  listRunningAppToolCalls(toolId: string, limit?: number) {
+    return this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit}))
   }
 
   #assertClientProtocol(clientProtocol: number): void {
@@ -1591,6 +1643,46 @@ export class Service {
         return this.#getProviderOAuthStatus(verified.accountId, envelope.action.loginId)
       case 'CancelProviderOAuth':
         return this.#cancelProviderOAuth(verified.accountId, envelope.action.loginId)
+      case 'RunApp':
+        return {
+          _: 'AppRunResponse',
+          run: await this.#appRun(() =>
+            appRunning.runApp(this.#appRunDeps(), verified.accountId, envelope.action as api.RunApp),
+          ),
+        }
+      case 'StopApp':
+        await this.#appRun(() =>
+          appRunning.stopApp(this.#appRunDeps(), verified.accountId, envelope.action as api.StopApp),
+        )
+        return {_: 'AppRunResponse', run: null}
+      case 'GetAppRun':
+        return {
+          _: 'AppRunResponse',
+          run: await this.#appRun(async () =>
+            appRunning.getAppRun(this.#appRunDeps(), envelope.action as api.GetAppRun),
+          ),
+        }
+      case 'CallAppTool':
+        return {
+          _: 'AppToolCallResponse',
+          call: await this.#appRun(() =>
+            appRunning.callAppTool(this.#appRunDeps(), verified.accountId, envelope.action as api.CallAppTool),
+          ),
+        }
+      case 'GetAppToolCall':
+        return {
+          _: 'AppToolCallResponse',
+          call: await this.#appRun(async () =>
+            appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall),
+          ),
+        }
+      case 'ListAppToolCalls':
+        return {
+          _: 'ListAppToolCallsResponse',
+          calls: await this.#appRun(async () =>
+            appRunning.listAppToolCalls(this.#appRunDeps(), envelope.action as api.ListAppToolCalls),
+          ),
+        }
       case 'SetSecret':
         return this.#setSecret(
           verified.accountId,
@@ -5320,6 +5412,10 @@ export class Service {
       },
       onToolProgress: () => {},
       codeExec: this.#codeExec,
+      callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
+      runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
+      appServerUrl: this.#publicUrl,
+      stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
@@ -7211,6 +7307,10 @@ export class Service {
       sessionId: '',
       modelAcceptsImages: false,
       codeExec: this.#codeExec,
+      callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
+      runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
+      appServerUrl: this.#publicUrl,
+      stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
@@ -7908,6 +8008,10 @@ export class Service {
       sessionId,
       modelAcceptsImages: model.input.includes('image'),
       codeExec: this.#codeExec,
+      callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
+      runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
+      appServerUrl: this.#publicUrl,
+      stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
@@ -13076,6 +13180,17 @@ export type AgentServicePiToolContext = WriteToolContext & {
   onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
   /** Sandboxed code execution against the memory workspace. */
   codeExec: CodeExecutor
+  /** Calls a tool of an app running on this server (`call` with a tool's hm:// URL). */
+  callAppTool?: (
+    caller: string,
+    action: {appId: string; toolId: string; input: unknown},
+  ) => Promise<api.AppToolCallInfo>
+  /** Runs an app on this server as one of the agent's signers (`write` with `options.action: "run"`). */
+  runApp?: (signer: string, action: {appId: string; privateConfig?: Record<string, unknown>}) => Promise<api.AppRunInfo>
+  /** Where clients reach this server; an app an agent runs here names it as its `appEnvironmentUrl`. */
+  appServerUrl?: string
+  /** Stops an app on this server (`write` with `options.action: "stop"`). */
+  stopApp?: (signer: string, action: {appId: string}) => Promise<void>
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -14980,6 +15095,8 @@ const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   redirect: ['toUrl'],
   delete: [],
   fork: ['fromUrl'],
+  run: ['privateConfig'],
+  stop: [],
 }
 const HM_WRITE_OPTIONS_HINT = 'Extra command fields belong in options.input, never as loose option keys.'
 
@@ -15457,6 +15574,53 @@ export async function executeWriteVerb(
       },
     })
     switch (action) {
+      case 'run':
+      case 'stop': {
+        if (!context.runApp || !context.stopApp) throw new APIError(400, 'Apps cannot run from here')
+        if (options.privateConfig !== undefined && !isRecord(options.privateConfig))
+          throw new APIError(400, 'options.privateConfig must be an object of the app’s private config values')
+        const appId = address.split(/[?#]/, 1)[0]!
+        const signer = await resolveWriteSigner(context, options.signer as never)
+        if (dryRun) return {summary: `Would ${action} ${appId} as ${signer.profileName}.`, dryRun: true}
+        if (action === 'stop') {
+          await context.stopApp(signer.publicKey, {appId})
+          return {summary: `Stopped ${appId}.`, appId, running: false}
+        }
+        const run = await context.runApp(signer.publicKey, {
+          appId,
+          ...(isRecord(options.privateConfig) ? {privateConfig: options.privateConfig} : {}),
+        })
+        // People find the app's server through the app: point it here when it names another one.
+        // The app runs either way; a failed pointer update is reported, not thrown.
+        let pointer = ''
+        if (context.appServerUrl) {
+          const id = unpackHmId(appId)
+          const current = id
+            ? await createSeedClient(context.hmServerUrl)
+                .request('Resource', id)
+                .catch(() => null)
+            : null
+          if (current?.type === 'document' && current.document.metadata.appEnvironmentUrl !== context.appServerUrl) {
+            try {
+              await writeHypermedia(
+                context,
+                envelope('document.update', {edit: appId, metadata: {appEnvironmentUrl: context.appServerUrl}}),
+              )
+              pointer = ` The app now names this server: ${context.appServerUrl}.`
+            } catch (error) {
+              pointer = ` Set the app's metadata.appEnvironmentUrl to ${
+                context.appServerUrl
+              } so people find it (the update failed: ${error instanceof Error ? error.message : String(error)}).`
+            }
+          }
+        }
+        return {
+          summary: `${appId} runs on this server.${pointer} Call its tools with call and a tool's hm:// URL.`,
+          run,
+          running: true,
+          ...(context.appServerUrl ? {appServerUrl: context.appServerUrl} : {}),
+        }
+      }
       case 'document':
         return withPageResult(
           await writeHypermedia(
@@ -15849,6 +16013,27 @@ export async function executeCallVerb(
   toolCallId: string | undefined,
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
+  // A tool of an app running on this server is called by its hm:// URL; its app is its parent.
+  if (typeof input.tool === 'string' && input.tool.trim().startsWith('hm://')) {
+    const toolId = unpackHmId(input.tool.trim())
+    const appPath = toolId?.path?.slice(0, -1)
+    if (!toolId || !appPath?.length || !context.callAppTool)
+      throw new APIError(400, `${input.tool} is not a tool of an app (call it as hm://<space>/<app>/<tool>)`)
+    // A run names the account that triggered it: the agent's own signing account.
+    const signer = await resolveWriteSigner(
+      context,
+      isRecord(input.signer) ? (input.signer as never) : undefined,
+    ).catch((error) => {
+      throw new APIError(400, `Running an app's tool needs one of your signing identities: ${error.message}`)
+    })
+    const call = await context.callAppTool(signer.publicKey, {
+      appId: `hm://${toolId.uid}/${appPath.join('/')}`,
+      toolId: `hm://${toolId.uid}/${toolId.path!.join('/')}`,
+      input: input.input ?? {},
+    })
+    if (call.error) throw new APIError(400, call.error)
+    return {summary: `Ran ${input.tool.trim()} (${call.durationMs ?? 0}ms).`, result: call.output, callId: call.id}
+  }
   const toolName = typeof input.tool === 'string' ? normalizeSeedToolName(input.tool.trim()) : ''
   const registryTool = toolName ? getSeedTool(toolName) : undefined
   const tool =
