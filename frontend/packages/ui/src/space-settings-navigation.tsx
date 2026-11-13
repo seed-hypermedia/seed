@@ -4,7 +4,7 @@ import type {HMDocument, HMNavigationItem, UnpackedHypermediaId} from '@seed-hyp
 import {createWebHMUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {ChevronDown, EllipsisVertical, FileText, Link as LinkIcon, Lock, Plus, X, type LucideIcon} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent} from 'react'
+import {useEffect, useMemo, useRef, useState, type HTMLAttributes, type PointerEvent} from 'react'
 import {Button} from './button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
@@ -576,14 +576,6 @@ function NavItemDialog({
   const isChanged = isNew || nextItem.text !== item.text || nextItem.link !== item.link
   const canAdd = !!nextItem.text && (kind === 'external' ? isUrlValid : !!docId) && isChanged
 
-  // The desktop Edit menu's Select All has no shortcut, so Cmd+A does nothing in a plain input there.
-  function selectAllOnCmdA(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'a' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      event.currentTarget.select()
-    }
-  }
-
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       {/* Visible overflow lets the document search results float past the dialog's edge. */}
@@ -617,7 +609,6 @@ function NavItemDialog({
                     aria-invalid={showUrlError}
                     onChange={(e) => setUrl(e.target.value)}
                     onBlur={() => setIsUrlTouched(true)}
-                    onKeyDown={selectAllOnCmdA}
                     placeholder="https://example.com"
                   />
                   {showUrlError ? (
@@ -654,7 +645,6 @@ function NavItemDialog({
               id="nav-link-name"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={selectAllOnCmdA}
               placeholder="e.g. About, Contact, Blog"
             />
             {docAddress ? (

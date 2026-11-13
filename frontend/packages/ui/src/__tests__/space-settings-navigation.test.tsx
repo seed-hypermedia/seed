@@ -289,19 +289,6 @@ describe('Add link dialog', () => {
     ])
   })
 
-  it('selects the whole URL with Cmd+A', () => {
-    renderTab(homeWithLinks([]))
-
-    addExternalLink('https://behance.net/alberti', 'Portfolio')
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!
-    input.setSelectionRange(0, 0)
-    act(() => {
-      input.dispatchEvent(new KeyboardEvent('keydown', {key: 'a', metaKey: true, bubbles: true}))
-    })
-
-    expect([input.selectionStart, input.selectionEnd]).toEqual([0, input.value.length])
-  })
-
   it('explains an invalid URL once the owner leaves the field', () => {
     renderTab(homeWithLinks([]))
 

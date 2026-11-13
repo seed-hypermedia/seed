@@ -442,12 +442,6 @@ export default function PublishDraftButton() {
                       setEditableLocation(hmId(editableLocation.uid, {path: newPath}))
                       setPublishError(null)
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-                        e.stopPropagation()
-                        ;(e.target as HTMLInputElement).select()
-                      }
-                    }}
                     placeholder="document-path"
                     className={`h-8 border-black/10 text-xs dark:border-white/20 ${
                       publishError ? 'border-red-500 dark:border-red-500' : ''

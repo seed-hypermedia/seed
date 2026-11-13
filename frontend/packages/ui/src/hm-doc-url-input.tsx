@@ -83,13 +83,6 @@ export function HMDocURLInput({
             setFocusedIndex(0)
           }}
           onKeyDown={async (e) => {
-            // The desktop Edit menu's Select All has no shortcut. TODO: find a blocker of cmd A
-            // if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-            //   e.preventDefault()
-            //   e.currentTarget.select()
-            //   return
-            // }
-
             if (e.key === 'Escape') {
               e.preventDefault()
               closeAndReset()

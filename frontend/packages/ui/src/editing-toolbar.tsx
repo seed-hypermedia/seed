@@ -235,9 +235,6 @@ export function PublishPopoverBody({
                     commitRename()
                   } else if (e.key === 'Escape') {
                     cancelRename()
-                  } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-                    e.stopPropagation()
-                    ;(e.target as HTMLInputElement).select()
                   }
                 }}
                 placeholder="document-path"

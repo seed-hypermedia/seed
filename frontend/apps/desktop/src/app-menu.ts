@@ -1,7 +1,7 @@
 // this menu is visible on macOS only
 // the keyboard shortcuts apply to every platform
 
-import {BrowserWindow, ipcMain, Menu, MenuItem, webContents, type WebFrameMain} from 'electron'
+import {ipcMain, Menu, MenuItem, webContents, type WebFrameMain} from 'electron'
 import {isDocumentPageURL} from '@shm/shared/document-page'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {getFocusedWindow} from './app-windows'
@@ -119,12 +119,7 @@ export function createAppMenu() {
         {role: 'pasteAndMatchStyle'},
         {role: 'delete'},
         {type: 'separator'},
-        {
-          label: 'Select All',
-          click: (_menuItem, browserWindow) => {
-            if (browserWindow instanceof BrowserWindow) browserWindow.webContents.selectAll()
-          },
-        },
+        {role: 'selectAll'},
       ],
     }),
   )

@@ -91,6 +91,14 @@ describe('focus-aware refresh menu shortcuts', () => {
   })
 })
 
+describe('Edit menu select-all shortcut', () => {
+  it('keeps Select All on a role so the OS dispatches Cmd/Ctrl+A to text fields', () => {
+    const edit = createAppMenu().items.find((item: any) => item.label === 'Edit')
+    const items: any[] = edit?.submenu?.items ?? []
+    expect(items.some((item) => item.role === 'selectAll' || item.accelerator === 'CmdOrCtrl+A')).toBe(true)
+  })
+})
+
 describe('Go to Parent shortcut', () => {
   it('owns Cmd/Ctrl+Up and dispatches go_to_parent to the focused window', async () => {
     const {dispatchFocusedWindowAppEvent} = await import('../app-api')
