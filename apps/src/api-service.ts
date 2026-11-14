@@ -8316,7 +8316,7 @@ export class Service {
     const documentPromptNote = documentPrompt
       ? `\n\n${
           documentPrompt.blocks.length
-            ? `These instructions are your document ${documentPrompt.id} (version ${documentPrompt.version}); its latest published version is read at the start of each turn, so editing it (write with options.action "update") changes how you work from the next turn.`
+            ? `These instructions are your document ${documentPrompt.id} (version ${documentPrompt.version}); its latest published version is read at the start of each turn, so editing it (write with options.action "update") changes how you work from the next turn. Its card embeds list what you made under it (tools, pages, triggers, apps): the publisher adds and removes them when you create or delete those, so never rewrite your document just to list something, and keep the cards when you edit your instructions.`
             : `Your document is ${documentPrompt.id}.`
         }${
           documentPrompt.serverUrl

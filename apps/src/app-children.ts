@@ -8,6 +8,7 @@ import {
   addAppChildOps,
   appChildKind,
   createDocumentUpdateBlobs,
+  HM_AGENT_TYPE,
   HM_APP_TYPE,
   isToolHostType,
   HM_TOOL_TYPE,
@@ -37,6 +38,12 @@ export async function resolveAppParent(
   childId: UnpackedHypermediaId,
   type: unknown,
 ): Promise<{app: AppParent | null; refusal?: string}> {
+  // An app made under an agent is listed by the agent, like its tools: agents and apps converge,
+  // and an agent should never have to rewrite its own document to show what it made.
+  if (type === HM_APP_TYPE) {
+    const host = await findListingApp(client, childId)
+    return {app: host && host.document.metadata?.type === HM_AGENT_TYPE ? host : null}
+  }
   if (!appChildKind(type)) return {app: null}
   const app = await findListingApp(client, childId)
   if (!app && type === HM_TOOL_TYPE) return {app: null, refusal: TOOL_OUTSIDE_APP_ERROR}

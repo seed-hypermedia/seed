@@ -40,6 +40,8 @@ A tool opens inside its app: the app's tabs stay above it with **Tools** selecte
 
 Agents read `~/tools/write/apps`. They write the app as an ordinary document with `metadata.type`, then each tool with `options.tool` naming a memory folder (with an `index.ts`) or one `.ts` file. The publisher checks that `index.ts` parses and default-exports, publishes the folder beside the change, sets `type` and `code`, and requires `inputSchema`. When a tool or page is created directly under an app or an agent, the publisher adds its card embed to the host in the same publish, and deleting it removes the embed. A tool anywhere else is refused, and `write ~/tools/<name>` (the old private tools) is refused too.
 
+An app written directly under an agent's document is listed on the agent like its tools, pages and triggers, so it shows on the agent's Home. Reading a document as markdown prints each embed with the embedded content between `<!-- embed: URL; title: …; view: … -->` and `<!-- /embed: URL -->`; writing that markdown back turns each such range into the embed again, so a read-then-write keeps a document's embeds.
+
 Agents read a tool's recorded calls with `read <tool>/:calls` and one call with `read <tool>/:call/<id>`, whenever they can read the tool: the same rule as the tool's page, where anyone who can read the tool sees its calls. Calls carry their inputs and outputs, so a tool that handles private data belongs in a private app.
 
 Source: `frontend/packages/client/src/apps.ts` (types and embed rules), `apps/src/app-children.ts` and `apps/src/tool-code.ts` (publisher), `frontend/packages/ui/src/apps/` (views).
