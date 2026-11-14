@@ -222,3 +222,77 @@ describe('trigger documents', () => {
     }
   })
 })
+
+describe('reading app records', () => {
+  test('whoever can read a tool reads its calls, and a trigger its firings; anything else is refused', async () => {
+    const originalFetch = globalThis.fetch
+    const space = 'z6MkkF1AtcK1LWMXGVyi9emwRykN9jQGGAzPWCKhMKz3dAS5'
+    const toolUrl = `hm://${space}/echo/say`
+    const triggerUrl = `hm://${space}/echo/on-hook`
+    const doc = (url: string, type: string) => ({
+      type: 'document',
+      id: unpackHmId(url),
+      document: {
+        content: [],
+        metadata: {type},
+        version: VERSION,
+        genesis: VERSION,
+        account: space,
+        authors: [space],
+        path: '',
+        createTime: '',
+        updateTime: '',
+        visibility: 'PUBLIC',
+      },
+    })
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+      if (href.includes('/echo/say')) return Response.json(serialize(doc(toolUrl, 'hm://hyper.media/tool')))
+      if (href.includes('/echo/on-hook')) return Response.json(serialize(doc(triggerUrl, 'hm://hyper.media/trigger')))
+      return Response.json(serialize({type: 'not-found', id: null}))
+    }) as unknown as typeof fetch
+    const call = {
+      id: 'c1',
+      appId: `hm://${space}/echo`,
+      toolId: toolUrl,
+      caller: space,
+      input: {text: 'hi'},
+      output: {echoed: 'hi'},
+      durationMs: 3,
+      createdAt: 1_700_000_000_000,
+    }
+    const context = {
+      hmServerUrl: 'https://hm.test',
+      appHistory: {
+        calls: async () => [call],
+        call: async () => call,
+        triggerFirings: async () => ({
+          active: true,
+          firings: [
+            {
+              id: 'f1',
+              status: 'succeeded',
+              createdAt: 1,
+              activityKey: 'k',
+              activitySummary: 'Webhook',
+              toolCallId: 'c1',
+            },
+          ],
+        }),
+      },
+    }
+    try {
+      const calls = await apisvc.readAppHistory(context, toolUrl, 'calls', undefined)
+      expect(calls.markdown).toContain(`read ${toolUrl}/:call/c1`)
+      expect(JSON.stringify(calls.calls)).not.toContain('echoed')
+      const one = await apisvc.readAppHistory(context, toolUrl, undefined, 'c1')
+      expect(one.markdown).toContain('"echoed": "hi"')
+      expect((await apisvc.readAppHistory(context, triggerUrl, 'firings', undefined)).firings).toHaveLength(1)
+      // A tool's calls are read from the tool; something unreadable shows nothing.
+      await expect(apisvc.readAppHistory(context, triggerUrl, 'calls', undefined)).rejects.toThrow('not a tool')
+      await expect(apisvc.readAppHistory(context, `hm://${space}/secret`, 'calls', undefined)).rejects.toThrow()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})

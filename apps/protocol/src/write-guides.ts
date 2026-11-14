@@ -67,7 +67,7 @@ A trigger is a document typed \`hm://hyper.media/trigger\` directly under an age
 
 - Edit: write the same address with \`options.action: "update"\` and the fields you change (\`options.trigger: {enabled: false}\` turns it off; a new \`content\` replaces the message).
 - Delete: \`options.action: "delete"\` (it also leaves its agent's or app's list).
-- Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
+- Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. \`read <trigger>/:firings\` lists its recent firings (an app's trigger names the tool call each one made: \`read <tool>/:call/<id>\`). Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
 - You need write access where the trigger goes. Without it, ask your user to give you write access from your People tab, or to add the trigger themselves.
 
 ## Triggers stored on the server: ~/triggers/<name>
@@ -374,6 +374,7 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 - You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
 - A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
+- \`read <tool>/:calls\` lists a tool's recent calls on this server (any app's tool you can read, and yours), and \`read <tool>/:call/<id>\` one call with its input and output: check how a tool or its triggers have been doing before changing it.
 - Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
 
 ## Triggers

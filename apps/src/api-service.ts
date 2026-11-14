@@ -128,6 +128,7 @@ import {
   HM_PAGE_TYPE,
   HM_TOOL_TYPE,
   HM_TRIGGER_TYPE,
+  parentDocumentId,
   replaceContentOps,
   triggerDocumentOps,
 } from '@seed-hypermedia/client/apps'
@@ -3885,6 +3886,30 @@ export class Service {
     return true
   }
 
+  /** What agents read of this server's app records: tool calls and trigger firings. */
+  #appHistory(): AppHistory {
+    return {
+      calls: (toolId, limit) =>
+        this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit})),
+      call: (callId) => this.#appRun(async () => appRunning.getAppToolCall(this.#appRunDeps(), {callId})),
+      triggerFirings: async (documentId) => {
+        const id = unpackHmId(documentId)
+        const host = id ? parentDocumentId(id) : null
+        if (!id || !host) return null
+        const listed = await this.#listHostTriggers(null, host.id)
+        if (!listed.active) return {active: false, firings: []}
+        const entry = listed.triggers.find((item) => item.trigger.documentId === id.id)
+        const error = listed.errors.find((item) => item.documentId === id.id)?.error
+        return {
+          active: true,
+          firings: entry?.firings ?? [],
+          ...(error ? {error} : {}),
+          ...(entry ? {trigger: entry.trigger} : {}),
+        }
+      },
+    }
+  }
+
   async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
     const synced = await agentMount.syncMountedAgentNames(this.#db, createSeedClient(this.#hmServerUrl), options)
     for (const {accountId, agentId} of synced) {
@@ -5781,6 +5806,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
+      appHistory: this.#appHistory(),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
@@ -7671,6 +7697,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
+      appHistory: this.#appHistory(),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
@@ -8506,6 +8533,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
+      appHistory: this.#appHistory(),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
@@ -13705,6 +13733,12 @@ export type AgentServicePiToolContext = WriteToolContext & {
   runApp?: (signer: string, action: {appId: string; privateConfig?: Record<string, unknown>}) => Promise<api.AppRunInfo>
   /** Stops an app on this server (`write` with `options.action: "stop"`). */
   stopApp?: (signer: string, action: {appId: string}) => Promise<void>
+  /**
+   * The records this server keeps of its apps and agents: a tool's calls and a trigger's firings
+   * (`read <tool>/:calls`, `read <tool>/:call/<id>`, `read <trigger>/:firings`). Whoever can read the
+   * tool or trigger can read them, as on its page.
+   */
+  appHistory?: AppHistory
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -14710,6 +14744,18 @@ function primarySigningKeyOf(definition: api.AgentDefinition): string | undefine
   return definition.signingKey && keys.includes(definition.signingKey) ? definition.signingKey : keys[0]
 }
 
+/** See {@link AgentServicePiToolContext.appHistory}. */
+type AppHistory = {
+  calls: (toolId: string, limit: number) => Promise<api.AppToolCallInfo[]>
+  call: (callId: string) => Promise<api.AppToolCallInfo>
+  triggerFirings: (documentId: string) => Promise<{
+    active: boolean
+    firings: api.TriggerFiringInfo[]
+    error?: string
+    trigger?: api.AgentTriggerInfo
+  } | null>
+}
+
 /** An app or a mounted agent whose trigger documents this server fires. */
 type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
 
@@ -15490,6 +15536,95 @@ export function expandedCallablesFromEvents(db: Database, sessionId: string): st
   return [...expanded]
 }
 
+/**
+ * `read <tool>/:calls`, `read <tool>/:call/<id>` and `read <trigger>/:firings`: what this server
+ * recorded of a tool's runs and a trigger's firings. Readable by whoever can read the tool or
+ * trigger itself (as on its page): the document is read first, through this server's HM node, and
+ * nothing is shown when it cannot be.
+ */
+export async function readAppHistory(
+  context: Pick<AgentServicePiToolContext, 'hmServerUrl' | 'appHistory'>,
+  documentUrl: string,
+  view: 'calls' | 'firings' | undefined,
+  callId: string | undefined,
+): Promise<Record<string, unknown>> {
+  if (!context.appHistory) throw new APIError(400, 'This server keeps no app records')
+  const id = unpackHmId(documentUrl)
+  if (!id) throw new APIError(400, `Invalid hm:// address: ${documentUrl}`)
+  const resource = await createSeedClient(context.hmServerUrl)
+    .request('Resource', id)
+    .catch(() => null)
+  const type = resource?.type === 'document' ? resource.document.metadata?.type : undefined
+  const wanted = view === 'firings' ? HM_TRIGGER_TYPE : HM_TOOL_TYPE
+  if (type !== wanted)
+    throw new APIError(
+      404,
+      view === 'firings'
+        ? `${id.id} is not a trigger you can read: firings are read from a trigger document`
+        : `${id.id} is not a tool you can read: calls are read from a tool document`,
+    )
+  const callLine = (call: api.AppToolCallInfo) =>
+    `- ${new Date(call.createdAt).toISOString()} ${call.error ? 'failed' : 'ok'} by ${call.caller}${
+      call.durationMs !== undefined ? ` in ${call.durationMs}ms` : ''
+    } (read ${id.id}/:call/${call.id})${call.error ? `: ${call.error}` : ''}`
+  if (callId) {
+    const call = await context.appHistory.call(callId)
+    if (call.toolId !== id.id) throw new APIError(404, `${callId} is not a call of ${id.id}`)
+    return {
+      summary: `Call ${callId} of ${id.id}: ${call.error ? 'failed' : 'succeeded'}.`,
+      call,
+      markdown: [
+        `# Call ${callId}`,
+        callLine(call),
+        `Tool version: ${call.toolVersion ?? 'unknown'}`,
+        '## Input',
+        '```json',
+        safeJSONStringify(call.input, 2),
+        '```',
+        call.error
+          ? `## Error\n${call.error}`
+          : ['## Output', '```json', safeJSONStringify(call.output, 2), '```'].join('\n'),
+      ].join('\n'),
+    }
+  }
+  if (view === 'calls') {
+    const calls = await context.appHistory.calls(id.id, 25)
+    return {
+      summary: `${calls.length} recent call${calls.length === 1 ? '' : 's'} of ${id.id} on this server.`,
+      calls: calls.map(({input: _input, output: _output, ...call}) => call),
+      markdown: calls.length
+        ? [`# Recent calls of ${id.id}`, ...calls.map(callLine)].join('\n')
+        : `No calls of ${id.id} are recorded on this server (an app's tools run on the server that runs the app).`,
+    }
+  }
+  const state = await context.appHistory.triggerFirings(id.id)
+  if (!state || !state.active)
+    return {
+      summary: `${id.id} is not active on this server: its app or agent does not run here.`,
+      firings: [],
+    }
+  return {
+    summary: `${state.firings.length} recent firing${state.firings.length === 1 ? '' : 's'} of ${id.id}.`,
+    ...(state.error ? {problem: state.error} : {}),
+    firings: state.firings,
+    markdown: [
+      `# Firings of ${id.id}`,
+      ...(state.error ? [`This trigger cannot fire: ${state.error}`] : []),
+      ...state.firings.map(
+        (firing) =>
+          `- ${new Date(firing.createdAt).toISOString()} ${firing.status}: ${firing.error || firing.activitySummary}${
+            firing.toolCallId && state.trigger?.continuation?.kind === 'tool'
+              ? ` (read ${state.trigger.continuation.tool}/:call/${firing.toolCallId})`
+              : firing.sessionId
+                ? ` (session ${firing.sessionId})`
+                : ''
+          }`,
+      ),
+      ...(state.firings.length ? [] : ['It has not fired yet.']),
+    ].join('\n'),
+  }
+}
+
 /** Executes the read verb: one dispatcher over every address form. */
 export async function executeReadVerb(
   context: AgentServicePiToolContext,
@@ -15623,6 +15758,16 @@ export async function executeReadVerb(
 
   // hm:// reads go through this server's configured HM endpoint — the local node in every desktop
   // environment — never a hardcoded public gateway (environments.md).
+  // A tool's calls and a trigger's firings, as this server recorded them.
+  const history = /^(hm:\/\/[^?#]+?)\/:(calls|firings)$/.exec(address)
+  const oneCall = /^(hm:\/\/[^?#]+?)\/:call\/([\w-]+)$/.exec(address)
+  if (history || oneCall)
+    return readAppHistory(
+      context,
+      history ? history[1]! : oneCall![1]!,
+      history?.[2] as 'calls' | 'firings' | undefined,
+      oneCall?.[2],
+    )
   if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
   // A bare comment id (`<authorUid>/<tsid>`, the shape of replyTo/replyParent/threadRoot fields)
   // is a hypermedia read too: agents paste these straight out of trigger context.
