@@ -98,7 +98,7 @@ function AgentRunPage({
         focus.startedAt && focus.finishedAt ? `ran ${formatStepDuration(focus.finishedAt - focus.startedAt)}` : null,
         (() => {
           const total = (focus.usage?.total ?? 0) + (focus.usage?.children?.total ?? 0)
-          return total ? `${formatTokenCount(total)} tokens` : null
+          return total ? `${formatTokenCount(total)} tokens processed` : null
         })(),
       ]
         .filter(Boolean)

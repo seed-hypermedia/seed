@@ -34,6 +34,7 @@ vi.mock('../apps/running', () => ({
   AppRunStatus: () => null,
   useAppRun: () => ({status: {data: null}}),
   useAppServerUrl: () => ({serverUrl: '', isLoading: false}),
+  useHostTriggers: () => ({data: undefined, isInitialLoading: false}),
 }))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => mocks.navigate}))
 vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))

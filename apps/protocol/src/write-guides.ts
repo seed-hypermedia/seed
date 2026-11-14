@@ -349,6 +349,7 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 ## What runs where
 
 - A **tool** takes input and returns output. It runs in a sandbox with network access but holds no signing key: it cannot publish or edit Seed documents. It can fetch the web and read public Seed data over HTTP.
+- A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (ask your user for the key; never put it in code), or the work is yours, as an agent trigger whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
 - A **page** runs in the viewer's browser and writes Seed records as the viewer (\`seed.publishDocument\`), within the viewer's access.
 - A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that must write Seed documents (a daily digest document, updating records) is an **agent's** trigger: put it under your agent document, and its message tells you what to do; you can call the app's tools and publish the result.
 
@@ -430,7 +431,7 @@ Before you report an app as done:
 1. Run it (\`options.action: "run"\`) when it names your server, and call each tool once with real input; \`read <tool>/:calls\` shows the recorded call.
 2. Read back each published document (the app, its tools, pages and triggers, its types and collections) and fix any schema warning.
 3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired.
-4. Say what you could not test (a page's buttons, for example, unless you exercised its data path).
+4. Say what you could not test. You cannot click a page's buttons: writing a record yourself with write does not prove the page's own save works, so do not call the page verified. Check its code against the page SDK's exact signatures instead (\`seed.publishDocument(recordUrl, {name, metadata})\`) and tell your user to try it.
 
 Then tell your user, in a few lines: the app's link, what it holds (its pages, tools, triggers and data collections), what to do first (open the app; run it from its Settings if it does not run here), and anything they need to provide (a private config value such as an API key).
 

@@ -106,7 +106,12 @@ export function AgentRunStatusBar({
           <span aria-label={mode === 'active' ? 'Elapsed time' : 'Time waiting'}>{formatElapsed(elapsed)}</span>
         ) : null}
         {mode === 'active' && usage && usage.total > 0 ? (
-          <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span>
+          <span
+            aria-label="Tokens processed"
+            title="Tokens the model read and wrote across every request of this run, cached input included. Not how full the context is."
+          >
+            {formatTokenCount(usage.total)} tokens processed
+          </span>
         ) : null}
       </span>
     </div>
