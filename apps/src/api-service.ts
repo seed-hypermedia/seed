@@ -278,12 +278,17 @@ const SECRET_NONCE_BYTES = 12
 const SECRET_TAG_BYTES = 16
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
 /**
- * Ceiling on the model-facing text of a single tool result (~2k tokens). Durable session events
+ * Ceiling on the model-facing text of a single tool result (~8k tokens). Durable session events
  * and the UI keep the tool's full output; only what rides to the provider is cut, so one oversized
  * read can't blow the context window. Applied on the live path (defineSeedPiTool) and again on
  * replay, so resumed sessions see the same bounded transcript.
  */
-export const MAX_MODEL_TOOL_RESULT_BYTES = 8 * 1024
+export const MAX_MODEL_TOOL_RESULT_BYTES = 32 * 1024
+/**
+ * Default size of one page of a paginated read (see paginateReadResult). Below the model ceiling
+ * so the page, its JSON escaping and the result's other fields still fit under it.
+ */
+export const READ_PAGE_BYTES = 24 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
@@ -16133,7 +16138,10 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
   })
   return [
     ...promoted,
-    defineSeedPiTool(seedVerbRegistry.read, (params) => executeReadVerb(context, params)),
+    // The model reads long text a page at a time; scripts (ctx.call) get the whole result.
+    defineSeedPiTool(seedVerbRegistry.read, async (params) =>
+      paginateReadResult(await executeReadVerb(context, params), params),
+    ),
     defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
     defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),
     defineSeedPiTool(seedVerbRegistry.delegate, (params, toolCallId) => {
@@ -18488,6 +18496,79 @@ function ensureToolResultSize(text: string): string {
 }
 
 /**
+ * The fields of a read result that carry its long text, in order of preference. A read pages
+ * through the first one present.
+ */
+const READ_PAGE_FIELDS = ['markdown', 'content', 'transcript', 'text'] as const
+
+/** The longest prefix of `text` within `maxBytes` of UTF-8, never splitting a surrogate pair. */
+function utf8Prefix(text: string, maxBytes: number): string {
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text
+  let lo = 0
+  let hi = Math.min(text.length, maxBytes)
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (Buffer.byteLength(text.slice(0, mid), 'utf8') <= maxBytes) lo = mid
+    else hi = mid - 1
+  }
+  const lastCode = text.charCodeAt(lo - 1)
+  return text.slice(0, lastCode >= 0xd800 && lastCode <= 0xdbff ? lo - 1 : lo)
+}
+
+/**
+ * Pages the long text of a read result for the model. A result whose text field (markdown,
+ * content, …) fits in one page passes through untouched. A longer one returns the page that
+ * starts at `options.offset` (a character offset, default 0), cut at a line break where one is
+ * near, plus `page: {field, offset, end, total, nextOffset}`; reading the same address with
+ * `options.offset: nextOffset` continues. Every page fits under MAX_MODEL_TOOL_RESULT_BYTES once serialized, so a paged read is never
+ * truncated. Results with no long text field are left to boundModelToolResultText.
+ */
+export function paginateReadResult(result: Record<string, unknown>, rawInput: unknown): Record<string, unknown> {
+  if (hasPiContent(result)) return result
+  const input = isRecord(rawInput) ? rawInput : {}
+  const options = isRecord(input.options) ? input.options : {}
+  const field = READ_PAGE_FIELDS.find((key) => typeof result[key] === 'string')
+  if (!field) return result
+  const text = result[field] as string
+  const total = text.length
+  const requested = Number.isInteger(options.offset) && Number(options.offset) > 0 ? Number(options.offset) : 0
+  let offset = Math.min(requested, total)
+  // An offset inside a surrogate pair moves back to the start of the character.
+  const code = text.charCodeAt(offset)
+  if (offset > 0 && code >= 0xdc00 && code <= 0xdfff) offset -= 1
+  if (offset === 0 && Buffer.byteLength(text, 'utf8') <= READ_PAGE_BYTES) return result
+
+  const rest = text.slice(offset)
+  let budget = READ_PAGE_BYTES
+  for (;;) {
+    let chunk = utf8Prefix(rest, budget)
+    if (chunk.length < rest.length) {
+      // Prefer ending on a line break, unless that would give up more than half the page.
+      const lineEnd = chunk.lastIndexOf('\n')
+      if (lineEnd >= chunk.length / 2) chunk = chunk.slice(0, lineEnd + 1)
+    }
+    const end = offset + chunk.length
+    const more = end < total
+    const range = `characters ${offset}–${end} of ${total}`
+    const paged = {
+      ...result,
+      summary: `${typeof result.summary === 'string' ? `${result.summary} ` : ''}${
+        more
+          ? `Showing ${range} of ${field}; read the same address with options {offset: ${end}} for the next page.`
+          : `Showing ${range} of ${field} (the end).`
+      }`,
+      [field]: chunk,
+      page: {field, offset, end, total, ...(more ? {nextOffset: end} : {})},
+    }
+    // JSON escaping and the result's other fields count against the model ceiling too.
+    if (budget <= 256 || Buffer.byteLength(safeJSONStringify(paged), 'utf8') <= MAX_MODEL_TOOL_RESULT_BYTES) {
+      return paged
+    }
+    budget = Math.max(256, Math.floor(budget * 0.8))
+  }
+}
+
+/**
  * Bounds one tool result's model-facing text to MAX_MODEL_TOOL_RESULT_BYTES. The appended notice
  * steers the model toward bounded strategies (narrower reads, memory + execute) instead of
  * retrying the same call, which would truncate identically.
@@ -18508,7 +18589,7 @@ export function boundModelToolResultText(text: string): string {
   return `${head}\n\n[RESULT TRUNCATED: ${totalBytes} bytes total, only the first ${Buffer.byteLength(
     head,
     'utf8',
-  )} bytes are shown. Retrying this exact call will truncate the same way. You must work with the data in bounded pieces instead: request a narrower slice if the tool supports it (a specific block, view, page, or query), or get the full data into a memory file (e.g. write ~/memory/<path> with {fromUrl} or {fromAttachment}) and process it with the execute tool, printing only the small portion you need.]`
+  )} bytes are shown. Retrying this exact call will truncate the same way. You must work with the data in bounded pieces instead: request a narrower slice if the tool supports it (a specific block, view, page, or query; read pages long text with options {offset}), or get the full data into a memory file (e.g. write ~/memory/<path> with {fromUrl} or {fromAttachment}) and process it with the execute tool, printing only the small portion you need.]`
 }
 
 function nullableString(value: unknown): string | null {

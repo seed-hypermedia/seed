@@ -106,6 +106,7 @@ const readVerb = {
     '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
     "- `thread:<id>` — another of YOUR OWN conversation transcripts, as `[seq] who: text` lines (newest 200 by default; options {fromSeq, toSeq} select an exact range — the way to recall material a continuation handoff cites — and {limit} caps the count), with its continuation lineage. `thread:` alone lists your conversations, newest first; options {query} searches titles and message text, {limit} caps results. Other agents' threads are not reachable — talk to other agents through documents and comments. `run:<id>` — a run journal.",
     'Directory listings return {entries: [{path, type, size}]}; memory file reads return {content}. Prefer reading exactly what you need; directory listings are cheap, whole trees are not.',
+    'Long text comes a page at a time (about 24 KB). A paged result carries `page: {field, offset, end, total, nextOffset}`: read the same address with options {offset: nextOffset} for the next page, and stop when there is no nextOffset. Offsets count characters of the paged field (markdown or content).',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -125,7 +126,7 @@ const readVerb = {
       options: {
         type: 'object',
         description:
-          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs files {path} to choose the memory destination; ipfs objects {schema} to check against a schema reference.',
+          'Paging for any long text: {offset} (character offset to start from, as given by a previous page.nextOffset). Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs files {path} to choose the memory destination; ipfs objects {schema} to check against a schema reference.',
       },
     },
     required: ['address'],

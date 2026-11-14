@@ -163,7 +163,7 @@ Config source: `apps/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_RETENTION_MIB_PER_SEC` | `2` | Disk budget for retention work. `0` is unthrottled. |
 | `SEED_AGENTS_RETENTION_MAX_STORE_MIB` | `32` | Durable stores larger than this are left for the offline pass (a store is dropped in one transaction). |
 | `SEED_AGENTS_RETENTION_INTERVAL_MINS` | `360` | Time between retention passes; the first runs 15 minutes after start. |
-| `SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB` | `128` | Longest string (in thousands of characters) a stored tool output keeps; longer ones keep their head and a marker. The model never reads more than 8 KiB of a result either way. `0` disables. |
+| `SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB` | `128` | Longest string (in thousands of characters) a stored tool output keeps; longer ones keep their head and a marker. The model never reads more than 32 KiB of a result either way. `0` disables. |
 | `SEED_AGENTS_LOG_LEVEL` | `info` | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines. <!-- id:5TX4N4wb --> |
 
 CLI flags override env vars and defaults: <!-- id:ZtCaYR7h -->
@@ -184,7 +184,7 @@ Every environment variable in the table has a matching flag (`--searxng-url`, `-
 
 The service keeps everything in one SQLite file, and on the hosted server every read that misses the cache is a random read on a slow volume. Three things keep the file from growing without bound (`apps/src/db-retention.ts`):
 
-- **Stored tool output is capped.** A tool result's output is stored for people to inspect; strings past `SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB` keep their head and a `[truncated for storage: …]` marker. The model's view is unchanged: it never reads more than 8 KiB of a result. Workflow scripts still receive whole results.
+- **Stored tool output is capped.** A tool result's output is stored for people to inspect; strings past `SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB` keep their head and a `[truncated for storage: …]` marker. The model's view is unchanged: it never reads more than 32 KiB of a result. Workflow scripts still receive whole results.
 - **Durable stores of idle sessions are dropped.** A session's [durable store](./durable-sessions.md) is a second, model-facing copy of its transcript. Once the session has been idle for `SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS` and has no live run, the store is deleted in one transaction; the session's next turn rebuilds it from the log, as it does for a lost store. Nothing in the transcript changes.
 - **Journals of finished workflow runs are compacted.** A finished run is never replayed, so `SEED_AGENTS_RETENTION_JOURNAL_DAYS` after it finished, journal entries larger than 16 KiB keep their kind, call, tool, status and error, and their inputs and outputs become previews marked `compacted`.
 
