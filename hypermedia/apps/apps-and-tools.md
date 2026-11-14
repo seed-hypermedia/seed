@@ -28,7 +28,7 @@ A writer of the app's space runs the app on an app server (its `appEnvironmentUr
 
 - A **tool** takes input and returns output, in a sandbox with internet access. It holds no signing key and cannot reach the Seed node of the server that runs it, so it neither publishes documents nor reads them: whoever calls it passes the records it needs. It has no language model either; judgment work (summarizing, classifying) needs a model API key in the app's private config, or belongs to an agent.
 - A **page** runs in the viewer's browser and reads and writes Seed records as the viewer: `seed.directory`, `seed.resource`, and `seed.publishDocument(recordUrl, {name, metadata})` to create or edit a record.
-- A **trigger** under an app calls one of its tools. Scheduled work that reads or writes the app's data (a daily digest) is an agent's trigger: the agent reads the records, calls the tools and publishes the result.
+- A **trigger** under an app is the app's automation. It calls one of the app's tools, or names an agent (`agent`) that does the work in a session: reading the app's records, calling its tools and publishing the result into the app (a daily digest, a shopping list).
 
 # Where an app's data lives
 

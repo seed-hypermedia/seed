@@ -13,12 +13,13 @@ Its metadata says when it fires and what it does:
 | `source` | `ipfs://<cid>` of a DAG-CBOR trigger source: activity conditions, a schedule, a webhook, or a run finishing. See [triggers](../app-environment/triggers.md) for the shapes |
 | `tool` | optionally the hm:// URL of one of its host's tools to call |
 | `input` | optionally `ipfs://<cid>` of a DAG-CBOR input template for that tool |
+| `agent` | for an app's trigger with no `tool`: the hm:// URL of the agent that does the work |
 | `enabled` | `false` turns it off |
 
 When it fires it does one of two things:
 
 - **Call a tool** of its host, with `input` as a template: string values `"$event"` and `"$event.<path>"` are replaced from the event (a webhook's posted JSON is `"$event.payload"`). Without `input`, the tool gets the event. An app's trigger must call a tool. The call is recorded like any other run of the tool, as made by the trigger's **author**: the account that signed the trigger's latest version, which its space accepted, so a writer of the app.
-- **Start a session** with an agent (an agent's trigger only): leave out `tool`, and the trigger's body is the session's first message.
+- **Start a session** with an agent: leave out `tool`, and the trigger's body is the session's first message. An agent's trigger starts a session with that agent. An app's trigger names the agent in `agent` (the agent document's hm:// URL); the agent must run on the app's server for the account running the app, the trigger's author must be the agent itself, its owner or one of its writers, and the session is told which app it runs for.
 
 # Where triggers fire
 
@@ -38,6 +39,6 @@ Apps get a **Triggers** tab beside Tools and Pages, and agents list their trigge
 
 # For agents
 
-Agents publish triggers with the write verb's `options.trigger` (`{source, tool?, input?, enabled?}`): the publisher stores the source and input, sets the type and lists the trigger in its host. An update changes only what it names (`{enabled: false}` turns a trigger off, `{tool: null}` makes an agent's trigger start a session again). Agents learn this from `~/tools/write/triggers`, which leads with trigger documents and keeps `~/triggers/<name>` for what a document cannot express yet, and from the Triggers section of `~/tools/write/apps`. An agent's prompt lists its own trigger documents beside its tools, and `~/triggers/` lists all its triggers with their firings, naming each trigger's document. `read <trigger>/:firings` shows any trigger's recent firings and `read <tool>/:calls` (or `read <tool>/:call/<id>`) a tool's calls, in apps and agents alike, to anyone who can read that trigger or tool: the same rule as their pages in the app.
+Agents publish triggers with the write verb's `options.trigger` (`{source, tool?, input?, agent?, enabled?}`): the publisher stores the source and input, sets the type and lists the trigger in its host. An update changes only what it names (`{enabled: false}` turns a trigger off, `{tool: null}` makes an agent's trigger start a session again). Agents learn this from `~/tools/write/triggers`, which leads with trigger documents and keeps `~/triggers/<name>` for what a document cannot express yet, and from the Triggers section of `~/tools/write/apps`. An agent's prompt lists its own trigger documents beside its tools, and `~/triggers/` lists all its triggers with their firings, naming each trigger's document. `read <trigger>/:firings` shows any trigger's recent firings and `read <tool>/:calls` (or `read <tool>/:call/<id>`) a tool's calls, in apps and agents alike, to anyone who can read that trigger or tool: the same rule as their pages in the app.
 
 Source: `frontend/packages/client/src/apps.ts` (`triggerDocumentOps`, `triggerDocumentRefs`), `apps/src/trigger-documents.ts` (reading a host's triggers), `apps/src/api-service.ts` (`syncTriggerDocuments`, `migrateStoredTriggersToDocuments`, `#fireAppTrigger`), `frontend/packages/ui/src/apps/trigger-view.tsx`.

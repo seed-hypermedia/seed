@@ -9,6 +9,7 @@ import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {principalToUid} from '@/trigger-documents'
+import * as cbor from '@/cbor'
 
 const SERVER = 'http://this-server.test/hm/api/apps'
 const TOOL_SOURCE = `export default async function (input: {text: string}) {
@@ -215,6 +216,160 @@ describe('trigger documents', () => {
       expect((await send(owner, {_: 'ListHostTriggers', hostId: appUrl})).triggers).toHaveLength(1)
       db.run(`UPDATE agent_triggers SET updated_at = ?`, [Date.now() - 11 * 60_000])
       expect(await send(owner, {_: 'ListHostTriggers', hostId: appUrl})).toMatchObject({active: true, triggers: []})
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      fs.rmSync(dataDir, {recursive: true, force: true})
+    }
+  })
+
+  test("an app's trigger can name an agent: it lives in the app and starts that agent's session", async () => {
+    const db = new Database(':memory:', {create: true, strict: true})
+    if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-app-agent-trigger-test-'))
+    const originalFetch = globalThis.fetch
+    const owner = blobs.generateNobleKeyPair()
+    const stranger = blobs.generateNobleKeyPair()
+    const space = blobs.principalToString(owner.principal)
+    const appUrl = `hm://${space}/recipes`
+    const agentUrl = `hm://${space}/maple`
+    const triggers: Record<string, {metadata: Record<string, unknown>; version: string}> = {
+      shopping: {metadata: {agent: agentUrl}, version: 'bafyownerversion'},
+      'by-stranger': {metadata: {agent: agentUrl}, version: 'bafystrangerversion'},
+      'unknown-agent': {metadata: {agent: `hm://${space}/nobody`}, version: 'bafyownerversion'},
+      both: {metadata: {agent: agentUrl, tool: `hm://${space}/recipes/scale`}, version: 'bafyownerversion'},
+    }
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    const signerOf = (key: blobs.NobleKeyPair) =>
+      Response.json(
+        serialize({value: {signer: {'/': {bytes: Buffer.from(new Uint8Array(key.principal)).toString('base64')}}}}),
+      )
+    const document = (url: string, metadata: Record<string, unknown>, content: unknown[] = [], version = VERSION) => ({
+      type: 'document',
+      id: unpackHmId(url),
+      document: {
+        content,
+        metadata,
+        version,
+        genesis: version,
+        account: space,
+        authors: [space],
+        path: '',
+        createTime: '',
+        updateTime: '',
+        visibility: 'PUBLIC',
+      },
+    })
+    const card = (id: string, link: string) => ({
+      block: {id, type: 'Embed', link, attributes: {view: 'Card'}},
+      children: [],
+    })
+    const message = [
+      {
+        block: {id: 'm1', type: 'Paragraph', text: 'Make the shopping list.', annotations: [], attributes: {}},
+        children: [],
+      },
+    ]
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+      if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
+      if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+      if (href.includes('/api/GetCID')) {
+        if (href.includes('bafysource'))
+          return Response.json(
+            serialize({value: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}}),
+          )
+        return href.includes('bafystrangerversion') ? signerOf(stranger) : signerOf(owner)
+      }
+      if (href.includes('/api/Resource')) {
+        for (const [name, trigger] of Object.entries(triggers))
+          if (href.includes(`/recipes/${name}`))
+            return Response.json(
+              serialize(
+                document(
+                  `${appUrl}/${name}`,
+                  {name, type: 'hm://hyper.media/trigger', source: 'ipfs://bafysource', ...trigger.metadata},
+                  message,
+                  trigger.version,
+                ),
+              ),
+            )
+        if (href.includes('/maple'))
+          return Response.json(serialize(document(agentUrl, {name: 'Maple', type: 'hm://hyper.media/agent'})))
+        if (href.includes('/recipes'))
+          return Response.json(
+            serialize(
+              document(
+                appUrl,
+                {name: 'Recipes', type: 'hm://hyper.media/app', appEnvironmentUrl: SERVER},
+                Object.keys(triggers).map((name, index) => card(`b${index}`, `${appUrl}/${name}`)),
+              ),
+            ),
+          )
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const send = async (key: blobs.NobleKeyPair, action: Record<string, unknown>) => {
+      try {
+        return (await svc.message(await apisvc.createSignedEnvelope(key, {action: action as never}))) as any
+      } catch (error) {
+        return {error: error instanceof Error ? error.message : String(error)}
+      }
+    }
+    try {
+      expect(await send(owner, {_: 'RunApp', appId: appUrl})).toMatchObject({_: 'AppRunResponse'})
+      // Maple runs here for the account running the app.
+      const now = Date.now()
+      db.run(`INSERT OR IGNORE INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, [space, now, now])
+      db.run(
+        `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          agentUrl,
+          space,
+          cbor.encode({name: 'Maple', systemPrompt: 'Help.', modelProvider: 'openai', model: 'gpt-test', tools: []}),
+          path.join(dataDir, 'maple'),
+          'idle',
+          now,
+          now,
+        ],
+      )
+
+      const listed = await send(owner, {_: 'ListHostTriggers', hostId: appUrl})
+      expect(listed.triggers).toHaveLength(1)
+      expect(listed.triggers[0].trigger).toMatchObject({
+        appId: appUrl,
+        agentId: agentUrl,
+        documentId: `${appUrl}/shopping`,
+      })
+      expect(listed.triggers[0].trigger.continuation).toBeUndefined()
+      const errors = Object.fromEntries(
+        listed.errors.map((entry: any) => [entry.documentId.split('/').at(-1), entry.error]),
+      )
+      expect(errors['by-stranger']).toContain("Only the agent's owner")
+      expect(errors['unknown-agent']).toContain('does not run on this server')
+      expect(errors.both).toContain('both a tool and an agent')
+
+      // The agent's own triggers are its own: syncing the agent leaves the app's trigger alone.
+      db.run(`UPDATE agent_triggers SET updated_at = ?`, [Date.now() - 11 * 60_000])
+      await svc.syncTriggerDocuments()
+      expect(await send(owner, {_: 'ListHostTriggers', hostId: agentUrl})).toMatchObject({triggers: []})
+      expect((await send(owner, {_: 'ListHostTriggers', hostId: appUrl})).triggers).toHaveLength(1)
+
+      // Firing it starts a session with Maple.
+      const ran = await send(owner, {_: 'RunTriggerNow', triggerId: listed.triggers[0].trigger.id})
+      expect(ran.firing.sessionId).toBeString()
+      const session = db
+        .query<{agent_id: string}, [string]>(`SELECT agent_id FROM sessions WHERE id = ?`)
+        .get(ran.firing.sessionId)
+      expect(session?.agent_id).toBe(agentUrl)
+      // The session's run is enqueued in the background; let it land before the database closes.
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const run = db
+          .query<{id: string}, [string]>(`SELECT id FROM runs WHERE session_id = ?`)
+          .get(ran.firing.sessionId)
+        if (run) break
+        await Bun.sleep(20)
+      }
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)

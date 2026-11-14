@@ -897,7 +897,6 @@
         "_": "\"ListHostTriggersResponse\"",
         "active": "boolean",
         "errors": "{documentId: string; error: string}[]",
-        "fromAgents?": "{agentId: string; documentId: string; enabled: boolean; name: string}[]",
         "hostId": "string",
         "triggers": "{firings: TriggerFiringInfo[]; trigger: AgentTriggerInfo; webhookSecret?: string}[]"
       }

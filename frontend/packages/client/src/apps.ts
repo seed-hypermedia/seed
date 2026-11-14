@@ -244,10 +244,11 @@ function newBlockId(): string {
  * - `tool`: optionally the hm:// URL of one of its host's tools to call when it fires.
  * - `input`: optionally `ipfs://<cid>` of a DAG-CBOR input template for that tool; string values
  *   `"$event"` and `"$event.<path>"` are replaced from the event.
+ * - `agent`: for a trigger under an app with no `tool`, the hm:// URL of the agent that runs it.
  * - `enabled`: `false` turns it off; any other value (or none) leaves it on.
  *
- * With no `tool`, a trigger under an agent starts a session with the agent and the trigger's body
- * (its content) is the first message. A trigger under an app must name a tool.
+ * With no `tool`, a firing starts a session with an agent and the trigger's body (its content) is
+ * the first message: the host agent, or for an app the agent the trigger names in `agent`.
  */
 export type TriggerDocumentFields = {
   /** The trigger source; published as a DAG-CBOR blob. */
@@ -256,6 +257,8 @@ export type TriggerDocumentFields = {
   tool?: string | null
   /** Input template for the tool; published as a DAG-CBOR blob. */
   input?: unknown
+  /** For an app's trigger with no tool: hm:// URL of the agent that runs it. */
+  agent?: string | null
   enabled?: boolean
 }
 
@@ -264,6 +267,7 @@ export type TriggerDocumentRefs = {
   sourceCid: string | null
   tool: string | null
   inputCid: string | null
+  agent: string | null
   enabled: boolean
 }
 
@@ -280,6 +284,7 @@ export function triggerDocumentRefs(metadata: Record<string, unknown> | undefine
     sourceCid: ipfsRefCid(metadata?.source),
     tool: typeof metadata?.tool === 'string' && metadata.tool ? metadata.tool : null,
     inputCid: ipfsRefCid(metadata?.input),
+    agent: typeof metadata?.agent === 'string' && metadata.agent ? metadata.agent : null,
     enabled: metadata?.enabled !== false && metadata?.enabled !== 'false',
   }
 }
@@ -300,6 +305,7 @@ export async function triggerDocumentOps(
     attrs.push({key: ['source'], value: `ipfs://${encoded.cid}`})
   }
   if (fields.tool !== undefined) attrs.push({key: ['tool'], value: fields.tool || null})
+  if (fields.agent !== undefined) attrs.push({key: ['agent'], value: fields.agent || null})
   if (fields.input !== undefined) {
     if (fields.input === null) attrs.push({key: ['input'], value: null})
     else {

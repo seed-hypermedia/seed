@@ -200,7 +200,7 @@ export function CreateTriggerDialog({input, onClose}: {input: {host: AppRef}; on
       description={
         isAgent
           ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, a webhook, or activity in Hypermedia.'
-          : 'A trigger calls one of this app’s tools when something happens: on a schedule, a webhook, or activity in Hypermedia. It fires while the app runs.'
+          : 'A trigger does something for this app when something happens (on a schedule, a webhook, or activity in Hypermedia): it calls one of the app’s tools, or has an agent do the work. It fires while the app runs.'
       }
       namePlaceholder="morning-forecast"
       summaryPlaceholder="What the trigger is for"

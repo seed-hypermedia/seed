@@ -93,8 +93,15 @@ describe('trigger documents', () => {
       sourceCid: blobs[0]!.cid,
       tool: 'hm://z6Mkspace/app/send',
       inputCid: blobs[1]!.cid,
+      agent: null,
       enabled: false,
     })
+  })
+  it('names the agent that runs an app trigger', async () => {
+    const {ops} = await triggerDocumentOps({agent: 'hm://z6Mkspace/maple'})
+    const op = ops[0] as {type: 'SetAttributes'; attrs: {key: string[]; value: unknown}[]}
+    expect(op.attrs).toEqual([{key: ['agent'], value: 'hm://z6Mkspace/maple'}])
+    expect(triggerDocumentRefs({agent: 'hm://z6Mkspace/maple'}).agent).toBe('hm://z6Mkspace/maple')
   })
   it('clears the tool and input', async () => {
     const {ops, blobs} = await triggerDocumentOps({tool: null, input: null})
