@@ -101,7 +101,7 @@ export function ContextUsageMeter({
   const circumference = 2 * Math.PI * radius
   const label = `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString(
     'en-US',
-  )} tokens used (${percent}%)`
+  )} tokens in context (${percent}%)`
   return (
     <Tooltip content={label} asChild>
       <span className={cn('inline-flex shrink-0 items-center', tone, className)} aria-label={label} role="img">

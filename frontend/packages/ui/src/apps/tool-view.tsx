@@ -124,6 +124,15 @@ export function ToolDocumentView({
             onOpenSettings={() => navigate({key: 'document', id: appId, appView: 'settings'})}
           />
         ) : null}
+        {/* Using the tool ends here; below is what defines it, edited in a draft and published. */}
+        <div className="border-border flex flex-col gap-1 border-t pt-6">
+          <SizableText weight="bold">Definition</SizableText>
+          <SizableText size="sm" color="muted">
+            {canEdit
+              ? 'What the tool takes, what it returns, and its code. Changes stay in a draft until you publish them from the top bar.'
+              : 'What the tool takes, what it returns, and its code.'}
+          </SizableText>
+        </div>
         <Section title="Input">
           <SchemaField
             label="Input"
