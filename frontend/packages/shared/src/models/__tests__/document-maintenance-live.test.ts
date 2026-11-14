@@ -117,6 +117,34 @@ describe('live document maintenance', () => {
   it('ignores maintenance for a different draft', () => {
     expect(reconcileLiveDocumentMaintenance(context, {...event, draftId: 'other'}, [])).toEqual({})
   })
+
+  it('converts a published child draft card in live content and preserves sibling draft cards', () => {
+    const draftCard = (id: string, draftId: string): HMBlockNode => ({
+      block: {id, type: 'Embed', link: '', attributes: {view: 'Card', draftId}} as any,
+      children: [],
+    })
+    const published = [paragraph('Saved'), card('hm://account/parent/child')]
+    const addEvent = {
+      type: 'draft.externallyModified',
+      source: 'document-card-cleanup',
+      draftId: 'draft',
+      operation: 'add',
+      childDraftId: 'child-draft',
+      cardBlockId: 'card',
+      targetDocumentId: 'hm://account/parent/child',
+      previousContent: [paragraph('Saved')],
+      content: published,
+      baseBlocks: published,
+      deps: ['new-head'],
+      publishedDocument: {content: published, version: 'new-head'},
+    } as any
+    const live = [paragraph('Saved'), draftCard('card', 'child-draft'), draftCard('other', 'other-draft')]
+    const patch = reconcileLiveDocumentMaintenance({...context, baseBlocks: [paragraph('Saved')]}, addEvent, live)
+    expect(patch.draftContent?.map((node) => node.block.id)).toEqual(['text', 'card', 'other'])
+    expect(patch.draftContent?.[1]?.block).toMatchObject({link: 'hm://account/parent/child'})
+    expect((patch.draftContent?.[1]?.block as any).attributes?.draftId).toBeUndefined()
+    expect((patch.draftContent?.[2]?.block as any).attributes?.draftId).toBe('other-draft')
+  })
 })
 
 it('retries a stale in-flight save when maintenance or editing changed its inputs', async () => {

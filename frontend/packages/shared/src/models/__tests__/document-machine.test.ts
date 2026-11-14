@@ -1670,7 +1670,8 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'childDraftRefs.changed', draftIds: ['child-b']})
     actor.send({type: 'edit.discard'})
     await new Promise((r) => setTimeout(r, 0))
-    expect(discardInput).toEqual({draftId: 'parent-draft', deletedChildDraftIds: ['child-a']})
+    // Discarding deletes both the removed-card drafts and the still-referenced ones.
+    expect(discardInput).toEqual({draftId: 'parent-draft', deletedChildDraftIds: ['child-a', 'child-b']})
     expect(actor.getSnapshot().value).toEqual({loaded: {rename: 'idle'}})
     actor.stop()
   })

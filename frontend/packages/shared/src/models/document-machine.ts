@@ -69,6 +69,10 @@ export function reconcileLiveDocumentMaintenance(
       event,
       Array.from(new Set([...context.removedChildDocumentIds, ...(event.removedChildDocumentIds ?? [])])),
     ),
+    pendingDeletedChildDraftIds:
+      event.type === 'draft.externallyModified'
+        ? Array.from(new Set([...(context.pendingDeletedChildDraftIds ?? []), ...(event.removedChildDraftIds ?? [])]))
+        : context.pendingDeletedChildDraftIds,
     metadata: context.metadata,
     deps: event.deps ?? context.deps,
     baseBlocks: baseline,
@@ -367,6 +371,8 @@ export type DocumentMachineContext = {
   referencedChildDraftIds: string[]
   /** Child draft ids whose cards were removed and should be deleted on publish/discard unless restored by undo. */
   pendingDeletedChildDraftIds: string[]
+  /** Whether an in-flight discard should also delete the child drafts whose cards this draft references or removed. */
+  discardDeleteChildDrafts: boolean
   /**
    * True when `publish.start` is received while an autosave/create is in flight
    * or while the draft has unsaved changes. Causes the machine to flush the
@@ -485,7 +491,7 @@ export type DocumentMachineEvent =
   | {type: 'publish.skipChildDeletion'}
   | {type: 'publish.cancelChildDeletion'}
   | {type: 'document.remoteUpdate'; document: HMDocument}
-  | {type: 'edit.discard'}
+  | {type: 'edit.discard'; deleteChildDrafts?: boolean}
   | {type: 'childReferences.removed'; documentIds: string[]}
   | {type: 'childDraftRefs.changed'; draftIds: string[]}
   | {type: 'capability.changed'; canEdit: boolean}
@@ -502,6 +508,8 @@ export type DocumentMachineEvent =
       maintenanceRevision?: number
       /** Block IDs the user previously touched in this draft (persisted across reloads). */
       removedChildDocumentIds?: string[] | null
+      /** Child draft ids whose cards were removed in this draft (persisted across reloads). */
+      removedChildDraftIds?: string[] | null
       mineTouchedIds?: string[] | null
       /** Three-way merge base captured when the draft was first started or last rebased. */
       baseBlocks?: HMBlockNode[] | null
@@ -533,6 +541,7 @@ export type DocumentMachineEvent =
       deps?: string[] | null
       maintenanceRevision?: number
       removedChildDocumentIds?: string[] | null
+      removedChildDraftIds?: string[] | null
       mineTouchedIds?: string[] | null
       baseBlocks?: HMBlockNode[] | null
       publishPath?: string[] | null
@@ -566,6 +575,8 @@ export type WriteDraftInput = {
   signingAccountId: string | null
   /** Explicit authored child-reference removals retained across reloads. */
   removedChildDocumentIds?: string[]
+  /** Child drafts whose cards were removed; persisted so a reload still deletes them on publish/discard. */
+  removedChildDraftIds?: string[]
   /** Block IDs the user has locally touched since edit-start (or last rebase). */
   mineTouchedIds: string[]
   /** Three-way merge base captured at edit-start (or updated by `rebase.apply`). */
@@ -909,6 +920,7 @@ export const documentMachine = setup({
       pendingExitEditingAfterSave: false,
       referencedChildDraftIds: [],
       pendingDeletedChildDraftIds: [],
+      discardDeleteChildDrafts: true,
       publishPath: null,
       schemaDraft: null,
       bindingSchemaDrafts: null,
@@ -1106,6 +1118,9 @@ export const documentMachine = setup({
     markPendingExitEditingAfterSave: assign({
       pendingExitEditingAfterSave: true,
     }),
+    setDiscardDeleteChildDrafts: assign({
+      discardDeleteChildDrafts: ({event}) => (event.type === 'edit.discard' ? event.deleteChildDrafts ?? true : true),
+    }),
     clearPendingExitEditingAfterSave: assign({
       pendingExitEditingAfterSave: false,
     }),
@@ -1182,6 +1197,10 @@ export const documentMachine = setup({
         event.type === 'draft.resolved'
           ? event.removedChildDocumentIds ?? context.removedChildDocumentIds
           : context.removedChildDocumentIds,
+      pendingDeletedChildDraftIds: ({event, context}) =>
+        event.type === 'draft.resolved'
+          ? event.removedChildDraftIds ?? context.pendingDeletedChildDraftIds
+          : context.pendingDeletedChildDraftIds,
       maintenanceRevision: ({event, context}) =>
         event.type === 'draft.resolved' ? event.maintenanceRevision ?? 0 : context.maintenanceRevision,
       mineTouchedIds: ({event, context}) => {
@@ -1499,6 +1518,7 @@ export const documentMachine = setup({
     pendingExitEditingAfterSave: false,
     referencedChildDraftIds: [],
     pendingDeletedChildDraftIds: [],
+    discardDeleteChildDrafts: true,
     error: null,
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
@@ -1568,6 +1588,7 @@ export const documentMachine = setup({
           {
             target: 'discarding',
             guard: 'hasPersistedDraft',
+            actions: ['setDiscardDeleteChildDrafts'],
           },
           {
             actions: ['clearDraftState', 'pushPublishedContentToEditor'],
@@ -1671,7 +1692,10 @@ export const documentMachine = setup({
           {
             target: 'discarding',
             guard: 'hasPersistedDraft',
-            actions: [() => console.log('[DocMachine] edit.discard received in editing → discarding')],
+            actions: [
+              'setDiscardDeleteChildDrafts',
+              () => console.log('[DocMachine] edit.discard received in editing → discarding'),
+            ],
           },
           {
             target: 'loaded',
@@ -1882,6 +1906,7 @@ export const documentMachine = setup({
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
                   removedChildDocumentIds: context.removedChildDocumentIds,
+                  removedChildDraftIds: context.pendingDeletedChildDraftIds,
                   mineTouchedIds: context.mineTouchedIds,
                   // Fall back to the published document body so an
                   // attributes-only edit (no content editor mounted) preserves
@@ -2011,6 +2036,7 @@ export const documentMachine = setup({
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
                   removedChildDocumentIds: context.removedChildDocumentIds,
+                  removedChildDraftIds: context.pendingDeletedChildDraftIds,
                   mineTouchedIds: context.mineTouchedIds,
                   // Fall back to the published document body so an
                   // attributes-only edit (no content editor mounted) preserves
@@ -2164,7 +2190,9 @@ export const documentMachine = setup({
         src: 'discardDraft',
         input: ({context}) => ({
           draftId: context.draftId!,
-          deletedChildDraftIds: context.pendingDeletedChildDraftIds,
+          deletedChildDraftIds: context.discardDeleteChildDrafts
+            ? Array.from(new Set([...context.pendingDeletedChildDraftIds, ...context.referencedChildDraftIds]))
+            : [],
         }),
         onDone: {
           target: 'loaded',

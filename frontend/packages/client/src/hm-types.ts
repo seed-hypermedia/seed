@@ -386,6 +386,8 @@ export const HMBlockEmbedSchema = z
       .object({
         ...parentBlockAttributes,
         view: HMEmbedViewSchema.optional(),
+        // References a child draft while it is unpublished; stripped at the publish boundary.
+        draftId: z.string().optional(),
       })
       .optional()
       .default({}),
@@ -1425,6 +1427,8 @@ export const HMDraftContentSchema = z.object({
    * remote edits. Persisted so reload-after-rebase keeps the touch history.
    */
   removedChildDocumentIds: z.array(z.string()).optional(),
+  /** Child draft ids whose cards were removed; deleted on publish/discard unless re-referenced. */
+  removedChildDraftIds: z.array(z.string()).optional(),
   mineTouchedIds: z.array(z.string()).optional(),
   /**
    * Snapshot of the published HMBlockNode[] tree at the time the draft was

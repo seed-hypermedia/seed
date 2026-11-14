@@ -4,7 +4,7 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
-import {useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {selectDiscardChildDraftIds, useDocumentSelector, useDocumentSend} from '@shm/shared/models/use-document-machine'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
@@ -52,7 +52,7 @@ export type DraftVersionEntry = {
   draftId: string
   deps?: string[]
   metadata?: {name?: string}
-  onDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void) => void
+  onDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void, childDraftIds?: string[]) => void
 }
 
 export function shouldShowDraftVersionEntry(
@@ -357,6 +357,7 @@ function DraftVersionItem({
 }) {
   const currentRoute = useNavRoute()
   const send = useDocumentSend()
+  const childDraftIds = useDocumentSelector(selectDiscardChildDraftIds)
   const draftRoute = {
     key: 'document' as const,
     id: hmId(draft.docId.uid, {
@@ -400,7 +401,7 @@ function DraftVersionItem({
             event.preventDefault()
             event.stopPropagation()
             if (draft.onDiscardConfirm) {
-              draft.onDiscardConfirm(draft.draftId, send)
+              draft.onDiscardConfirm(draft.draftId, send, childDraftIds)
             } else if (window.confirm('Discard draft changes?')) {
               send({type: 'edit.discard'})
             }

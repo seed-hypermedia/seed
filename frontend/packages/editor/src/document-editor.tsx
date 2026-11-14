@@ -49,6 +49,7 @@ import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {InlineAddBlockButton} from './inline-add-block-button'
 import {MentionMenuPositioner} from './mention-menu-positioner'
 import {PublishRequiredDialog} from './publish-required-dialog'
+import {replaceEditorContent} from './replace-editor-content'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {useBlockBorderDebug} from './use-block-border-debug'
@@ -527,7 +528,7 @@ export function DocumentEditor({
       replaceCurrentContent: (blocks) => {
         suppressChangeRef.current = true
         try {
-          editor.replaceBlocks(editor.topLevelBlocks, blocks as any)
+          replaceEditorContent(editor, blocks as any)
         } finally {
           suppressChangeRef.current = false
         }
@@ -541,7 +542,7 @@ export function DocumentEditor({
 
         suppressChangeRef.current = true
         try {
-          editor.replaceBlocks(editor.topLevelBlocks, content)
+          replaceEditorContent(editor, content)
         } finally {
           suppressChangeRef.current = false
         }

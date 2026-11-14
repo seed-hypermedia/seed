@@ -505,4 +505,54 @@ describe('desktop published parent reconciliation', () => {
     ])
     expect(compareAndSwapDraftMock.mock.calls[0]?.[1].content[1].props.url).toBe(source)
   })
+
+  it('removes duplicate draft cards for the published child and keeps other draft cards', async () => {
+    const {hmBlocksToEditorContent} = await import('@seed-hypermedia/client/hmblock-to-editorblock')
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const before = text('before')
+    const base = [before]
+    const resolved = {...card(), block: {...card().block, id: 'temporary-card'}} as HMBlockNode
+    const draftCard = (id: string, draftId: string) =>
+      ({
+        id,
+        type: 'embed',
+        props: {draftId, url: '', view: 'Card'},
+        content: [],
+        children: [],
+      }) as any
+    const draftContent = [
+      ...hmBlocksToEditorContent(base),
+      draftCard('temporary-card', 'child-draft'),
+      draftCard('duplicate-card', 'child-draft'),
+      draftCard('sibling-card', 'other-draft'),
+    ]
+    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
+    getDraftMock.mockResolvedValue({
+      id: 'draft-parent',
+      deps: ['parent-version'],
+      baseBlocks: base,
+      content: draftContent,
+    })
+    let published = false
+    getDocumentMock.mockImplementation(async () =>
+      published ? {...makeParentDocument([before, resolved]), version: 'new'} : makeParentDocument(base),
+    )
+    publishDocumentMock.mockImplementation(async () => {
+      published = true
+    })
+    await api.enqueue({
+      operation: 'add',
+      targetDocumentId: source,
+      parentDocumentId: parent,
+      signingAccountUid: 'alice',
+      childDraftId: 'child-draft',
+    })
+    await mod.runNextDocumentCardCleanupForTest()
+    const content = compareAndSwapDraftMock.mock.calls[0]?.[1].content
+    expect(content.map((block: any) => block.id)).toEqual(['text', 'temporary-card', 'sibling-card'])
+    expect(content[1].props.url).toBe(source)
+    expect(content[1].props.draftId).toBeFalsy()
+    expect(content[2].props.draftId).toBe('other-draft')
+  })
 })

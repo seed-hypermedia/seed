@@ -6,6 +6,7 @@ import {DocumentChange} from '../client/.generated/documents/v3alpha/documents_p
 import {
   compareBlocksWithMap,
   createBlocksMap,
+  stripDraftIdsFromEditorBlocks,
   deduplicateBlockIds,
   expandObjectRemovals,
   getDocAttributeChanges,
@@ -352,5 +353,32 @@ describe('compareBlocksWithMap (publish-diff path)', () => {
     const parsed = HMPrepareDocumentChangeInputSchema.parse({account: 'z6Mk', path: '/doc', changes})
 
     expect(parsed.changes.map((c) => new DocumentChange(c as any).toJson())).toEqual(changes.map((c) => c.toJson()))
+  })
+})
+
+describe('stripDraftIdsFromEditorBlocks', () => {
+  const draftCard = (id: string, draftId: string): EditorBlock =>
+    ({
+      id,
+      type: 'embed',
+      props: {url: '', view: 'Card', draftId},
+      content: [],
+      children: [],
+    }) as EditorBlock
+
+  it('removes draftId from embed props, including nested blocks', () => {
+    const blocks = [draftCard('card', 'draft-1'), paraWithText('p', 'text', [draftCard('nested', 'draft-2')])]
+    const stripped = stripDraftIdsFromEditorBlocks(blocks)
+    expect((stripped[0]!.props as any).draftId).toBeUndefined()
+    expect((stripped[1]!.children[0]!.props as any).draftId).toBeUndefined()
+  })
+
+  it('published changes never contain draftId', () => {
+    const draft: EditorBlock[] = [draftCard('card', 'draft-1')]
+    const {changes} = compareBlocksWithMap({}, stripDraftIdsFromEditorBlocks(draft), '')
+    const replace = changes.find((change) => change.op?.case === 'replaceBlock')!
+    const attributes = (replace.op.value as any).toJson().attributes ?? {}
+    expect(attributes.draftId).toBeUndefined()
+    expect(JSON.stringify(changes.map((c) => c.toJson()))).not.toContain('draft-1')
   })
 })

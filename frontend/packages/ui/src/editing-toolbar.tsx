@@ -3,6 +3,7 @@ import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useAccount} from '@shm/shared/models/entity'
 import {
+  selectDiscardChildDraftIds,
   selectDocument,
   selectDraftId,
   selectEffectivePublishPath,
@@ -85,7 +86,7 @@ export type EditingToolbarCallbacks = {
   /** Resolve the public URL where this doc is/will be available. */
   getDocumentUrl?: (docId: UnpackedHypermediaId) => string | null
   /** Confirm + perform discard. Desktop opens delete-draft dialog; web shows a simple confirm. */
-  onDiscardConfirm?: (draftId: string, send: (e: DocumentMachineEvent) => void) => void
+  onDiscardConfirm?: (draftId: string, send: (e: DocumentMachineEvent) => void, childDraftIds?: string[]) => void
   /** Navigate to document versions panel. Row hidden when undefined. */
   onGoToVersions?: (docId: UnpackedHypermediaId) => void
   /**
@@ -504,6 +505,7 @@ export function PublishButtonWithPopover({
     unpublishedChildCount: effectiveUnpublishedChildCount,
   })
   const send = useDocumentSend()
+  const discardChildDraftIds = useDocumentSelector(selectDiscardChildDraftIds)
 
   const popoverState = usePopoverState()
 
@@ -517,7 +519,7 @@ export function PublishButtonWithPopover({
       variant: 'destructive' as const,
       onClick: () => {
         if (onDiscardConfirm) {
-          onDiscardConfirm(draftId, send)
+          onDiscardConfirm(draftId, send, discardChildDraftIds)
         } else {
           send({type: 'edit.discard'})
         }

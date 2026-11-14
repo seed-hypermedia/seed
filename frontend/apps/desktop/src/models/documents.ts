@@ -45,6 +45,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {rememberDraftReturnParentId, rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {
   compareBlocksWithMap,
+  stripDraftIdsFromEditorBlocks,
   createBlocksMap,
   extractDeletes,
   expandObjectRemovals,
@@ -373,7 +374,7 @@ export function usePublishResource(
           if (!existingDocVersion) {
             newContent = retargetQueryBlockIncludesForPublish(newContent, destinationId, resolvedDestinationId)
           }
-          const changes = compareBlocksWithMap(blocksMap, newContent, '')
+          const changes = compareBlocksWithMap(blocksMap, stripDraftIdsFromEditorBlocks(newContent), '')
           const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
           // A draft's working schemas are frozen into blobs here: the document's own

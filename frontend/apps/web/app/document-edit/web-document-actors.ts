@@ -57,6 +57,7 @@ import {queryDirectory} from '@shm/shared/models/queries'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {
   compareBlocksWithMap,
+  stripDraftIdsFromEditorBlocks,
   createBlocksMap,
   documentChangesToPlain,
   expandObjectRemovals,
@@ -215,6 +216,7 @@ export async function writeWebDraft(
     mineTouchedIds: input.mineTouchedIds,
     maintenanceRevision: input.maintenanceRevision ?? 0,
     removedChildDocumentIds: input.removedChildDocumentIds,
+    removedChildDraftIds: input.removedChildDraftIds,
     navigation: input.navigation ?? null,
     locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
     locationPath: locationPath?.length ? locationPath : null,
@@ -360,7 +362,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const path = hmIdPathToEntityQueryPath(publishPath)
 
   const baselineMap = createBlocksMap(editDocument?.content ?? [], '')
-  const blockDiff = compareBlocksWithMap(baselineMap, publishBlocks, '')
+  const blockDiff = compareBlocksWithMap(baselineMap, stripDraftIdsFromEditorBlocks(publishBlocks), '')
   const deleteChanges = extractDeletes(baselineMap, blockDiff.touchedBlocks)
 
   const navChanges = getNavigationChanges(

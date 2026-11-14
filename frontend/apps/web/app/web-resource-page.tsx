@@ -20,6 +20,7 @@ import {selectContext, useDocumentMachineRef, useOnDocumentRenamed} from '@shm/s
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
+import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, latestId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -27,6 +28,8 @@ import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {Button} from '@shm/ui/button'
+import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
+import {Text} from '@shm/ui/text'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
 import {Trash} from '@shm/ui/icons'
@@ -145,6 +148,7 @@ function WebDraftExternalModificationListener() {
         baseBlocks: draft?.baseBlocks ?? null,
         maintenanceRevision: draft?.maintenanceRevision ?? 0,
         removedChildDocumentIds: draft?.removedChildDocumentIds ?? null,
+        removedChildDraftIds: draft?.removedChildDraftIds ?? null,
         mineTouchedIds: draft?.mineTouchedIds ?? null,
       })
     })
@@ -183,6 +187,52 @@ function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | 
   return Component
 }
 
+function WebDiscardDraftDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {childDraftCount: number; onConfirm: (deleteChildDrafts: boolean) => void}
+}) {
+  return (
+    <>
+      <AlertDialogTitle>Discard draft changes?</AlertDialogTitle>
+      <Text className="text-muted-foreground text-sm">Your unpublished changes will be discarded.</Text>
+      {input.childDraftCount > 0 ? (
+        <Text className="text-muted-foreground text-sm">
+          {`This draft contains ${input.childDraftCount} unpublished child document(s). Discarding removes their cards.`}
+        </Text>
+      ) : null}
+      <AlertDialogFooter className="flex-col">
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        {input.childDraftCount > 0 ? (
+          <Button
+            variant="outline"
+            title="Not recommended"
+            onClick={() => {
+              input.onConfirm(false)
+              onClose()
+            }}
+          >
+            Discard and keep drafts (not recommended)
+          </Button>
+        ) : null}
+        <Button
+          variant="destructive"
+          onClick={() => {
+            input.onConfirm(true)
+            onClose()
+          }}
+        >
+          {input.childDraftCount > 0 ? 'Discard and delete drafts' : 'Yes, discard changes'}
+        </Button>
+      </AlertDialogFooter>
+    </>
+  )
+}
+
 export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
   const DocumentContentComponent = useClientDocumentEditor()
   const {origin, originHomeId} = useUniversalAppContext()
@@ -192,6 +242,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const replaceRoute = useNavigate('replace')
   const userKeyPair = useLocalKeyPair()
   const editProfileDialog = useAppDialog(EditProfileDialog)
+  const discardDraftDialog = useAppDialog(WebDiscardDraftDialog, {isAlert: true})
   const vaultSuccessContent = useVaultSuccessDialog()
   const universalClient = useUniversalClient()
   const gwUrl = useGatewayUrlStream()
@@ -462,18 +513,25 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           hostname: origin || null,
           originHomeId: originHomeId ?? undefined,
         }),
-      onDiscardConfirm: (discardDraftId: string, send) => {
-        if (window.confirm('Discard draft changes?')) {
-          send({type: 'edit.discard'})
-          const parentId = getDraftPlaceholderParentId(docId, discardDraftId) ?? getDraftReturnParentId(discardDraftId)
-          if (parentId) {
-            replaceRoute({
-              ...(route.key === 'document' ? route : {key: 'document'}),
-              id: parentId,
-            } as any)
-          }
-          toast.success('Draft changes discarded')
-        }
+      onDiscardConfirm: (discardDraftId: string, send, childDraftIds = []) => {
+        // Only count child drafts that still exist; published children were already deleted.
+        void Promise.all(childDraftIds.map((id) => getWebDocDraft(id).catch(() => null))).then((drafts) => {
+          discardDraftDialog.open({
+            childDraftCount: drafts.filter(Boolean).length,
+            onConfirm: (deleteChildDrafts) => {
+              send({type: 'edit.discard', deleteChildDrafts})
+              const parentId =
+                getDraftPlaceholderParentId(docId, discardDraftId) ?? getDraftReturnParentId(discardDraftId)
+              if (parentId) {
+                replaceRoute({
+                  ...(route.key === 'document' ? route : {key: 'document'}),
+                  id: parentId,
+                } as any)
+              }
+              toast.success('Draft changes discarded')
+            },
+          })
+        })
       },
       onGoToVersions: (id: UnpackedHypermediaId) => {
         navigate({
@@ -503,6 +561,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       navigate,
       publishSpaceDraft,
       replaceRoute,
+      discardDraftDialog,
       docId,
       route,
       isSpaceHomeDraft,
@@ -515,6 +574,13 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
+  // Walk the editor's blocks for embed blocks with a draftId.
+  // Called at Publish click time so the popover always opens
+  // when there are unresolved draft embeds
+  const getUnpublishedChildCount = useCallback(() => {
+    return collectChildDraftIds(editorRef.current?.topLevelBlocks ?? []).length
+  }, [])
+
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   // An agent page is the agent, so Publish only appears once attributes or content are dirty.
   // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
@@ -532,6 +598,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           <EditingDocToolsRight
             docId={docId}
             existingMenuItems={menuItems}
+            getUnpublishedChildCount={getUnpublishedChildCount}
             beforePublish={
               <WebDocumentCreateButton
                 locationId={docId}
@@ -872,6 +939,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                             existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
                             existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
                             existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                            existingDraftRemovedChildDraftIds={draftData?.removedChildDraftIds}
                             existingDraftMineTouchedIds={draftData?.mineTouchedIds}
                             draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                             editingFloatingActions={editingFloatingActions}
@@ -893,6 +961,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {createSpaceDialogContent}
       {createAccountContent}
       {deleteDialog.content}
+      {discardDraftDialog.content}
       {orphanAgent.content}
       {destinationDialog.content}
       {vaultSuccessContent}

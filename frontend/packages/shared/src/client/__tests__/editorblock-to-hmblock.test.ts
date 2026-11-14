@@ -781,6 +781,63 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('embed preserves draftId in attributes', () => {
+      const editorBlock: EditorEmbedBlock = {
+        id: 'foo',
+        type: 'embed',
+        children: [],
+        props: {
+          url: '',
+          view: 'Card',
+          draftId: 'child-draft-1',
+        },
+        content: [],
+      }
+
+      expect(editorBlockToHMBlock(editorBlock)).toEqual({
+        id: 'foo',
+        type: 'Embed',
+        text: ``,
+        annotations: [],
+        attributes: {
+          view: 'Card',
+          draftId: 'child-draft-1',
+        },
+      })
+    })
+
+    test('embed does not write an empty draftId', () => {
+      const editorBlock: EditorEmbedBlock = {
+        id: 'foo',
+        type: 'embed',
+        children: [],
+        props: {
+          url: '',
+          view: 'Card',
+          draftId: '',
+        },
+        content: [],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+      expect((val as HMBlockEmbed).attributes).toEqual({view: 'Card'})
+    })
+
+    test('embed draftId round-trips through HMBlockNode', () => {
+      const nodes = editorBlocksToHMBlockNodes([
+        {
+          id: 'foo',
+          type: 'embed',
+          children: [],
+          props: {url: '', view: 'Card', draftId: 'child-draft-1'},
+          content: [],
+        } as EditorEmbedBlock,
+      ])
+      expect((nodes[0]!.block as HMBlockEmbed).attributes?.draftId).toBe('child-draft-1')
+      const [back] = hmBlocksToEditorContent(nodes)
+      expect((back as EditorEmbedBlock).props.draftId).toBe('child-draft-1')
+    })
+
     test('web embed', () => {
       const editorBlock: EditorWebEmbedBlock = {
         id: 'foo',

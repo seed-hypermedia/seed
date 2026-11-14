@@ -7,7 +7,6 @@ import * as Y from 'yjs'
 import {
   // insertBlocks,
   removeBlocks,
-  replaceBlocks,
 } from './api/blockManipulation/blockManipulation'
 import {HTMLToBlocks, blocksToHTML, blocksToMarkdown, markdownToBlocks} from './api/formatConversions/formatConversions'
 import {blockToNode, nodeToBlock} from './api/nodeConversions/nodeConversions'
@@ -35,7 +34,7 @@ import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {unnestBlock as unnestBlockCommand} from './api/blockManipulation/commands/nestBlock'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
-import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
+import {newReplaceBlocks, removeAndInsertBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock, UpdateBlockOptions} from './api/blockManipulation/commands/updateBlock'
 import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
@@ -760,7 +759,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blocksToInsert An array of partial blocks to replace the old ones with.
    */
   public replaceBlocks(blocksToRemove: BlockIdentifier[], blocksToInsert: PartialBlock<BSchema>[]) {
-    replaceBlocks(blocksToRemove, blocksToInsert, this._tiptapEditor)
+    removeAndInsertBlocks(this, blocksToRemove, blocksToInsert)
   }
 
   /**
