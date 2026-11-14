@@ -15173,6 +15173,8 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
     )
   }
   const row = rows[0]!
+  // The full webhook address, when this agent names the server it runs on.
+  const serverUrl = await agentServerUrlOf(context)
   const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
   const continuation = row.continuation_cbor ? cbor.decode<api.TriggerContinuation>(row.continuation_cbor) : undefined
   const webhookSecret = source.type === 'webhook' ? readWebhookTriggerSecret(context.db, row.id) : undefined
@@ -15210,6 +15212,9 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
       ? {
           webhook: webhookSecret
             ? {
+                ...(serverUrl
+                  ? {endpoint: new URL(`/hm/api/agents/webhooks/${row.id}/${webhookSecret}`, serverUrl).href}
+                  : {}),
                 endpointPath: `/hm/api/agents/webhooks/${row.id}/${webhookSecret}`,
                 secret: webhookSecret,
                 alternative: `POST to /hm/api/agents/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
@@ -15375,6 +15380,7 @@ async function writeTriggerAddress(
   content: string | undefined,
   options: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const serverUrl = await agentServerUrlOf(context)
   if (!name || name.includes('/')) throw new APIError(400, 'write ~/triggers/<name> needs a single trigger name')
   const existing = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
   if (existing.length > 1) {
@@ -15522,6 +15528,7 @@ async function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
+            ...(serverUrl ? {endpoint: new URL(`/hm/api/agents/webhooks/${id}/${webhookSecret}`, serverUrl).href} : {}),
             endpointPath: `/hm/api/agents/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
             alternative: `Senders that cannot use the secret URL may POST to /hm/api/agents/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
