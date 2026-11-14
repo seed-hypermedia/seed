@@ -145,6 +145,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
+  ChevronDown,
   Braces,
   FileText,
   Grid3X3,
@@ -156,7 +157,6 @@ import {
   Users,
   LayoutGrid,
   List as ListIcon,
-  MoreHorizontal,
   Pencil,
   Plus,
   Quote,
@@ -165,7 +165,7 @@ import {
   Table as TableIcon,
   Trash,
 } from 'lucide-react'
-import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactNode, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {ActivityContent, ActivityHeader} from './activity-panel'
@@ -186,7 +186,9 @@ import {
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
-import {Tabs, TabsList, TabsTrigger} from './components/tabs'
+import {Input} from './components/input'
+import {Label} from './components/label'
+import {Switch} from './components/switch'
 import {DirectoryPageContent} from './directory-page'
 import {CommentsFooterContext, DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -203,7 +205,7 @@ import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-ve
 import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
-import {SelectField, SwitchField, TextField} from './form-fields'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {HMIcon} from './hm-icon'
 import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
@@ -4599,39 +4601,13 @@ export function DocumentCollection({
       <QueryBlockContent
         showControls={showCollectionControls}
         toolbarActions={
-          <div className="flex items-center gap-2">
-            <Tabs
-              value={style}
-              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
-            >
-              <TabsList>
-                <TabsTrigger value="Table">
-                  <TableIcon />
-                  Table
-                </TabsTrigger>
-                <TabsTrigger value="List">
-                  <ListIcon />
-                  List
-                </TabsTrigger>
-                <TabsTrigger value="Card">
-                  <LayoutGrid />
-                  Cards
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover>
-              <Tooltip content="Query settings">
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Query settings">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-              </Tooltip>
-              <PopoverContent align="end" className="w-80">
-                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
-              </PopoverContent>
-            </Popover>
-          </div>
+          <CollectionViewControls
+            key={docId.id}
+            style={style}
+            props={props}
+            canEdit={canEdit}
+            onChange={updateQueryProps}
+          />
         }
         items={query.data?.results ?? []}
         style={style}
@@ -4670,11 +4646,84 @@ export function DocumentCollection({
   )
 }
 
-function CollectionQuerySettings({
+function CollectionViewControls({
+  style,
   props,
+  canEdit,
   onChange,
 }: {
+  style: 'Card' | 'List' | 'Table'
   props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
+  onChange: (changes: Partial<EditorQueryBlock['props']>) => void
+}) {
+  const [settingsView, setSettingsView] = useState<string | null>(null)
+  const id = useId()
+
+  return (
+    <div role="group" aria-label="Collection views" className="bg-muted flex items-center rounded-lg p-[3px]">
+      {(
+        [
+          {value: 'Table', label: 'Table', Icon: TableIcon},
+          {value: 'List', label: 'List', Icon: ListIcon},
+          {value: 'Card', label: 'Cards', Icon: LayoutGrid},
+        ] as const
+      ).map(({value, label, Icon}) => {
+        const active = style === value
+        return (
+          <Popover
+            key={value}
+            open={active && settingsView === value}
+            onOpenChange={(open) => {
+              if (open && !active) {
+                setSettingsView(null)
+                onChange({style: value})
+              } else {
+                setSettingsView(open ? value : null)
+              }
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                aria-pressed={active}
+                aria-label={active ? `${label} view settings` : `${label} view`}
+                className={cn(active && 'bg-background shadow-sm')}
+              >
+                <Icon />
+                {label}
+                {active ? (
+                  <ChevronDown className="size-3 transition-transform [[data-state=open]>&]:rotate-180" />
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] p-0" aria-labelledby={`${id}-title`}>
+              <h3 id={`${id}-title`} className="px-4 pt-4 pb-3 text-sm font-medium">
+                {label} view
+              </h3>
+              <CollectionQuerySettings id={id} style={style} props={props} canEdit={canEdit} onChange={onChange} />
+              <p className="bg-muted/50 text-muted-foreground border-t px-4 py-3 text-xs">
+                {canEdit ? 'Applies to this collection.' : 'Only editors can change these settings.'}
+              </p>
+            </PopoverContent>
+          </Popover>
+        )
+      })}
+    </div>
+  )
+}
+
+function CollectionQuerySettings({
+  id,
+  style,
+  props,
+  canEdit,
+  onChange,
+}: {
+  id: string
+  style: 'Card' | 'List' | 'Table'
+  props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
   onChange: (changes: Partial<EditorQueryBlock['props']>) => void
 }) {
   const limit = props?.queryLimit || ''
@@ -4682,34 +4731,54 @@ function CollectionQuerySettings({
   const banner = props?.banner === 'true'
 
   return (
-    <div className="flex flex-col gap-3 p-1">
-      <SelectField
-        id="query-column-count"
-        label="Columns"
-        options={[
-          {value: '1', label: '1 column'},
-          {value: '2', label: '2 columns'},
-          {value: '3', label: '3 columns'},
-        ]}
-        value={columnCount}
-        onValue={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
-      />
-      <TextField
-        id="query-limit"
-        label="Limit"
-        type="number"
-        value={limit}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-          onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})
-        }
-      />
-      <SwitchField
-        id="query-banner"
-        label="Show banner"
-        checked={banner}
-        onCheckedChange={(checked: boolean) => onChange({banner: checked ? 'true' : 'false'})}
-      />
-    </div>
+    <>
+      {style === 'Card' ? (
+        <div className="space-y-3 px-4 pb-4">
+          <p className="text-muted-foreground text-xs">Layout</p>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-columns`}>Columns</Label>
+            <Select
+              value={columnCount}
+              disabled={!canEdit}
+              onValueChange={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
+            >
+              <SelectTrigger id={`${id}-columns`} className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 column</SelectItem>
+                <SelectItem value="2">2 columns</SelectItem>
+                <SelectItem value="3">3 columns</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-banner`}>Show banner</Label>
+            <Switch
+              id={`${id}-banner`}
+              disabled={!canEdit}
+              checked={banner}
+              onCheckedChange={(checked) => onChange({banner: checked ? 'true' : 'false'})}
+            />
+          </div>
+        </div>
+      ) : null}
+      <div className={cn('space-y-3 px-4 pb-4', style === 'Card' && 'border-t pt-3')}>
+        <p className="text-muted-foreground text-xs">Results</p>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={`${id}-limit`}>Document limit</Label>
+          <Input
+            id={`${id}-limit`}
+            className="w-28"
+            type="number"
+            placeholder="No limit"
+            disabled={!canEdit}
+            value={limit}
+            onChange={(e) => onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})}
+          />
+        </div>
+      </div>
+    </>
   )
 }
 
