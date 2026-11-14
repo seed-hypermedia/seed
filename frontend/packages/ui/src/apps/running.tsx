@@ -1,5 +1,5 @@
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import type {AppRunInfo, AppToolCallInfo} from '@seed-hypermedia/apps-protocol'
+import type {AgentTriggerInfo, AppRunInfo, AppToolCallInfo, TriggerFiringInfo} from '@seed-hypermedia/apps-protocol'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -167,6 +167,26 @@ export function useAppToolCall(serverUrl: string, callId: string | undefined) {
     staleTime: Infinity,
     queryFn: async () =>
       (await appAction<{call: AppToolCallInfo}>(serverUrl, accountUid, {_: 'GetAppToolCall', callId})).call,
+  })
+}
+
+/** A host's triggers as its server holds them (see `ListHostTriggers`), with their recent firings. */
+export type HostTriggersInfo = {
+  hostId: string
+  active: boolean
+  triggers: {trigger: AgentTriggerInfo; webhookSecret?: string; firings: TriggerFiringInfo[]}[]
+  errors: {documentId: string; error: string}[]
+}
+
+/** The triggers of an app or agent on the server that runs it; asking also syncs them there. */
+export function useHostTriggers(serverUrl: string, hostId: string) {
+  const accountUid = useAccountUid()
+  return useQuery({
+    queryKey: ['host-triggers', serverUrl, hostId],
+    enabled: !!serverUrl && !!accountUid,
+    ...APP_SERVER_QUERY,
+    refetchInterval: 15_000,
+    queryFn: () => appAction<HostTriggersInfo>(serverUrl, accountUid, {_: 'ListHostTriggers', hostId}),
   })
 }
 

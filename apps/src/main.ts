@@ -683,8 +683,22 @@ async function main(): Promise<void> {
       if (synced > 0) console.log('[Agents Mount Names] Renamed mounted agents after their documents', {synced})
     },
   })
+  // Trigger documents under mounted agents and running apps become triggers here; edits and
+  // removals follow within a tick, and triggers stored only here move into documents.
+  const triggerDocumentSync = new PollLoop({
+    label: 'Agents Trigger Documents',
+    intervalMs: MOUNT_NAME_SYNC_INTERVAL_MS,
+    timeoutMs: MOUNT_NAME_SYNC_TIMEOUT_MS,
+    run: async (signal) => {
+      const migrated = await svc.migrateStoredTriggersToDocuments({signal})
+      if (migrated > 0) console.log('[Agents Trigger Documents] Published stored triggers as documents', {migrated})
+      const synced = await svc.syncTriggerDocuments({signal})
+      if (synced > 0) console.log('[Agents Trigger Documents] Synced trigger documents', {hosts: synced})
+    },
+  })
   activityMonitor.start()
   scheduleMonitor.start()
+  triggerDocumentSync.start()
   // Measures how late a 100 ms timer fires: the only signal that the single thread is stalled
   // when no request gets far enough to record a span. Read at /api/perf (`loop.lag`) and
   // enforced by /api/health.
@@ -784,6 +798,7 @@ async function main(): Promise<void> {
     execCanary.stop()
     activityMonitor.stop()
     scheduleMonitor.stop()
+    triggerDocumentSync.stop()
     mountNameSync.stop()
     await withTimeout(retentionTask.stop(), 2_000, 'stop retention').catch(() => {})
     for (const ws of clients) ws.close(1001, 'Server shutting down')

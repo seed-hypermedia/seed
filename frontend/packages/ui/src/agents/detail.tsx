@@ -52,7 +52,7 @@ import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
-import {useAccount, useCollaborators} from '@shm/shared/models/entity'
+import {useAccount, useCollaborators, useResource} from '@shm/shared/models/entity'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -64,6 +64,7 @@ import {
   type AgentWriteScope,
 } from './write-access'
 import {useAppsPublisher} from '../apps/publish'
+import {CreateTriggerDialog} from '../apps/create-dialogs'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {agentSigningKeys, primaryAgentSigningKey} from './primary-identity'
@@ -223,6 +224,13 @@ export function AgentDetailPage({
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId, agentId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
+  const agentDocId = useMemo(() => (agentId.startsWith('hm://') ? unpackHmId(agentId) : null), [agentId])
+  const agentDocument = useResource(agentDocId)
+  const agentHost =
+    agentDocId && agentDocument.data?.type === 'document'
+      ? {id: agentDocId, document: agentDocument.data.document}
+      : null
+  const createTriggerDocumentDialog = useAppDialog(CreateTriggerDialog)
   const editNameDialog = useAppDialog(EditAgentNameDialog)
   const publisher = useAppsPublisher()
   const modelProviders = useModelProviders(serverUrl, selectedAccountId, agentId)
@@ -560,7 +568,15 @@ export function AgentDetailPage({
       activeTab={tab}
       sessionsCount={sessionCount}
       triggersCount={triggers.data?.length}
-      onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
+      onCreateTrigger={
+        canWrite
+          ? () =>
+              // A mounted agent's triggers are documents under it.
+              agentHost
+                ? createTriggerDocumentDialog.open({host: agentHost})
+                : createTriggerDialog.open({serverUrl, selectedAccountId, agentId})
+          : undefined
+      }
       canCreateTrigger={!!selectedAccountId && canWrite}
       // A mounted agent (embedded in its document) has no menu of its own: deleting the document
       // deletes the agent, and moving happens through the document.
@@ -623,6 +639,7 @@ export function AgentDetailPage({
           {providersDialog.content}
           {manageAccountsDialog.content}
           {editNameDialog.content}
+          {createTriggerDocumentDialog.content}
         </>
       ) : null}
       {agent.data && isTriggerDetail ? (
@@ -2712,6 +2729,10 @@ function AgentTriggersTab({
     )
   }
 
+  // A mounted agent's triggers are documents under it; any still stored only on the server are
+  // published as documents once the agent can write its document.
+  const mounted = agentId.startsWith('hm://')
+  const stored = triggers.filter((item) => !item.documentId)
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-4">
       {isLoading ? <SizableText color="muted">Loading triggers…</SizableText> : null}
@@ -2719,18 +2740,36 @@ function AgentTriggersTab({
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
           <SizableText weight="bold">No triggers yet.</SizableText>
           <SizableText size="sm" color="muted">
-            Create a trigger to start sessions when matching Seed activity appears.
+            A trigger starts a session, or calls one of the agent’s tools, when something happens: on a schedule, when a
+            webhook is posted, or on activity in Hypermedia.
           </SizableText>
         </div>
+      ) : null}
+      {mounted && stored.length ? (
+        <SizableText size="xs" color="muted" className="px-3">
+          Triggers marked “On the server” are not documents yet. They move under this agent’s document once the agent
+          can write it (People tab).
+        </SizableText>
       ) : null}
       {triggers.map((item) => (
         <button
           key={item.id}
           className="hover:bg-muted/60 flex cursor-pointer flex-col items-start rounded-lg px-3 py-2 text-left transition-colors"
-          onClick={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: item.id})}
+          onClick={() => {
+            const documentId = item.documentId ? unpackHmId(item.documentId) : null
+            if (documentId) navigate({key: 'document', id: documentId})
+            else navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: item.id})
+          }}
         >
           <div className="flex w-full items-center justify-between gap-3">
-            <SizableText weight="bold">{item.name}</SizableText>
+            <SizableText weight="bold">
+              {item.name}
+              {mounted && !item.documentId ? (
+                <span className="bg-muted text-muted-foreground ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                  On the server
+                </span>
+              ) : null}
+            </SizableText>
             <SizableText size="xs" color={item.enabled ? undefined : 'muted'}>
               {item.mergedInto ? 'Combined' : item.enabled ? 'Enabled' : 'Disabled'}
             </SizableText>

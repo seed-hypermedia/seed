@@ -1192,7 +1192,9 @@ export default function DesktopResourcePage() {
             ? 'Delete App'
             : appResourceKind(doc?.metadata.type) === 'tool'
               ? 'Delete Tool'
-              : 'Delete Document',
+              : appResourceKind(doc?.metadata.type) === 'trigger'
+                ? 'Delete Trigger'
+                : 'Delete Document',
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {

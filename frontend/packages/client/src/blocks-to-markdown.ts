@@ -972,6 +972,9 @@ async function resolveBlockEmbed(block: HMBlock, depth: number, ctx: ResolveCont
 
     const lines: string[] = []
     const metadata = [`embed: ${link}`, `title: ${resolved.label}`]
+    // How it shows (a card, or the content in place), so writing this markdown back keeps it.
+    const view = (block as {attributes?: {view?: unknown}}).attributes?.view
+    if (typeof view === 'string' && view) metadata.push(`view: ${view}`)
     if (id.version) metadata.push(`version: ${id.version}`)
     if (id.blockRef) metadata.push(`block: ${id.blockRef}${formatBlockRange(id)}`)
     lines.push(ind + `<!-- ${metadata.join('; ')} -->`)

@@ -1,4 +1,4 @@
-import {HM_APP_TYPE, HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
+import {HM_APP_TYPE, HM_TOOL_TYPE, HM_TRIGGER_TYPE} from '@seed-hypermedia/client/apps'
 import {
   draftBindingSchemaDrafts,
   draftSchemaDraft,
@@ -429,6 +429,8 @@ function getMachineOwnedContentOverride(context: DocumentMachineContext): Editor
   // editor would publish an empty body and offer to delete every child.
   const type = getEffectiveDocumentMetadata(context).type
   if (type === HM_APP_TYPE || type === HM_TOOL_TYPE) return contentToEditorBlocks(context.document?.content)
+  // A trigger's body (a session trigger's message) is edited on its own page, through `change`.
+  if (type === HM_TRIGGER_TYPE) return contentToEditorBlocks(context.draftContent ?? context.document?.content)
   if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined
   // A collection's body is its query block, owned by the machine. Before any query edit there is no
   // draft content yet, so fall back to the published query rather than letting the writer read an
@@ -462,6 +464,11 @@ export type DocumentMachineEvent =
   | {
       type: 'change'
       metadata?: HMDraft['metadata']
+      /**
+       * A new body for a document whose content the machine owns rather than an editor (a
+       * trigger's message, edited on its own page). Ignored for documents edited in the editor.
+       */
+      content?: HMBlockNode[]
       /** The working schema behind `schemaDefinition`; `null` drops it. */
       schemaDraft?: Record<string, any> | null
       /** Binding schemas to draft, by key; `null` drops a key's draft (cleared or repointed). */
@@ -765,6 +772,8 @@ export const documentMachine = setup({
       oldVersionEditNoticeShown: true,
     }),
     setMetadata: assign({
+      draftContent: ({context, event}) =>
+        event.type === 'change' && event.content !== undefined ? event.content : context.draftContent,
       metadata: ({context, event}) => {
         if (event.type === 'change' && event.metadata) {
           return {...context.metadata, ...event.metadata}

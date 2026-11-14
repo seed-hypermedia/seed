@@ -71,4 +71,6 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 - [Seed Agents](./agent.md), what the app environment runs. <!-- id:rXMWvQ23 -->
 - [The protocol](./protocol.md), what the daemon implements. <!-- id:zIQ4sfQN -->
 
+An [app](./apps/apps-and-tools.md) is a document that lists its tools, pages and [triggers](./apps/triggers.md).
+
 A [custom HTML page](./apps/document-pages.md) is not a component but a kind of document: one whose `html` metadata names a UnixFS folder that the desktop opens as a sandboxed HTML page.

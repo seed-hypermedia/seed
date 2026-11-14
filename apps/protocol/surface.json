@@ -322,6 +322,12 @@
         "toolId": "string"
       }
     },
+    "ListHostTriggers": {
+      "fields": {
+        "_": "\"ListHostTriggers\"",
+        "hostId": "string"
+      }
+    },
     "ListMcpServers": {
       "fields": {
         "_": "\"ListMcpServers\""
@@ -879,6 +885,15 @@
         "calls": "AppToolCallInfo[]"
       }
     },
+    "ListHostTriggersResponse": {
+      "fields": {
+        "_": "\"ListHostTriggersResponse\"",
+        "active": "boolean",
+        "errors": "{documentId: string; error: string}[]",
+        "hostId": "string",
+        "triggers": "{firings: TriggerFiringInfo[]; trigger: AgentTriggerInfo; webhookSecret?: string}[]"
+      }
+    },
     "ListMcpServersResponse": {
       "fields": {
         "_": "\"ListMcpServersResponse\"",
@@ -1329,8 +1344,12 @@
       "fields": {
         "account": "string",
         "agentId": "string",
+        "appId?": "string",
+        "author?": "string",
         "continuation?": "TriggerContinuation",
         "createdAt": "number",
+        "documentId?": "string",
+        "documentVersion?": "string",
         "enabled": "boolean",
         "id": "string",
         "lastCheckedAt?": "number",
@@ -1851,7 +1870,8 @@
         "matchedConditions?": "AgentActivityCondition[]",
         "runId?": "string",
         "sessionId?": "string",
-        "status": "string"
+        "status": "string",
+        "toolCallId?": "string"
       }
     },
     "UnmetObligation": {

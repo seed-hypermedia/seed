@@ -1,5 +1,6 @@
 /**
- * Apps and tools: documents typed `hm://hyper.media/app` and `hm://hyper.media/tool`.
+ * Apps and their children: documents typed `hm://hyper.media/app`, `hm://hyper.media/tool`,
+ * `hm://hyper.media/page` and `hm://hyper.media/trigger`.
  *
  * An app lists its children (tools and custom HTML pages) as card embeds in its content, and every
  * child lives one path segment under the app. The embeds are the source of truth for which children
@@ -17,11 +18,13 @@ import type {BlockNode} from './markdown-to-blocks'
 import {createVersionRef} from './ref'
 import type {AnySigner} from './signer'
 import {CID} from 'multiformats/cid'
+import {encodeDagCbor} from './signed-blob'
 
 export const HM_APP_TYPE = 'hm://hyper.media/app'
 export const HM_TOOL_TYPE = 'hm://hyper.media/tool'
 export const HM_PAGE_TYPE = 'hm://hyper.media/page'
 export const HM_AGENT_TYPE = 'hm://hyper.media/agent'
+export const HM_TRIGGER_TYPE = 'hm://hyper.media/trigger'
 
 /**
  * Documents that host tools and pages: apps and agents (the two are converging into one concept).
@@ -40,13 +43,14 @@ export const TOOL_CODE_TEMPLATE = `export default async function (input) {
 }
 `
 
-/** The kinds of children an app endorses. */
-export type AppChildKind = 'tool' | 'page'
+/** The kinds of children an app (or agent) endorses. */
+export type AppChildKind = 'tool' | 'page' | 'trigger'
 
 /** Which app child a document type is, or null for any other type. */
 export function appChildKind(type: unknown): AppChildKind | null {
   if (type === HM_TOOL_TYPE) return 'tool'
   if (type === HM_PAGE_TYPE) return 'page'
+  if (type === HM_TRIGGER_TYPE) return 'trigger'
   return null
 }
 
@@ -229,4 +233,81 @@ function newBlockId(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
   const bytes = crypto.getRandomValues(new Uint8Array(8))
   return Array.from(bytes, (byte) => alphabet[byte & 63]).join('')
+}
+
+/**
+ * A trigger document (`type: hm://hyper.media/trigger`) is a child of an app or an agent, listed in
+ * it as a card embed like a tool. Its metadata says when it fires and what it does:
+ *
+ * - `source`: `ipfs://<cid>` of a DAG-CBOR trigger source (activity conditions, a schedule, a
+ *   webhook, or run-completed), the same shape agents' triggers have always used.
+ * - `tool`: optionally the hm:// URL of one of its host's tools to call when it fires.
+ * - `input`: optionally `ipfs://<cid>` of a DAG-CBOR input template for that tool; string values
+ *   `"$event"` and `"$event.<path>"` are replaced from the event.
+ * - `enabled`: `false` turns it off; any other value (or none) leaves it on.
+ *
+ * With no `tool`, a trigger under an agent starts a session with the agent and the trigger's body
+ * (its content) is the first message. A trigger under an app must name a tool.
+ */
+export type TriggerDocumentFields = {
+  /** The trigger source; published as a DAG-CBOR blob. */
+  source: unknown
+  /** hm:// URL of the host's tool to call, or null to start an agent session. */
+  tool?: string | null
+  /** Input template for the tool; published as a DAG-CBOR blob. */
+  input?: unknown
+  enabled?: boolean
+}
+
+/** A trigger document's metadata as stored: references to its source and input blobs. */
+export type TriggerDocumentRefs = {
+  sourceCid: string | null
+  tool: string | null
+  inputCid: string | null
+  enabled: boolean
+}
+
+/** The CID inside an `ipfs://<cid>` reference (or a bare CID), or null. */
+export function ipfsRefCid(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null
+  const cid = value.replace(/^ipfs:\/\//i, '').split('/')[0] ?? ''
+  return cid || null
+}
+
+/** Reads a trigger document's metadata references. */
+export function triggerDocumentRefs(metadata: Record<string, unknown> | undefined): TriggerDocumentRefs {
+  return {
+    sourceCid: ipfsRefCid(metadata?.source),
+    tool: typeof metadata?.tool === 'string' && metadata.tool ? metadata.tool : null,
+    inputCid: ipfsRefCid(metadata?.input),
+    enabled: metadata?.enabled !== false && metadata?.enabled !== 'false',
+  }
+}
+
+/**
+ * The `SetAttributes` op that writes a trigger's fields, with the DAG-CBOR blobs it references
+ * (publish them with the change). Fields left `undefined` are not touched; `tool: null` and
+ * `input: null` clear them.
+ */
+export async function triggerDocumentOps(
+  fields: Partial<TriggerDocumentFields>,
+): Promise<{ops: DocumentOperation[]; blobs: CollectedBlob[]}> {
+  const attrs: {key: string[]; value: string | boolean | null}[] = []
+  const blobs: CollectedBlob[] = []
+  if (fields.source !== undefined) {
+    const encoded = await encodeDagCbor(fields.source)
+    blobs.push({cid: encoded.cid, data: encoded.data})
+    attrs.push({key: ['source'], value: `ipfs://${encoded.cid}`})
+  }
+  if (fields.tool !== undefined) attrs.push({key: ['tool'], value: fields.tool || null})
+  if (fields.input !== undefined) {
+    if (fields.input === null) attrs.push({key: ['input'], value: null})
+    else {
+      const encoded = await encodeDagCbor(fields.input)
+      blobs.push({cid: encoded.cid, data: encoded.data})
+      attrs.push({key: ['input'], value: `ipfs://${encoded.cid}`})
+    }
+  }
+  if (fields.enabled !== undefined) attrs.push({key: ['enabled'], value: fields.enabled})
+  return {ops: attrs.length ? [{type: 'SetAttributes', attrs}] : [], blobs}
 }
