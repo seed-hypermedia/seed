@@ -280,18 +280,36 @@ export async function documentPageContent({
     if (input.capability && input.capability !== capability) {
       throw new Error('The supplied capability does not match your selected account’s write access.')
     }
+    // Saving one document is one permission: what it writes and where. Preparing, signing and
+    // publishing its change are steps of that save, not separate requests to the viewer.
+    const title = input.changes.find(
+      (change) => change.op.case === 'setMetadata' && (change.op.value as {key?: string}).key === 'name',
+    )?.op.value as {value?: string} | undefined
+    await access.authorize(
+      {
+        kind: 'sign',
+        type: 'Change',
+        site: input.account,
+        resource: id.id,
+        title: `Save ${title?.value ? `“${title.value}”` : 'a document'}`,
+        details: {document: id.id, changes: input.changes},
+      },
+      authorized,
+    )
+    authorized.throwIfAborted()
     let publishedVersion: string | undefined
     const publishingClient = createWebUniversalClient({
-      request,
+      request: ((key: HMRequest['key'], requestInput: HMRequest['input']) =>
+        client.request<HMRequest['key']>(key, requestInput, {signal: authorized})) as typeof request,
       publish: async (payload) => {
-        const result = await publish(payload)
+        const result = await client.publish(payload)
         for (const blob of payload.blobs) {
           const body = decode(blob.data) as {type?: string; heads?: unknown[]}
           if (body.type === 'Ref' && body.heads) publishedVersion = body.heads.map(String).join('.')
         }
         return result
       },
-      getSigner: () => signer,
+      getSigner: () => client.getSigner!(account),
     })
     await publishingClient.publishDocument!({...input, capability, signerAccountUid: account})
     const saved = await request('Resource', id)
