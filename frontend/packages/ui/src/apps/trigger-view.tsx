@@ -25,6 +25,7 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
 import {useLocalAgentServerUrl} from '../agents/models'
+import {useSiteAgentMounts} from '../site-agents'
 import {describeHostServer} from '../server-host-card'
 import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
@@ -88,7 +89,14 @@ export function TriggerDocumentView({
   const [message, setMessage] = useState('')
   const [chosenAction, setChosenAction] = useState<'tool' | 'session' | null>(null)
   const written = useRef<{inputCid: string | null; content: HMBlockNode[] | null}>({inputCid: null, content: null})
-  const action: 'tool' | 'session' = !hostIsAgent ? 'tool' : chosenAction ?? (refs.tool ? 'tool' : 'session')
+  // An agent's trigger starts a session with it unless it calls a tool; an app's calls a tool unless
+  // it names an agent to do the work.
+  const action: 'tool' | 'session' =
+    chosenAction ?? (hostIsAgent ? (refs.tool ? 'tool' : 'session') : refs.agent ? 'session' : 'tool')
+  // The agents an app's trigger can hand its work to: those mounted in the app's space.
+  const spaceAgents = useSiteAgentMounts(!hostIsAgent ? hostId?.uid : null)
+  const appParent = hostId ? parentDocumentId(hostId) : null
+  const sessionAgentId = hostIsAgent ? hostId?.id ?? null : refs.agent
 
   // What the draft says (a new version, a discarded draft) replaces what the fields hold, unless the
   // fields wrote it themselves.
@@ -156,12 +164,19 @@ export function TriggerDocumentView({
   }
   function changeAction(next: 'tool' | 'session') {
     setChosenAction(next)
-    // A session trigger calls no tool; a tool trigger has no message.
-    if (next === 'session') draft.change({tool: null, input: null})
-    else if (draft.content.length) {
-      written.current.content = []
-      setMessage('')
-      draft.change({}, [])
+    // A session trigger calls no tool; a tool trigger has no message (and, in an app, no agent).
+    if (next === 'session') {
+      // An app made under an agent hands its work to that agent unless another is chosen.
+      const defaultAgent =
+        refs.agent ?? spaceAgents.data?.find((agent) => agent.agentId === appParent?.id)?.agentId ?? null
+      draft.change(hostIsAgent ? {tool: null, input: null} : {tool: null, input: null, agent: defaultAgent})
+    } else {
+      if (!hostIsAgent && refs.agent) draft.change({agent: null})
+      if (draft.content.length) {
+        written.current.content = []
+        setMessage('')
+        draft.change({}, [])
+      }
     }
   }
 
@@ -214,7 +229,7 @@ export function TriggerDocumentView({
                     runNow.mutate(state.trigger.id, {
                       onSuccess: () =>
                         toast.success(
-                          hostIsAgent
+                          action === 'session'
                             ? 'Started: its session appears under Firings'
                             : 'Started: its tool call appears under Firings',
                         ),
@@ -256,30 +271,49 @@ export function TriggerDocumentView({
 
           <section className="flex flex-col gap-3">
             <SizableText weight="bold">Then</SizableText>
-            {hostIsAgent ? (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={action === 'session' ? 'default' : 'outline'}
-                  disabled={!canEdit}
-                  onClick={() => changeAction('session')}
-                >
-                  Start a session
-                </Button>
-                <Button
-                  size="sm"
-                  variant={action === 'tool' ? 'default' : 'outline'}
-                  disabled={!canEdit}
-                  onClick={() => changeAction('tool')}
-                >
-                  Call a tool
-                </Button>
-              </div>
-            ) : null}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={action === 'session' ? 'default' : 'outline'}
+                disabled={!canEdit}
+                onClick={() => changeAction('session')}
+              >
+                {hostIsAgent ? 'Start a session' : 'Have an agent do it'}
+              </Button>
+              <Button
+                size="sm"
+                variant={action === 'tool' ? 'default' : 'outline'}
+                disabled={!canEdit}
+                onClick={() => changeAction('tool')}
+              >
+                Call a tool
+              </Button>
+            </div>
             {action === 'session' ? (
               <>
+                {hostIsAgent ? null : (
+                  <select
+                    aria-label="Agent that does the work"
+                    value={refs.agent ?? ''}
+                    disabled={!canEdit}
+                    onChange={(event) => draft.change({agent: event.currentTarget.value || null})}
+                    className="border-border bg-background text-foreground w-fit rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">Choose an agent…</option>
+                    {(spaceAgents.data ?? []).map((agent) => (
+                      <option key={agent.agentId} value={agent.agentId}>
+                        {agent.name}
+                      </option>
+                    ))}
+                    {refs.agent && !spaceAgents.data?.some((agent) => agent.agentId === refs.agent) ? (
+                      <option value={refs.agent}>{refs.agent}</option>
+                    ) : null}
+                  </select>
+                )}
                 <SizableText size="sm" color="muted">
-                  The agent starts a new session with this message, and the event that fired it.
+                  {hostIsAgent
+                    ? 'The agent starts a new session with this message, and the event that fired it.'
+                    : 'The agent starts a new session for this app with this message and the event that fired it, and works with the access it has.'}
                 </SizableText>
                 <Textarea
                   value={message}
@@ -335,12 +369,7 @@ export function TriggerDocumentView({
             <WebhookSection serverUrl={server.serverUrl} triggerId={state.trigger.id} secret={state.webhookSecret} />
           ) : null}
 
-          <FiringsSection
-            firings={state?.firings ?? []}
-            hostId={hostId}
-            toolId={refs.tool ?? ''}
-            hostIsAgent={hostIsAgent}
-          />
+          <FiringsSection firings={state?.firings ?? []} toolId={refs.tool ?? ''} sessionAgentId={sessionAgentId} />
         </div>
       </div>
     </div>
@@ -484,16 +513,16 @@ const FIRING_LABELS: Record<string, string> = {
 
 function FiringsSection({
   firings,
-  hostId,
   toolId,
-  hostIsAgent,
+  sessionAgentId,
 }: {
   firings: TriggerFiringInfo[]
-  hostId: UnpackedHypermediaId | null
   toolId: string
-  hostIsAgent: boolean
+  /** The agent whose sessions this trigger starts, if it starts any. */
+  sessionAgentId: string | null
 }) {
   const navigate = useNavigate()
+  const sessionAgent = sessionAgentId ? unpackHmId(sessionAgentId) : null
   return (
     <section className="flex flex-col gap-2">
       <SizableText weight="bold">Firings</SizableText>
@@ -508,8 +537,9 @@ function FiringsSection({
               const id = toolId ? unpackHmId(toolId) : null
               if (id) navigate({key: 'document', id, toolCallId: firing.toolCallId})
             }
-          : firing.sessionId && hostId && hostIsAgent
-            ? () => navigate({key: 'document', id: hostId, agentView: 'session', agentSessionId: firing.sessionId})
+          : firing.sessionId && sessionAgent
+            ? () =>
+                navigate({key: 'document', id: sessionAgent, agentView: 'session', agentSessionId: firing.sessionId})
             : null
         return (
           <div

@@ -2264,8 +2264,6 @@ export type ListHostTriggersResponse = {
   triggers: {trigger: AgentTriggerInfo; webhookSecret?: string; firings: TriggerFiringInfo[]}[]
   /** Listed trigger documents that could not be used, and why. */
   errors: {documentId: string; error: string}[]
-  /** For an app: agents' triggers that work on it (they name the app or one of its tools). */
-  fromAgents?: {documentId: string; agentId: string; name: string; enabled: boolean}[]
 }
 
 /** One time a trigger fired, as shown on its page. */

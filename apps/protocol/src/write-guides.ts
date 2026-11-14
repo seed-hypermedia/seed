@@ -59,7 +59,7 @@ Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPAC
 
 ## Trigger documents (use these)
 
-A trigger is a document typed \`hm://hyper.media/trigger\` directly under an agent's document (yours, for your own automations) or under an app, listed in it as a card like a tool. Your user sees it there, on the Triggers tab, and can edit it. Publish one with \`options.trigger: {source, tool?, input?, enabled?}\`: the source is the same shape as below; with \`tool\` (a tool of the same agent or app, by hm:// URL) a firing calls that tool with \`input\` as a template, and without it (an agent's trigger only) a firing starts a session with you whose first message is the trigger's content. An app's trigger must call one of the app's tools; it fires while the app runs, and the call is recorded as made by the trigger's author.
+A trigger is a document typed \`hm://hyper.media/trigger\` directly under an agent's document (yours, for your own automations) or under an app, listed in it as a card like a tool. Your user sees it there, on the Triggers tab, and can edit it. Publish one with \`options.trigger: {source, tool?, input?, agent?, enabled?}\`: the source is the same shape as below; with \`tool\` (a tool of the same agent or app, by hm:// URL) a firing calls that tool with \`input\` as a template, and without it a firing starts a session whose first message is the trigger's content: with you for your own trigger, and for an app's trigger with the agent its \`agent\` names (usually you: your document's hm:// URL). An app's trigger calls a tool or names an agent; it fires while the app runs, a tool call is recorded as made by the trigger's author, and the session knows which app it runs for.
 
 \`\`\`json
 {"address":"hm://SPACE/agents/helper/hourly-review","content":"Review current project state.","options":{"name":"Hourly review","trigger":{"source":{"type":"schedule","schedule":{"kind":"interval","every":1,"unit":"hours"}}},"signer":{"publicKey":"SIGNER_UID"}}}
@@ -351,9 +351,9 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 ## What runs where
 
 - A **tool** takes input and returns output. It runs in a sandbox with internet access but holds no signing key and cannot reach this server's Seed node: it cannot publish Seed documents, and it should not try to read them (no localhost, no guessed Seed endpoints). Give it the records it needs as input: a page reads them with \`seed.directory\` and passes them in \`seed.app.call\`, and you read them before calling it. A tool that fails to fetch or parse must throw, never return an empty result as if there were no data.
-- A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (ask your user for the key; never put it in code), or the work is yours, as an agent trigger whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
+- A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (ask your user for the key; never put it in code), or the work is yours, as an app trigger that names you as its \`agent\` and whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
 - A **page** runs in the viewer's browser and writes Seed records as the viewer (\`seed.publishDocument\`), within the viewer's access.
-- A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that reads or writes the app's Seed data (a daily digest of new records, updating records) is an **agent's** trigger: put it under your agent document, and its message tells you what to do; you read the records, call the app's tools with them, and publish the result (for a digest, a document your user can find, linked from the app).
+- A **trigger** under an app is the app's automation, and lives in the app whatever runs it. With \`tool\` it calls one of the app's tools: use it when the tool call itself is the work (post to a webhook, refresh an external service). Work that reads or writes the app's Seed data or needs judgment (a daily digest of new records, a shopping list from this week's recipes) names an agent instead: \`agent\` is your document's hm:// URL, and the trigger's content tells you what to do. When it fires you get a session for the app: read the records, call the app's tools with them, and publish the result where the app keeps it (for a digest, a record in one of its collections). Your own triggers, under your document, are for your own work (answering mentions, your routines), not an app's.
 
 ## Where the app's data lives
 
@@ -403,13 +403,17 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 
 A **trigger** is a resource too: a document typed \`hm://hyper.media/trigger\` directly under an app or an agent, listed by a card embed like a tool. It says when it fires (its **source**: activity conditions, a schedule, a webhook, or a run finishing; the same shapes as \`~/triggers\`) and what it does:
 
-- **Call a tool** of the same app or agent: \`tool\` is the tool's hm:// URL and \`input\` an input template whose string values \`"$event"\` and \`"$event.<path>"\` are filled from the event (for a webhook, \`"$event.payload"\` is the posted JSON). An app's trigger must call a tool; the call is recorded as made by the trigger's author.
-- **Start a session** (an agent's trigger only): leave out \`tool\` and write the first message as the trigger's content.
+- **Call a tool** of the same app or agent: \`tool\` is the tool's hm:// URL and \`input\` an input template whose string values \`"$event"\` and \`"$event.<path>"\` are filled from the event (for a webhook, \`"$event.payload"\` is the posted JSON). An app's tool call is recorded as made by the trigger's author.
+- **Start a session**: leave out \`tool\` and write the first message as the trigger's content. An agent's trigger starts a session with that agent; an app's names the agent in \`agent\` (its document's hm:// URL). The agent must run on the app's server, and the trigger's author must be the agent itself, its owner or one of its writers.
 
 Publish one with \`options.trigger\`; the publisher stores the source and input, sets the type and lists the trigger in its host:
 
 \`\`\`json
 {"address":"hm://SIGNER_UID/apps/weather/morning","options":{"name":"Morning forecast","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[1,2,3,4,5],"timeOfDay":"07:00","timezone":"Europe/Lisbon"}},"tool":"hm://SIGNER_UID/apps/weather/forecast","input":{"city":"Lisbon"}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+\`\`\`json
+{"address":"hm://SPACE/apps/recipes/sunday-shopping-list","content":"Make this week's shopping list from the recipes tagged this-week, and save it in the app's shopping lists.","options":{"name":"Sunday shopping list","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[0],"timeOfDay":"18:00","timezone":"Europe/Lisbon"}},"agent":"hm://SPACE/agents/helper"},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
 \`\`\`json

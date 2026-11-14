@@ -184,15 +184,9 @@ export function AppChildrenTab({
     errors: hostTriggers.data?.errors ?? [],
     host,
   }
-  const fromAgents = (kind === 'trigger' && host === 'app' && hostTriggers.data?.fromAgents) || []
   return (
     <TabColumn>
-      {!children.isLoading && !listed.length && fromAgents.length ? (
-        <SizableText size="sm" color="muted">
-          This app has no triggers of its own. Its automations belong to agents, below: open one to see when it runs and
-          what it does.
-        </SizableText>
-      ) : !children.isLoading && !listed.length ? (
+      {!children.isLoading && !listed.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
           <SizableText weight="bold">No {noun}s yet.</SizableText>
           <SizableText size="sm" color="muted">
@@ -201,7 +195,7 @@ export function AppChildrenTab({
               : kind === 'trigger'
                 ? host === 'agent'
                   ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Add one with New in the toolbar.'
-                  : 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
+                  : 'A trigger does something for this app when something happens (on a schedule, when a webhook is posted, or on activity in Hypermedia): it calls one of the app’s tools, or has an agent do the work. Triggers fire while the app runs. Add one with New in the toolbar.'
                 : `Pages are built by agents for now. Ask an agent to add a page to this ${host}.`}
           </SizableText>
         </div>
@@ -214,29 +208,6 @@ export function AppChildrenTab({
           detail={kind === 'trigger' ? <TriggerRowDetail item={item} state={triggerStates} /> : undefined}
         />
       ))}
-      {fromAgents.length ? (
-        <div className="mt-4 flex flex-col gap-1">
-          <SizableText size="sm" weight="bold" color="muted">
-            Run by agents
-          </SizableText>
-          <SizableText size="xs" color="muted">
-            Agents’ triggers that work on this app. They belong to the agent: change them there.
-          </SizableText>
-          {fromAgents.map((entry) => {
-            const id = unpackHmId(entry.documentId)
-            if (!id) return null
-            return (
-              <AgentTriggerRow
-                key={entry.documentId}
-                name={entry.name}
-                agentId={entry.agentId}
-                enabled={entry.enabled}
-                onOpen={() => navigate({key: 'document', id})}
-              />
-            )
-          })}
-        </div>
-      ) : null}
       {strays.length ? (
         <div className="mt-4 flex flex-col gap-1">
           <SizableText size="sm" weight="bold" color="muted">
@@ -316,45 +287,6 @@ function AppChildRow({
   )
 }
 
-/** An agent's trigger that works on this app, named with its agent. */
-function AgentTriggerRow({
-  name,
-  agentId,
-  enabled,
-  onOpen,
-}: {
-  name: string
-  agentId: string
-  enabled: boolean
-  onOpen: () => void
-}) {
-  const agent = useResource(unpackHmId(agentId))
-  const agentName =
-    (agent.data?.type === 'document' && agent.data.document.metadata?.name) || unpackHmId(agentId)?.path?.at(-1)
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="hover:bg-muted/60 flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors"
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') onOpen()
-      }}
-    >
-      <Zap className="text-muted-foreground mt-1 size-4 shrink-0" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <SizableText weight="bold" className="truncate">
-          {name}
-        </SizableText>
-        <SizableText size="sm" color="muted">
-          {agentName ? `${agentName}’s trigger` : 'An agent’s trigger'}
-          {enabled ? '' : ' · off'}
-        </SizableText>
-      </div>
-    </div>
-  )
-}
-
 /** Home's one line about running, linking to Settings where it is managed. */
 function AppHomeRunStatus({app}: {app: AppRef}) {
   const navigate = useNavigate()
@@ -403,6 +335,14 @@ function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStat
       ? (toolResource.data?.type === 'document' && toolResource.data.document.metadata.name) ||
         toolUrl.split('/').at(-1)
       : null
+  // An app's trigger without a tool hands its work to the agent it names.
+  const agentUrl = (item.metadata as {agent?: unknown} | undefined)?.agent
+  const agentResource = useResource(typeof agentUrl === 'string' ? unpackHmId(agentUrl) : null)
+  const agent =
+    typeof agentUrl === 'string'
+      ? (agentResource.data?.type === 'document' && agentResource.data.document.metadata.name) ||
+        agentUrl.split('/').at(-1)
+      : null
   const status = !enabled
     ? {label: 'Off', tone: 'muted' as const}
     : problem
@@ -420,7 +360,7 @@ function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStat
         <SizableText size="xs" color="muted">
           <TriggerSourceSummary source={entry.trigger.source} />
           {' · '}
-          {tool ? `calls ${tool}` : 'starts a session'}
+          {tool ? `calls ${tool}` : agent ? `${agent} does the work` : 'starts a session'}
         </SizableText>
       ) : null}
       {status ? (
