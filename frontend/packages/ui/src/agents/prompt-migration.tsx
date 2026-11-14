@@ -91,3 +91,34 @@ export function AgentPromptMigration({
     </div>
   )
 }
+
+/**
+ * The line at the top of an agent's Home that tells its owner what they are looking at: this
+ * document is the agent's instructions, read at the start of every turn, and the cards in it are
+ * what the agent made. Shown while the instructions are only Seed's default Agent Guide, so a new
+ * agent's Home does not open on a wall of text written for the model.
+ */
+export function AgentHomeIntro({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
+  const name = document.metadata.name || 'This agent'
+  const instructions = (document.content ?? []).filter((node) => !isCardEmbed(node))
+  const onlyDefaultGuide =
+    instructions.length === 1 &&
+    (instructions[0]!.block as {type?: string; link?: string}).type === 'Embed' &&
+    /\/app-environment\/guide$/.test((instructions[0]!.block as {link?: string}).link ?? '')
+  if (!onlyDefaultGuide) return null
+  return (
+    <div className="border-border bg-muted/40 mx-auto my-4 flex w-full max-w-2xl items-start gap-3 rounded-lg border p-4">
+      <FileText className="text-muted-foreground mt-0.5 size-5 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          This document is {name}’s instructions
+        </SizableText>
+        <SizableText size="sm" color="muted">
+          {name} reads it at the start of every turn. It starts with Seed’s Agent Guide, below.
+          {canEdit ? ' Add your own instructions above it, like editing any document.' : ''} What {name} makes (tools,
+          pages, triggers, apps) appears here as cards. Ask for something in the box at the bottom.
+        </SizableText>
+      </div>
+    </div>
+  )
+}

@@ -65,6 +65,7 @@ import {
 } from './write-access'
 import {useAppsPublisher} from '../apps/publish'
 import {CreateTriggerDialog} from '../apps/create-dialogs'
+import {AgentTriggerDocumentsTab} from '../apps/app-view'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {agentSigningKeys, primaryAgentSigningKey} from './primary-identity'
@@ -835,15 +836,39 @@ export function AgentDetailPage({
               ) : null}
 
               {tab === 'triggers' && !isTriggerDetail ? (
-                <AgentTriggersTab
-                  agentId={agentId}
-                  serverUrl={serverUrl}
-                  selectedAccountId={selectedAccountId}
-                  selectedTriggerId={triggerId}
-                  triggers={triggers.data || []}
-                  isLoading={triggers.isLoading}
-                  readOnly={!canWrite}
-                />
+                agentHost ? (
+                  // A mounted agent's triggers are documents under it, listed like an app's; any still
+                  // stored only on the server follow, until they move into documents.
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    <AgentTriggerDocumentsTab host={agentHost} canEdit={canWrite} />
+                    {(triggers.data || []).some((item) => !item.documentId) ? (
+                      <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
+                        <SizableText size="sm" weight="bold" color="muted" className="px-3">
+                          On the server
+                        </SizableText>
+                        <AgentTriggersTab
+                          agentId={agentId}
+                          serverUrl={serverUrl}
+                          selectedAccountId={selectedAccountId}
+                          selectedTriggerId={triggerId}
+                          triggers={(triggers.data || []).filter((item) => !item.documentId)}
+                          isLoading={triggers.isLoading}
+                          readOnly={!canWrite}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <AgentTriggersTab
+                    agentId={agentId}
+                    serverUrl={serverUrl}
+                    selectedAccountId={selectedAccountId}
+                    selectedTriggerId={triggerId}
+                    triggers={triggers.data || []}
+                    isLoading={triggers.isLoading}
+                    readOnly={!canWrite}
+                  />
+                )
               ) : null}
 
               {tab === 'memory' ? (
@@ -918,21 +943,28 @@ export function AgentDetailPage({
                   <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
                     <div className="min-w-0">
                       <SizableText size="sm" weight="bold" className="block">
-                        System prompt
+                        Instructions
                       </SizableText>
                       <SizableText size="xs" color="muted" className="block truncate">
-                        {hasPromptContent(systemPrompt)
-                          ? 'Instructions the agent starts every session with.'
-                          : 'Not set yet.'}
+                        {agentDocId
+                          ? 'Its document, on the Home tab: read at the start of every turn.'
+                          : hasPromptContent(systemPrompt)
+                            ? 'Instructions the agent starts every session with.'
+                            : 'Not set yet.'}
                       </SizableText>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate({key: 'agent', agentId, serverUrl, tab: 'prompt'})}
+                      onClick={() =>
+                        // A mounted agent's instructions are its document: open it, to edit like any document.
+                        agentDocId
+                          ? navigate({key: 'document', id: agentDocId})
+                          : navigate({key: 'agent', agentId, serverUrl, tab: 'prompt'})
+                      }
                     >
                       <ScrollText className="size-4" />
-                      {canWrite ? 'Edit prompt' : 'View prompt'}
+                      {agentDocId ? 'Open Home' : canWrite ? 'Edit prompt' : 'View prompt'}
                     </Button>
                   </div>
                   <AgentSettingsPageRow

@@ -1,9 +1,9 @@
 import {ActivityPanelPortal} from './activity-panel-layout'
 import {AppDocumentView} from './apps/app-view'
-import {appResourceKind, appResourceTabs} from './apps/tabs'
+import {appResourceKind, agentResourceTabs, appResourceTabs} from './apps/tabs'
 import {parentDocumentId} from '@seed-hypermedia/client/apps'
 import {AgentHomeComposer} from './agents/home-composer'
-import {AgentPromptMigration} from './agents/prompt-migration'
+import {AgentHomeIntro, AgentPromptMigration} from './agents/prompt-migration'
 import {ToolCallView} from './apps/tool-call-view'
 import {ToolDocumentView} from './apps/tool-view'
 import {TriggerDocumentView} from './apps/trigger-view'
@@ -2293,15 +2293,21 @@ function DocumentBody({
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
   // Apps and tools are typed resources with their own tabs in place of the document body, like agents.
   const appKind = appResourceKind(document.metadata.type)
+  // A tool or trigger stays inside its host, with the host's tabs: an app's, or an agent's.
+  const hostId = appKind === 'tool' || appKind === 'trigger' ? parentDocumentId(docId) : null
+  const hostResource = useResource(hostId)
+  const hostIsAgent =
+    hostResource.data?.type === 'document' && hostResource.data.document.metadata.type === 'hm://hyper.media/agent'
   const appTabs = useMemo(
     () =>
       route.key !== 'document' || !appKind
         ? undefined
         : appKind === 'app'
           ? appResourceTabs(docId, route.appView, panelRoute)
-          : // A tool or trigger stays inside its app: the app's tabs, its kind selected.
-            appResourceTabs(parentDocumentId(docId) ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
-    [appKind, route, docId, panelRoute],
+          : hostIsAgent && hostId
+            ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
+            : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
+    [appKind, route, docId, panelRoute, hostIsAgent, hostId],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
@@ -3343,7 +3349,10 @@ function DocumentBody({
         ) : (
           <>
             {isAgentDocument && activeView === 'content' ? (
-              <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+              <>
+                <AgentHomeIntro document={document} canEdit={!!canEditCurrentRoute} />
+                <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+              </>
             ) : null}
             <DocumentViewContent
               activeView={activeView}
