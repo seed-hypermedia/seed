@@ -65,6 +65,7 @@ describe('seed.directory', () => {
     expect(records.documents).toBe(records)
     expect(records.items).toBe(records)
     expect(Object.keys(records)).toEqual(['0'])
+    expect(records[0].url).toBe('hm://x/a')
   })
   it('reads a record by its URL, its id, or the record itself', async () => {
     const {DOCUMENT_PAGE_API_SCRIPT} = await import('./document-page')
