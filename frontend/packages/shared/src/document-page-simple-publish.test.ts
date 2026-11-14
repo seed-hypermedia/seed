@@ -66,4 +66,18 @@ describe('seed.directory', () => {
     expect(records.items).toBe(records)
     expect(Object.keys(records)).toEqual(['0'])
   })
+  it('reads a record by its URL, its id, or the record itself', async () => {
+    const {DOCUMENT_PAGE_API_SCRIPT} = await import('./document-page')
+    const urls: unknown[] = []
+    const sdk = new Function(`return ${DOCUMENT_PAGE_API_SCRIPT}`)()(
+      async (_method: string, params: {url: unknown}) => {
+        urls.push(params.url)
+        return {}
+      },
+    )
+    await sdk.resource('hm://x/a')
+    await sdk.resource({id: 'hm://x/b', uid: 'x'})
+    await sdk.resource({id: {id: 'hm://x/c'}, metadata: {}})
+    expect(urls).toEqual(['hm://x/a', 'hm://x/b', 'hm://x/c'])
+  })
 })
