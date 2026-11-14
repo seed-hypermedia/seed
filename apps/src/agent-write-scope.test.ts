@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 import {agentWriteScopeOf, agentWriteScopePrompt} from './api-service'
+import * as apisvc from './api-service'
 
 const KEY = 'z6MkagentKey'
 const DOC = 'hm://z6MkspaceOwner/team/ivory-ferret'
@@ -49,5 +50,25 @@ describe('cron schedules', () => {
     expect(weeklyFromCron('0 9 * * 1-5')?.daysOfWeek).toEqual([1, 2, 3, 4, 5])
     expect(weeklyFromCron('0 9 1 * *')).toBeNull()
     expect(weeklyFromCron('*/5 * * * *')).toBeNull()
+  })
+})
+
+describe('normalizeScheduleTrigger', () => {
+  test('takes several times a day, sorted and deduplicated, keeping the first as timeOfDay', () => {
+    expect(
+      apisvc.normalizeScheduleTrigger({
+        kind: 'weekly',
+        daysOfWeek: [1, 2],
+        timeOfDay: '',
+        timesOfDay: ['14:00', '08:00', '14:00'],
+        timezone: 'UTC',
+      } as never),
+    ).toEqual({kind: 'weekly', daysOfWeek: [1, 2], timeOfDay: '08:00', timesOfDay: ['08:00', '14:00'], timezone: 'UTC'})
+    expect(
+      apisvc.normalizeScheduleTrigger({kind: 'weekly', daysOfWeek: [1], timeOfDay: '09:30', timezone: 'UTC'}),
+    ).toEqual({kind: 'weekly', daysOfWeek: [1], timeOfDay: '09:30', timezone: 'UTC'})
+    expect(() =>
+      apisvc.normalizeScheduleTrigger({kind: 'weekly', daysOfWeek: [1], timeOfDay: '25:00', timezone: 'UTC'}),
+    ).toThrow('HH:MM')
   })
 })

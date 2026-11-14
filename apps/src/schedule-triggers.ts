@@ -58,14 +58,17 @@ export function dueOccurrence(
 export function scheduleSourceSummary(schedule: api.AgentScheduleTrigger, scheduledAt?: number): string {
   if (schedule.kind === 'interval') return `every ${schedule.every} ${schedule.unit}`
   if (schedule.kind === 'once') return `once at ${new Date(schedule.runAt).toISOString()}`
-  return `${schedule.daysOfWeek.map(dayName).join(', ')} at ${schedule.timeOfDay} ${schedule.timezone}`
+  return `${schedule.daysOfWeek.map(dayName).join(', ')} at ${weeklyTimes(schedule).join(', ')} ${schedule.timezone}`
 }
 
 /** Returns a short human-readable description of one scheduled occurrence. */
 export function scheduleSummary(schedule: api.AgentScheduleTrigger, scheduledAt: number): string {
   if (schedule.kind === 'interval') return `Scheduled interval at ${new Date(scheduledAt).toISOString()}`
   if (schedule.kind === 'once') return `One-time schedule at ${new Date(scheduledAt).toISOString()}`
-  return `Scheduled weekly run at ${schedule.timeOfDay} ${schedule.timezone}`
+  // The occurrence's own time: a schedule with several times a day fires at each of them.
+  const parts = zonedParts(scheduledAt, schedule.timezone)
+  const time = `${String(parts.hour).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`
+  return `Scheduled weekly run at ${time} ${schedule.timezone}`
 }
 
 function latestWeeklyOccurrence(
@@ -79,13 +82,25 @@ function latestWeeklyOccurrence(
     const utcNoon = Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day - offset, 12, 0)
     const parts = zonedParts(utcNoon, schedule.timezone)
     if (!schedule.daysOfWeek.includes(parts.weekday)) continue
-    const [hourRaw, minuteRaw] = schedule.timeOfDay.split(':')
-    const hour = Number(hourRaw)
-    const minute = Number(minuteRaw)
-    const candidate = zonedTimeToUtcMs(parts.year, parts.month, parts.day, hour, minute, schedule.timezone)
-    if (candidate <= now && candidate >= createdAt && (latest === null || candidate > latest)) latest = candidate
+    for (const time of weeklyTimes(schedule)) {
+      const [hourRaw, minuteRaw] = time.split(':')
+      const candidate = zonedTimeToUtcMs(
+        parts.year,
+        parts.month,
+        parts.day,
+        Number(hourRaw),
+        Number(minuteRaw),
+        schedule.timezone,
+      )
+      if (candidate <= now && candidate >= createdAt && (latest === null || candidate > latest)) latest = candidate
+    }
   }
   return latest
+}
+
+/** Every time of day a weekly schedule fires. */
+export function weeklyTimes(schedule: Extract<api.AgentScheduleTrigger, {kind: 'weekly'}>): string[] {
+  return schedule.timesOfDay?.length ? schedule.timesOfDay : [schedule.timeOfDay]
 }
 
 function zonedTimeToUtcMs(

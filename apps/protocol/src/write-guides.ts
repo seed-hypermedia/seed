@@ -69,6 +69,8 @@ A trigger is a document typed \`hm://hyper.media/trigger\` directly under an age
 - Replacing a trigger (moving it from an app to yourself, say): delete the old one with \`options.action: "delete"\` rather than leaving it turned off beside the new one.
 - Edit: write the same address with \`options.action: "update"\` and the fields you change (\`options.trigger: {enabled: false}\` turns it off; a new \`content\` replaces the message).
 - Delete: \`options.action: "delete"\` (it also leaves its agent's or app's list).
+- One trigger per job: several times a day is one weekly schedule with \`timesOfDay: ["08:00", "10:00", ...]\`, never one trigger per time.
+- Nobody watches a trigger's session. When a firing must reach your user (a reminder, an alert, a result that needs them), comment on the relevant document (your own, or the app's) and mention them inline (\`[@](hm://THEIR_UID/:profile)\`): that notifies them. Do not promise reminders or messages a trigger cannot deliver; say how they will see it.
 - Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. \`read <trigger>/:firings\` lists its recent firings (an app's trigger names the tool call each one made: \`read <tool>/:call/<id>\`). Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
 - You need write access where the trigger goes. Without it, ask your user to give you write access from your People tab, or to add the trigger themselves.
 

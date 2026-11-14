@@ -811,7 +811,15 @@ export type TriggerFailurePolicy = 'none' | 'thread'
 /** Schedule configuration that decides when an agent trigger fires. */
 export type AgentScheduleTrigger =
   | {kind: 'interval'; every: number; unit: 'minutes' | 'hours'}
-  | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
+  | {
+      kind: 'weekly'
+      daysOfWeek: number[]
+      /** The (first) time it fires, `HH:MM`. */
+      timeOfDay: string
+      /** Every time it fires on those days, `HH:MM`, sorted, when there is more than one. */
+      timesOfDay?: string[]
+      timezone: string
+    }
   | {kind: 'once'; runAt: number; timezone?: string}
 
 /** One file or directory inside an agent's private memory filesystem. */
