@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 import {unpackHmId} from '@seed-hypermedia/client'
-import {resolveAppParent} from '@/app-children'
+import {resolveAppParent, withHostLock} from '@/app-children'
 
 function clientWith(types: Record<string, string>) {
   return {
@@ -23,5 +23,23 @@ describe('what lists a new document', () => {
     const client = clientWith({})
     const result = await resolveAppParent(client, unpackHmId('hm://z6Mks/notes/t')!, 'hm://hyper.media/trigger')
     expect(result.refusal).toContain('~/tools/write/triggers')
+  })
+})
+
+describe('host lock', () => {
+  test('writes under one host take turns; other hosts do not wait', async () => {
+    const order: string[] = []
+    const slow = (name: string, ms: number) => async () => {
+      order.push(`${name} start`)
+      await Bun.sleep(ms)
+      order.push(`${name} end`)
+    }
+    await Promise.all([
+      withHostLock('hm://z6Mks/app', slow('a', 30)),
+      withHostLock('hm://z6Mks/app', slow('b', 1)),
+      withHostLock('hm://z6Mks/other', slow('c', 1)),
+    ])
+    expect(order.indexOf('a end')).toBeLessThan(order.indexOf('b start'))
+    expect(order.indexOf('c end')).toBeLessThan(order.indexOf('a end'))
   })
 })

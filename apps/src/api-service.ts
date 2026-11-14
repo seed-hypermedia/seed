@@ -120,7 +120,7 @@ import {
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
-import {appEmbedBlobs, findListingApp, resolveAppParent} from '@/app-children'
+import {appEmbedBlobs, findListingApp, missingCardBlobs, resolveAppParent, withHostLock} from '@/app-children'
 import * as appRunning from '@/app-running'
 import * as triggerDocuments from '@/trigger-documents'
 import {collectToolCodeFiles, validateToolCode} from '@/tool-code'
@@ -1037,6 +1037,8 @@ export class Service {
    */
   /** The last good read of each mounted agent's document prompt, keyed by agent id (see #agentDocumentPrompt). */
   readonly #agentDocumentPromptCache = new Map<string, AgentDocumentPrompt>()
+  /** Each account's time zone, as its device last reported it with a message (see MessageSession). */
+  readonly #accountTimezones = new Map<string, string>()
   /** Trigger documents already read, by id; an entry is reused while its version is unchanged. */
   readonly #triggerDocumentCache = new Map<string, triggerDocuments.TriggerDocument>()
   /** When each stored trigger may next be tried as a document (never, for one with no document form). */
@@ -1852,6 +1854,7 @@ export class Service {
           envelope.action.continueAgent,
         )
       case 'MessageSession':
+        this.#rememberTimezone(accountId, envelope.action.timezone)
         return this.#messageSession(
           accountId,
           envelope.action.sessionId,
@@ -3908,6 +3911,17 @@ export class Service {
         }
       },
     }
+  }
+
+  /** Keeps the time zone a person's device reports, when it is a real IANA zone. */
+  #rememberTimezone(accountId: string, timezone: unknown) {
+    if (typeof timezone !== 'string' || !timezone || timezone.length > 64) return
+    try {
+      new Intl.DateTimeFormat('en-US', {timeZone: timezone})
+    } catch {
+      return
+    }
+    this.#accountTimezones.set(accountId, timezone)
   }
 
   async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
@@ -8726,6 +8740,7 @@ export class Service {
         canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
         privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
         `<current_time>${new Date().toISOString()}</current_time>`,
+        userTimeBlock(this.#accountTimezones.get(accountId)),
       ]
       const timestamp = Date.now()
       return blocks.flatMap((content) => (content ? [{role: 'user' as const, content, timestamp}] : []))
@@ -14756,6 +14771,25 @@ type AppHistory = {
   } | null>
 }
 
+/**
+ * The person's local time and zone, so "every morning at 8" means their 8 o'clock: a schedule you
+ * write takes this zone unless they name another.
+ */
+export function userTimeBlock(timezone: string | undefined, now = new Date()): string | undefined {
+  if (!timezone) return undefined
+  const local = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now)
+  return `<user_time zone="${timezone}">${local}</user_time>\nTimes your user names (8:00, tonight, every Monday) are in ${timezone} unless they say otherwise; use this zone for schedules you set for them.`
+}
+
 /** An app or a mounted agent whose trigger documents this server fires. */
 type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
 
@@ -15832,8 +15866,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -17475,13 +17509,22 @@ async function writeDocumentCreate(
   // content Change is the genesis. Every document created here used to share the home genesis
   // (sixty papers, one comment thread, 2026-09-15).
   const created = await createDocumentBlobs(signer.signer, {space: account, path, ops, capability})
-  const appBlobs =
-    app && childId
-      ? await appEmbedBlobs({client, signer: signer.signer, app, childId, change: 'add', capability: appCapability})
-      : null
-  const published = await client.publish({
-    blobs: [...created.blobs, ...extraBlobs, ...(appBlobs ?? [])],
-  })
+  // The child and its card on the app publish together; the card is computed from the app as it is
+  // inside the app's lock, so parallel writes under one app each keep their card.
+  const publishWithCard = async () => {
+    const appBlobs =
+      app && childId
+        ? await missingCardBlobs({
+            client,
+            signer: signer.signer,
+            childId,
+            type: metadata.type,
+            capability: appCapability,
+          })
+        : null
+    return client.publish({blobs: [...created.blobs, ...extraBlobs, ...(appBlobs ?? [])]})
+  }
+  const published = app ? await withHostLock(app.id.id, publishWithCard) : await publishWithCard()
   return writeToolResult(request.command, signer, {
     id: `hm://${account}${path}`,
     version: created.version,
@@ -17650,9 +17693,13 @@ async function writeDocumentUpdate(
       ...extraBlobs,
     ],
   })
+  // A tool, page or trigger its app or agent does not list (a card lost to a race, or never added)
+  // is listed again when it is updated.
+  const relisted = await relistInHost(client, signer, targetId, {...resource.document.metadata, ...metadata}.type)
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
     resolvedDocumentId: packHmId(targetId),
+    ...(relisted ? {listedInApp: true, app: relisted} : {}),
     redirectHops: base.redirects.map((hop) => ({
       from: packHmId(hop.from),
       to: packHmId(hop.to),
@@ -17663,6 +17710,34 @@ async function writeDocumentUpdate(
     ...typed,
     ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
   })
+}
+
+/** Adds a child's missing card to its host after an update; returns the host id when it did. */
+async function relistInHost(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  childId: UnpackedHypermediaId,
+  type: unknown,
+): Promise<string | null> {
+  const host = await findListingApp(client, childId).catch(() => null)
+  if (!host) return null
+  try {
+    return await withHostLock(host.id.id, async () => {
+      const capability = await resolveCapability(
+        client,
+        host.id.uid,
+        signer.publicKey,
+        hmIdPathToEntityQueryPath(host.id.path),
+      )
+      const blobs = await missingCardBlobs({client, signer: signer.signer, childId, type, capability})
+      if (!blobs) return null
+      await client.publish({blobs})
+      return host.id.id
+    })
+  } catch {
+    // Listing is a repair: the update itself has already published.
+    return null
+  }
 }
 
 async function writeDocumentDelete(
