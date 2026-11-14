@@ -122,6 +122,7 @@ function AppHomeTab({
     )
   const tools = children.listed.filter((item) => item.kind === 'tool').length
   const pages = children.listed.filter((item) => item.kind === 'page').length
+  const triggers = children.listed.filter((item) => item.kind === 'trigger').length
   const updated = app.document.updateTime ? new Date(String(app.document.updateTime)) : null
   return (
     <TabColumn>
@@ -140,6 +141,9 @@ function AppHomeTab({
         <Button variant="outline" onClick={() => navigate({key: 'document', id: app.id, appView: 'pages'})}>
           <FileCode2 className="size-4" /> {pages} {pages === 1 ? 'page' : 'pages'}
         </Button>
+        <Button variant="outline" onClick={() => navigate({key: 'document', id: app.id, appView: 'triggers'})}>
+          <Zap className="size-4" /> {triggers} {triggers === 1 ? 'trigger' : 'triggers'}
+        </Button>
       </div>
       <AppHomeRunStatus app={app} />
       {updated && !Number.isNaN(updated.getTime()) ? (
@@ -151,7 +155,8 @@ function AppHomeTab({
   )
 }
 
-function AppChildrenTab({
+/** An app's or agent's Tools, Pages or Triggers tab: its listed children of one kind. */
+export function AppChildrenTab({
   app,
   kind,
   appChildren: children,
@@ -167,6 +172,7 @@ function AppChildrenTab({
   const listed = children.listed.filter((item) => item.kind === kind)
   const strays = children.strays.filter((item) => item.kind === kind)
   const noun = kind
+  const host = app.document.metadata.type === 'hm://hyper.media/agent' ? 'agent' : 'app'
   return (
     <TabColumn>
       {!children.isLoading && !listed.length ? (
@@ -174,10 +180,12 @@ function AppChildrenTab({
           <SizableText weight="bold">No {noun}s yet.</SizableText>
           <SizableText size="sm" color="muted">
             {kind === 'tool'
-              ? 'A tool is one function of this app: what it takes, what it returns, and its code. Add one with New in the toolbar.'
+              ? `A tool is one function of this ${host}: what it takes, what it returns, and its code. Add one with New in the toolbar.`
               : kind === 'trigger'
-                ? 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
-                : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
+                ? host === 'agent'
+                  ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Add one with New in the toolbar.'
+                  : 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
+                : `Pages are built by agents for now. Ask an agent to add a page to this ${host}.`}
           </SizableText>
         </div>
       ) : null}
@@ -276,4 +284,10 @@ function AppHomeRunStatus({app}: {app: AppRef}) {
       />
     </button>
   )
+}
+
+/** An agent's Triggers tab: its trigger documents, listed and created like an app's. */
+export function AgentTriggerDocumentsTab({host, canEdit}: {host: AppRef; canEdit: boolean}) {
+  const children = useAppChildren(host.id, host.document)
+  return <AppChildrenTab app={host} kind="trigger" appChildren={children} canEdit={canEdit} />
 }

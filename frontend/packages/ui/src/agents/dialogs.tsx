@@ -1168,7 +1168,8 @@ export function CreateAgentDialog({
   function finishCreation(to: UnpackedHypermediaId) {
     onClose()
     if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: to.id})
-    else navigate({key: 'document', id: to, agentView: 'sessions'})
+    // A new agent opens on its Home: its document, with the box to start the first session.
+    else navigate({key: 'document', id: to})
   }
 
   /** Creates the agent under `input.location` at a path derived from its name, retrying in place on failure. */

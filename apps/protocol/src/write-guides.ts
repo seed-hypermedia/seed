@@ -339,15 +339,25 @@ Use click handlers for actions rather than form submission. Disable Submit while
     summary: 'Build an app: the only home for pages and tools; its card embeds list them.',
     markdown: `# Building apps and tools
 
-An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Triggers, Settings), not as a text document.
 
 A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools; an agent's tools run whenever the agent is mounted. When someone asks you to make a tool, they always mean this: a tool resource in an app or an agent. You have no private tools, and \`~/tools/<name>\` cannot be written.
 
 The app's **pages** are its interface and its **tools** are its server side. A page reads the app's public config with \`seed.app.context()\` and calls the app's tools with \`seed.app.call("<tool name>", input)\`, as the viewer. Put anything that needs a secret, a private config value, another service or heavy work in a tool, and have the page call it.
 
+## What runs where
+
+- A **tool** takes input and returns output. It runs in a sandbox with network access but holds no signing key: it cannot publish or edit Seed documents. It can fetch the web and read public Seed data over HTTP.
+- A **page** runs in the viewer's browser and writes Seed records as the viewer (\`seed.publishDocument\`), within the viewer's access.
+- A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that must write Seed documents (a daily digest document, updating records) is an **agent's** trigger: put it under your agent document, and its message tells you what to do; you can call the app's tools and publish the result.
+
+## Where the app's data lives
+
+The app owns its data model. Keep it under the app: type documents at \`<app>/types/<type>\`, collections at \`<app>/<collection>\` (with \`childAttributesSchema\` set to the type), and records as children of their collection. Name each collection (and type, if its code needs it) in the app's \`metadata.publicConfig\`, for example \`{"articles": "hm://SPACE/apps/reading-list/articles"}\`, so pages read the location from \`seed.app.context()\` and tools from \`ctx.publicConfig\` instead of hard-coding it. These documents are not cards in the app (only tools, pages and triggers are); the public config is how the app and its people find them. Read ~/tools/write/pages for the schema-first steps and for access.
+
 ## Steps
 
-1. Write the app: an ordinary document with a name, a one-line description in \`metadata.summary\`, and \`metadata.type: "hm://hyper.media/app"\`. Leave its content empty; the publisher fills it in.
+1. Write the app: an ordinary document with a name, a one-line description in \`metadata.summary\`, and \`metadata.type: "hm://hyper.media/app"\`. Leave its content empty; the publisher fills it in. When you make an app for yourself or your user, put it under your agent document unless they asked for a place: it then shows on your Home.
 2. For each tool, publish its input schema (and output schema, if it returns something structured) as an HM struct with write ipfs:// and \`options.schema: "schema"\` (read ~/tools/write/ipfs). Reference each by its \`ipfs://\` CID, or bind it to a type document and use that document's hm:// URL.
 3. Write the tool's code to memory as \`~/memory/apps/<app>/<tool>/index.ts\`. The entry point default-exports one async function that takes the input and a context, and resolves to the output. \`ctx.app\` is the app's hm:// id, \`ctx.publicConfig\` the app's public config and \`ctx.privateConfig\` its private config (API keys and the like). Tools run in a sandbox with network access; the latest published code always runs:
 
@@ -411,6 +421,17 @@ An app's triggers are active while the app runs on its server; an agent's while 
 \`\`\`
 
 Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"update","metadata":{"homePage":"hm://SIGNER_UID/apps/weather/radar"}}}\`.
+
+## Check it, then hand it over
+
+Before you report an app as done:
+
+1. Run it (\`options.action: "run"\`) when it names your server, and call each tool once with real input; \`read <tool>/:calls\` shows the recorded call.
+2. Read back each published document (the app, its tools, pages and triggers, its types and collections) and fix any schema warning.
+3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired.
+4. Say what you could not test (a page's buttons, for example, unless you exercised its data path).
+
+Then tell your user, in a few lines: the app's link, what it holds (its pages, tools, triggers and data collections), what to do first (open the app; run it from its Settings if it does not run here), and anything they need to provide (a private config value such as an API key).
 
 ## Revising
 
