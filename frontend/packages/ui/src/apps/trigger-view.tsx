@@ -24,6 +24,8 @@ import {Copy} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
+import {useLocalAgentServerUrl} from '../agents/models'
+import {describeHostServer} from '../server-host-card'
 import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
@@ -290,8 +292,11 @@ export function TriggerDocumentView({
                   ) : null}
                 </select>
                 <SizableText size="sm" color="muted">
-                  Input, as JSON. String values <code>"$event"</code> and <code>"$event.path"</code> are filled from the
-                  event (a webhook's posted JSON is <code>"$event.payload"</code>). Leave it empty to pass the event.
+                  {source?.type === 'schedule'
+                    ? 'Input for the tool, as JSON (optional).'
+                    : source?.type === 'webhook'
+                      ? 'Input for the tool, as JSON. "$event.payload" is the posted JSON; leave it empty to pass the whole event.'
+                      : 'Input for the tool, as JSON. "$event" and "$event.<field>" are filled from what happened; leave it empty to pass the whole event.'}
                 </SizableText>
                 <CodeTextArea
                   value={input}
@@ -367,7 +372,9 @@ function TriggerStatus({
   onEnabledChange: (enabled: boolean) => void
   onOpenSettings: () => void
 }) {
-  const host = serverUrl ? new URL(serverUrl).host : null
+  const localServerUrl = useLocalAgentServerUrl()
+  const where = describeHostServer(serverUrl, localServerUrl.data)
+  const host = where === 'This computer' ? 'this computer' : where
   const line = loading
     ? 'Checking its server…'
     : error

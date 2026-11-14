@@ -328,11 +328,12 @@ function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStat
   const problem = state.errors.find((candidate) => candidate.documentId === item.id.id)?.error
   const enabled =
     item.metadata?.enabled !== false && (item.metadata as {enabled?: unknown} | undefined)?.enabled !== 'false'
+  const toolUrl = (item.metadata as {tool?: unknown} | undefined)?.tool
+  const toolResource = useResource(typeof toolUrl === 'string' ? unpackHmId(toolUrl) : null)
   const tool =
-    typeof (item.metadata as {tool?: unknown} | undefined)?.tool === 'string'
-      ? String((item.metadata as {tool: string}).tool)
-          .split('/')
-          .at(-1)
+    typeof toolUrl === 'string'
+      ? (toolResource.data?.type === 'document' && toolResource.data.document.metadata.name) ||
+        toolUrl.split('/').at(-1)
       : null
   const status = !enabled
     ? {label: 'Off', tone: 'muted' as const}
