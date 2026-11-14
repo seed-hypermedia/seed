@@ -4559,7 +4559,7 @@ export function DocumentCollection({
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner)
     return (
       <QueryBlockContent
         showControls={showCollectionControls}

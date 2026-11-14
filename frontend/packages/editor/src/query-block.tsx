@@ -198,7 +198,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner)
     return (
       <QueryBlockContent
         showControls={showControls}

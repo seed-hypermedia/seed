@@ -1,5 +1,5 @@
 import {InlineDraftCard} from '@shm/ui/inline-draft-card'
-import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
+import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
 import {isValidElement, ReactNode} from 'react'
 import {describe, expect, it, vi} from 'vitest'
 import {buildSlotItems} from '@shm/ui/query-block-draft-items'
@@ -21,41 +21,38 @@ function makeDraft(id: string) {
   } as NonNullable<Parameters<typeof buildSlotItems>[0]>['drafts'][number]
 }
 
+function draftHandlers() {
+  return {onOpenDraft: vi.fn(), onDeleteDraft: vi.fn(), onUpdateDraftName: vi.fn()}
+}
+
 function elementTypes(items: ReactNode[] | undefined) {
   return items?.filter(isValidElement).map((item) => item.type) ?? []
 }
 
 describe('buildSlotItems', () => {
-  it('omits the new document card when a card query block will render a document banner', () => {
-    const result = buildSlotItems(makeSlot(), 'Card', true, true)
-
-    expect(result.prependItems).toBeUndefined()
-    expect(result.bannerContent).toBeUndefined()
+  it('returns nothing without drafts, leaving the "New document" entry to QueryBlockContent', () => {
+    expect(buildSlotItems(makeSlot(), 'Card', true)).toEqual({})
+    expect(buildSlotItems(makeSlot(), 'List', false)).toEqual({})
+    expect(buildSlotItems(makeSlot(), 'Table', false)).toEqual({})
   })
 
-  it('leaves empty results to the shared empty state', () => {
-    const result = buildSlotItems(makeSlot(), 'Card', true, false)
+  it('renders list drafts without a create button', () => {
+    const result = buildSlotItems(makeSlot({drafts: [makeDraft('1')], ...draftHandlers()}), 'List', false)
 
-    expect(result.prependItems).toBeUndefined()
+    expect(elementTypes(result.prependItems)).toEqual([InlineDraftListItem])
   })
 
-  it('keeps the new document list item because list query blocks do not render banners', () => {
-    const result = buildSlotItems(makeSlot(), 'List', true, true)
+  it('passes table drafts through for the table to render as rows', () => {
+    const slot = makeSlot({drafts: [makeDraft('1')], ...draftHandlers()})
 
-    expect(elementTypes(result.prependItems)).toEqual([NewDocumentListItem])
+    expect(buildSlotItems(slot, 'Table', false)).toEqual({tableDrafts: slot})
   })
 
-  it('omits only the new document card when a draft renders as the banner', () => {
+  it('renders the first draft as the banner and the rest as cards', () => {
     const result = buildSlotItems(
-      makeSlot({
-        drafts: [makeDraft('1'), makeDraft('2')],
-        onOpenDraft: vi.fn(),
-        onDeleteDraft: vi.fn(),
-        onUpdateDraftName: vi.fn(),
-      }),
+      makeSlot({drafts: [makeDraft('1'), makeDraft('2')], ...draftHandlers()}),
       'Card',
       true,
-      false,
     )
 
     expect(isValidElement(result.bannerContent)).toBe(true)
