@@ -49,7 +49,10 @@ export function useResourceDraft(published: HMDocument) {
     [client],
   )
 
-  return {metadata, content, change, storeBlobs, canEdit}
+  // Whether this document holds edits that are not published yet.
+  const hasDraft = !!context?.draftId
+
+  return {metadata, content, change, storeBlobs, canEdit, hasDraft}
 }
 
 /** A draft's body as Hypermedia blocks: a saved draft keeps it in the editor's block format. */

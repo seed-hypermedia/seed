@@ -96,6 +96,7 @@ export function ToolDocumentView({
       <AgentSubpageHeader
         title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Tool name"
+        subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent' : 'Back to app tools'}
         onBack={() =>
