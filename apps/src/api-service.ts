@@ -3671,7 +3671,9 @@ export class Service {
     const hostId = unpackHmId(hostIdUrl)
     if (!hostId) throw new APIError(400, 'Name the app or agent by its hm:// URL')
     const host = this.#triggerHosts().find((entry) => entry.id === hostId.id)
-    if (!host) return {_: 'ListHostTriggersResponse', hostId: hostId.id, active: false, triggers: [], errors: []}
+    const fromAgents = this.#agentTriggersAbout(hostId.id)
+    if (!host)
+      return {_: 'ListHostTriggersResponse', hostId: hostId.id, active: false, triggers: [], errors: [], fromAgents}
     await this.#syncHostTriggers(host)
     const rows = stmt<AgentTriggerRow, [string, string]>(
       this.#db,
@@ -3732,7 +3734,33 @@ export class Service {
     const errors = [...(this.#triggerDocumentErrors.get(host.id) ?? new Map()).entries()].map(
       ([documentId, error]) => ({documentId, error}),
     )
-    return {_: 'ListHostTriggersResponse', hostId: host.id, active: true, triggers, errors}
+    return {_: 'ListHostTriggersResponse', hostId: host.id, active: true, triggers, errors, fromAgents}
+  }
+
+  /** Agents' trigger documents that work on the app `appId`: they name it, or one of its tools. */
+  #agentTriggersAbout(appId: string): NonNullable<api.ListHostTriggersResponse['fromAgents']> {
+    type Row = {
+      document_id: string
+      agent_id: string
+      name: string
+      enabled: number
+      prompt: string
+      continuation_cbor: Uint8Array | null
+    }
+    const rows = stmt<Row, [string, string]>(
+      this.#db,
+      `SELECT document_id, agent_id, name, enabled, prompt, continuation_cbor FROM agent_triggers
+         WHERE agent_id IS NOT NULL AND document_id IS NOT NULL AND agent_id != ?1
+           AND (instr(prompt, ?2) > 0 OR instr(CAST(continuation_cbor AS TEXT), ?2) > 0)
+         ORDER BY name`,
+    ).all(appId, appId)
+    // `hm://x/recipes` names `hm://x/recipes/scale` but not `hm://x/recipes-old`.
+    const names = new RegExp(`${appId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`)
+    return rows
+      .filter((row) =>
+        names.test(`${row.prompt} ${row.continuation_cbor ? new TextDecoder().decode(row.continuation_cbor) : ''}`),
+      )
+      .map((row) => ({documentId: row.document_id, agentId: row.agent_id, name: row.name, enabled: !!row.enabled}))
   }
 
   /** Fires a schedule trigger once now (see RunTriggerNow), for a writer of its host. */
@@ -10735,7 +10763,7 @@ export class Service {
     const row = stmt<SessionTriggerRow, [string, string]>(
       this.#db,
       `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.context_cbor, f.status, f.error,
-                f.created_at AS fired_at, t.name AS trigger_name, t.source_cbor, t.prompt
+                f.created_at AS fired_at, t.name AS trigger_name, t.document_id, t.source_cbor, t.prompt
          FROM trigger_firings f
          JOIN agent_triggers t ON t.id = f.trigger_id
          WHERE f.account_id = ? AND f.session_id = ?
@@ -10749,6 +10777,7 @@ export class Service {
     return {
       triggerId: row.trigger_id,
       triggerName: row.trigger_name,
+      ...(row.document_id ? {documentId: row.document_id} : {}),
       firingId: row.firing_id,
       activityKey: row.activity_key,
       activitySummary: activityTriggers.activitySummary(activity),
@@ -11678,6 +11707,7 @@ type SessionTriggerRow = {
   error: string | null
   fired_at: number
   trigger_name: string
+  document_id: string | null
   source_cbor: Uint8Array
   prompt: string
 }

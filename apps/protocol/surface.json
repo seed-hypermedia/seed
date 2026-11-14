@@ -897,6 +897,7 @@
         "_": "\"ListHostTriggersResponse\"",
         "active": "boolean",
         "errors": "{documentId: string; error: string}[]",
+        "fromAgents?": "{agentId: string; documentId: string; enabled: boolean; name: string}[]",
         "hostId": "string",
         "triggers": "{firings: TriggerFiringInfo[]; trigger: AgentTriggerInfo; webhookSecret?: string}[]"
       }
@@ -1299,6 +1300,7 @@
         "activity": "Record<string, unknown>",
         "activityKey": "string",
         "activitySummary": "string",
+        "documentId?": "string",
         "error?": "string",
         "firedAt": "number",
         "firingId": "string",
@@ -1315,6 +1317,7 @@
       "fields": {
         "activityKey": "string",
         "activitySummary": "string",
+        "documentId?": "string",
         "firedAt": "number",
         "firingId": "string",
         "matchedConditions?": "AgentActivityCondition[]",

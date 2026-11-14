@@ -1083,9 +1083,12 @@ export function TriggerContextView({
   const navigate = useNavigate()
   const Icon = TRIGGER_TYPE_ICONS[context.source.type]
   const activityRoute = useMemo(() => getTriggerActivityRoute(context), [context])
-  const triggerRoute: NavRoute | null = agentId
-    ? {key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: context.triggerId}
-    : null
+  const triggerDocument = context.documentId ? unpackHmId(context.documentId) : null
+  const triggerRoute: NavRoute | null = triggerDocument
+    ? {key: 'document', id: triggerDocument}
+    : agentId
+      ? {key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: context.triggerId}
+      : null
 
   return (
     <div className="bg-muted/40 mb-3 flex min-w-0 flex-col gap-2 rounded-lg border p-3 text-xs">
@@ -1112,7 +1115,8 @@ export function TriggerContextView({
       <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="min-w-0 break-words">{<TriggerSourceSummary source={context.source} />}</span>
         <span>Fired {formattedDateMedium(new Date(context.firedAt))}</span>
-        {context.status && context.status !== 'fired' ? <span>Status: {context.status}</span> : null}
+        {context.status === 'failed' || context.status === 'error' ? <span>Failed</span> : null}
+        {context.status === 'escalated' ? <span>Escalated</span> : null}
       </div>
       {context.source.type === 'webhook' ? <WebhookActivityPreview activity={context.activity} /> : null}
       {context.error ? (
