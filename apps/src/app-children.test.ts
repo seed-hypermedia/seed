@@ -43,3 +43,14 @@ describe('host lock', () => {
     expect(order.indexOf('c end')).toBeLessThan(order.indexOf('a end'))
   })
 })
+
+describe('tool errors', () => {
+  test('stack frames name the tool code index.ts instead of its base64', async () => {
+    const {readableToolError} = await import('@/app-running')
+    const frame = '      at async ' + 'LnN0YXR1cyB8fCAndG8tcmVhZCcsCi'.repeat(10)
+    const text = readableToolError(`error: Unable to connect\n${frame}\n at data:text/typescript;base64,QUJD:3:4`)
+    expect(text).toContain('at async index.ts')
+    expect(text).not.toContain('LnN0YXR1')
+    expect(text).toContain('index.ts:3:4')
+  })
+})
