@@ -55,3 +55,15 @@ describe('seed.publishDocument(url, fields)', () => {
     await expect(simplePublishInput(request, url, {metadata: {tags: ['a', 'b']}})).rejects.toThrow('cannot hold lists')
   })
 })
+
+describe('seed.directory', () => {
+  it('resolves to the records, also answering to the names pages tend to guess', async () => {
+    const {DOCUMENT_PAGE_API_SCRIPT} = await import('./document-page')
+    const sdk = new Function(`return ${DOCUMENT_PAGE_API_SCRIPT}`)()(async () => [{id: {id: 'hm://x/a'}}])
+    const records = await sdk.directory('hm://x')
+    expect(Array.isArray(records)).toBe(true)
+    expect(records.documents).toBe(records)
+    expect(records.items).toBe(records)
+    expect(Object.keys(records)).toEqual(['0'])
+  })
+})
