@@ -50,7 +50,7 @@ Your built-in callables (search, web_search, web_read, execute, browser, …) an
 
 Any tool you made before resources existed was moved to \`~/memory/tools/<name>/\` (its code and a \`tool.json\` with its schemas). To use one again, publish it as a tool resource under an app or your agent document.
 
-Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`.`,
+Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPACE/you/weather/forecast", "input": {"city": "Lisbon"}}\`.`,
   },
   triggers: {
     summary:
@@ -342,7 +342,7 @@ Use click handlers for actions rather than form submission. Disable Submit while
     summary: 'Build an app: the only home for pages and tools; its card embeds list them.',
     markdown: `# Building apps and tools
 
-An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Triggers, Settings), not as a text document.
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/you/weather/forecast\` under \`hm://SPACE/you/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Triggers, Settings), not as a text document. In these examples \`hm://SPACE/you\` is your agent document, the address your instructions say you can write: make apps there, never in a signing identity's own space (\`hm://SIGNER_UID\`), which nobody browses.
 
 A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools; an agent's tools run whenever the agent is mounted. When someone asks you to make a tool, they always mean this: a tool resource in an app or an agent. You have no private tools, and \`~/tools/<name>\` cannot be written.
 
@@ -357,7 +357,7 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 
 ## Where the app's data lives
 
-The app owns its data model. Keep it under the app: type documents at \`<app>/types/<type>\`, collections at \`<app>/<collection>\` (with \`childAttributesSchema\` set to the type), and records as children of their collection. Name each collection (and type, if its code needs it) in the app's \`metadata.publicConfig\`, for example \`{"articles": "hm://SPACE/apps/reading-list/articles"}\`, so pages read the location from \`seed.app.context()\` and tools from \`ctx.publicConfig\` instead of hard-coding it. These documents are not cards in the app (only tools, pages and triggers are); the public config is how the app and its people find them. Read ~/tools/write/pages for the schema-first steps and for access.
+The app owns its data model. Keep it under the app: type documents at \`<app>/types/<type>\`, collections at \`<app>/<collection>\` (with \`childAttributesSchema\` set to the type), and records as children of their collection. Name each collection (and type, if its code needs it) in the app's \`metadata.publicConfig\`, for example \`{"articles": "hm://SPACE/you/reading-list/articles"}\`, so pages read the location from \`seed.app.context()\` and tools from \`ctx.publicConfig\` instead of hard-coding it. These documents are not cards in the app (only tools, pages and triggers are); the public config is how the app and its people find them. Read ~/tools/write/pages for the schema-first steps and for access.
 
 Owners open collections too (a page's "see all" link, a trigger's results), so make each one list its records: write the collection's content as this one line, and nothing else, and it shows its children as cards, newest first:
 
@@ -393,11 +393,11 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 
 - An app declares its config as two HM struct schemas, referenced like tool schemas: \`metadata.publicConfigSchema\` (values anyone can read, stored on the app as \`metadata.publicConfig\`) and \`metadata.privateConfigSchema\` (secrets such as API keys, which the person running the app enters and the app server keeps; they are never published).
 - An app runs only on the server it names: its \`metadata.appEnvironmentUrl\`, or, without one, the app environment its space's site advertises. It cannot run, and its tools cannot be called, anywhere else. A person who can write the app's space runs it from the app's Settings (Run App), which sets that server and the private config.
-- You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
+- You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SPACE/you/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
 - A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
 - \`read <tool>/:calls\` lists a tool's recent calls on this server (any app's tool you can read, and yours), and \`read <tool>/:call/<id>\` one call with its input and output: check how a tool or its triggers have been doing before changing it.
-- Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
+- Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/you/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
 
 ## Triggers
 
@@ -409,11 +409,11 @@ A **trigger** is a resource too: a document typed \`hm://hyper.media/trigger\` d
 Publish one with \`options.trigger\`; the publisher stores the source and input, sets the type and lists the trigger in its host:
 
 \`\`\`json
-{"address":"hm://SIGNER_UID/apps/weather/morning","options":{"name":"Morning forecast","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[1,2,3,4,5],"timeOfDay":"07:00","timezone":"Europe/Lisbon"}},"tool":"hm://SIGNER_UID/apps/weather/forecast","input":{"city":"Lisbon"}},"signer":{"publicKey":"SIGNER_UID"}}}
+{"address":"hm://SPACE/you/weather/morning","options":{"name":"Morning forecast","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[1,2,3,4,5],"timeOfDay":"07:00","timezone":"Europe/Lisbon"}},"tool":"hm://SPACE/you/weather/forecast","input":{"city":"Lisbon"}},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
 \`\`\`json
-{"address":"hm://SPACE/apps/recipes/sunday-shopping-list","content":"Make this week's shopping list from the recipes tagged this-week, and save it in the app's shopping lists.","options":{"name":"Sunday shopping list","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[0],"timeOfDay":"18:00","timezone":"Europe/Lisbon"}},"agent":"hm://SPACE/agents/helper"},"signer":{"publicKey":"SIGNER_UID"}}}
+{"address":"hm://SPACE/you/recipes/sunday-shopping-list","content":"Make this week's shopping list from the recipes tagged this-week, and save it in the app's shopping lists.","options":{"name":"Sunday shopping list","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[0],"timeOfDay":"18:00","timezone":"Europe/Lisbon"}},"agent":"hm://SPACE/you"},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
 \`\`\`json
@@ -425,18 +425,18 @@ An app's triggers are active while the app runs on its server; an agent's while 
 ## Example
 
 \`\`\`json
-{"address":"hm://SIGNER_UID/apps/weather","options":{"name":"Weather","metadata":{"type":"hm://hyper.media/app","summary":"Forecasts and radar for any city."},"signer":{"publicKey":"SIGNER_UID"}}}
+{"address":"hm://SPACE/you/weather","options":{"name":"Weather","metadata":{"type":"hm://hyper.media/app","summary":"Forecasts and radar for any city."},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
 \`\`\`json
-{"address":"hm://SIGNER_UID/apps/weather/forecast","options":{"name":"forecast","tool":"~/memory/apps/weather/forecast","metadata":{"summary":"Today's forecast for a city.","inputSchema":"ipfs://INPUT_SCHEMA_CID","outputSchema":"ipfs://OUTPUT_SCHEMA_CID"},"signer":{"publicKey":"SIGNER_UID"}}}
+{"address":"hm://SPACE/you/weather/forecast","options":{"name":"forecast","tool":"~/memory/apps/weather/forecast","metadata":{"summary":"Today's forecast for a city.","inputSchema":"ipfs://INPUT_SCHEMA_CID","outputSchema":"ipfs://OUTPUT_SCHEMA_CID"},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
 \`\`\`json
-{"address":"hm://SIGNER_UID/apps/weather/radar","content":"Radar map.","options":{"name":"Radar","page":"~/memory/apps/weather/radar","signer":{"publicKey":"SIGNER_UID"}}}
+{"address":"hm://SPACE/you/weather/radar","content":"Radar map.","options":{"name":"Radar","page":"~/memory/apps/weather/radar","signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
-Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"update","metadata":{"homePage":"hm://SIGNER_UID/apps/weather/radar"}}}\`.
+Then make the radar page the app's home: \`{"address":"hm://SPACE/you/weather","options":{"action":"update","metadata":{"homePage":"hm://SPACE/you/weather/radar"}}}\`.
 
 ## Check it, then hand it over
 

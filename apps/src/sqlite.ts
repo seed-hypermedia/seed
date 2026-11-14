@@ -617,8 +617,32 @@ export function openWithDatabase(db: Database, tuning: ConnectionTuning = DEFAUL
 
   applyPendingMigrations(db, currentVersion)
   ensureBaselineTables(db)
+  ensureRepairedColumns(db)
   analyzePlannerTables(db)
   return {ok: true, db}
+}
+
+/**
+ * Columns once added by editing an already-applied migration instead of adding a new one, so
+ * databases created before that edit never got them. Each is added here when it is missing; a
+ * plain ALTER migration would fail on the databases that do have it.
+ */
+const REPAIRED_COLUMNS: {table: string; column: string; definition: string}[] = [
+  // Added to the webhook credentials migration in #1341: the encrypted secret editors read back.
+  {table: 'webhook_trigger_credentials', column: 'secret_ciphertext', definition: 'BLOB'},
+]
+
+/** Adds any {@link REPAIRED_COLUMNS} missing from existing tables. Returns what it added. */
+export function ensureRepairedColumns(db: Database): string[] {
+  const added: string[] = []
+  for (const {table, column, definition} of REPAIRED_COLUMNS) {
+    const columns = db.query<{name: string}, []>(`PRAGMA table_info(${table})`).all()
+    if (!columns.length || columns.some((entry) => entry.name === column)) continue
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    added.push(`${table}.${column}`)
+  }
+  if (added.length) console.warn('[agents/sqlite] added columns missing from older databases', {added})
+  return added
 }
 
 /**
