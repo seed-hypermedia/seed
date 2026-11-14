@@ -4686,6 +4686,7 @@ function CollectionViewControls({
             <PopoverTrigger asChild>
               <Button
                 size="sm"
+                disabled={!active && !canEdit}
                 aria-pressed={active}
                 aria-label={active ? `${label} view settings` : `${label} view`}
                 className={cn(active && 'bg-background shadow-sm')}

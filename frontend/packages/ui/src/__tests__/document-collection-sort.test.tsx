@@ -281,6 +281,9 @@ describe('collection view settings', () => {
   it('keeps readers read-only when inspecting settings or clicking other views', async () => {
     block = {...block, props: {...block.props, style: 'Card'}}
     await render()
+    expect(viewButton('Table view').disabled).toBe(true)
+    expect(viewButton('List view').disabled).toBe(true)
+    expect(viewButton('Cards view settings').disabled).toBe(false)
     await clickView('Table view')
     expect(settings()).toBeNull()
     await clickView('Cards view settings')
