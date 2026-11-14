@@ -2295,20 +2295,28 @@ function DocumentBody({
   // Apps and tools are typed resources with their own tabs in place of the document body, like agents.
   const appKind = appResourceKind(document.metadata.type)
   // A tool or trigger stays inside its host, with the host's tabs: an app's, or an agent's.
-  const hostId = appKind === 'tool' || appKind === 'trigger' ? parentDocumentId(docId) : null
+  // An app's page opened on its own keeps the app's tabs too, with Pages selected.
+  const isPage = document.metadata.type === 'hm://hyper.media/page'
+  const hostId = appKind === 'tool' || appKind === 'trigger' || isPage ? parentDocumentId(docId) : null
   const hostResource = useResource(hostId)
-  const hostIsAgent =
-    hostResource.data?.type === 'document' && hostResource.data.document.metadata.type === 'hm://hyper.media/agent'
+  const hostType = hostResource.data?.type === 'document' ? hostResource.data.document.metadata.type : undefined
+  const hostIsAgent = hostType === 'hm://hyper.media/agent'
   const appTabs = useMemo(
     () =>
-      route.key !== 'document' || !appKind
+      route.key !== 'document'
         ? undefined
-        : appKind === 'app'
-          ? appResourceTabs(docId, route.appView, panelRoute)
-          : hostIsAgent && hostId
-            ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
-            : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
-    [appKind, route, docId, panelRoute, hostIsAgent, hostId],
+        : isPage
+          ? hostId && hostType === 'hm://hyper.media/app'
+            ? appResourceTabs(hostId, 'pages')
+            : undefined
+          : !appKind
+            ? undefined
+            : appKind === 'app'
+              ? appResourceTabs(docId, route.appView, panelRoute)
+              : hostIsAgent && hostId
+                ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
+                : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
+    [appKind, route, docId, panelRoute, hostIsAgent, hostId, isPage, hostType],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
