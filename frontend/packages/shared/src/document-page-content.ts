@@ -77,6 +77,57 @@ function attributeChanges(fields: Record<string, unknown>, path: string[]): unkn
   })
 }
 
+/**
+ * Changes that make a record's body the markdown `text`: its blocks (headings, paragraphs, lists,
+ * code, links and inline marks) replace whatever body the record had. Block attributes are left
+ * out, so a list reads as indented lines rather than bullets.
+ */
+function bodyChanges(text: string, doc: HMDocument | null): unknown[] {
+  const tree = hm.markdownBlockNodesToHMBlockNodes(hm.parseMarkdown(text, {strictFrontmatter: false}).tree)
+  // Every old block goes, children included, so none is left without its parent.
+  const changes: unknown[] = []
+  const remove = (nodes: NonNullable<HMDocument['content']>) => {
+    for (const node of nodes) {
+      if (node.children?.length) remove(node.children)
+      changes.push({op: {case: 'deleteBlock', value: node.block.id}})
+    }
+  }
+  remove(doc?.content ?? [])
+  const freshId = () => Math.random().toString(36).slice(2, 10)
+  const add = (nodes: typeof tree, parent: string) => {
+    let leftSibling = ''
+    for (const node of nodes) {
+      const block = node.block as {type: string; text?: string; link?: string; annotations?: unknown[]}
+      const id = freshId()
+      changes.push({op: {case: 'moveBlock', value: {blockId: id, parent, leftSibling}}})
+      changes.push({
+        op: {
+          case: 'replaceBlock',
+          value: {
+            id,
+            type: block.type,
+            text: block.text ?? '',
+            ...(block.link ? {link: block.link} : {}),
+            annotations: (block.annotations ?? []).map((raw) => {
+              const annotation = raw as {type: string; starts: number[]; ends: number[]; link?: string}
+              return {
+                type: annotation.type,
+                starts: annotation.starts,
+                ends: annotation.ends,
+                ...(annotation.link ? {link: annotation.link} : {}),
+              }
+            }),
+          },
+        },
+      })
+      if (node.children?.length) add(node.children, id)
+      leftSibling = id
+    }
+  }
+  add(tree, '')
+  return changes
+}
+
 export async function simplePublishInput(
   request: Pick<UniversalClient, 'request'>['request'],
   url: string,
@@ -91,8 +142,8 @@ export async function simplePublishInput(
     .object({
       name: z.string().optional(),
       metadata: z.record(z.string(), z.unknown()).optional(),
-      // Body text for a new record. Other shapes (an editor's JSON) are not body text: they are left
-      // out rather than failing the save, since a record's data is its metadata.
+      // The record's body as markdown. Other shapes (an editor's JSON) are not body text: they are
+      // left out rather than failing the save, since a record's data is its metadata.
       content: z.unknown().optional(),
       visibility: z.enum(['public', 'private']).optional(),
     })
@@ -102,13 +153,8 @@ export async function simplePublishInput(
   const doc = existing?.type === 'document' ? existing.document : null
   const metadata = {...(fields.metadata ?? {}), ...(fields.name !== undefined ? {name: fields.name} : {})}
   const changes: unknown[] = attributeChanges(metadata, [])
-  if (typeof fields.content === 'string' && fields.content && !doc) {
-    const blockId = Math.random().toString(36).slice(2, 10)
-    changes.push(
-      {op: {case: 'moveBlock', value: {blockId, parent: '', leftSibling: ''}}},
-      {op: {case: 'replaceBlock', value: {id: blockId, type: 'Paragraph', text: fields.content}}},
-    )
-  }
+  // The body is markdown; on an existing record it replaces the old body, so it never goes stale.
+  if (typeof fields.content === 'string' && fields.content.trim()) changes.push(...bodyChanges(fields.content, doc))
   if (!changes.length) throw new Error('publishDocument(url, fields) needs a name, metadata or content to write')
   return {
     account: id.uid,

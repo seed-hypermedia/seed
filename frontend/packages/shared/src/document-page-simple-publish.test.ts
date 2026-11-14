@@ -43,6 +43,36 @@ describe('seed.publishDocument(url, fields)', () => {
     })) as {changes: {op: {case: string}}[]}
     expect(input.changes.map((c) => c.op.case)).toEqual(['setAttribute'])
   })
+  it('writes a markdown body as blocks, and an edit replaces the old body', async () => {
+    type Change = {op: {case: string; value: any}}
+    const fresh = (await simplePublishInput((async () => ({type: 'not-found'})) as never, url, {
+      content: '# Dinner plan\n\n- **Monday:** Lemon Rice\n- Tuesday: Pasta',
+    })) as {changes: Change[]}
+    const blocks = fresh.changes.filter((c) => c.op.case === 'replaceBlock').map((c) => c.op.value)
+    expect(blocks[0]).toMatchObject({type: 'Heading', text: 'Dinner plan'})
+    expect(blocks.map((b) => b.text)).toContain('Monday: Lemon Rice')
+    expect(blocks.find((b) => b.text === 'Monday: Lemon Rice').annotations[0]).toMatchObject({type: 'Bold'})
+    expect(fresh.changes.some((c) => c.op.case === 'deleteBlock')).toBe(false)
+
+    const existing = {
+      version: 'v2',
+      genesis: 'g1',
+      content: [
+        {
+          block: {id: 'old1', type: 'Heading', text: 'stale'},
+          children: [{block: {id: 'old2', type: 'Paragraph', text: 'under it'}, children: []}],
+        },
+      ],
+    }
+    const edit = (await simplePublishInput((async () => ({type: 'document', document: existing})) as never, url, {
+      content: 'Fresh body.',
+    })) as {changes: Change[]}
+    expect(edit.changes.slice(0, 2)).toEqual([
+      {op: {case: 'deleteBlock', value: 'old2'}},
+      {op: {case: 'deleteBlock', value: 'old1'}},
+    ])
+    expect(edit.changes.find((c) => c.op.case === 'replaceBlock')!.op.value).toMatchObject({text: 'Fresh body.'})
+  })
   it('writes nested fields and booleans, and refuses a list with how to store it', async () => {
     const request = (async () => ({type: 'not-found'})) as never
     const input = (await simplePublishInput(request, url, {
