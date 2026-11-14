@@ -93,3 +93,30 @@ describe('seed.directory', () => {
     expect(record.type).toBe('document')
   })
 })
+
+describe('records and ids as values', () => {
+  it('saves and sends a record or an hm id as its URL', async () => {
+    const {DOCUMENT_PAGE_API_SCRIPT} = await import('./document-page')
+    const calls: [string, any][] = []
+    const sdk = new Function(`return ${DOCUMENT_PAGE_API_SCRIPT}`)()(async (method: string, params: any) => {
+      calls.push([method, params])
+      return {}
+    })
+    const habit = {id: {id: 'hm://x/habits/read', uid: 'x', path: ['habits', 'read']}, metadata: {name: 'Read'}}
+    await sdk.publishDocument('hm://x/check-ins/a', {metadata: {habit, day: '2026-11-14', done: true}})
+    await sdk.publishDocument(habit, {metadata: {weeklyTarget: 4}})
+    await sdk.app.call(habit.id, {habit, checkIns: [habit.id], note: {text: 'kept'}})
+    expect(calls[0]).toEqual([
+      'publishDocument',
+      {url: 'hm://x/check-ins/a', fields: {metadata: {habit: 'hm://x/habits/read', day: '2026-11-14', done: true}}},
+    ])
+    expect(calls[1]![1].url).toBe('hm://x/habits/read')
+    expect(calls[2]).toEqual([
+      'app.call',
+      {
+        tool: 'hm://x/habits/read',
+        input: {habit: 'hm://x/habits/read', checkIns: ['hm://x/habits/read'], note: {text: 'kept'}},
+      },
+    ])
+  })
+})
