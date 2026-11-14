@@ -359,6 +359,14 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 
 The app owns its data model. Keep it under the app: type documents at \`<app>/types/<type>\`, collections at \`<app>/<collection>\` (with \`childAttributesSchema\` set to the type), and records as children of their collection. Name each collection (and type, if its code needs it) in the app's \`metadata.publicConfig\`, for example \`{"articles": "hm://SPACE/apps/reading-list/articles"}\`, so pages read the location from \`seed.app.context()\` and tools from \`ctx.publicConfig\` instead of hard-coding it. These documents are not cards in the app (only tools, pages and triggers are); the public config is how the app and its people find them. Read ~/tools/write/pages for the schema-first steps and for access.
 
+Owners open collections too (a page's "see all" link, a trigger's results), so make each one list its records: write the collection's content as this one line, and nothing else, and it shows its children as cards, newest first:
+
+\`\`\`
+<!-- id:records type:Query attrs:{"style":"Card","columnCount":"2","query":{"includes":[{"space":"","path":"","mode":"Children"}],"sort":[{"term":"updated","reverse":true}]}} -->
+\`\`\`
+
+Use \`"style":"Table"\` for records best compared field by field. Say what the collection holds in its \`metadata.summary\`, not in its body.
+
 ## Steps
 
 1. Write the app: an ordinary document with a name, a one-line description in \`metadata.summary\`, and \`metadata.type: "hm://hyper.media/app"\`. Leave its content empty; the publisher fills it in. When you make an app for yourself or your user, put it under your agent document unless they asked for a place: it then shows on your Home.
