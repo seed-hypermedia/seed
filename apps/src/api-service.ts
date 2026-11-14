@@ -3554,22 +3554,28 @@ export class Service {
    * the app, and only when the trigger's author may direct that agent: its owner, a writer, or the
    * agent itself (one of its signing identities).
    */
-  #assertAppTriggerAgent(host: TriggerHost, agentId: string, author: string | null): void {
+  #assertAppTriggerAgent(host: TriggerHost, agentId: string, author: string | null): string {
     const agent = stmt<{account_id: string; definition_cbor: Uint8Array}, [string]>(
       this.#db,
       `SELECT account_id, definition_cbor FROM agents WHERE id = ?`,
     ).get(agentId)
     if (!agent) throw new Error(`The agent ${agentId} does not run on this server, so it cannot run this trigger`)
-    if (agent.account_id !== host.accountId)
-      throw new Error(`The agent ${agentId} belongs to another account than the one running this app`)
+    const own = agentSigningAccountUids(
+      this.#db,
+      agent.account_id,
+      cbor.decode<api.AgentDefinition>(agent.definition_cbor),
+    )
+    // The app runs as the agent's owner or as the agent itself (an agent often runs the apps it made).
+    if (host.accountId !== agent.account_id && !own.includes(host.accountId))
+      throw new Error(`The agent ${agentId} is not run by the account running this app, so it cannot run this trigger`)
     if (!author) throw new Error('The author of this trigger could not be read')
-    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
-    if (agentSigningAccountUids(this.#db, agent.account_id, definition).includes(author)) return
+    if (own.includes(author)) return agent.account_id
     try {
       this.#requireAgentAccess(author, agentId, 'writer')
     } catch {
       throw new Error(`Only the agent's owner, its writers or the agent itself can have it run a trigger`)
     }
+    return agent.account_id
   }
 
   /** Brings one host's trigger rows in line with its trigger documents. True when anything changed. */
@@ -3583,12 +3589,19 @@ export class Service {
     )
     if (!read.found) return false
     const errors = new Map(read.errors.map((entry) => [entry.documentId, entry.error]))
-    const hostColumn = host.kind === 'agent' ? 'agent_id' : 'app_id'
-    const existing = stmt<AgentTriggerRow, [string, string]>(
-      this.#db,
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE account_id = ? AND ${hostColumn} = ? AND document_id IS NOT NULL
-         ${host.kind === 'agent' ? 'AND app_id IS NULL' : ''}`,
-    ).all(host.accountId, host.id)
+    // An agent's rows are its own (not those it runs for apps); an app's are found by app, since a
+    // trigger an agent runs for it lives under the agent's owner.
+    const existing =
+      host.kind === 'agent'
+        ? stmt<AgentTriggerRow, [string, string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+               WHERE account_id = ? AND agent_id = ? AND app_id IS NULL AND document_id IS NOT NULL`,
+          ).all(host.accountId, host.id)
+        : stmt<AgentTriggerRow, [string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE app_id = ? AND document_id IS NOT NULL`,
+          ).all(host.id)
     const byDocument = new Map(existing.map((row) => [row.document_id!, row]))
     let changed = false
     const listed = new Set<string>()
@@ -3597,10 +3610,14 @@ export class Service {
       const row = byDocument.get(trigger.documentId)
       if (row && row.document_version === trigger.version) continue
       let projected: ReturnType<typeof projectTriggerDocument>
+      let rowAccount: string
       try {
         projected = projectTriggerDocument(host, trigger)
-        if (host.kind === 'app' && projected.agentId)
-          this.#assertAppTriggerAgent(host, projected.agentId, trigger.author)
+        // A session an app's trigger starts belongs to the agent's owner, where the agent's sessions are.
+        rowAccount =
+          host.kind === 'app' && projected.agentId
+            ? this.#assertAppTriggerAgent(host, projected.agentId, trigger.author)
+            : host.accountId
       } catch (error) {
         errors.set(trigger.documentId, errorMessage(error))
         continue
@@ -3614,9 +3631,10 @@ export class Service {
         if (row) {
           stmt(
             this.#db,
-            `UPDATE agent_triggers SET agent_id = ?, name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?,
-               document_version = ?, author = ?, updated_at = ?, last_error = NULL WHERE id = ?`,
+            `UPDATE agent_triggers SET account_id = ?, agent_id = ?, name = ?, enabled = ?, source_cbor = ?, prompt = ?,
+               continuation_cbor = ?, document_version = ?, author = ?, updated_at = ?, last_error = NULL WHERE id = ?`,
           ).run([
+            rowAccount,
             projected.agentId,
             trigger.name,
             trigger.enabled ? 1 : 0,
@@ -3636,7 +3654,7 @@ export class Service {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).run([
             id,
-            host.accountId,
+            rowAccount,
             projected.agentId,
             host.kind === 'app' ? host.id : null,
             trigger.documentId,
@@ -3700,13 +3718,17 @@ export class Service {
     const host = this.#triggerHosts().find((entry) => entry.id === hostId.id)
     if (!host) return {_: 'ListHostTriggersResponse', hostId: hostId.id, active: false, triggers: [], errors: []}
     await this.#syncHostTriggers(host)
-    const rows = stmt<AgentTriggerRow, [string, string]>(
-      this.#db,
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
-         WHERE account_id = ? AND ${
-           host.kind === 'agent' ? 'agent_id = ? AND app_id IS NULL' : 'app_id = ?'
-         } AND document_id IS NOT NULL`,
-    ).all(host.accountId, host.id)
+    const rows =
+      host.kind === 'agent'
+        ? stmt<AgentTriggerRow, [string, string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+               WHERE account_id = ? AND agent_id = ? AND app_id IS NULL AND document_id IS NOT NULL`,
+          ).all(host.accountId, host.id)
+        : stmt<AgentTriggerRow, [string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE app_id = ? AND document_id IS NOT NULL`,
+          ).all(host.id)
     // Webhook secrets are for writers of the host's space only.
     const canSeeSecrets = viewer
       ? await appRunning.isSpaceWriter(createSeedClient(this.#hmServerUrl), hostId, viewer)
