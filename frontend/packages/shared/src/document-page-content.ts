@@ -49,6 +49,34 @@ export const DOCUMENT_PAGE_SIGNING_HELPERS = {
  * `seed.publishDocument(url, {name, metadata, content, visibility})`: the raw change input for
  * creating the record at `url`, or editing it on top of its current version when it exists.
  */
+/**
+ * A record's fields as typed attribute changes: text, whole numbers and booleans keep their type,
+ * null clears, and a nested object becomes nested fields. Attributes cannot hold a list: a list is
+ * refused with how to store it instead.
+ */
+function attributeChanges(fields: Record<string, unknown>, path: string[]): unknown[] {
+  return Object.entries(fields).flatMap(([key, value]): unknown[] => {
+    const keyPath = [...path, key]
+    const set = (attribute: unknown) => [
+      {op: {case: 'setAttribute', value: {blockId: '', key: keyPath, value: attribute}}},
+    ]
+    if (value === undefined) return []
+    if (value === null) return set({case: 'nullValue', value: {}})
+    if (typeof value === 'string') return set({case: 'stringValue', value})
+    if (typeof value === 'boolean') return set({case: 'boolValue', value})
+    if (typeof value === 'number' && Number.isInteger(value)) return set({case: 'intValue', value: BigInt(value)})
+    if (typeof value === 'number') return set({case: 'stringValue', value: String(value)})
+    if (Array.isArray(value))
+      throw new Error(
+        `The field "${keyPath.join(
+          '.',
+        )}" is a list, and record fields cannot hold lists: store it as text (one item per line, or comma-separated) or in the record's body.`,
+      )
+    if (typeof value === 'object') return attributeChanges(value as Record<string, unknown>, keyPath)
+    return set({case: 'stringValue', value: String(value)})
+  })
+}
+
 export async function simplePublishInput(
   request: Pick<UniversalClient, 'request'>['request'],
   url: string,
@@ -73,14 +101,7 @@ export async function simplePublishInput(
   const existing = await request('Resource', {...id, version: null, latest: true}).catch(() => null)
   const doc = existing?.type === 'document' ? existing.document : null
   const metadata = {...(fields.metadata ?? {}), ...(fields.name !== undefined ? {name: fields.name} : {})}
-  const changes: unknown[] = Object.entries(metadata)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => ({
-      op: {
-        case: 'setMetadata',
-        value: {key, value: typeof value === 'string' ? value : value === null ? '' : JSON.stringify(value)},
-      },
-    }))
+  const changes: unknown[] = attributeChanges(metadata, [])
   if (typeof fields.content === 'string' && fields.content && !doc) {
     const blockId = Math.random().toString(36).slice(2, 10)
     changes.push(

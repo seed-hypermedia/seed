@@ -13,11 +13,11 @@ describe('seed.publishDocument(url, fields)', () => {
     })) as {account: string; path: string; changes: {op: {case: string; value: unknown}}[]}
     expect(input.account).toBe('z6Mkspace')
     expect(input.path).toBe('/reading-list/articles/a1')
-    expect(input.changes.filter((c) => c.op.case === 'setMetadata').map((c) => c.op.value)).toEqual([
-      {key: 'url', value: 'https://en.wikipedia.org/wiki/Hypertext'},
-      {key: 'status', value: 'to-read'},
-      {key: 'rating', value: '4'},
-      {key: 'name', value: 'Hypertext'},
+    expect(input.changes.filter((c) => c.op.case === 'setAttribute').map((c) => c.op.value)).toEqual([
+      {blockId: '', key: ['url'], value: {case: 'stringValue', value: 'https://en.wikipedia.org/wiki/Hypertext'}},
+      {blockId: '', key: ['status'], value: {case: 'stringValue', value: 'to-read'}},
+      {blockId: '', key: ['rating'], value: {case: 'intValue', value: 4n}},
+      {blockId: '', key: ['name'], value: {case: 'stringValue', value: 'Hypertext'}},
     ])
     expect(input.changes.some((c) => c.op.case === 'replaceBlock')).toBe(true)
   })
@@ -41,6 +41,17 @@ describe('seed.publishDocument(url, fields)', () => {
       name: 'x',
       content: {type: 'doc', content: []},
     })) as {changes: {op: {case: string}}[]}
-    expect(input.changes.map((c) => c.op.case)).toEqual(['setMetadata'])
+    expect(input.changes.map((c) => c.op.case)).toEqual(['setAttribute'])
+  })
+  it('writes nested fields and booleans, and refuses a list with how to store it', async () => {
+    const request = (async () => ({type: 'not-found'})) as never
+    const input = (await simplePublishInput(request, url, {
+      metadata: {done: true, source: {site: 'wikipedia'}},
+    })) as {changes: {op: {value: {key: string[]; value: unknown}}}[]}
+    expect(input.changes.map((c) => [c.op.value.key, c.op.value.value])).toEqual([
+      [['done'], {case: 'boolValue', value: true}],
+      [['source', 'site'], {case: 'stringValue', value: 'wikipedia'}],
+    ])
+    await expect(simplePublishInput(request, url, {metadata: {tags: ['a', 'b']}})).rejects.toThrow('cannot hold lists')
   })
 })
