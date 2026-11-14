@@ -16048,7 +16048,8 @@ export async function executeReadVerb(
       history?.[2] as 'calls' | 'firings' | undefined,
       oneCall?.[2],
     )
-  if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
+  if (address.startsWith('hm://'))
+    return withAppRunStatus(context, await readHypermedia({id: address, format, server: context.hmServerUrl}))
   // A bare comment id (`<authorUid>/<tsid>`, the shape of replyTo/replyParent/threadRoot fields)
   // is a hypermedia read too: agents paste these straight out of trigger context.
   if (BARE_COMMENT_ID_PATTERN.test(address))
@@ -16149,6 +16150,23 @@ function readOrCreateServerId(dataDir: string): string {
     fs.writeFileSync(file, `${id}\n`)
   } catch {}
   return id
+}
+
+/** An app read here says whether it runs on this server, so "is it running?" needs no other lookup. */
+function withAppRunStatus(context: AgentServicePiToolContext, result: Record<string, unknown>) {
+  const metadata = result.metadata as Record<string, unknown> | undefined
+  if (metadata?.type !== 'hm://hyper.media/app' || typeof result.id !== 'string') return result
+  const appId = unpackHmId(result.id)
+  if (!appId) return result
+  const run = stmt<{started_by: string}, [string]>(context.db, `SELECT started_by FROM app_runs WHERE app_id = ?`).get(
+    packHmId({...appId, version: null, latest: true}),
+  )
+  return {
+    ...result,
+    runsHere: run
+      ? {running: true, startedBy: run.started_by, stop: 'write the app address with options.action "stop"'}
+      : {running: false, start: 'write the app address with options.action "run"'},
+  }
 }
 
 /** A mounted agent's document, read as its prompt (see Service#agentDocumentPrompt). */
