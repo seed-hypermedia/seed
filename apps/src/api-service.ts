@@ -1717,6 +1717,8 @@ export class Service {
             appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall),
           ),
         }
+      case 'RunTriggerNow':
+        return this.#runTriggerNow(verified.accountId, (envelope.action as api.RunTriggerNow).triggerId)
       case 'ListHostTriggers':
         return this.#listHostTriggers(verified.accountId, (envelope.action as api.ListHostTriggers).hostId)
       case 'ListAppToolCalls':
@@ -3731,6 +3733,60 @@ export class Service {
       ([documentId, error]) => ({documentId, error}),
     )
     return {_: 'ListHostTriggersResponse', hostId: host.id, active: true, triggers, errors}
+  }
+
+  /** Fires a schedule trigger once now (see RunTriggerNow), for a writer of its host. */
+  async #runTriggerNow(viewer: string, triggerId: string): Promise<api.RunTriggerNowResponse> {
+    const owner = stmt<{account_id: string}, [string]>(
+      this.#db,
+      `SELECT account_id FROM agent_triggers WHERE id = ?`,
+    ).get(triggerId)
+    const trigger = owner ? this.#getAgentTriggerInfo(owner.account_id, triggerId) : null
+    if (!trigger) throw new APIError(404, 'Trigger not found')
+    if (trigger.source.type !== 'schedule') throw new APIError(400, 'Only a schedule trigger can be run now')
+    if (trigger.continuation?.kind === 'wake') throw new APIError(400, 'A trigger that wakes a run cannot be run now')
+    // Writers of the trigger's document (or of its agent, for a trigger stored here) may run it.
+    const documentId = trigger.documentId ? unpackHmId(trigger.documentId) : null
+    if (documentId) {
+      if (!(await appRunning.isSpaceWriter(createSeedClient(this.#hmServerUrl), documentId, viewer)))
+        throw new APIError(403, 'Only someone who can edit this trigger can run it')
+    } else this.#requireAgentAccess(viewer, trigger.agentId, 'writer')
+    const now = Date.now()
+    const schedule = trigger.source.schedule
+    const activity = {
+      type: 'schedule' as const,
+      scheduleKind: schedule.kind,
+      scheduledAt: now,
+      firedAt: now,
+      ...('timezone' in schedule && schedule.timezone ? {timezone: schedule.timezone} : {}),
+    } as unknown as activityTriggers.ActivityFeedEvent
+    const firingId = crypto.randomUUID()
+    stmt(
+      this.#db,
+      `INSERT INTO trigger_firings (id, account_id, agent_id, app_id, trigger_id, activity_key, activity_cbor, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run([
+      firingId,
+      trigger.account,
+      trigger.agentId || null,
+      trigger.appId ?? null,
+      trigger.id,
+      `manual:${trigger.id}:${now}`,
+      cbor.encode(activity),
+      'created',
+      now,
+    ])
+    const runId = this.#startTriggerContinuationRun(trigger.account, trigger, firingId, activity)
+    if (runId) return {_: 'RunTriggerNowResponse', firing: {id: firingId, runId}}
+    const session = this.#createSessionOnce(trigger.account, trigger.agentId, `${trigger.name} — run now`)
+    stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
+      session.sessionId,
+      trigger.account,
+      firingId,
+    ])
+    this.#forgetSessionDerived(trigger.account, session.sessionId)
+    this.#dispatchTriggerSession(trigger.account, trigger, firingId, session.sessionId, activity)
+    return {_: 'RunTriggerNowResponse', firing: {id: firingId, sessionId: session.sessionId}}
   }
 
   /**
