@@ -180,6 +180,7 @@ export function TriggerDocumentView({
       <AgentSubpageHeader
         title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Trigger name"
+        subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent triggers' : 'Back to app triggers'}
         onBack={() => backRoute && navigate(backRoute)}
