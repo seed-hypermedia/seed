@@ -101,7 +101,7 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
   context: () => call('context'),
   profile: () => call('profile'),
   storage: Object.freeze({get: (key) => call('storage.get', {key}), set: (key, value) => call('storage.set', {key, value})}),
-  resource: (url) => call('resource', {url: typeof url === 'string' ? url : (url && (typeof url.id === 'string' ? url.id : url.id && url.id.id)) || url}),
+  resource: (url) => call('resource', {url: typeof url === 'string' ? url : (url && (typeof url.id === 'string' ? url.id : url.id && url.id.id)) || url}).then((resource) => resource && resource.type === 'document' && resource.document ? {...resource.document, ...resource} : resource),
   directory: (url, options) => call('directory', {url: typeof url === 'string' ? url : (url && (typeof url.id === 'string' ? url.id : url.id && url.id.id)) || url, all: !!options?.all}).then((records) => Object.defineProperties(records, {documents: {value: records}, items: {value: records}, records: {value: records}})),
   permissions: Object.freeze({request: () => call('permissions.request'), revoke: () => call('permissions.revoke')}),
   request: (key, input) => call('request', {key, input}),

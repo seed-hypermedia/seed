@@ -80,4 +80,16 @@ describe('seed.directory', () => {
     await sdk.resource({id: {id: 'hm://x/c'}, metadata: {}})
     expect(urls).toEqual(['hm://x/a', 'hm://x/b', 'hm://x/c'])
   })
+  it("exposes a document record's metadata at the top, beside type and document", async () => {
+    const {DOCUMENT_PAGE_API_SCRIPT} = await import('./document-page')
+    const sdk = new Function(`return ${DOCUMENT_PAGE_API_SCRIPT}`)()(async () => ({
+      type: 'document',
+      id: {id: 'hm://x/a'},
+      document: {metadata: {name: 'Lemon Rice'}, version: 'v1', content: []},
+    }))
+    const record = await sdk.resource('hm://x/a')
+    expect(record.metadata.name).toBe('Lemon Rice')
+    expect(record.document.metadata.name).toBe('Lemon Rice')
+    expect(record.type).toBe('document')
+  })
 })
