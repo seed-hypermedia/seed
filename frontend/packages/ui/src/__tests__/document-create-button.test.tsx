@@ -64,6 +64,14 @@ describe('DocumentCreateButton', () => {
     expect(onCreate).toHaveBeenCalledWith('document')
   })
 
+  it('keeps an accessible name for the icon-only primary action', () => {
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
+    const primary = container.querySelector('button')!
+    expect(primary.getAttribute('aria-label')).toBe('New')
+    expect(primary.querySelector('svg')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Choose what to create"]')).not.toBeNull()
+  })
+
   it('omits Agent from the menu when agent creation is not wired', () => {
     act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
     openMenu()

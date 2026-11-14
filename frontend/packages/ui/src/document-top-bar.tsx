@@ -57,7 +57,7 @@ export function DocumentTopBar({
       ref={barRef}
       data-document-top-bar=""
       className={cn(
-        'border-border dark:bg-background relative z-40 flex h-12 w-full shrink-0 items-center gap-2 bg-white px-4',
+        'border-border dark:bg-background relative z-40 flex h-12 w-full shrink-0 items-center gap-2 bg-white pr-4 pl-3 sm:pl-4',
         // The border is the only separator; nothing is elevated over the content.
         'border-b',
         isMobile && 'sticky top-0',
