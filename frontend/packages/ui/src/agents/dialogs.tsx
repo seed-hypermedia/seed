@@ -1288,6 +1288,8 @@ export function CreateAgentDialog({
           autoFocus
           value={name}
           disabled={!!preparedMount.current}
+          // The suggested name is selected, so typing replaces it.
+          onFocus={(event) => event.currentTarget.select()}
           onChange={(event) => setName(event.target.value)}
         />
       </label>
