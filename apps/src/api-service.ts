@@ -3578,6 +3578,21 @@ export class Service {
     return agent.account_id
   }
 
+  /** Syncs the host of a trigger document just written here, so its trigger row reflects the write. */
+  async #syncWrittenTriggerDocument(documentId: string, isTrigger: boolean): Promise<void> {
+    const known = stmt<{id: string}, [string]>(
+      this.#db,
+      `SELECT id FROM agent_triggers WHERE document_id = ? LIMIT 1`,
+    ).get(documentId)
+    if (!isTrigger && !known) return
+    const id = unpackHmId(documentId)
+    const host = id ? parentDocumentId(id) : null
+    if (!host) return
+    // The write is already published; a failed sync only delays the row until the next pass.
+    this.#triggerDocumentCache.delete(documentId)
+    await this.syncTriggerDocuments({hostIds: [host.id]}).catch(() => 0)
+  }
+
   /** A deleted trigger document's trigger stops at once, wherever it was projected. */
   #forgetTriggerDocument(documentId: string): void {
     const rows = stmt<{id: string; account_id: string; agent_id: string | null}, [string]>(
@@ -5948,6 +5963,7 @@ export class Service {
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
@@ -7840,6 +7856,7 @@ export class Service {
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
@@ -8677,6 +8694,7 @@ export class Service {
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
@@ -13942,6 +13960,8 @@ export type AgentServicePiToolContext = WriteToolContext & {
    * of after the grace period a newly published (not yet listed) trigger gets.
    */
   onDocumentDeleted?: (id: string) => void
+  /** Called after a write creates or updates a document; a trigger document's host is synced. */
+  onDocumentWritten?: (id: string, isTrigger: boolean) => Promise<void>
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -14932,9 +14952,14 @@ function combineAgentTriggers(
 
 /** Deletes one trigger and its firing rows, detaching run history first. Shared by the signed action and the write verb. */
 /** Why a trigger defined by a document cannot be changed through the server: the document is the trigger. */
+/** How an agent changes a trigger that is a document: through the document, never ~/triggers. */
+function triggerDocumentEditHint(documentId: string): string {
+  return `It is the document ${documentId}: change it by writing that address with options.action "update" and options.trigger (only what changes, e.g. {"enabled": false} to pause it, or {"source": …} to reschedule), and its content for the message; delete it with options.action "delete".`
+}
+
 function triggerIsDocumentMessage(documentId: string, verb: 'edit' | 'delete'): string {
   return verb === 'edit'
-    ? `This trigger is the document ${documentId}: edit and publish that document to change it.`
+    ? `This trigger is a document, so ~/triggers cannot change it. ${triggerDocumentEditHint(documentId)}`
     : `This trigger is the document ${documentId}: delete it, or remove its card from its app or agent, to delete the trigger.`
 }
 
@@ -15127,7 +15152,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
   return {
     summary: `${rows.length} trigger${
       rows.length === 1 ? '' : 's'
-    }. Read ~/triggers/<name> for one; write ~/triggers/<name> to create or edit one.`,
+    }. Read ~/triggers/<name> for one. A trigger with a document (most are) is changed through that document: write its address with options.action "update" and options.trigger; read ~/tools/write/triggers. Write ~/triggers/<name> only for what a document cannot express (a workflow script, a wake).`,
     triggers: rows.map(triggerListingEntry),
     contract: [
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
@@ -15196,7 +15221,11 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
   return {
     summary: `Trigger "${row.name}" is ${
       row.merged_into ? 'combined' : row.enabled ? 'active' : 'disabled'
-    }: ${triggerSourceSummaryLine(source)} → ${triggerContinuationSummaryLine(continuation)}.`,
+    }: ${triggerSourceSummaryLine(source)} → ${triggerContinuationSummaryLine(continuation)}.${
+      row.document_id ? ` ${triggerDocumentEditHint(row.document_id)}` : ''
+    }`,
+    ...(row.document_id ? {document: row.document_id} : {}),
+    ...(row.app_id ? {app: row.app_id} : {}),
     id: row.id,
     name: row.name,
     enabled: row.enabled !== 0,
@@ -16596,6 +16625,16 @@ export async function executeWriteVerb(
         ...commandInput,
       },
     })
+    // A trigger document just written is synced at once, so reading it back (or ~/triggers) shows
+    // the change instead of the state before it.
+    const afterTriggerWrite = async (result: Record<string, unknown>) => {
+      if (!dryRun) {
+        const written = unpackHmId(address)
+        if (written)
+          await context.onDocumentWritten?.(packHmId({...written, version: null, latest: true}), !!triggerFields)
+      }
+      return result
+    }
     switch (action) {
       case 'run':
       case 'stop': {
@@ -16633,37 +16672,41 @@ export async function executeWriteVerb(
         }
       }
       case 'document':
-        return withPageResult(
-          await writeHypermedia(
-            context,
-            envelope('document.create', {
-              account: hm.account,
-              path: hm.path,
-              ...(typeof options.name === 'string' ? {name: options.name} : {}),
-              ...(metadata ? {metadata} : {}),
-              ...(content !== undefined ? {content, format: 'markdown'} : {}),
-            }),
-            pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+        return afterTriggerWrite(
+          withPageResult(
+            await writeHypermedia(
+              context,
+              envelope('document.create', {
+                account: hm.account,
+                path: hm.path,
+                ...(typeof options.name === 'string' ? {name: options.name} : {}),
+                ...(metadata ? {metadata} : {}),
+                ...(content !== undefined ? {content, format: 'markdown'} : {}),
+              }),
+              pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+            ),
+            pageFolder,
+            toolFolder,
           ),
-          pageFolder,
-          toolFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return withPageResult(
-          await writeHypermedia(
-            context,
-            envelope('document.update', {
-              edit: address,
-              ...(typeof options.name === 'string' ? {name: options.name} : {}),
-              ...(metadata ? {metadata} : {}),
-              ...(content !== undefined ? {content, format: 'markdown'} : {}),
-            }),
-            pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+        return afterTriggerWrite(
+          withPageResult(
+            await writeHypermedia(
+              context,
+              envelope('document.update', {
+                edit: address,
+                ...(typeof options.name === 'string' ? {name: options.name} : {}),
+                ...(metadata ? {metadata} : {}),
+                ...(content !== undefined ? {content, format: 'markdown'} : {}),
+              }),
+              pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+            ),
+            pageFolder,
+            toolFolder,
           ),
-          pageFolder,
-          toolFolder,
         )
       case 'comment':
         return writeHypermedia(
