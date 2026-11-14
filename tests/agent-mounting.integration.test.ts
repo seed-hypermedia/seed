@@ -366,7 +366,8 @@ describe('agent mounting', () => {
     expect(await send({_: 'GetAgent', agentId: newId})).toMatchObject({agent: {id: newId}})
     // Retry reuses the published document, the signing identity and the request.
     await dialog.getByRole('button', {name: 'Retry', exact: true}).click()
-    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:sessions`)
+    // A new agent opens on its Home: its document, with the box to start the first session.
+    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper`)
     expect(createRequests).toBe(2)
     await page.reload()
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
