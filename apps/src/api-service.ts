@@ -3578,6 +3578,24 @@ export class Service {
     return agent.account_id
   }
 
+  /** A deleted trigger document's trigger stops at once, wherever it was projected. */
+  #forgetTriggerDocument(documentId: string): void {
+    const rows = stmt<{id: string; account_id: string; agent_id: string | null}, [string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id FROM agent_triggers WHERE document_id = ?`,
+    ).all(documentId)
+    for (const row of rows) {
+      deleteAgentTriggerRows(this.#db, row.account_id, row.id)
+      invalidateSpaceIndex(row.account_id)
+      this.#emit({
+        type: 'account-change',
+        accountId: row.account_id,
+        reason: 'trigger-updated',
+        ...(row.agent_id ? {agentId: row.agent_id} : {}),
+      })
+    }
+  }
+
   /** Brings one host's trigger rows in line with its trigger documents. True when anything changed. */
   async #syncHostTriggers(host: TriggerHost): Promise<boolean> {
     const hostId = unpackHmId(host.id)
@@ -5929,6 +5947,7 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
@@ -7820,6 +7839,7 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
@@ -8656,6 +8676,7 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
@@ -13916,6 +13937,11 @@ export type AgentServicePiToolContext = WriteToolContext & {
    * tool or trigger can read them, as on its page.
    */
   appHistory?: AppHistory
+  /**
+   * Called after a write deletes a document, so a trigger document stops firing at once instead
+   * of after the grace period a newly published (not yet listed) trigger gets.
+   */
+  onDocumentDeleted?: (id: string) => void
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -16657,9 +16683,15 @@ export async function executeWriteVerb(
             ...(typeof options.toUrl === 'string' ? {to: options.toUrl} : {}),
           }),
         )
-      case 'delete':
+      case 'delete': {
         // The command handler reads `id`, not account/path — the address is the document to delete.
-        return writeHypermedia(context, envelope('document.delete', {id: address}))
+        const result = await writeHypermedia(context, envelope('document.delete', {id: address}))
+        if (!dryRun) {
+          const deleted = unpackHmId(address)
+          if (deleted) context.onDocumentDeleted?.(packHmId({...deleted, version: null, latest: true}))
+        }
+        return result
+      }
       case 'fork':
         // The address is where the fork lands; the handler reads it from `destination`.
         return writeHypermedia(
