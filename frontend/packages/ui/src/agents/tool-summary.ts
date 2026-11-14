@@ -353,6 +353,16 @@ function writeSummary(item: ChatToolPart, parsed: ParsedToolAddress): ToolRowSum
     case 'ipfs': {
       const url = getToolString(output, 'url')
       const source = getFirstToolString(output, ['path', 'name'])
+      // A schema says what it describes: its fields, not its content hash.
+      if (isRecord(options) && options.schema === 'schema') {
+        const fields = schemaFieldNames(getFirstToolValue(item.args, ['content']))
+        return {
+          ...base,
+          verb: 'Defined a schema',
+          label: fields.length ? fields.join(', ') : 'with no fields',
+          target: undefined,
+        }
+      }
       return {
         ...base,
         verb: 'Published',
@@ -369,9 +379,21 @@ function writeSummary(item: ChatToolPart, parsed: ParsedToolAddress): ToolRowSum
         parsed.display
       const resourceUrl = getFirstToolString(output, ['id', 'url', 'resourceUrl']) ?? parsed.address
       const updating = isRecord(options) && options.action === 'update'
+      // Name what was made: an app, a tool, a page or a trigger, not just "a document".
+      const kind = !isRecord(options)
+        ? ''
+        : options.tool !== undefined
+          ? ' tool'
+          : options.page !== undefined
+            ? ' page'
+            : options.trigger !== undefined
+              ? ' trigger'
+              : isRecord(options.metadata) && options.metadata.type === 'hm://hyper.media/app'
+                ? ' app'
+                : ''
       return {
         ...base,
-        verb: updating ? 'Updated' : 'Published',
+        verb: (updating ? 'Updated' : 'Published') + kind,
         label: title,
         target: {type: 'url', url: resourceUrl},
         title: resourceUrl,
@@ -420,4 +442,19 @@ export function detailLinkTarget(value: string): ToolLinkTarget | undefined {
   const parsed = parseToolAddress(trimmed)
   if (parsed.kind === 'unknown') return undefined
   return targetFor(parsed)
+}
+
+/** The top-level field names of a published HM struct schema, from the JSON a write sent. */
+function schemaFieldNames(content: unknown): string[] {
+  let schema: unknown = content
+  if (typeof content === 'string') {
+    try {
+      schema = JSON.parse(content)
+    } catch {
+      return []
+    }
+  }
+  if (!isRecord(schema) || !isRecord(schema.properties)) return []
+  const names = Object.keys(schema.properties)
+  return names.length > 5 ? [...names.slice(0, 5), `+${names.length - 5}`] : names
 }
