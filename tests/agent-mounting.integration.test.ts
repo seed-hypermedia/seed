@@ -372,6 +372,7 @@ describe('agent mounting', () => {
     await page.reload()
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
     expect(await page.getByRole('region', {name: 'Adopt agent'}).count()).toBe(0)
+    await page.getByRole('link', {name: 'Sessions', exact: true}).click()
     await page.getByText('No sessions yet.', {exact: true}).waitFor()
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-created-local.png')})
     const newAgent = await send({_: 'GetAgent', agentId: newId})
