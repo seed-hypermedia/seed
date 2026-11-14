@@ -14993,6 +14993,8 @@ type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
  * with `input` as the template) or, for an agent, a new session whose first message is the
  * document's body.
  */
+const APP_RESOURCE_TYPES = new Set(['hm://hyper.media/app', HM_TOOL_TYPE, 'hm://hyper.media/page', HM_TRIGGER_TYPE])
+
 const APP_TRIGGER_NEEDS_TOOL_OR_AGENT =
   "An app's trigger says what runs when it fires: options.trigger.tool (one of the app's tools, for work its code can do) or options.trigger.agent (an agent's hm:// URL, usually your own document, to start a session with the trigger's content as the message). Read ~/tools/write/triggers."
 
@@ -17206,7 +17208,7 @@ async function writeHypermedia(
     case 'comment.delete':
       return writeCommentDelete(client, signer, request)
     case 'document.create':
-      return writeDocumentCreate(client, signer, request, extraBlobs)
+      return writeDocumentCreate(client, signer, request, extraBlobs, context.agentId)
     case 'document.update':
       return writeDocumentUpdate(client, signer, request, extraBlobs)
     case 'document.delete':
@@ -17675,6 +17677,8 @@ async function writeDocumentCreate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
   extraBlobs: CollectedBlob[] = [],
+  /** The writing agent's id: an hm:// document id when it is mounted. */
+  agentId?: string,
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
   await assertPublishableMermaid(parsed.blocks)
@@ -17692,6 +17696,19 @@ async function writeDocumentCreate(
   const account =
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
+  // A mounted agent's apps belong with its document, where its user finds them: a signing
+  // identity's own space is not browsed by anyone.
+  const agentDocument = agentId?.startsWith('hm://') ? unpackHmId(agentId) : null
+  if (
+    agentDocument &&
+    account === signer.publicKey &&
+    account !== agentDocument.uid &&
+    APP_RESOURCE_TYPES.has(String(metadata.type))
+  )
+    throw new APIError(
+      400,
+      `Make apps, tools, pages and triggers under your document ${agentId} (for example ${agentId}/<name>), not in your signing identity's own space hm://${account}: nobody browses it.`,
+    )
   await ensureParentDocumentExists(client, account, path)
   // A tool or page written under an app joins the app: its card embed is added to the app in the
   // same publish. A tool anywhere else is refused.

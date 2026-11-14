@@ -342,6 +342,25 @@ describe('sqlite', () => {
     }
   })
 
+  test('adds columns an edited migration gave only to newer databases', () => {
+    const db = createMemoryDatabase()
+    try {
+      db.run(sqlite.schema)
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion),
+      ])
+      // A database created before #1341 has webhook credentials without the encrypted secret.
+      db.run(`ALTER TABLE webhook_trigger_credentials DROP COLUMN secret_ciphertext`)
+      expect(sqlite.openWithDatabase(db).ok).toBe(true)
+      expect(columnExists(db, 'webhook_trigger_credentials', 'secret_ciphertext')).toBe(true)
+      // Opening again finds nothing to add.
+      expect(sqlite.ensureRepairedColumns(db)).toEqual([])
+    } finally {
+      sqlite.closeDatabase(db)
+    }
+  })
+
   test('self-heals a stale migration version whose objects already exist, still applying what is missing', () => {
     // The inverse of the missing-table repair: a database migrated under a divergent branch
     // ordering already holds most pending migrations' objects while the count claims they are all
