@@ -348,10 +348,10 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 
 ## What runs where
 
-- A **tool** takes input and returns output. It runs in a sandbox with network access but holds no signing key: it cannot publish or edit Seed documents. It can fetch the web and read public Seed data over HTTP.
+- A **tool** takes input and returns output. It runs in a sandbox with internet access but holds no signing key and cannot reach this server's Seed node: it cannot publish Seed documents, and it should not try to read them (no localhost, no guessed Seed endpoints). Give it the records it needs as input: a page reads them with \`seed.directory\` and passes them in \`seed.app.call\`, and you read them before calling it. A tool that fails to fetch or parse must throw, never return an empty result as if there were no data.
 - A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (ask your user for the key; never put it in code), or the work is yours, as an agent trigger whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
 - A **page** runs in the viewer's browser and writes Seed records as the viewer (\`seed.publishDocument\`), within the viewer's access.
-- A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that must write Seed documents (a daily digest document, updating records) is an **agent's** trigger: put it under your agent document, and its message tells you what to do; you can call the app's tools and publish the result.
+- A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that reads or writes the app's Seed data (a daily digest of new records, updating records) is an **agent's** trigger: put it under your agent document, and its message tells you what to do; you read the records, call the app's tools with them, and publish the result (for a digest, a document your user can find, linked from the app).
 
 ## Where the app's data lives
 
