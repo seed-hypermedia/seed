@@ -3567,7 +3567,9 @@ export class Service {
     )
     // The app runs as the agent's owner or as the agent itself (an agent often runs the apps it made).
     if (host.accountId !== agent.account_id && !own.includes(host.accountId))
-      throw new Error(`The agent ${agentId} is not run by the account running this app, so it cannot run this trigger`)
+      throw new Error(
+        `This app runs as ${host.accountId}, which neither owns nor is the agent ${agentId}: an app's trigger can hand its work only to an agent owned by the account running the app, or to the agent that runs it. To use this agent, its owner runs the app (from the app's Settings), or the trigger names an agent that already runs it.`,
+      )
     if (!author) throw new Error('The author of this trigger could not be read')
     if (own.includes(author)) return agent.account_id
     try {
@@ -3579,7 +3581,7 @@ export class Service {
   }
 
   /** Syncs the host of a trigger document just written here, so its trigger row reflects the write. */
-  async #syncWrittenTriggerDocument(documentId: string, isTrigger: boolean): Promise<void> {
+  async #syncWrittenTriggerDocument(documentId: string, isTrigger: boolean): Promise<string | undefined> {
     const known = stmt<{id: string}, [string]>(
       this.#db,
       `SELECT id FROM agent_triggers WHERE document_id = ? LIMIT 1`,
@@ -3591,6 +3593,8 @@ export class Service {
     // The write is already published; a failed sync only delays the row until the next pass.
     this.#triggerDocumentCache.delete(documentId)
     await this.syncTriggerDocuments({hostIds: [host.id]}).catch(() => 0)
+    // Why the trigger cannot fire, if it cannot: the writer hears it with the write.
+    return this.#triggerDocumentErrors.get(host.id)?.get(documentId)
   }
 
   /** A deleted trigger document's trigger stops at once, wherever it was projected. */
@@ -13961,7 +13965,7 @@ export type AgentServicePiToolContext = WriteToolContext & {
    */
   onDocumentDeleted?: (id: string) => void
   /** Called after a write creates or updates a document; a trigger document's host is synced. */
-  onDocumentWritten?: (id: string, isTrigger: boolean) => Promise<void>
+  onDocumentWritten?: (id: string, isTrigger: boolean) => Promise<string | undefined>
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -16648,8 +16652,11 @@ export async function executeWriteVerb(
     const afterTriggerWrite = async (result: Record<string, unknown>) => {
       if (!dryRun) {
         const written = unpackHmId(address)
-        if (written)
-          await context.onDocumentWritten?.(packHmId({...written, version: null, latest: true}), !!triggerFields)
+        const problem = written
+          ? await context.onDocumentWritten?.(packHmId({...written, version: null, latest: true}), !!triggerFields)
+          : undefined
+        if (problem)
+          return {...result, triggerProblem: problem, summary: `Published, but this trigger cannot fire: ${problem}`}
       }
       return result
     }
