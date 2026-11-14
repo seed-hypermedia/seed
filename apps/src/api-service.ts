@@ -13206,7 +13206,7 @@ export function weeklyFromCron(expression: string): {kind: 'weekly'; daysOfWeek:
   }
 }
 
-function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
+export function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger schedule is required')
   // A daily or weekly cron line ("M H * * D") is read as the weekly schedule it means.
   const cron =
@@ -13218,7 +13218,7 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
     if (!weekly)
       throw new APIError(
         400,
-        'Only daily or weekly cron lines ("M H * * D") are understood; use {kind: "interval", every, unit}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} or {kind: "once", runAt}',
+        'Only daily or weekly cron lines ("M H * * D") are understood; use {kind: "interval", every, unit}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} or {kind: "once", runAt}',
       )
     return normalizeScheduleTrigger({
       ...weekly,
@@ -13240,19 +13240,28 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
       }
       return day
     })
-    const timeOfDay = normalizeBoundedString(raw.timeOfDay, 'Schedule time of day', 5)
-    if (!/^\d{2}:\d{2}$/.test(timeOfDay)) throw new APIError(400, 'Schedule time of day is invalid')
-    const [hour, minute] = timeOfDay.split(':').map(Number)
-    if (hour === undefined || minute === undefined || hour > 23 || minute > 59) {
-      throw new APIError(400, 'Schedule time of day is invalid')
-    }
+    // One time (timeOfDay) or several (timesOfDay: ["08:00", "12:00", ...]) on each of those days.
+    const rawTimes = Array.isArray(raw.timesOfDay) && raw.timesOfDay.length ? raw.timesOfDay : [raw.timeOfDay]
+    if (rawTimes.length > 48) throw new APIError(400, 'A schedule fires at most 48 times a day')
+    const times = Array.from(
+      new Set(
+        rawTimes.map((value: unknown) => {
+          const time = normalizeBoundedString(value, 'Schedule time of day', 5)
+          const [hour, minute] = time.split(':').map(Number)
+          if (!/^\d{2}:\d{2}$/.test(time) || hour === undefined || minute === undefined || hour > 23 || minute > 59)
+            throw new APIError(400, 'Schedule time of day is invalid: use "HH:MM"')
+          return time
+        }),
+      ),
+    ).sort()
+    const timeOfDay = times[0]!
     const timezone = normalizeBoundedString(raw.timezone, 'Schedule timezone', MAX_NAME_BYTES)
     try {
       new Intl.DateTimeFormat('en-US', {timeZone: timezone}).format(new Date())
     } catch {
       throw new APIError(400, 'Schedule timezone is invalid')
     }
-    return {kind: 'weekly', daysOfWeek, timeOfDay, timezone}
+    return {kind: 'weekly', daysOfWeek, timeOfDay, ...(times.length > 1 ? {timesOfDay: times} : {}), timezone}
   }
   if (raw.kind === 'once') {
     if (typeof raw.runAt !== 'number' || !Number.isSafeInteger(raw.runAt) || raw.runAt <= 0) {
@@ -13269,7 +13278,7 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
   }
   throw new APIError(
     400,
-    'Schedule kind is unsupported: use {kind: "interval", every, unit: "minutes"|"hours"}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} or {kind: "once", runAt: epochMs}',
+    'Schedule kind is unsupported: use {kind: "interval", every, unit: "minutes"|"hours"}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} or {kind: "once", runAt: epochMs}',
   )
 }
 
@@ -15100,9 +15109,9 @@ function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
     if (schedule.kind === 'interval') return `every ${schedule.every} ${schedule.unit}`
     if (schedule.kind === 'weekly') {
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-      return `weekly on ${schedule.daysOfWeek.map((day) => days[day] ?? String(day)).join(', ')} at ${
-        schedule.timeOfDay
-      } (${schedule.timezone})`
+      return `weekly on ${schedule.daysOfWeek.map((day) => days[day] ?? String(day)).join(', ')} at ${(
+        schedule.timesOfDay ?? [schedule.timeOfDay]
+      ).join(', ')} (${schedule.timezone})`
     }
     return `once at ${new Date(schedule.runAt).toISOString()}`
   }
@@ -15166,7 +15175,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       '  someone comments on any document an account authored, wherever it lives → {type: "document-author-comment", documentAuthors: [uid], resourcePrefix?} (never fires on the author\'s own comments)',
       '  any new comment on a document or everything under it → {type: "document-comment", resource, author?}',
       '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact (never fires on what this agent itself wrote or commented, unless includeOwnActivity: true)',
-      '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}}',
+      '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} | {kind: "once", runAt: epochMs}}',
       '  another run finishing → {type: "run-completed", agentId?, status?, titleMatch?} · an HTTP request → {type: "webhook"}',
       'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids.',
       'Several activity sources can share ONE action: {type: "activity", conditions: [{id: "stable-id", source: <user-mention, comment-reply, document-author-comment, document-comment or site-update source>}, ...]}. Any condition matches; one event fires once even when it matches several. Preserve condition IDs when editing. Schedules, webhooks and run-completed stay standalone.',

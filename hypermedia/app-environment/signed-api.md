@@ -500,7 +500,7 @@ type AgentTriggerSource =
 
 type AgentScheduleTrigger =
   | {kind: 'interval'; every: number; unit: 'minutes' | 'hours'}
-  | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
+  | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timesOfDay?: string[]; timezone: string}
   | {kind: 'once'; runAt: number; timezone?: string}
 
 type TriggerContinuation =

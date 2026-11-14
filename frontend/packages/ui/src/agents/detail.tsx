@@ -3261,18 +3261,21 @@ function nextWeeklyScheduleFire(
   after: number,
 ): number | null {
   const nowParts = zonedParts(now, schedule.timezone)
-  const [hourRaw, minuteRaw] = schedule.timeOfDay.split(':')
-  const hour = Number(hourRaw)
-  const minute = Number(minuteRaw)
-  if (!Number.isFinite(hour) || !Number.isFinite(minute) || !schedule.daysOfWeek.length) return null
+  if (!schedule.daysOfWeek.length) return null
   let next: number | null = null
-  for (let offset = 0; offset <= 14; offset += 1) {
-    const utcNoon = Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day + offset, 12, 0)
-    const parts = zonedParts(utcNoon, schedule.timezone)
-    if (!schedule.daysOfWeek.includes(parts.weekday)) continue
-    const candidate = zonedTimeToUtcMs(parts.year, parts.month, parts.day, hour, minute, schedule.timezone)
-    if (candidate <= now || candidate <= after) continue
-    if (next === null || candidate < next) next = candidate
+  for (const time of schedule.timesOfDay ?? [schedule.timeOfDay]) {
+    const [hourRaw, minuteRaw] = time.split(':')
+    const hour = Number(hourRaw)
+    const minute = Number(minuteRaw)
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue
+    for (let offset = 0; offset <= 14; offset += 1) {
+      const utcNoon = Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day + offset, 12, 0)
+      const parts = zonedParts(utcNoon, schedule.timezone)
+      if (!schedule.daysOfWeek.includes(parts.weekday)) continue
+      const candidate = zonedTimeToUtcMs(parts.year, parts.month, parts.day, hour, minute, schedule.timezone)
+      if (candidate <= now || candidate <= after) continue
+      if (next === null || candidate < next) next = candidate
+    }
   }
   return next
 }

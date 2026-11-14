@@ -1289,6 +1289,7 @@
             "daysOfWeek": "number[]",
             "kind": "\"weekly\"",
             "timeOfDay": "string",
+            "timesOfDay?": "string[]",
             "timezone": "string"
           }
         }
