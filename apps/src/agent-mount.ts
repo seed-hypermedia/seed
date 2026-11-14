@@ -242,8 +242,6 @@ export async function verifyMountDocument(
   ) {
     throw new Error('Publish an agent mount document at this location first')
   }
-  if (resource.document.content?.length)
-    throw new Error('Agent mount documents must have no content; edit the agent home instead')
   if (!api.isMountableAgentServerUrl(resource.document.metadata.agentServerUrl)) {
     throw new Error('Use an HTTP or HTTPS app environment address without credentials.')
   }

@@ -2,6 +2,8 @@ import {ActivityPanelPortal} from './activity-panel-layout'
 import {AppDocumentView} from './apps/app-view'
 import {appResourceKind, appResourceTabs} from './apps/tabs'
 import {parentDocumentId} from '@seed-hypermedia/client/apps'
+import {AgentHomeComposer} from './agents/home-composer'
+import {AgentPromptMigration} from './agents/prompt-migration'
 import {ToolCallView} from './apps/tool-call-view'
 import {ToolDocumentView} from './apps/tool-view'
 import {ConnectionsPanel} from './connections-panel'
@@ -2302,8 +2304,9 @@ function DocumentBody({
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
-  // An agent document's base URL opens its sessions, so it lays out like any agent view.
-  const isAgentView = route.key === 'document' && (!!route.agentView || isAgentDocument || !!appKind)
+  // An agent document's base URL is its Home: its document (its instructions), laid out like any
+  // document; its sessions and settings are agent views.
+  const isAgentView = route.key === 'document' && (!!route.agentView || !!appKind)
   const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
@@ -3332,59 +3335,67 @@ function DocumentBody({
           <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
         ) : route.key === 'document' && appKind === 'tool' ? (
           <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
-        ) : route.key === 'document' && (route.agentView || isAgentDocument) ? (
+        ) : route.key === 'document' && route.agentView ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (
-          <DocumentViewContent
-            activeView={activeView}
-            collection={
-              isCollection ? (
-                <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-              ) : undefined
-            }
-          >
-            <CommentsFooterContext.Provider value={mainCommentsFooter}>
-              <MainContent
-                docId={docId}
-                resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-                document={document}
-                activeView={activeView}
-                contentMaxWidth={contentMaxWidth}
-                wrapperProps={wrapperProps}
-                sidebarProps={sidebarProps}
-                mainContentProps={mainContentProps}
-                showSidebars={showSidebars}
-                showCollapsed={showCollapsed}
-                discussionsParams={discussionsParams}
-                suppressCommentEditor={suppressMainCommentEditor}
-                activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-                onActivityFilterChange={handleMainActivityFilterChange}
-                blockCitations={blockCitations}
-                citationFragmentHighlights={citationFragmentHighlights}
-                onCitationFragmentClick={handleCitationFragmentClick}
-                onBlockCitationClick={handleBlockCitationClick}
-                onBlockCommentClick={handleBlockCommentClick}
-                onBlockSelect={handleBlockSelect}
-                onTextSelection={handleTextSelection}
-                isUnpublishedDraft={isUnpublishedDraft}
-                isBlockInPublishedVersion={isBlockInPublishedVersion}
-                CommentEditor={CommentEditor}
-                directory={directory.data}
-                siteUrl={siteUrl}
-                inlineCards={inlineCards}
-                inlineInsert={inlineInsert}
-                DocumentContentComponent={DocumentContentComponent}
-                onEditorReady={handleEditorReadyWrapped}
-                existingDraftContent={effectiveContent}
-                existingDraftCursorPosition={existingDraftCursorPosition}
-                ssrContentHTML={ssrContentHTML}
-                perspectiveAccountUid={perspectiveAccountUid}
-                linkExtensionOptions={linkExtensionOptions}
-                fileUpload={fileUpload}
-                draftVersionEntry={draftVersionEntry}
-              />
-            </CommentsFooterContext.Provider>
-          </DocumentViewContent>
+          <>
+            {isAgentDocument && activeView === 'content' ? (
+              <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+            ) : null}
+            <DocumentViewContent
+              activeView={activeView}
+              collection={
+                isCollection ? (
+                  <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+                ) : undefined
+              }
+            >
+              <CommentsFooterContext.Provider value={mainCommentsFooter}>
+                <MainContent
+                  docId={docId}
+                  resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+                  document={document}
+                  activeView={activeView}
+                  contentMaxWidth={contentMaxWidth}
+                  wrapperProps={wrapperProps}
+                  sidebarProps={sidebarProps}
+                  mainContentProps={mainContentProps}
+                  showSidebars={showSidebars}
+                  showCollapsed={showCollapsed}
+                  discussionsParams={discussionsParams}
+                  suppressCommentEditor={suppressMainCommentEditor}
+                  activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+                  onActivityFilterChange={handleMainActivityFilterChange}
+                  blockCitations={blockCitations}
+                  citationFragmentHighlights={citationFragmentHighlights}
+                  onCitationFragmentClick={handleCitationFragmentClick}
+                  onBlockCitationClick={handleBlockCitationClick}
+                  onBlockCommentClick={handleBlockCommentClick}
+                  onBlockSelect={handleBlockSelect}
+                  onTextSelection={handleTextSelection}
+                  isUnpublishedDraft={isUnpublishedDraft}
+                  isBlockInPublishedVersion={isBlockInPublishedVersion}
+                  CommentEditor={CommentEditor}
+                  directory={directory.data}
+                  siteUrl={siteUrl}
+                  inlineCards={inlineCards}
+                  inlineInsert={inlineInsert}
+                  DocumentContentComponent={DocumentContentComponent}
+                  onEditorReady={handleEditorReadyWrapped}
+                  existingDraftContent={effectiveContent}
+                  existingDraftCursorPosition={existingDraftCursorPosition}
+                  ssrContentHTML={ssrContentHTML}
+                  perspectiveAccountUid={perspectiveAccountUid}
+                  linkExtensionOptions={linkExtensionOptions}
+                  fileUpload={fileUpload}
+                  draftVersionEntry={draftVersionEntry}
+                />
+              </CommentsFooterContext.Provider>
+            </DocumentViewContent>
+            {isAgentDocument && activeView === 'content' ? (
+              <AgentHomeComposer docId={docId} document={document} />
+            ) : null}
+          </>
         )}
         {citationFragmentClick ? (
           <CitationFragmentPopover

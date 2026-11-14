@@ -320,6 +320,9 @@ export function getToolDocument(
  * Validates and saves an authored (lambda) tool document. Builtins cannot be overwritten by name;
  * a lambda's contract must be sound before it is ever listed, because the index and the call verb
  * both trust stored documents.
+ *
+ * @deprecated Agents no longer hold private code tools (see moveLambdaToolsToMemory). Kept to read
+ * and write legacy rows in tests; nothing in the service creates lambdas.
  */
 export function saveLambdaToolDocument(
   db: Database,
@@ -450,4 +453,53 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
     )
   }
   return parts.join('\n')
+}
+
+/**
+ * Agents no longer hold private code tools: a tool is a resource under an app or an agent. Moves
+ * each authored (lambda) tool into the agent's memory, at `tools/<name>/` (its source as
+ * `index.ts` or `main.py`, and `tool.json` with its name, description and schemas), so its code
+ * and contract survive for the agent to turn into a tool resource, then removes it from the
+ * registry. Idempotent: an existing file is never overwritten (the copy goes beside it).
+ * Returns the names moved.
+ */
+export function moveLambdaToolsToMemory(
+  db: Database,
+  agent: {accountId: string; agentId: string},
+  writeFile: (path: string, content: string) => void,
+  exists: (path: string) => boolean,
+): string[] {
+  const moved: string[] = []
+  for (const row of listToolDocuments(db, agent.accountId, agent.agentId)) {
+    if (row.doc.kind !== 'lambda') continue
+    const {name, source, runtime} = row.doc
+    let dir = `tools/${name}`
+    for (let n = 2; exists(`${dir}/tool.json`); n++) dir = `tools/${name}-${n}`
+    writeFile(`${dir}/${runtime === 'python' ? 'main.py' : 'index.ts'}`, source ?? '')
+    writeFile(
+      `${dir}/tool.json`,
+      JSON.stringify(
+        {
+          name,
+          summary: row.doc.summary,
+          description: row.doc.description,
+          input: row.doc.input,
+          ...(row.doc.output ? {output: row.doc.output} : {}),
+          runtime: runtime ?? 'typescript',
+          enabled: row.enabled,
+          cid: row.cid,
+          note: 'Moved here when agents stopped holding private code tools. To use it again, publish it as a tool resource under an app or an agent (read ~/tools/write/apps).',
+        },
+        null,
+        2,
+      ) + '\n',
+    )
+    stmt(db, 'DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ? AND name = ?').run(
+      agent.accountId,
+      agent.agentId,
+      name,
+    )
+    moved.push(name)
+  }
+  return moved
 }

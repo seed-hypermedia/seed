@@ -2,7 +2,7 @@
 name: Tools
 summary: "The reference for everything an agent can do: the verbs handed to the model, the address forms they accept, the callable tools dispatched through call, and how tool events are recorded."
 ---
-An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md), [`write`](./write.md), [`call`](./call.md), [`delegate`](./delegate.md), and [`plan`](./plan.md), plus two session verbs, `status` and `continue_session`. Everything else is either an address form of a verb or a **callable tool** dispatched through `call`. That covers search, the web, code execution, and the agent's own authored tools. Tool calls and results are stored as durable, actor-stamped session events in the [Log](./log.md) and rendered in the session log of the Seed app and the Seed web app. <!-- id:sdHo0UwP -->
+An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md), [`write`](./write.md), [`call`](./call.md), [`delegate`](./delegate.md), and [`plan`](./plan.md), plus two session verbs, `status` and `continue_session`. Everything else is either an address form of a verb or a **callable tool** dispatched through `call`. That covers search, the web, code execution, and MCP tools. An agent's own tools are not private: they are **tool resources** in an app or in the agent's document, called by their hm:// URL (see [Tool resources](#tool-resources)). Tool calls and results are stored as durable, actor-stamped session events in the [Log](./log.md) and rendered in the session log of the Seed app and the Seed web app. <!-- id:sdHo0UwP -->
 
 # The registry <!-- id:-aLT2u3W -->
 
@@ -41,15 +41,15 @@ type ToolDocument = {
 
 <!-- id:P5VOO5bh -->
 - **Builtins** are documents whose implementation is a runtime binding. `ensureBuiltinToolDocuments()` creates and refreshes them per agent. Rows are rewritten only when the registry contract changed (the CID differs). A forked builtin keeps its binding, and its divergence from the shipped contract shows as a different CID (`tool-documents.ts`). <!-- id:jx8HtVIW -->
-- **Lambdas** are authored by the agent: `write ~/tools/<name>` with JSON content. Validation (`saveLambdaToolDocument()`, `tool-documents.ts`): names match `/^[a-z][a-z0-9_-]{1,63}$/`, a builtin or verb name cannot be replaced, a description is required (≤ 16 KiB), source is required (≤ 256 KiB), and both schemas must pass `validateJsonSchemaShape`. `write ~/tools/<name>` with `options.delete: true` removes an authored tool. Builtins refuse deletion and point at the agent's [grants](./grants.md) instead. <!-- id:CU6ilpW7 -->
+- **Lambdas** (agent-authored private code tools) are gone. On start, each agent's old lambdas are moved into its memory at `~/memory/tools/<name>/` (the code and a `tool.json` with the schemas) and removed from the registry (`moveLambdaToolsToMemory()`, `tool-documents.ts`). `write ~/tools/<name>` is refused with instructions to publish a tool resource instead. <!-- id:CU6ilpW7 -->
 - **MCP projections** are the tools of the remote [MCP servers](./mcp.md) an agent enables (`definition.mcpServers`). There is one document per tool, named `<server>__<tool>`, reconciled by `syncMcpToolDocuments()` from the server's cached discovery. They carry the remote description and input schema plus `server` and `remoteName`. They cannot be deleted or replaced by a lambda (disable the server instead), and calls to them are proxied to the server. See [`mcp.md`](./mcp.md). <!-- id:BcWPjduI -->
 
-`ListAgentTools` returns the desktop's view of the same documents: name, kind, summary, description, schemas, `source`, `runtime`, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). Writers can also use `SaveAgentTool` and `DeleteAgentTool` from the Permissions page under Settings. The save action creates or updates every editable field and can rename an existing authored tool atomically. It refuses to overwrite another tool. Builtins stay read-only. <!-- id:EiFnJN0w -->
+`ListAgentTools` returns the desktop's view of the same documents: name, kind, summary, description, schemas, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). `SaveAgentTool` is refused (410) with the same instructions; `DeleteAgentTool` still removes a legacy row. <!-- id:EiFnJN0w -->
 
 # The Space index <!-- id:OmLIl6Dh -->
 
 Every turn's input is followed by a compact `<space>` block built by `buildSpaceIndex()`. It has: <!-- id:hv-y1xqA -->
-  - one line per enabled tool document (`- name — summary`). Authored tools are tagged `(authored)` and remote tools `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line. <!-- id:fUDEa-rz -->
+  - one line per enabled tool document (`- name — summary`). Remote tools are tagged `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line. <!-- id:fUDEa-rz -->
   - a one-line summary of top-level memory. <!-- id:MeTMOILl -->
   - a triggers line. It names active [triggers](./triggers.md) and advertises `read ~/triggers/` and `write ~/triggers/<name>` even when no triggers exist, so an agent asked "do this every morning" knows it can create the automation. <!-- id:M-5n-zT_ -->
 
@@ -63,7 +63,7 @@ The agent always knows what it _could_ expand, without paying for every contract
 
 Once a tool's contract has entered the transcript, through an agent `read` of `~/tools/<name>` or any `call` by that name, the tool is **promoted** to a real provider tool for the rest of the thread. See [promotion](./promotion.md). Promotion is derived only from durable `tool_call` events (`expandedCallablesFromEvents()`, `api-service.ts`), so resume, park, restart, and compaction all rebuild the same set. Events with actor `user` are skipped: a user's palette call must not silently reshape the agent's active toolset. <!-- id:3AAxXIeD -->
 
-Before anything is offered to the provider (`#runPiAgent`), promotion is intersected with the agent's enabled callables plus its own enabled non-builtin documents (authored lambdas and MCP projections, re-derived from the definition at run start): <!-- id:D8DK4IAm -->
+Before anything is offered to the provider (`#runPiAgent`), promotion is intersected with the agent's enabled callables plus its own enabled MCP projections (re-derived from the definition at run start): <!-- id:D8DK4IAm -->
 
 ```ts <!-- id:4ZQwDiQa -->
 const expandedCallables = this.#expandedCallablesForSession(sessionId)
@@ -158,7 +158,7 @@ type WriteInput = {
 
 `dryRun` is a flag on the call itself, so it sits at the top level and not in `options`. It is strict. A non-boolean value is a 400, never a silent real publish. It applies to `hm://` writes, `ipfs://` object writes, and `~/triggers/` writes: the handler returns an echo of what would be published or stored before anything is. Passing it on a memory or tools write is refused. <!-- id:ygGo2VPt -->
   - **`~/memory/<path>`**: writes `content` and creates parent directories. Writing an existing file replaces it whole. There is no append. `options.delete` removes a file or directory, `options.fromUrl` downloads a URL to the path, and `options.fromAttachment` saves a session attachment to it. <!-- id:X3Fn2IAS -->
-  - **`~/tools/<name>`**: authors a tool. `content` is JSON `{description, input, output?, source, runtime?}` (or `options.tool` as an object). The name comes from the address. Non-JSON content fails with that exact shape as the message. `options.delete` deletes an authored tool. Both paths emit the memory-change event, so the desktop Permissions page updates live. <!-- id:gXx2r3N7 -->
+  - **`~/tools/<name>`**: refused. A tool is a resource in an app or an agent, published at an hm:// address with `options.tool` (read `~/tools/write/apps`). <!-- id:gXx2r3N7 -->
   - **`~/triggers/<name>`**: creates or edits a [trigger](./trigger.md) (`writeTriggerAddress`). `content` is JSON `{source, prompt, enabled?, continuation?}` (or `options.trigger` as an object). The name comes from the address, and a name inside the content cannot retarget the write. Sources and continuations go through the same normalizers the signed CRUD actions use. `enabled` is honored as written and defaults to true, so the agent enables, disables, and retires its own automations directly. See the threat-model note in [security](./security.md). Names are not unique, so an ambiguous name is refused with the matching ids. Addressing by id works too. `options.delete` removes a trigger. The other options are `combineWith` (merge another trigger into this one), `useOtherAction`, `expectedUpdatedAt` (refuse a stale edit), `replaceSource`, `frequentSchedule` (allow a schedule under the usual minimum), and `dryRun`. Writes emit `trigger-updated` account events, so the desktop Triggers tab updates live. <!-- id:KRN56YOI -->
   - **`ipfs://`**: publishes a file from `options.fromPath` (a memory file) or `options.fromAttachment`, or an **object** when `content` is DAG-JSON: the object is encoded as a DAG-CBOR blob, optionally bound to a `schema`, signed (`sign`, `signer`), typed (`type`), linked (`link`), or forced past validation (`force`), and its `ipfs://<cid>` comes back. For a file it chunks the data into [UnixFS](../protocol/files.md) blocks with the shared client helper, sends those blocks through `PublishBlobs` on the typed HM API, and returns the root `ipfs://<cid>` URL. It does not depend on a server-specific `/ipfs/file-upload` route. `SEED_AGENTS_IPFS_SERVER_URL` only selects the gateway used by `read ipfs://…`, and defaults to the HM API origin. Requires the publish grant. Publishing makes the file publicly retrievable. <!-- id:xqte77_C -->
   - **`hm://<account>/<path>`**: publishes signed hypermedia. Requires the publish grant. <!-- id:gj2w4grI -->
@@ -201,7 +201,7 @@ type CallInput = {tool: string; input?: object; description?: string}
 
 Dispatch order in `executeCallVerb` (`api-service.ts`): <!-- id:iTHt2YHO -->
   1. Resolve the name through `normalizeSeedToolName` and the registry. For `execute`, swap in the server-narrowed contract. <!-- id:CcdLUkqX -->
-  2. If it is not a granted builtin, look for an enabled document of that name. A **lambda** runs in the sandbox (`executeLambdaTool`). An **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). <!-- id:SWV7WM4u -->
+  2. If it is not a granted builtin, look for an enabled document of that name. An **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). A `tool` that is an hm:// URL is a [tool resource](#tool-resources), called on the server that hosts its app or agent. <!-- id:SWV7WM4u -->
   3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary. <!-- id:WixN3gx_ -->
   4. Validate `input` against the tool's schema. On failure, return the contract (touch-expand). <!-- id:euze5A7r -->
   5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, and `execute` to the sandbox. <!-- id:dlSy993f -->
@@ -259,30 +259,11 @@ type ExecuteInput = {
 - Keep durable state in memory files written whole with the [write](./write.md) verb. Prefer one file per event or record over appending to a shared file. Merge them later in a single run when you need a summary.
 - Treat `disk I/O error`, `database is locked`, or a corrupt index under `/workspace` as two writers colliding. The disk is fine. Move the state out of the shared file.
 
-## Authored (lambda) tools <!-- id:tzwll2x7 -->
+## Tool resources <!-- id:tzwll2x7 -->
 
-A lambda runs its stored source in the same sandbox. The call's validated input goes in and its return value comes back (`executeLambdaTool`, `api-service.ts`). The ABI (`tool-documents.ts`): <!-- id:8p-mQ8J7 -->
+An agent has no private code tools. A tool it makes is a **tool resource**: a Seed document typed `hm://hyper.media/tool` in an [app](../apps/apps-and-tools.md), or in an agent's own document, which lists it with a card embed (apps and agents are converging into one concept and host tools the same way). Its code is a folder whose `index.ts` default-exports `async (input, ctx) => output`, with `ctx.app`, `ctx.publicConfig` and `ctx.privateConfig`. <!-- id:8p-mQ8J7 -->
 
-```ts <!-- id:i6bvXwNl -->
-// runtime: 'typescript' — run with bun
-export default async function (input: {city: string}) {
-  return {tempC: await lookup(input.city)}
-}
-```
-
-```python <!-- id:OGOpC1qL -->
-# runtime: 'python'
-def main(input):
-    return {"tempC": lookup(input["city"])}
-```
-
-`buildLambdaProgram()` (`code-exec.ts`) wraps the source into a self-contained program with the input baked in as a double-`JSON.stringify` literal, so no interpolation can escape into code. TypeScript is imported as a module from a `data:` URL. It keeps its natural `export default` shape and type annotations and never touches the filesystem. Python gets an epilogue that calls `main` and awaits it if it is a coroutine. <!-- id:f-bHTuGv -->
-
-The return value travels on a marked stdout line (`LAMBDA_RESULT_PREFIX = '__SEED_TOOL_RESULT__'`). A result file would have to live somewhere, and `/workspace` _is_ the agent's memory, so the file would litter memory and show up in `changedFiles`. Everything unmarked comes back to the caller as `logs`, so ordinary `print` and `console.log` debugging still works (`code-exec.ts`, `parseLambdaResult` at `code-exec.ts`). <!-- id:9lADD45R -->
-
-Failures are thrown. A non-zero exit, no returned value, or a value the tool's own `output` schema rejects means the tool is broken, and the model that authored it is the one who can fix it. An input miss still returns the contract, exactly like a builtin. <!-- id:P_MNxRje -->
-
-Two gates apply before a lambda runs. The server must actually offer that runtime, and the agent must hold the `execute` grant or have the lambda's own name in its `tools` (which is how a narrowed child keeps one authored tool without general code execution). An authored tool is code in the sandbox, so writing one must not get around an owner who turned code execution off (`api-service.ts`, `api-service.ts`). <!-- id:aisa2jmo -->
+`call` runs one by its hm:// URL. The run is signed as the calling agent's account, executes the tool's latest code in the sandbox, and is recorded with who ran it and the tool version (`app-running.ts`). An app's tools run once someone runs the app; an agent's tools run whenever the agent is mounted on the server. Pages in the same app reach the tools with `seed.app.call` and the public config with `seed.app.context()`. <!-- id:f-bHTuGv -->
 
 # `delegate` <!-- id:9vaS9oaE -->
 
@@ -290,7 +271,7 @@ Spawns a [child](./child.md) run. There are two kinds of child and one verb (`ap
 
 **Model child.** Pass `brief`: human-readable markdown that becomes the child conversation's first message **verbatim**. The user reviews it as the child's full context. See [brief](./brief.md). <!-- id:n7YXckLv -->
   - `prompt` gives an anonymous worker persona. <!-- id:F_DmeZ4g -->
-  - `tools` narrows the child's set (`narrowDefinitionTools`). It is intersected against the parent's full callable set, with two translations: the child keeps `publish` only when its `tools` ask for `write` or `publish`, and an authored lambda named in `tools` is kept, without the general `execute`, when the parent holds `execute`. <!-- id:6Qet4VLC -->
+  - `tools` narrows the child's set (`narrowDefinitionTools`). It is intersected against the parent's full callable set, with two translations: the child keeps `publish` only when its `tools` ask for `write` or `publish`,  <!-- id:6Qet4VLC -->
   - `model` runs the child on one of the agent's enabled models ("provider/model", or a bare model id when unambiguous). `resolveDelegateModelRef()` resolves it at spawn time against `enabledModels` plus the active pair, then stores it as the child session's model override. The user's quick-switch uses the same mechanism, so run resolution and every client surface agree on what ran. <!-- id:RspuTIWZ -->
   - `model` and `reasoningLevel` travel together (`normalizeDelegateModelChoice()`). A `model` without a `reasoningLevel` (`off` or one of the levels) is refused, with no default. A level without a model is refused too. Omitting both inherits the agent's configured model and level. This stops a child from silently running the agent's model with reasoning off: an override stores the level explicitly, and an absent level on an override means off. <!-- id:Qla1n252 -->
   - Agents with more than one enabled model get system-prompt guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest. <!-- id:dof-ASpS -->
@@ -299,7 +280,7 @@ A child always runs as the delegating agent. Direct agent-to-agent delegation (`
 
 `output` declares a JSON schema for a validated [typed result](./typed-result.md), delivered through `return_result`. Without it the result is `{text}`. `normalizeSubSessionSpec()` (`api-service.ts`) accepts `input` as an alias for `brief`, and reads a bare `prompt` as the brief instead of bouncing the call. Models write the task into `prompt` often enough that a retry is worse than a rescue. <!-- id:_j0ELcwy -->
 
-**Script child.** Pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an in-process QuickJS-WASM realm (`apps/src/workflow-host.ts`). See [script](./script.md). Everything external crosses through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate` (alias `ctx.agent`), `ctx.parallel` and `ctx.parallelSettled`, `ctx.sleep` (a sleep of 60 seconds or more parks the run; shorter ones hold the VM), `ctx.minutes` and `ctx.hours`, `ctx.waitForEvent(match, {timeoutMs, label})` (resolves `null` on timeout), `ctx.continueAsNew` (never resolves), `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`, plus `TextEncoder` and `TextDecoder`. A child that is canceled or fails rejects `ctx.delegate` with an error whose code is `canceled` or `agent-failed`. Scripts hold the read and write verbs plus the agent's callable set (`api-service.ts`), including enabled authored lambda tools created earlier in the same parent turn. Every effect goes into the [journal](./journal.md), so resume after a crash or a timer wake replays from the top and completed work never re-executes. Detached script children are rejected outright. Scripts are always awaited. <!-- id:pnR_U13Y -->
+**Script child.** Pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an in-process QuickJS-WASM realm (`apps/src/workflow-host.ts`). See [script](./script.md). Everything external crosses through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate` (alias `ctx.agent`), `ctx.parallel` and `ctx.parallelSettled`, `ctx.sleep` (a sleep of 60 seconds or more parks the run; shorter ones hold the VM), `ctx.minutes` and `ctx.hours`, `ctx.waitForEvent(match, {timeoutMs, label})` (resolves `null` on timeout), `ctx.continueAsNew` (never resolves), `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`, plus `TextEncoder` and `TextDecoder`. A child that is canceled or fails rejects `ctx.delegate` with an error whose code is `canceled` or `agent-failed`. Scripts hold the read and write verbs plus the agent's callable set (`api-service.ts`), and tool resources by hm:// URL. Every effect goes into the [journal](./journal.md), so resume after a crash or a timer wake replays from the top and completed work never re-executes. Detached script children are rejected outright. Scripts are always awaited. <!-- id:pnR_U13Y -->
 
 **Parallelism.** Spawn independent children together. Every `delegate` call in one reply runs at the same time. The turn then [parks](./park.md) (cheaply, and restart-proof) until all of them resolve, and each call receives its own result. `await: false` detaches: the child runs with the brief as its first message and returns nothing. `output` and `tools` are then rejected loudly, never silently discarded (`api-service.ts`). `model` is still honored, resolved against the agent's enabled models. <!-- id:2N0kICDu -->
 

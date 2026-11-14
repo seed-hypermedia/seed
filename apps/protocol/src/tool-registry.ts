@@ -156,12 +156,11 @@ const writeVerb = {
   description: [
     'Write anything you can address. The address shape picks the destination:',
     '- `~/memory/<path>` — files: replace content, delete, download a URL, or save an attachment. Details: `~/tools/write/memory`.',
-    '- `~/tools/<name>` — authored callable tools: create, replace, or delete. Details: `~/tools/write/tools`.',
     '- `~/triggers/<name>` — automations: create, edit, enable, disable, or delete. Details: `~/tools/write/triggers`.',
     '- `ipfs://` — publish a memory file or attachment, or a JSON object given as `content` (a schema, an object that follows one, a signed blob). Details: `~/tools/write/ipfs`.',
     '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
-    '  - `~/tools/write/pages` — build custom HTML pages: define HM schemas and Seed resources first, then connect and test the UI; local storage is only for optional UI state.',
-    '  - `~/tools/write/apps` — build an app: an app document plus its tools (schemas and an index.ts) and pages, listed by card embeds.',
+    '  - `~/tools/write/apps` — build an app: the only home for tools and pages. "Make a tool" means a tool resource in an app (or an agent); there are no private tools (`~/tools/write/tools`).',
+    "  - `~/tools/write/pages` — build a custom HTML page inside an app: define HM schemas and Seed resources first, use the app's public config and tools from the page, then connect and test the UI.",
     '  - `~/tools/write/documents` — create, replace, rename, move, redirect, fork, or delete documents; metadata and memory-file publishing.',
     '  - `~/tools/write/comments` — comment, reply, edit, or delete comments.',
     '  - `~/tools/write/capabilities` — grant WRITER or AGENT access to an account or path.',
@@ -177,8 +176,7 @@ const writeVerb = {
       address: {
         type: 'string',
         minLength: 1,
-        description:
-          'Where to write: ~/memory/<path>, ~/tools/<name>, ~/triggers/<name>, ipfs://, or hm://<account>/<path>.',
+        description: 'Where to write: ~/memory/<path>, ~/triggers/<name>, ipfs://, or hm://<account>/<path>.',
       },
       content: {
         type: 'string',

@@ -1,8 +1,8 @@
 ---
 name: Apps and Tools
-summary: An app is a document typed hm://hyper.media/app whose card embeds list its tools and pages. A tool is a child document with an input schema, an output schema and an index.ts. Nothing runs tools yet.
+summary: An app is a document typed hm://hyper.media/app whose card embeds list its tools and pages; apps are the only home for pages and tools. A tool is a child document with schemas and an index.ts that runs on the app's server.
 ---
-An **app** is a [document](../protocol/documents.md) whose [metadata](../metadata.md) declares `type: hm://hyper.media/app`. Its children are its **tools** and its [custom HTML pages](./document-pages.md), and nothing else for now. Every child lives directly under the app, one path segment down (`/apps/weather/forecast` under `/apps/weather`), and is listed by a card embed in the app's content. The embeds are the source of truth: which children belong to the app, and in what order. Sharing the app shares the list; a reader who can see the app can fork it like any document.
+An **app** is a [document](../protocol/documents.md) whose [metadata](../metadata.md) declares `type: hm://hyper.media/app`. Its children are its **tools** and its [custom HTML pages](./document-pages.md), and nothing else. Apps are the only home for pages and tools: there is no standalone page, and an agent has no private tools. An agent's document can host tools and pages the same way (apps and agents are converging into one concept). Every child lives directly under the app, one path segment down (`/apps/weather/forecast` under `/apps/weather`), and is listed by a card embed in the app's content. The embeds are the source of truth: which children belong to the app, and in what order. Sharing the app shares the list; a reader who can see the app can fork it like any document.
 
 A **tool** is a document with `type: hm://hyper.media/tool`. Its metadata holds:
 
@@ -17,12 +17,12 @@ A **tool** is a document with `type: hm://hyper.media/tool`. Its metadata holds:
 The code contract is one async function:
 
 ```ts
-export default async function (input: Input): Promise<Output> {
+export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object}): Promise<Output> {
   // ...
 }
 ```
 
-Nothing runs app tools yet. Launching an app on a server and calling its tools is the work of the [Seed App Environment](hm://z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno/projects/seed-app-environment).
+A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
 
 # In the desktop app
 
@@ -34,10 +34,10 @@ An app opens as tabs instead of a text document, like an agent:
 
 A tool opens inside its app: the app's tabs stay above it with **Tools** selected, and the tool shows like an agent session, a header with a back button and its name, then one page with its description, input and output schemas (edited with the schema editor) and its `index.ts`. **Save** publishes every change as one new version; a code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes it and takes it off its app's list.
 
-**New → App** in a space's New menu creates an app. The dialog states the app environment the app will run on, with a **Change** link that offers the known servers and takes any other by URL; the choice is written to the app document as `appEnvironmentUrl` ([metadata](../metadata.md)). Nothing reads it yet, since nothing runs app tools yet. Inside an app, New offers only **Tool**: agents build pages for now. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
+**New → App** in a space's New menu creates an app. Inside an app, New offers only **Tool**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages` and `/:app/settings`.
 
 # For agents
 
-Agents read `~/tools/write/apps`. They write the app as an ordinary document with `metadata.type`, then each tool with `options.tool` naming a memory folder (with an `index.ts`) or one `.ts` file. The publisher checks that `index.ts` parses and default-exports, publishes the folder beside the change, sets `type` and `code`, and requires `inputSchema`. When a tool or page is created directly under an app, the publisher adds its card embed to the app in the same publish, and deleting it removes the embed. A tool anywhere else is refused.
+Agents read `~/tools/write/apps`. They write the app as an ordinary document with `metadata.type`, then each tool with `options.tool` naming a memory folder (with an `index.ts`) or one `.ts` file. The publisher checks that `index.ts` parses and default-exports, publishes the folder beside the change, sets `type` and `code`, and requires `inputSchema`. When a tool or page is created directly under an app or an agent, the publisher adds its card embed to the host in the same publish, and deleting it removes the embed. A tool anywhere else is refused, and `write ~/tools/<name>` (the old private tools) is refused too.
 
 Source: `frontend/packages/client/src/apps.ts` (types and embed rules), `apps/src/app-children.ts` and `apps/src/tool-code.ts` (publisher), `frontend/packages/ui/src/apps/` (views).

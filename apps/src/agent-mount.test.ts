@@ -160,9 +160,8 @@ describe('mount document authorization', () => {
         await expect(mount.mountAgent(db, client, 'owner', action)).rejects.toThrow('mount document')
       }
       metadata = {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051'}
-      content = [{block: {id: 'body', type: 'Paragraph', text: 'Not the agent home', attributes: {}}}]
-      await expect(mount.mountAgent(db, client, 'owner', action)).rejects.toThrow('must have no content')
-      content = []
+      // The document is the agent's home and its instructions: any content mounts.
+      content = [{block: {id: 'body', type: 'Paragraph', text: 'You are a careful helper.', attributes: {}}}]
       for (const grant of [
         {delegate: 'stranger', path: '/team', role: 'WRITER'},
         {delegate: 'owner', path: '/team', role: 'READER'},

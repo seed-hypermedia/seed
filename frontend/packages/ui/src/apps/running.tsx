@@ -66,7 +66,7 @@ export function structValue(fields: StructField[], values: Record<string, string
  * site advertises (its home document's `siteUrl`, whose `/hm/api/config` names it).
  */
 export function useAppServerUrl(appId: UnpackedHypermediaId, app: HMDocument) {
-  const own = typeof app.metadata.appEnvironmentUrl === 'string' ? app.metadata.appEnvironmentUrl : ''
+  const own = hostServerUrl(app)
   const home = useResource(own ? null : hmId(appId.uid))
   const siteUrl =
     home.data?.type === 'document' && typeof home.data.document.metadata.siteUrl === 'string'
@@ -86,6 +86,17 @@ export function useAppServerUrl(appId: UnpackedHypermediaId, app: HMDocument) {
   }
 }
 
+/**
+ * The server a tool host names itself: an app's `appEnvironmentUrl`, or an agent's `agentServerUrl`
+ * (apps and agents host tools the same way), or '' when it names none.
+ */
+function hostServerUrl(host: HMDocument): string {
+  const {appEnvironmentUrl, agentServerUrl} = host.metadata as {appEnvironmentUrl?: unknown; agentServerUrl?: unknown}
+  if (typeof appEnvironmentUrl === 'string' && appEnvironmentUrl) return appEnvironmentUrl
+  if (typeof agentServerUrl === 'string' && agentServerUrl) return agentServerUrl
+  return ''
+}
+
 /** The app environment a site advertises in its `/hm/api/config`, or '' when it names none. */
 async function siteAppEnvironment(siteUrl: string): Promise<string> {
   const response = await fetch(`${siteUrl.replace(/\/$/, '')}/hm/api/config`)
@@ -100,8 +111,8 @@ export async function resolveAppServerUrl(
   appId: UnpackedHypermediaId,
   app: HMDocument,
 ): Promise<string> {
-  if (typeof app.metadata.appEnvironmentUrl === 'string' && app.metadata.appEnvironmentUrl)
-    return app.metadata.appEnvironmentUrl
+  const own = hostServerUrl(app)
+  if (own) return own
   const home = await client.request('Resource', hmId(appId.uid)).catch(() => null)
   const siteUrl =
     home?.type === 'document' && typeof home.document.metadata.siteUrl === 'string'
@@ -325,7 +336,11 @@ export function ToolRunSection({
         </form>
       ) : checking ? null : (
         <SizableText size="sm" color="muted">
-          {status.isError ? `${appServerErrorMessage(status.error)}. ` : 'This app is not running. '}
+          {status.isError
+            ? `${appServerErrorMessage(status.error)}. `
+            : !server.serverUrl
+              ? 'This app does not name the server that runs it, so its runs cannot be shown here. '
+              : 'This app is not running. '}
           {onOpenSettings ? (
             <button type="button" className="text-foreground underline underline-offset-2" onClick={onOpenSettings}>
               Run it from the app’s settings

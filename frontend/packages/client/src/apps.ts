@@ -21,6 +21,15 @@ import {CID} from 'multiformats/cid'
 export const HM_APP_TYPE = 'hm://hyper.media/app'
 export const HM_TOOL_TYPE = 'hm://hyper.media/tool'
 export const HM_PAGE_TYPE = 'hm://hyper.media/page'
+export const HM_AGENT_TYPE = 'hm://hyper.media/agent'
+
+/**
+ * Documents that host tools and pages: apps and agents (the two are converging into one concept).
+ * Both list their children as card embeds and run their tools the same way.
+ */
+export function isToolHostType(type: unknown): boolean {
+  return type === HM_APP_TYPE || type === HM_AGENT_TYPE
+}
 
 /** The file a tool's code folder must contain: `export default async function (input) {…}`. */
 export const TOOL_ENTRY_FILE = 'index.ts'
@@ -118,6 +127,14 @@ export function appChildrenOps(
     .filter((node) => !childBlockIds.has((node.block as {id?: string}).id ?? ''))
     .map((node) => hmBlockNodeToBlockNode(node))
   return computeReplaceOps(createBlocksMap(oldNodes), [...listed, ...rest])
+}
+
+/** Ops that turn a document body from `before` into `after` (block ids kept where they match). */
+export function replaceContentOps(before: HMBlockNode[] | undefined, after: HMBlockNode[]): DocumentOperation[] {
+  return computeReplaceOps(
+    createBlocksMap((before ?? []).map((node) => toAPIBlockNode(node))),
+    after.map((node) => hmBlockNodeToBlockNode(node)),
+  )
 }
 
 /** Ops that append `child` to an app's list, or none when it is already listed. */

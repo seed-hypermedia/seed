@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite'
 import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
+import {configureDocsSpace} from '@/docs-space'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
 import {ExecCanary} from '@/exec-canary'
@@ -225,6 +226,25 @@ describe('main routes', () => {
       const searchOnlyBody = await (await searchOnly()).json()
       expect(searchOnlyBody.webTools).toEqual({search: true, readBrowser: false})
     } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('GET health advertises the default prompt with the knowledge base alias resolved', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      // New agents write this URL into their documents, where hm://hyper.media would not load.
+      configureDocsSpace({account: 'z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB'})
+      const health = getGetHandler(
+        createAPIRoutes(new apisvc.Service(db, dataDir), 'hm://hyper.media/app-environment/guide'),
+        '/agents/api/health',
+      )
+      expect((await (await health()).json()).defaultPromptUrl).toBe(
+        'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/app-environment/guide',
+      )
+    } finally {
+      configureDocsSpace({})
       sqlite.closeDatabase(db)
       cleanup()
     }

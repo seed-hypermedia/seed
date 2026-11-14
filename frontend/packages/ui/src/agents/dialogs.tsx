@@ -22,6 +22,7 @@ import {
 } from './models'
 import {useNavigate} from './navigation'
 import {CreateServerChoice, useCreateServerChoice} from './server-picker'
+import {AgentWriteScopePicker, grantAgentWriteAccess, type AgentWriteScope} from './write-access'
 import {keyfile} from '@seed-hypermedia/client'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
@@ -1060,6 +1061,11 @@ export function CreateAgentDialog({
   const locationTitle =
     location.data?.type === 'document' ? getDocumentTitle(location.data.document) : input.location?.path?.at(-1)
   const signingKey = useRef<string>()
+  const signingAccountId = useRef<string>()
+  // What the agent may write where its document lives; granted as a WRITER capability once created.
+  const [writeScope, setWriteScope] = useState<AgentWriteScope>('document')
+  // Only the space owner can grant; a location elsewhere (or one chosen later) leaves it to them.
+  const canGrantWrite = !input.location || input.location.uid === input.selectedAccountId
   const pendingCreation = useRef<Omit<CreateAgent, '_'>>()
 
   // Checked quick-switch entries name providers on one server; a server switch drops them.
@@ -1108,6 +1114,7 @@ export function CreateAgentDialog({
       const identity = await createSigningIdentity.mutateAsync(agentName)
       if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
       signingKey.current = identity.identity.name
+      signingAccountId.current = identity.identity.accountId
     }
     // Retain the exact request and identity across retries, including a lost success response.
     // Deleting the key on a transport error could break an agent the server already created.
@@ -1133,7 +1140,29 @@ export function CreateAgentDialog({
     }
     // The agent now lives there: keep listing that server, and offer it first next time.
     rememberServer.mutate(selectedServerUrl)
+    await grantChosenWriteAccess(destination.to)
     await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
+  }
+
+  /** Grants the chosen write scope at the agent's document. The agent exists either way, so a failure only warns. */
+  async function grantChosenWriteAccess(to: UnpackedHypermediaId) {
+    const agentAccountId = signingAccountId.current
+    const ownerUid = input.selectedAccountId
+    if (writeScope === 'none' || !agentAccountId || !ownerUid) return
+    if (ownerUid !== to.uid) {
+      toast.info('Only the owner of this space can give the agent write access. Ask them from its People tab.')
+      return
+    }
+    try {
+      await grantAgentWriteAccess({client, ownerUid, agentAccountId, docId: to, scope: writeScope})
+      onPushPublished?.(hmId(to.uid))
+    } catch (error) {
+      toast.error(
+        `The agent was created, but write access was not granted: ${
+          error instanceof Error ? error.message : String(error)
+        }. Grant it from its People tab.`,
+      )
+    }
   }
 
   function finishCreation(to: UnpackedHypermediaId) {
@@ -1154,7 +1183,15 @@ export function CreateAgentDialog({
       // published document rather than publishing a second one.
       if (!preparedMount.current) {
         const to = await findFreeAgentMountPath(client, parent, name.trim())
-        const mount = await prepareAgentMount({client, accountUid, serverUrl: selectedServerUrl, to, name: name.trim()})
+        // The agent's document is its system prompt: it starts as an embed of the Agent Guide.
+        const mount = await prepareAgentMount({
+          client,
+          accountUid,
+          serverUrl: selectedServerUrl,
+          to,
+          name: name.trim(),
+          content: defaultAgentSystemPrompt(defaultPromptUrl),
+        })
         preparedMount.current = {to, mount}
       }
       const {to, mount} = preparedMount.current
@@ -1178,6 +1215,7 @@ export function CreateAgentDialog({
         accountUid={input.selectedAccountId}
         serverUrl={selectedServerUrl}
         name={name}
+        content={defaultAgentSystemPrompt(defaultPromptUrl)}
         creating
         onClose={onClose}
         onSubmit={handleCreateAgent}
@@ -1290,6 +1328,17 @@ export function CreateAgentDialog({
           }
         />
       </label>
+      <div className="flex flex-col gap-2">
+        <SizableText size="sm" weight="bold">
+          What can it write?
+        </SizableText>
+        <AgentWriteScopePicker value={writeScope} onChange={setWriteScope} disabled={!canGrantWrite || creating} />
+        <SizableText size="xs" color="muted">
+          {canGrantWrite
+            ? 'You can give it more later from its People tab, but not take access back.'
+            : 'Only the owner of this space can give the agent write access here.'}
+        </SizableText>
+      </div>
       {addProviderDialog.content}
       {createError ? <Notice tone="error">{createError}</Notice> : null}
       <div className="flex justify-end gap-2">

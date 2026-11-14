@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('../apps/running', () => ({resolveAppServerUrl: mocks.resolve, callAppToolAs: mocks.call}))
 
-const {callPageAppTool} = await import('../document-page')
+const {callPageAppTool, pageAppContext} = await import('../document-page')
 
 const app = {
   id: hmId('alice', {path: ['weather']}),
-  document: {metadata: {type: 'hm://hyper.media/app', appEnvironmentUrl: 'http://apps.test'}} as unknown as HMDocument,
+  document: {
+    metadata: {type: 'hm://hyper.media/app', appEnvironmentUrl: 'http://apps.test', publicConfig: {units: 'metric'}},
+  } as unknown as HMDocument,
 }
 const signal = () => new AbortController().signal
 const run = (params: unknown, approve: () => Promise<PagePermissionDecision> = async () => 'once', account = 'alice') =>
@@ -57,5 +59,12 @@ describe('seed.app.call', () => {
         signal: signal(),
       }),
     ).rejects.toThrow('not part of an app')
+  })
+})
+
+describe('seed.app.context', () => {
+  it('gives a page the app and its public config, the context tools get without private config', () => {
+    expect(pageAppContext(app)).toEqual({app: 'hm://alice/weather', publicConfig: {units: 'metric'}})
+    expect(() => pageAppContext(null)).toThrow('not part of an app')
   })
 })

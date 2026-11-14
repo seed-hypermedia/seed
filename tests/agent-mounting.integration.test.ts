@@ -260,15 +260,16 @@ describe('agent mounting', () => {
     // Opening the ordinary document URL also discovers the server-side registration.
     await page.goto(docUrl)
     await page.getByRole('link', {name: 'Sessions', exact: true}).waitFor()
-    // The base URL opens the sessions list; there is no Home tab (the site chrome has its own
-    // Home links, so only the tab bar's document links are checked).
-    await page.getByText('Existing conversation', {exact: true}).first().waitFor()
+    // The base URL opens the agent's Home: its document, which is its instructions.
     expect(
       await page
         .locator('a[data-tab="document"]')
         .filter({hasText: /^Home$/})
         .count(),
-    ).toBe(0)
+    ).toBeGreaterThan(0)
+    await page.getByRole('link', {name: 'Sessions', exact: true}).click()
+    await page.waitForURL(`${docUrl}/:sessions`)
+    await page.getByText('Existing conversation', {exact: true}).first().waitFor()
     expect(await send({_: 'GetAgent', agentId: legacyId})).toMatchObject({agent: {id}})
     expect(await send({_: 'ReadAgentMemoryFile', agentId: id, path: 'notes.md'})).toMatchObject({
       file: {content: 'Preserve this memory'},
@@ -423,18 +424,23 @@ describe('agent mounting', () => {
     expect(await client.request('Resource', unpackHmId(`${home.id}/owner-note`)!)).toMatchObject({
       document: {metadata: {name: 'Owner note'}},
     })
-    expect(await client.request('Resource', unpackHmId(newId)!)).toMatchObject({document: {content: []}})
+    // A new agent's document is its system prompt: it starts as one embed of the Agent Guide.
+    const created = await client.request('Resource', unpackHmId(newId)!)
+    if (created.type !== 'document') throw new Error('Missing agent document')
+    expect(created.document.content.map((node) => node.block.type)).toEqual(['Embed'])
     await page.goto(`${env!.web.baseUrl}/new-local-helper`)
-    // The agent's base URL opens its sessions (no Home tab for now), with no Content tab and none
-    // of the document chrome (title, byline) above the agent tabs.
+    // The agent's base URL opens its Home (its document); the agent views have no Content tab and
+    // none of the document chrome (title, byline) above the agent tabs.
     await page.getByRole('link', {name: 'Sessions', exact: true}).waitFor()
-    expect(await page.getByText('This is an agentic account.', {exact: true}).count()).toBe(0)
     expect(
       await page
         .locator('a[data-tab="document"]')
         .filter({hasText: /^Home$/})
         .count(),
-    ).toBe(0)
+    ).toBeGreaterThan(0)
+    await page.goto(`${env!.web.baseUrl}/new-local-helper/:sessions`)
+    await page.getByRole('link', {name: 'Sessions', exact: true}).waitFor()
+    expect(await page.getByText('This is an agentic account.', {exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Open home document', exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Prompt', exact: true}).count()).toBe(0)
@@ -449,23 +455,14 @@ describe('agent mounting', () => {
         block: {id: 'guide-text', type: 'Paragraph', text: 'Domain guide content loaded', attributes: {}},
       },
     ])
-    await send({
-      _: 'UpdateAgent',
-      agentId: newId,
-      definition: {
-        ...newAgent.agent.definition,
-        systemPrompt: [
-          {
-            block: {
-              id: 'guide-embed',
-              type: 'Embed',
-              link: 'hm://hyper.media/agent/guide',
-              attributes: {view: 'Content'},
-            },
-          },
-        ],
+    // The agent's document is its prompt: embed the guide by its readable domain reference.
+    await createDocumentUpdate(env!.web.baseUrl, FIXTURE_ACCOUNT, '/new-local-helper', [
+      {type: 'MoveBlocks', blocks: ['guide-embed'], parent: ''},
+      {
+        type: 'ReplaceBlock',
+        block: {id: 'guide-embed', type: 'Embed', link: 'hm://hyper.media/agent/guide', attributes: {view: 'Content'}},
       },
-    })
+    ])
     await page.route('**/api/GetDomain*', async (request) => {
       if (!request.request().url().includes('hyper.media')) return request.continue()
       await request.fulfill({
@@ -483,8 +480,11 @@ describe('agent mounting', () => {
         }),
       })
     })
+    await page.goto(`${env!.web.baseUrl}/new-local-helper`)
+    await page.getByText('Domain guide content loaded', {exact: true}).first().waitFor()
+    // The prompt page of a mounted agent points at its document.
     await page.goto(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
-    await page.getByText('Domain guide content loaded', {exact: true}).waitFor()
+    await page.getByText('This agent’s system prompt is its document', {exact: false}).waitFor()
     // The prompt page is a subpage of Settings: a back button, and Settings stays the lit tab.
     await page.getByRole('button', {name: 'Back to agent settings', exact: true}).click()
     await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings`)

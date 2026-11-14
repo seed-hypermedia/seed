@@ -67,6 +67,7 @@ export const DOCUMENT_PAGE_METHODS = [
   'hm.unpackHmId',
   'comments.create',
   'app.call',
+  'app.context',
   'permissions.request',
   'permissions.revoke',
   'request',
@@ -116,7 +117,7 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
     )}.map((name) => [name, (input) => call('hm.' + name, {input})])),
   }),
   comments: Object.freeze({create: (input) => call('comments.create', input)}),
-  app: Object.freeze({call: (tool, input = {}) => call('app.call', {tool, input})}),
+  app: Object.freeze({call: (tool, input = {}) => call('app.call', {tool, input}), context: () => call('app.context')}),
 })`
 
 export type DocumentPageMethod = (typeof DOCUMENT_PAGE_METHODS)[number]
@@ -204,6 +205,12 @@ export type DocumentPageSDK = {
    */
   app: {
     call(tool: string, input?: Record<string, unknown>): Promise<unknown>
+    /**
+     * What the page's app gives its pages: the same context a tool gets, without private config
+     * (secrets stay on the app server). `app` is the app's hm:// id; `publicConfig` its public
+     * config values. Rejects when the page is not in an app.
+     */
+    context(): Promise<{app: string; publicConfig: Record<string, unknown>}>
   }
 }
 

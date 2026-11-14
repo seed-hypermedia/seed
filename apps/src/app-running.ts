@@ -10,7 +10,7 @@ import type {Database} from 'bun:sqlite'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import {appEmbeddedChildren, HM_APP_TYPE, HM_TOOL_TYPE, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {appEmbeddedChildren, HM_TOOL_TYPE, isToolHostType, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {createSeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -30,6 +30,10 @@ export type AppRunDeps = {
   codeExec: CodeExecutor
   encrypt: (plain: Uint8Array) => Uint8Array
   decrypt: (ciphertext: Uint8Array) => Uint8Array
+  /** This server's identity (its /health `serverId`), to recognize the server an app names as this one. */
+  serverId: string
+  /** The URL clients reach this server at, when configured: an app naming it needs no lookup. */
+  publicUrl?: string
 }
 
 /** An error with an HTTP status, which the service turns into its own APIError. */
@@ -71,12 +75,82 @@ function versionless(raw: string, what: string): UnpackedHypermediaId {
   return {...plain, id: packHmId(plain)}
 }
 
-async function loadDocument(client: SeedClient, id: UnpackedHypermediaId, type: string, what: string) {
+async function loadDocument(
+  client: SeedClient,
+  id: UnpackedHypermediaId,
+  type: string | ((type: unknown) => boolean),
+  what: string,
+) {
   const resource = await client.request('Resource', id).catch(() => null)
   if (resource?.type !== 'document') throw new AppRunError(404, `No ${what} at ${id.id}`)
-  if (resource.document.metadata?.type !== type)
-    throw new AppRunError(400, `${id.id} is not ${what === 'app' ? 'an app' : 'a tool'}`)
+  const matches =
+    typeof type === 'string' ? resource.document.metadata?.type === type : type(resource.document.metadata?.type)
+  if (!matches) throw new AppRunError(400, `${id.id} is not ${what === 'app' ? 'an app or an agent' : 'a tool'}`)
   return resource.document as HMDocument
+}
+
+/**
+ * The server an app runs on, as the app itself says: its `appEnvironmentUrl` (an agent's
+ * `agentServerUrl`), else the app environment the site of its space advertises (the space home's
+ * `siteUrl`, whose `/hm/api/config` names it). Null when neither names one: the app runs nowhere.
+ */
+export async function appServerUrl(
+  deps: AppRunDeps,
+  appId: UnpackedHypermediaId,
+  app: HMDocument,
+): Promise<string | null> {
+  const {appEnvironmentUrl, agentServerUrl} = app.metadata as {appEnvironmentUrl?: unknown; agentServerUrl?: unknown}
+  if (typeof appEnvironmentUrl === 'string' && appEnvironmentUrl) return appEnvironmentUrl
+  if (typeof agentServerUrl === 'string' && agentServerUrl) return agentServerUrl
+  const home = await deps.client.request('Resource', unpackHmId(`hm://${appId.uid}`)!).catch(() => null)
+  const siteUrl = home?.type === 'document' ? home.document.metadata.siteUrl : undefined
+  if (typeof siteUrl !== 'string' || !siteUrl) return null
+  try {
+    const response = await fetch(`${siteUrl.replace(/\/$/, '')}/hm/api/config`)
+    if (!response.ok) return null
+    const config = (await response.json()) as {appEnvironmentUrl?: string; agentServerUrl?: string}
+    return config.appEnvironmentUrl || config.agentServerUrl || null
+  } catch {
+    return null
+  }
+}
+
+/** How long "that URL is (or is not) this server" is remembered. */
+const SELF_CHECK_TTL_MS = 60_000
+const selfChecks = new Map<string, {isThis: boolean; at: number}>()
+
+/** The health endpoint of a server URL: canonical bases serve `/health`, legacy origins `/api/health`. */
+function healthUrl(url: string): string {
+  const base = url.replace(/\/+$/, '')
+  return /\/hm\/api\/(apps|agents)$/.test(base) ? `${base}/health` : `${base}/api/health`
+}
+
+/** Whether `url` reaches this server: the configured public URL, or a server answering with this server's id. */
+async function isThisServer(deps: AppRunDeps, url: string): Promise<boolean> {
+  const normalized = url.replace(/\/+$/, '')
+  if (deps.publicUrl && normalized === deps.publicUrl.replace(/\/+$/, '')) return true
+  const key = `${deps.serverId} ${normalized}`
+  const cached = selfChecks.get(key)
+  if (cached && Date.now() - cached.at < SELF_CHECK_TTL_MS) return cached.isThis
+  let isThis = false
+  try {
+    const response = await fetch(healthUrl(normalized), {signal: AbortSignal.timeout(5_000)})
+    const health = response.ok ? ((await response.json()) as {serverId?: string}) : null
+    isThis = health?.serverId === deps.serverId
+  } catch {}
+  selfChecks.set(key, {isThis, at: Date.now()})
+  return isThis
+}
+
+/** Throws unless the app names this server as the one it runs on: an app or its tools run nowhere else. */
+async function requireRunsHere(deps: AppRunDeps, appId: UnpackedHypermediaId, app: HMDocument): Promise<void> {
+  const url = await appServerUrl(deps, appId, app)
+  if (!url)
+    throw new AppRunError(
+      409,
+      'This app names no server, so it cannot run anywhere. Set its metadata.appEnvironmentUrl to the server that should run it (or have its space’s site advertise an app environment), then run it there.',
+    )
+  if (!(await isThisServer(deps, url))) throw new AppRunError(409, `This app runs on ${url}, not on this server.`)
 }
 
 /** Throws unless `signer` may write the app's space: its own space, or a WRITER/AGENT capability there. */
@@ -105,6 +179,30 @@ function readPrivateConfig(row: AppRunRow, deps: AppRunDeps): Record<string, unk
   return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
 }
 
+/**
+ * How an app or agent runs here. An app runs once someone runs it (an `app_runs` row); an agent
+ * mounted on this server is always running, so its tools run with no Run step (and, until it has
+ * an explicit run with private config, no private config).
+ */
+function effectiveRun(db: Database, hostId: string): AppRunRow | null {
+  const row = getRunRow(db, hostId)
+  if (row) return row
+  const agent = db.query('SELECT account_id, created_at, updated_at FROM agents WHERE id = ?').get(hostId) as {
+    account_id: string
+    created_at: number
+    updated_at: number
+  } | null
+  if (!agent) return null
+  return {
+    app_id: hostId,
+    space_uid: unpackHmId(hostId)?.uid ?? agent.account_id,
+    started_by: agent.account_id,
+    private_config_ciphertext: null,
+    created_at: agent.created_at,
+    updated_at: agent.updated_at,
+  }
+}
+
 function getRunRow(db: Database, appId: string): AppRunRow | null {
   return (db.query('SELECT * FROM app_runs WHERE app_id = ?').get(appId) as AppRunRow | null) ?? null
 }
@@ -129,7 +227,8 @@ export async function runApp(
   action: {appId: string; privateConfig?: Record<string, unknown>},
 ): Promise<api.AppRunInfo> {
   const appId = versionless(action.appId, 'app')
-  const app = await loadDocument(deps.client, appId, HM_APP_TYPE, 'app')
+  const app = await loadDocument(deps.client, appId, isToolHostType, 'app')
+  await requireRunsHere(deps, appId, app)
   await requireSpaceWriter(deps.client, appId, signer)
   const existing = getRunRow(deps.db, appId.id)
   let privateConfig = existing ? readPrivateConfig(existing, deps) : {}
@@ -165,7 +264,7 @@ export async function stopApp(deps: AppRunDeps, signer: string, action: {appId: 
 
 /** Whether an app runs here, with the names (never the values) of its private config. */
 export function getAppRun(deps: AppRunDeps, action: {appId: string}): api.AppRunInfo | null {
-  const row = getRunRow(deps.db, versionless(action.appId, 'app').id)
+  const row = effectiveRun(deps.db, versionless(action.appId, 'app').id)
   return row ? toRunInfo(row, deps) : null
 }
 
@@ -203,9 +302,10 @@ export async function callAppTool(
 ): Promise<api.AppToolCallInfo> {
   const appId = versionless(action.appId, 'app')
   const toolId = versionless(action.toolId, 'tool')
-  const run = getRunRow(deps.db, appId.id)
+  const run = effectiveRun(deps.db, appId.id)
   if (!run) throw new AppRunError(409, 'This app is not running here. Run it from the app’s Settings first.')
-  const app = await loadDocument(deps.client, appId, HM_APP_TYPE, 'app')
+  const app = await loadDocument(deps.client, appId, isToolHostType, 'app')
+  await requireRunsHere(deps, appId, app)
   if (!appEmbeddedChildren(appId, app.content).some((child) => child.id.id === toolId.id))
     throw new AppRunError(404, `${toolId.id} is not a tool of this app`)
   const tool = await loadDocument(deps.client, toolId, HM_TOOL_TYPE, 'tool')
@@ -329,9 +429,9 @@ export async function describeRunningApp(
   rawAppId: string,
 ): Promise<{run: api.AppRunInfo; name: string; summary?: string; tools: RunningAppTool[]} | null> {
   const appId = versionless(rawAppId, 'app')
-  const row = getRunRow(deps.db, appId.id)
+  const row = effectiveRun(deps.db, appId.id)
   if (!row) return null
-  const app = await loadDocument(deps.client, appId, HM_APP_TYPE, 'app')
+  const app = await loadDocument(deps.client, appId, isToolHostType, 'app')
   const tools = await Promise.all(
     appEmbeddedChildren(appId, app.content).map(async (child) => {
       const doc = await loadDocument(deps.client, child.id, HM_TOOL_TYPE, 'tool').catch(() => null)

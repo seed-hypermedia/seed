@@ -1,4 +1,4 @@
-import {parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {HM_AGENT_TYPE, parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -66,6 +66,8 @@ export function ToolDocumentView({
   const appId = parentDocumentId(docId)
   const appResource = useResource(appId)
   const appDocument = appResource.data?.type === 'document' ? appResource.data.document : null
+  // Apps and agents both host tools; an agent's tools go back to the agent itself.
+  const hostIsAgent = appDocument?.metadata.type === HM_AGENT_TYPE
 
   async function schemaRefFor(schema: HypermediaSchema | null) {
     return schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
@@ -95,8 +97,10 @@ export function ToolDocumentView({
         title={canEdit ? name : saved.name || docId.path?.at(-1) || ''}
         placeholder="Tool name"
         onTitleChange={canEdit ? setName : undefined}
-        backLabel="Back to app tools"
-        onBack={() => appId && navigate({key: 'document', id: appId, appView: 'tools'})}
+        backLabel={hostIsAgent ? 'Back to agent' : 'Back to app tools'}
+        onBack={() =>
+          appId && navigate(hostIsAgent ? {key: 'document', id: appId} : {key: 'document', id: appId, appView: 'tools'})
+        }
         actions={
           canEdit && dirty ? (
             <Button size="sm" variant="default" disabled={saving || !name.trim()} onClick={() => void save()}>

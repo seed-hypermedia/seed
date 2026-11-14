@@ -1216,12 +1216,10 @@ export default function DesktopResourcePage() {
   }
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
-  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
-  // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
-  // Agents, apps and tools publish from their own tabs, so a clean toolbar shows no Publish button.
-  const isAgentPage =
-    route.key === 'document' &&
-    (!!route.agentView || doc?.metadata.type === 'hm://hyper.media/agent' || !!appResourceKind(doc?.metadata.type))
+  // An agent view (sessions, settings, …) is the agent, so Publish only appears once attributes or
+  // content are dirty. An agent's base URL is its Home: its document, edited like any document.
+  // Apps and tools publish from their own tabs, so a clean toolbar shows no Publish button.
+  const isAgentPage = route.key === 'document' && (!!route.agentView || !!appResourceKind(doc?.metadata.type))
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens
