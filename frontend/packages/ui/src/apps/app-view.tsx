@@ -17,7 +17,8 @@ import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppsPublisher, type AppRef} from './publish'
 import {AppSettingsTab} from './app-settings'
-import {AppRunStatus, useAppRun, useAppServerUrl} from './running'
+import {AppRunStatus, useAppRun, useAppServerUrl, useHostTriggers, type HostTriggersInfo} from './running'
+import {TriggerSourceSummary} from '../agents/trigger-types'
 
 /** One of an app's children, as its tabs list them. */
 export type AppChildItem = {id: UnpackedHypermediaId; kind: AppChildKind | null; metadata?: HMMetadata}
@@ -122,6 +123,7 @@ function AppHomeTab({
     )
   const tools = children.listed.filter((item) => item.kind === 'tool').length
   const pages = children.listed.filter((item) => item.kind === 'page').length
+  const triggers = children.listed.filter((item) => item.kind === 'trigger').length
   const updated = app.document.updateTime ? new Date(String(app.document.updateTime)) : null
   return (
     <TabColumn>
@@ -140,6 +142,9 @@ function AppHomeTab({
         <Button variant="outline" onClick={() => navigate({key: 'document', id: app.id, appView: 'pages'})}>
           <FileCode2 className="size-4" /> {pages} {pages === 1 ? 'page' : 'pages'}
         </Button>
+        <Button variant="outline" onClick={() => navigate({key: 'document', id: app.id, appView: 'triggers'})}>
+          <Zap className="size-4" /> {triggers} {triggers === 1 ? 'trigger' : 'triggers'}
+        </Button>
       </div>
       <AppHomeRunStatus app={app} />
       {updated && !Number.isNaN(updated.getTime()) ? (
@@ -151,7 +156,8 @@ function AppHomeTab({
   )
 }
 
-function AppChildrenTab({
+/** An app's or agent's Tools, Pages or Triggers tab: its listed children of one kind. */
+export function AppChildrenTab({
   app,
   kind,
   appChildren: children,
@@ -167,6 +173,17 @@ function AppChildrenTab({
   const listed = children.listed.filter((item) => item.kind === kind)
   const strays = children.strays.filter((item) => item.kind === kind)
   const noun = kind
+  const host = app.document.metadata.type === 'hm://hyper.media/agent' ? 'agent' : 'app'
+  // A trigger row says when it fires, what it does and whether it can, as the host's server holds it.
+  const server = useAppServerUrl(app.id, app.document)
+  const hostTriggers = useHostTriggers(kind === 'trigger' ? server.serverUrl : '', app.id.id)
+  const triggerStates: TriggerStates = {
+    active: hostTriggers.data?.active,
+    loading: server.isLoading || hostTriggers.isInitialLoading,
+    triggers: hostTriggers.data?.triggers ?? [],
+    errors: hostTriggers.data?.errors ?? [],
+    host,
+  }
   return (
     <TabColumn>
       {!children.isLoading && !listed.length ? (
@@ -174,20 +191,30 @@ function AppChildrenTab({
           <SizableText weight="bold">No {noun}s yet.</SizableText>
           <SizableText size="sm" color="muted">
             {kind === 'tool'
-              ? 'A tool is one function of this app: what it takes, what it returns, and its code. Add one with New in the toolbar.'
+              ? `A tool is one function of this ${host}: what it takes, what it returns, and its code. Add one with New in the toolbar.`
               : kind === 'trigger'
-                ? 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
-                : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
+                ? host === 'agent'
+                  ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Add one with New in the toolbar.'
+                  : 'A trigger does something for this app when something happens (on a schedule, when a webhook is posted, or on activity in Hypermedia): it calls one of the app’s tools, or has an agent do the work. Triggers fire while the app runs. Add one with New in the toolbar.'
+                : `Pages are built by agents for now. Ask an agent to add a page to this ${host}.`}
           </SizableText>
         </div>
       ) : null}
       {listed.map((item) => (
-        <AppChildRow key={item.id.id} item={item} onOpen={() => navigate({key: 'document', id: item.id})} />
+        <AppChildRow
+          key={item.id.id}
+          item={item}
+          onOpen={() => navigate({key: 'document', id: item.id})}
+          detail={kind === 'trigger' ? <TriggerRowDetail item={item} state={triggerStates} /> : undefined}
+        />
       ))}
       {strays.length ? (
         <div className="mt-4 flex flex-col gap-1">
           <SizableText size="sm" weight="bold" color="muted">
-            Not in this app
+            Not in this {host}
+          </SizableText>
+          <SizableText size="xs" color="muted">
+            These are under this {host} but it does not list them, so it does not use them. Add lists one.
           </SizableText>
           {strays.map((item) => (
             <AppChildRow
@@ -224,11 +251,13 @@ function AppChildRow({
   onOpen,
   muted,
   action,
+  detail,
 }: {
   item: AppChildItem
   onOpen: () => void
   muted?: boolean
   action?: ReactNode
+  detail?: ReactNode
 }) {
   const Icon = item.kind === 'tool' ? Wrench : item.kind === 'trigger' ? Zap : Blocks
   return (
@@ -251,6 +280,7 @@ function AppChildRow({
             {item.metadata.summary}
           </SizableText>
         ) : null}
+        {detail}
       </div>
       {action}
     </div>
@@ -275,5 +305,79 @@ function AppHomeRunStatus({app}: {app: AppRef}) {
         error={status.isError ? status.error : undefined}
       />
     </button>
+  )
+}
+
+/** An agent's Triggers tab: its trigger documents, listed and created like an app's. */
+export function AgentTriggerDocumentsTab({host, canEdit}: {host: AppRef; canEdit: boolean}) {
+  const children = useAppChildren(host.id, host.document)
+  return <AppChildrenTab app={host} kind="trigger" appChildren={children} canEdit={canEdit} />
+}
+
+type TriggerStates = {
+  active: boolean | undefined
+  loading: boolean
+  triggers: HostTriggersInfo['triggers']
+  errors: HostTriggersInfo['errors']
+  host: 'app' | 'agent'
+}
+
+/** A trigger's row: when it fires, what it does, and whether it is on and able to fire. */
+function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStates}) {
+  const entry = state.triggers.find((candidate) => candidate.trigger.documentId === item.id.id)
+  const problem = state.errors.find((candidate) => candidate.documentId === item.id.id)?.error
+  const enabled =
+    item.metadata?.enabled !== false && (item.metadata as {enabled?: unknown} | undefined)?.enabled !== 'false'
+  const toolUrl = (item.metadata as {tool?: unknown} | undefined)?.tool
+  const toolResource = useResource(typeof toolUrl === 'string' ? unpackHmId(toolUrl) : null)
+  const tool =
+    typeof toolUrl === 'string'
+      ? (toolResource.data?.type === 'document' && toolResource.data.document.metadata.name) ||
+        toolUrl.split('/').at(-1)
+      : null
+  // An app's trigger without a tool hands its work to the agent it names.
+  const agentUrl = (item.metadata as {agent?: unknown} | undefined)?.agent
+  const agentResource = useResource(typeof agentUrl === 'string' ? unpackHmId(agentUrl) : null)
+  const agent =
+    typeof agentUrl === 'string'
+      ? (agentResource.data?.type === 'document' && agentResource.data.document.metadata.name) ||
+        agentUrl.split('/').at(-1)
+      : null
+  const status = !enabled
+    ? {label: 'Off', tone: 'muted' as const}
+    : problem
+      ? {label: `Can’t fire: ${problem}`, tone: 'destructive' as const}
+      : state.active === false
+        ? {label: state.host === 'app' ? 'Not running' : 'Not on its server', tone: 'muted' as const}
+        : entry
+          ? {label: 'On', tone: 'success' as const}
+          : state.loading
+            ? null
+            : {label: 'Not active yet', tone: 'muted' as const}
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {entry ? (
+        <SizableText size="xs" color="muted">
+          <TriggerSourceSummary source={entry.trigger.source} />
+          {' · '}
+          {tool ? `calls ${tool}` : agent ? `${agent} does the work` : 'starts a session'}
+        </SizableText>
+      ) : null}
+      {status ? (
+        <SizableText
+          size="xs"
+          weight="medium"
+          className={
+            status.tone === 'destructive'
+              ? 'text-destructive'
+              : status.tone === 'success'
+                ? 'text-green-700 dark:text-green-400'
+                : 'text-muted-foreground'
+          }
+        >
+          {status.label}
+        </SizableText>
+      ) : null}
+    </div>
   )
 }

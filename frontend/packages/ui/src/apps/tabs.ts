@@ -1,7 +1,7 @@
 import {HM_APP_TYPE, HM_TOOL_TYPE, HM_TRIGGER_TYPE} from '@seed-hypermedia/client/apps'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DocumentPanelRoute, DocumentRoute, NavRoute} from '@shm/shared/routes'
-import {FileCode2, House, Settings, Wrench, Zap, type LucideIcon} from 'lucide-react'
+import {Bot, Brain, FileCode2, House, Settings, Users, Wrench, Zap, type LucideIcon} from 'lucide-react'
 
 /** Which typed resource with its own tabs a document is, if any. */
 export function appResourceKind(type: unknown): 'app' | 'tool' | 'trigger' | null {
@@ -36,6 +36,32 @@ export function appResourceTabs(
     tab('Tools', Wrench, 'tools'),
     tab('Pages', FileCode2, 'pages'),
     tab('Triggers', Zap, 'triggers'),
+    tab('Settings', Settings, 'settings'),
+  ]
+}
+
+/**
+ * An agent's tabs, for a page inside it (one of its tools or triggers): the same tabs its own
+ * document shows, so a tool or trigger stays inside its agent the way an app's stay inside the app.
+ */
+export function agentResourceTabs(
+  id: UnpackedHypermediaId,
+  active: DocumentRoute['agentView'] | 'home' | null,
+): ResourceTab[] {
+  const base = {...id, version: null, latest: true, blockRef: null, blockRange: null}
+  const tab = (label: string, icon: LucideIcon, view: DocumentRoute['agentView'] | 'home'): ResourceTab => ({
+    label,
+    tooltip: `Open agent ${label.toLowerCase()}`,
+    icon,
+    active: active === view,
+    route: {key: 'document', id: base, ...(view !== 'home' ? {agentView: view} : {})},
+  })
+  return [
+    tab('Home', House, 'home'),
+    tab('Sessions', Bot, 'sessions'),
+    tab('Triggers', Zap, 'triggers'),
+    tab('Memory', Brain, 'memory'),
+    tab('People', Users, 'access'),
     tab('Settings', Settings, 'settings'),
   ]
 }

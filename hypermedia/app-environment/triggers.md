@@ -35,7 +35,7 @@ Prompts accept the same rich Seed [block](../protocol/blocks.md) format as agent
 | `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` <!-- id:mf2zxBhI --> |
 | `site-update` | new activity appears under a resource prefix; activity the trigger's own agent authored (signed by one of its signing identities) never matches unless `includeOwnActivity` is true, so an agent writing or commenting under a prefix it watches does not start itself again | `resourcePrefix`, optional `eventTypes[]` (`doc-update`, `comment`), optional `includeOwnActivity` <!-- id:fyoQw9B_ --> |
 | `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the four activity sources above <!-- id:awQJs1x6 --> |
-| `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timezone}`, or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
+| `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timesOfDay?, timezone}` (`timesOfDay` lists several times a day), or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
 | `webhook` | something POSTs JSON to the trigger's delivery URL | none; the secret is created with the trigger <!-- id:-P02QGwG --> |
 | `run-completed` | a run of this account reaches a terminal status | optional `agentId`, `status` (`succeeded`, `failed`, `canceled`), `titleMatch` <!-- id:4JzuZ8WZ --> |
 

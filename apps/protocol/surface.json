@@ -379,7 +379,8 @@
         "_": "\"MessageSession\"",
         "clientMessageId?": "string",
         "content": "MessageSessionContentPart[]",
-        "sessionId": "string"
+        "sessionId": "string",
+        "timezone?": "string"
       }
     },
     "MountAgent": {
@@ -451,6 +452,12 @@
         "_": "\"RunApp\"",
         "appId": "string",
         "privateConfig?": "Record<string, unknown>"
+      }
+    },
+    "RunTriggerNow": {
+      "fields": {
+        "_": "\"RunTriggerNow\"",
+        "triggerId": "string"
       }
     },
     "SaveAgentTool": {
@@ -984,6 +991,12 @@
         "sessionId": "string"
       }
     },
+    "RunTriggerNowResponse": {
+      "fields": {
+        "_": "\"RunTriggerNowResponse\"",
+        "firing": "{id: string; runId?: string; sessionId?: string}"
+      }
+    },
     "SaveAgentToolResponse": {
       "fields": {
         "_": "\"SaveAgentToolResponse\"",
@@ -1276,6 +1289,7 @@
             "daysOfWeek": "number[]",
             "kind": "\"weekly\"",
             "timeOfDay": "string",
+            "timesOfDay?": "string[]",
             "timezone": "string"
           }
         }
@@ -1286,6 +1300,7 @@
         "activity": "Record<string, unknown>",
         "activityKey": "string",
         "activitySummary": "string",
+        "documentId?": "string",
         "error?": "string",
         "firedAt": "number",
         "firingId": "string",
@@ -1302,6 +1317,7 @@
       "fields": {
         "activityKey": "string",
         "activitySummary": "string",
+        "documentId?": "string",
         "firedAt": "number",
         "firingId": "string",
         "matchedConditions?": "AgentActivityCondition[]",

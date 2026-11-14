@@ -184,7 +184,7 @@ describe('CreateAgentDialog', () => {
     expect(mocks.rememberServer).toHaveBeenCalledWith('http://local.test')
     expect(mocks.toastSuccess).toHaveBeenCalledWith('Agent created')
     expect(onClose).toHaveBeenCalled()
-    expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId, agentView: 'sessions'})
+    expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId})
   })
 
   it('retries with the same document, identity and request after the server action fails', async () => {
@@ -207,7 +207,7 @@ describe('CreateAgentDialog', () => {
     expect(mocks.publish).toHaveBeenCalledTimes(2)
     expect(mocks.createAgent).toHaveBeenCalledTimes(2)
     expect(mocks.createAgent.mock.calls[1]![0]).toBe(mocks.createAgent.mock.calls[0]![0])
-    expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId, agentView: 'sessions'})
+    expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId})
   })
 
   it('defaults a ChatGPT subscription agent to Sol with Astra and Luna checked', async () => {

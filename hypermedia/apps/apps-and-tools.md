@@ -24,6 +24,16 @@ export default async function (input: Input, ctx: {app: string; publicConfig: ob
 
 A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
 
+# What runs where
+
+- A **tool** takes input and returns output, in a sandbox with internet access. It holds no signing key and cannot reach the Seed node of the server that runs it, so it neither publishes documents nor reads them: whoever calls it passes the records it needs. It has no language model either; judgment work (summarizing, classifying) needs a model API key in the app's private config, or belongs to an agent.
+- A **page** runs in the viewer's browser and reads and writes Seed records as the viewer: `seed.directory`, `seed.resource`, and `seed.publishDocument(recordUrl, {name, metadata})` to create or edit a record.
+- A **trigger** under an app is the app's automation. It calls one of the app's tools, or names an agent (`agent`) that does the work in a session: reading the app's records, calling its tools and publishing the result into the app (a daily digest, a shopping list).
+
+# Where an app's data lives
+
+The app owns its data model: type documents at `<app>/types/<type>`, collections at `<app>/<collection>` with `childAttributesSchema` set to the type, and records as children of their collection. The app names each collection in `metadata.publicConfig` (`{"articles": "hm://…/reading-list/articles"}`), so its pages (`seed.app.context()`) and tools (`ctx.publicConfig`) find them without hard-coded addresses. These documents are not cards in the app; only tools, pages and triggers are.
+
 # In the desktop app
 
 An app opens as tabs instead of a text document, like an agent:

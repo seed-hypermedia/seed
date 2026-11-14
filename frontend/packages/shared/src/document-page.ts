@@ -93,7 +93,13 @@ export function documentPageMessageSize(value: unknown): number {
 }
 
 /** The same portable SDK surface is injected into desktop and opaque web runtimes. */
-export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {}) => Object.freeze({
+export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {}) => {
+const isHmId = (value) => !!value && typeof value === 'object' && typeof value.id === 'string' && value.id.startsWith('hm://') && (typeof value.uid === 'string' || Object.keys(value).length === 1)
+const asLink = (value) => typeof value === 'string' ? value : isHmId(value) ? value.id : value && isHmId(value.id) ? value.id.id : value
+// A record's id prints as its URL (String(record.id), \`\${record.id}\`), as pages tend to expect.
+const printable = (id) => isHmId(id) ? Object.defineProperty({...id}, 'toString', {value: () => id.id}) : id
+const links = (value) => Array.isArray(value) ? value.map(links) : isHmId(value) || (value && isHmId(value.id)) ? asLink(value) : value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, links(item)])) : value
+return Object.freeze({
   runtime: () => call('runtime'),
   input: Object.freeze({get: () => call('input.get'), push: (values) => call('input.push', {values}), replace: (values) => call('input.replace', {values}), onChange: (listener) => subscribeInput(listener)}),
   open: (url, options) => call('open', {url, newWindow: !!options?.newWindow}),
@@ -101,12 +107,12 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
   context: () => call('context'),
   profile: () => call('profile'),
   storage: Object.freeze({get: (key) => call('storage.get', {key}), set: (key, value) => call('storage.set', {key, value})}),
-  resource: (url) => call('resource', {url}),
-  directory: (url, options) => call('directory', {url, all: !!options?.all}),
+  resource: (url) => call('resource', {url: asLink(url)}).then((resource) => resource && resource.type === 'document' && resource.document ? {...resource.document, ...resource, ...(isHmId(resource.id) ? {id: printable(resource.id), url: resource.id.id} : {})} : resource),
+  directory: (url, options) => call('directory', {url: asLink(url), all: !!options?.all}).then((found) => found.map((record) => record && isHmId(record.id) && record.url === undefined ? {...record, id: printable(record.id), url: record.id.id} : record)).then((records) => Object.defineProperties(records, {documents: {value: records}, items: {value: records}, records: {value: records}})),
   permissions: Object.freeze({request: () => call('permissions.request'), revoke: () => call('permissions.revoke')}),
   request: (key, input) => call('request', {key, input}),
   publish: (input) => call('publish', {input}),
-  publishDocument: (input) => call('publishDocument', {input}),
+  publishDocument: (input, fields) => typeof input === 'string' || isHmId(input) || (input && isHmId(input.id)) ? call('publishDocument', {url: asLink(input), fields: links(fields || {})}) : call('publishDocument', {input}),
   signer: Object.freeze({getPublicKey: () => call('signer.getPublicKey'), sign: (data) => call('signer.sign', {data})}),
   hm: Object.freeze({
     parseMarkdown: (markdown) => call('hm.parseMarkdown', {markdown}),
@@ -117,8 +123,9 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
     )}.map((name) => [name, (input) => call('hm.' + name, {input})])),
   }),
   comments: Object.freeze({create: (input) => call('comments.create', input)}),
-  app: Object.freeze({call: (tool, input = {}) => call('app.call', {tool, input}), context: () => call('app.context')}),
-})`
+  app: Object.freeze({call: (tool, input = {}) => call('app.call', {tool: asLink(tool), input: links(input)}), context: () => call('app.context')}),
+})
+}`
 
 export type DocumentPageMethod = (typeof DOCUMENT_PAGE_METHODS)[number]
 
@@ -180,6 +187,15 @@ export type DocumentPageSDK = {
   publish(input: HMPublishBlobsInput): Promise<HMPublishBlobsOutput>
   /** Resolve existing viewer write access, publish, and confirm the new version before resolving. */
   publishDocument(input: Omit<PublishDocumentInput, 'signerAccountUid'>): Promise<{document: string}>
+  /**
+   * Creates or edits the record at `url` (an hm:// address): sets `name` and each `metadata` field
+   * (strings; other values are written as text), and gives a new record `content` as its body text.
+   * An existing record keeps its history: the change builds on its current version.
+   */
+  publishDocument(
+    url: string,
+    fields: {name?: string; metadata?: Record<string, unknown>; content?: string; visibility?: 'public' | 'private'},
+  ): Promise<{document: string}>
   hm: {
     parseMarkdown(markdown: string): Promise<HMBlockNode[]>
     validateContent(content: HMBlockNode[]): Promise<HMBlockNode[]>

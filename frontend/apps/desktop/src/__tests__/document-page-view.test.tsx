@@ -139,7 +139,7 @@ describe('DocumentPageView', () => {
       const signal = mocks.request.mock.calls.at(-1)![2].signal as AbortSignal
       expect(signal.aborted).toBe(false)
       await act(async () => finishRead(resource))
-      await expect(initialRead).resolves.toEqual(resource)
+      await expect(initialRead).resolves.toEqual({...document, ...resource, url: docId.id})
     }
     const signal = mocks.request.mock.calls.at(-1)![2].signal as AbortSignal
     await act(async () => root.render(<div />))

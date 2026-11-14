@@ -24,6 +24,9 @@ import {Copy} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
+import {useLocalAgentServerUrl} from '../agents/models'
+import {useSiteAgentMounts} from '../site-agents'
+import {describeHostServer} from '../server-host-card'
 import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
@@ -33,7 +36,7 @@ import {copyTextToClipboard} from '../copy-to-clipboard'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useResourceDraft} from './resource-draft'
-import {appServerErrorMessage, useAppServerUrl, useHostTriggers} from './running'
+import {appServerErrorMessage, useAppServerUrl, useHostTriggers, useRunTriggerNow} from './running'
 
 /** A new trigger's source: an hourly schedule, edited before it matters (it does nothing until it names an action). */
 export const DEFAULT_TRIGGER_SOURCE: AgentTriggerSource = {
@@ -67,6 +70,7 @@ export function TriggerDocumentView({
   const hostIsAgent = host?.metadata.type === HM_AGENT_TYPE
   const server = useAppServerUrl(hostId ?? docId, host ?? ({metadata: {}} as HMDocument))
   const hostTriggers = useHostTriggers(server.serverUrl, hostId?.id ?? '')
+  const runNow = useRunTriggerNow(server.serverUrl)
   const refs = triggerDocumentRefs(draft.metadata as Record<string, unknown>)
   const stored = useQuery({
     queryKey: ['trigger-document-blobs', refs.sourceCid, refs.inputCid],
@@ -85,7 +89,14 @@ export function TriggerDocumentView({
   const [message, setMessage] = useState('')
   const [chosenAction, setChosenAction] = useState<'tool' | 'session' | null>(null)
   const written = useRef<{inputCid: string | null; content: HMBlockNode[] | null}>({inputCid: null, content: null})
-  const action: 'tool' | 'session' = !hostIsAgent ? 'tool' : chosenAction ?? (refs.tool ? 'tool' : 'session')
+  // An agent's trigger starts a session with it unless it calls a tool; an app's calls a tool unless
+  // it names an agent to do the work.
+  const action: 'tool' | 'session' =
+    chosenAction ?? (hostIsAgent ? (refs.tool ? 'tool' : 'session') : refs.agent ? 'session' : 'tool')
+  // The agents an app's trigger can hand its work to: those mounted in the app's space.
+  const spaceAgents = useSiteAgentMounts(!hostIsAgent ? hostId?.uid : null)
+  const appParent = hostId ? parentDocumentId(hostId) : null
+  const sessionAgentId = hostIsAgent ? hostId?.id ?? null : refs.agent
 
   // What the draft says (a new version, a discarded draft) replaces what the fields hold, unless the
   // fields wrote it themselves.
@@ -100,7 +111,7 @@ export function TriggerDocumentView({
   }, [stored.data])
   useEffect(() => {
     if (draft.content === written.current.content) return
-    setMessage(draft.content.length ? blocksToMarkdown({metadata: {}, content: draft.content} as HMDocument) : '')
+    setMessage(draft.content.length ? messageMarkdown(draft.content) : '')
     written.current.content = draft.content
   }, [draft.content])
   useEffect(() => setChosenAction(null), [document.version])
@@ -153,12 +164,19 @@ export function TriggerDocumentView({
   }
   function changeAction(next: 'tool' | 'session') {
     setChosenAction(next)
-    // A session trigger calls no tool; a tool trigger has no message.
-    if (next === 'session') draft.change({tool: null, input: null})
-    else if (draft.content.length) {
-      written.current.content = []
-      setMessage('')
-      draft.change({}, [])
+    // A session trigger calls no tool; a tool trigger has no message (and, in an app, no agent).
+    if (next === 'session') {
+      // An app made under an agent hands its work to that agent unless another is chosen.
+      const defaultAgent =
+        refs.agent ?? spaceAgents.data?.find((agent) => agent.agentId === appParent?.id)?.agentId ?? null
+      draft.change(hostIsAgent ? {tool: null, input: null} : {tool: null, input: null, agent: defaultAgent})
+    } else {
+      if (!hostIsAgent && refs.agent) draft.change({agent: null})
+      if (draft.content.length) {
+        written.current.content = []
+        setMessage('')
+        draft.change({}, [])
+      }
     }
   }
 
@@ -178,6 +196,7 @@ export function TriggerDocumentView({
       <AgentSubpageHeader
         title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Trigger name"
+        subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent triggers' : 'Back to app triggers'}
         onBack={() => backRoute && navigate(backRoute)}
@@ -204,6 +223,21 @@ export function TriggerDocumentView({
             enabled={refs.enabled}
             canEdit={canEdit}
             onEnabledChange={(enabled) => draft.change({enabled})}
+            onRunNow={
+              canEdit && state && state.trigger.source.type === 'schedule'
+                ? () =>
+                    runNow.mutate(state.trigger.id, {
+                      onSuccess: () =>
+                        toast.success(
+                          action === 'session'
+                            ? 'Started: its session appears under Firings'
+                            : 'Started: its tool call appears under Firings',
+                        ),
+                      onError: (error) => toast.error(appServerErrorMessage(error)),
+                    })
+                : undefined
+            }
+            running={runNow.isLoading}
             onOpenSettings={() =>
               hostId && !hostIsAgent && navigate({key: 'document', id: hostId, appView: 'settings'})
             }
@@ -237,30 +271,49 @@ export function TriggerDocumentView({
 
           <section className="flex flex-col gap-3">
             <SizableText weight="bold">Then</SizableText>
-            {hostIsAgent ? (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={action === 'session' ? 'default' : 'outline'}
-                  disabled={!canEdit}
-                  onClick={() => changeAction('session')}
-                >
-                  Start a session
-                </Button>
-                <Button
-                  size="sm"
-                  variant={action === 'tool' ? 'default' : 'outline'}
-                  disabled={!canEdit}
-                  onClick={() => changeAction('tool')}
-                >
-                  Call a tool
-                </Button>
-              </div>
-            ) : null}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={action === 'session' ? 'default' : 'outline'}
+                disabled={!canEdit}
+                onClick={() => changeAction('session')}
+              >
+                {hostIsAgent ? 'Start a session' : 'Have an agent do it'}
+              </Button>
+              <Button
+                size="sm"
+                variant={action === 'tool' ? 'default' : 'outline'}
+                disabled={!canEdit}
+                onClick={() => changeAction('tool')}
+              >
+                Call a tool
+              </Button>
+            </div>
             {action === 'session' ? (
               <>
+                {hostIsAgent ? null : (
+                  <select
+                    aria-label="Agent that does the work"
+                    value={refs.agent ?? ''}
+                    disabled={!canEdit}
+                    onChange={(event) => draft.change({agent: event.currentTarget.value || null})}
+                    className="border-border bg-background text-foreground w-fit rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">Choose an agent…</option>
+                    {(spaceAgents.data ?? []).map((agent) => (
+                      <option key={agent.agentId} value={agent.agentId}>
+                        {agent.name}
+                      </option>
+                    ))}
+                    {refs.agent && !spaceAgents.data?.some((agent) => agent.agentId === refs.agent) ? (
+                      <option value={refs.agent}>{refs.agent}</option>
+                    ) : null}
+                  </select>
+                )}
                 <SizableText size="sm" color="muted">
-                  The agent starts a new session with this message, and the event that fired it.
+                  {hostIsAgent
+                    ? 'The agent starts a new session with this message, and the event that fired it.'
+                    : 'The agent starts a new session for this app with this message and the event that fired it, and works with the access it has.'}
                 </SizableText>
                 <Textarea
                   value={message}
@@ -290,8 +343,11 @@ export function TriggerDocumentView({
                   ) : null}
                 </select>
                 <SizableText size="sm" color="muted">
-                  Input, as JSON. String values <code>"$event"</code> and <code>"$event.path"</code> are filled from the
-                  event (a webhook's posted JSON is <code>"$event.payload"</code>). Leave it empty to pass the event.
+                  {source?.type === 'schedule'
+                    ? 'Input for the tool, as JSON (optional).'
+                    : source?.type === 'webhook'
+                      ? 'Input for the tool, as JSON. "$event.payload" is the posted JSON; leave it empty to pass the whole event.'
+                      : 'Input for the tool, as JSON. "$event" and "$event.<field>" are filled from what happened; leave it empty to pass the whole event.'}
                 </SizableText>
                 <CodeTextArea
                   value={input}
@@ -313,12 +369,7 @@ export function TriggerDocumentView({
             <WebhookSection serverUrl={server.serverUrl} triggerId={state.trigger.id} secret={state.webhookSecret} />
           ) : null}
 
-          <FiringsSection
-            firings={state?.firings ?? []}
-            hostId={hostId}
-            toolId={refs.tool ?? ''}
-            hostIsAgent={hostIsAgent}
-          />
+          <FiringsSection firings={state?.firings ?? []} toolId={refs.tool ?? ''} sessionAgentId={sessionAgentId} />
         </div>
       </div>
     </div>
@@ -356,6 +407,8 @@ function TriggerStatus({
   canEdit,
   onEnabledChange,
   onOpenSettings,
+  onRunNow,
+  running,
 }: {
   serverUrl: string
   hostIsAgent: boolean
@@ -366,8 +419,13 @@ function TriggerStatus({
   canEdit: boolean
   onEnabledChange: (enabled: boolean) => void
   onOpenSettings: () => void
+  /** Fires it once now, to try it without waiting for its time. */
+  onRunNow?: () => void
+  running?: boolean
 }) {
-  const host = serverUrl ? new URL(serverUrl).host : null
+  const localServerUrl = useLocalAgentServerUrl()
+  const where = describeHostServer(serverUrl, localServerUrl.data)
+  const host = where === 'This computer' ? 'this computer' : where
   const line = loading
     ? 'Checking its server…'
     : error
@@ -395,6 +453,11 @@ function TriggerStatus({
           </button>
         ) : null}
       </div>
+      {onRunNow && active !== false && !error ? (
+        <Button size="sm" variant="outline" disabled={running} onClick={onRunNow}>
+          {running ? 'Starting…' : 'Run now'}
+        </Button>
+      ) : null}
       <SizableText size="xs" color="muted">
         {enabled ? 'On' : 'Off'}
       </SizableText>
@@ -450,16 +513,16 @@ const FIRING_LABELS: Record<string, string> = {
 
 function FiringsSection({
   firings,
-  hostId,
   toolId,
-  hostIsAgent,
+  sessionAgentId,
 }: {
   firings: TriggerFiringInfo[]
-  hostId: UnpackedHypermediaId | null
   toolId: string
-  hostIsAgent: boolean
+  /** The agent whose sessions this trigger starts, if it starts any. */
+  sessionAgentId: string | null
 }) {
   const navigate = useNavigate()
+  const sessionAgent = sessionAgentId ? unpackHmId(sessionAgentId) : null
   return (
     <section className="flex flex-col gap-2">
       <SizableText weight="bold">Firings</SizableText>
@@ -474,8 +537,9 @@ function FiringsSection({
               const id = toolId ? unpackHmId(toolId) : null
               if (id) navigate({key: 'document', id, toolCallId: firing.toolCallId})
             }
-          : firing.sessionId && hostId && hostIsAgent
-            ? () => navigate({key: 'document', id: hostId, agentView: 'session', agentSessionId: firing.sessionId})
+          : firing.sessionId && sessionAgent
+            ? () =>
+                navigate({key: 'document', id: sessionAgent, agentView: 'session', agentSessionId: firing.sessionId})
             : null
         return (
           <div
@@ -505,4 +569,13 @@ function FiringsSection({
       })}
     </section>
   )
+}
+
+/** A trigger's message as its owner reads and writes it: markdown without front matter or block ids. */
+export function messageMarkdown(content: HMBlockNode[]): string {
+  return blocksToMarkdown({metadata: {}, content} as HMDocument)
+    .replace(/^---\n[\s\S]*?---\n/, '')
+    .replace(/ ?<!-- (id|end):[^>]*-->/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }

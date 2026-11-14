@@ -231,6 +231,7 @@ export type UnsignedAgentAction =
   | DeleteAgent
   | ListAgentTriggers
   | ListHostTriggers
+  | RunTriggerNow
   | GetAgentTrigger
   | CreateAgentTrigger
   | UpdateAgentTrigger
@@ -633,6 +634,15 @@ export type ListAgentTriggers = {
 }
 
 /**
+ * Fires a schedule trigger once, now, the way its schedule would: an app's trigger calls its tool,
+ * an agent's starts its session. For trying a trigger without waiting for its time. Writers only.
+ */
+export type RunTriggerNow = {
+  _: 'RunTriggerNow'
+  triggerId: string
+}
+
+/**
  * Lists the triggers an app's or agent's trigger documents define on this server, syncing the host
  * first (so a just-published trigger is already listed), with each one's recent firings. Unsigned
  * requests work; a signed request from a writer of the host's space also gets webhook secrets.
@@ -801,7 +811,15 @@ export type TriggerFailurePolicy = 'none' | 'thread'
 /** Schedule configuration that decides when an agent trigger fires. */
 export type AgentScheduleTrigger =
   | {kind: 'interval'; every: number; unit: 'minutes' | 'hours'}
-  | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
+  | {
+      kind: 'weekly'
+      daysOfWeek: number[]
+      /** The (first) time it fires, `HH:MM`. */
+      timeOfDay: string
+      /** Every time it fires on those days, `HH:MM`, sorted, when there is more than one. */
+      timesOfDay?: string[]
+      timezone: string
+    }
   | {kind: 'once'; runAt: number; timezone?: string}
 
 /** One file or directory inside an agent's private memory filesystem. */
@@ -1107,6 +1125,11 @@ export type MessageSession = {
   sessionId: string
   content: MessageSessionContentPart[]
   clientMessageId?: string
+  /**
+   * The sender's IANA time zone (`Europe/Madrid`), from their device. The agent reads times the
+   * person names ("every morning at 8") in it, and sees their local time each turn.
+   */
+  timezone?: string
 }
 
 /**
@@ -1629,6 +1652,8 @@ export type RunJournalEntryInfo = {
 export type AgentSessionTriggerSummary = {
   triggerId: string
   triggerName: string
+  /** The trigger's document, for a trigger that is one. */
+  documentId?: string
   firingId: string
   activityKey: string
   activitySummary: string
@@ -2232,6 +2257,12 @@ export type ListAgentTriggersResponse = {
   triggers: AgentTriggerInfo[]
 }
 
+/** Successful response for `RunTriggerNow`: the firing it recorded, and what it started. */
+export type RunTriggerNowResponse = {
+  _: 'RunTriggerNowResponse'
+  firing: {id: string; sessionId?: string; runId?: string}
+}
+
 /** Successful response for `ListHostTriggers`. */
 export type ListHostTriggersResponse = {
   _: 'ListHostTriggersResponse'
@@ -2648,6 +2679,7 @@ export type AgentResponse =
   | DeleteAgentResponse
   | ListAgentTriggersResponse
   | ListHostTriggersResponse
+  | RunTriggerNowResponse
   | GetAgentTriggerResponse
   | CreateAgentTriggerResponse
   | UpdateAgentTriggerResponse

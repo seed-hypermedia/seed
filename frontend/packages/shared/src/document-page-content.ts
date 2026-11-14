@@ -45,6 +45,133 @@ export const DOCUMENT_PAGE_SIGNING_HELPERS = {
   signBlob: (input: Record<string, unknown>, signer: HMSigner) => signBlob(signer, input),
 }
 
+/**
+ * `seed.publishDocument(url, {name, metadata, content, visibility})`: the raw change input for
+ * creating the record at `url`, or editing it on top of its current version when it exists.
+ */
+/**
+ * A record's fields as typed attribute changes: text, whole numbers and booleans keep their type,
+ * null clears, and a nested object becomes nested fields. Attributes cannot hold a list: a list is
+ * refused with how to store it instead.
+ */
+function attributeChanges(fields: Record<string, unknown>, path: string[]): unknown[] {
+  return Object.entries(fields).flatMap(([key, value]): unknown[] => {
+    const keyPath = [...path, key]
+    const set = (attribute: unknown) => [
+      {op: {case: 'setAttribute', value: {blockId: '', key: keyPath, value: attribute}}},
+    ]
+    if (value === undefined) return []
+    if (value === null) return set({case: 'nullValue', value: {}})
+    if (typeof value === 'string') return set({case: 'stringValue', value})
+    if (typeof value === 'boolean') return set({case: 'boolValue', value})
+    if (typeof value === 'number' && Number.isInteger(value)) return set({case: 'intValue', value: BigInt(value)})
+    if (typeof value === 'number') return set({case: 'stringValue', value: String(value)})
+    if (Array.isArray(value))
+      throw new Error(
+        `The field "${keyPath.join(
+          '.',
+        )}" is a list, and record fields cannot hold lists: store it as text (one item per line, or comma-separated) or in the record's body.`,
+      )
+    if (typeof value === 'object') return attributeChanges(value as Record<string, unknown>, keyPath)
+    return set({case: 'stringValue', value: String(value)})
+  })
+}
+
+/**
+ * Changes that make a record's body the markdown `text`: its blocks (headings, paragraphs, lists,
+ * code, links and inline marks) replace whatever body the record had. Block attributes are left
+ * out, so a list reads as indented lines rather than bullets.
+ */
+function bodyChanges(text: string, doc: HMDocument | null): unknown[] {
+  const tree = hm.markdownBlockNodesToHMBlockNodes(hm.parseMarkdown(text, {strictFrontmatter: false}).tree)
+  // Every old block goes, children included, so none is left without its parent.
+  const changes: unknown[] = []
+  const remove = (nodes: NonNullable<HMDocument['content']>) => {
+    for (const node of nodes) {
+      if (node.children?.length) remove(node.children)
+      changes.push({op: {case: 'deleteBlock', value: node.block.id}})
+    }
+  }
+  remove(doc?.content ?? [])
+  const freshId = () => Math.random().toString(36).slice(2, 10)
+  const add = (nodes: typeof tree, parent: string) => {
+    let leftSibling = ''
+    for (const node of nodes) {
+      const block = node.block as {type: string; text?: string; link?: string; annotations?: unknown[]}
+      const id = freshId()
+      changes.push({op: {case: 'moveBlock', value: {blockId: id, parent, leftSibling}}})
+      changes.push({
+        op: {
+          case: 'replaceBlock',
+          value: {
+            id,
+            type: block.type,
+            text: block.text ?? '',
+            ...(block.link ? {link: block.link} : {}),
+            annotations: (block.annotations ?? []).map((raw) => {
+              const annotation = raw as {type: string; starts: number[]; ends: number[]; link?: string}
+              return {
+                type: annotation.type,
+                starts: annotation.starts,
+                ends: annotation.ends,
+                ...(annotation.link ? {link: annotation.link} : {}),
+              }
+            }),
+          },
+        },
+      })
+      if (node.children?.length) add(node.children, id)
+      leftSibling = id
+    }
+  }
+  add(tree, '')
+  return changes
+}
+
+export async function simplePublishInput(
+  request: Pick<UniversalClient, 'request'>['request'],
+  url: string,
+  rawFields: unknown,
+): Promise<Record<string, unknown>> {
+  const id = hm.unpackHmId(url)
+  if (!id?.path?.length)
+    throw new Error(
+      'publishDocument(url, fields) takes the hm:// address of a record, such as hm://SPACE/collection/record',
+    )
+  const fields = z
+    .object({
+      name: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+      // The record's body as markdown. Other shapes (an editor's JSON) are not body text: they are
+      // left out rather than failing the save, since a record's data is its metadata.
+      content: z.unknown().optional(),
+      visibility: z.enum(['public', 'private']).optional(),
+    })
+    .strict()
+    .parse(rawFields ?? {})
+  const existing = await request('Resource', {...id, version: null, latest: true}).catch(() => null)
+  const doc = existing?.type === 'document' ? existing.document : null
+  const metadata = {...(fields.metadata ?? {}), ...(fields.name !== undefined ? {name: fields.name} : {})}
+  const changes: unknown[] = attributeChanges(metadata, [])
+  // The body is markdown; on an existing record it replaces the old body, so it never goes stale.
+  if (typeof fields.content === 'string' && fields.content.trim()) changes.push(...bodyChanges(fields.content, doc))
+  if (!changes.length) throw new Error('publishDocument(url, fields) needs a name, metadata or content to write')
+  return {
+    account: id.uid,
+    path: '/' + id.path.join('/'),
+    changes,
+    ...(doc
+      ? {
+          baseVersion: doc.version,
+          genesis: doc.genesis,
+          ...(doc.generationInfo ? {generation: Number(doc.generationInfo.generation)} : {}),
+        }
+      : fields.visibility === 'private'
+        ? {visibility: 2}
+        : {}),
+  }
+}
+
 /** Dispatch SDK calls through the selected viewer's client; never return a key or privileged client. */
 export async function documentPageContent({
   method,
@@ -202,12 +329,14 @@ export async function documentPageContent({
   if (method === 'publish') return publish(HMPublishBlobsInputSchema.parse(object.input))
   if (method === 'publishDocument') {
     if (!account) throw new Error('Sign in to publish a document.')
+    const raw =
+      typeof object.url === 'string' ? await simplePublishInput(request, object.url, object.fields) : object.input
     const input = HMPrepareDocumentChangeInputSchema.extend({
       genesis: z.string().optional(),
       generation: z.union([z.number(), z.bigint()]).optional(),
     })
       .strict()
-      .parse(object.input)
+      .parse(raw)
     const id = hm.unpackHmId(hm.packBaseId(input.account, input.path?.split('/').filter(Boolean) || []))!
     const capability = await hm.resolveCapability({request}, input.account, account, input.path, input.capability)
     if (input.account !== account && !capability) {
@@ -218,18 +347,36 @@ export async function documentPageContent({
     if (input.capability && input.capability !== capability) {
       throw new Error('The supplied capability does not match your selected account’s write access.')
     }
+    // Saving one document is one permission: what it writes and where. Preparing, signing and
+    // publishing its change are steps of that save, not separate requests to the viewer.
+    const title = input.changes.find(
+      (change) => change.op.case === 'setMetadata' && (change.op.value as {key?: string}).key === 'name',
+    )?.op.value as {value?: string} | undefined
+    await access.authorize(
+      {
+        kind: 'sign',
+        type: 'Change',
+        site: input.account,
+        resource: id.id,
+        title: `Save ${title?.value ? `“${title.value}”` : 'a document'}`,
+        details: {document: id.id, changes: input.changes},
+      },
+      authorized,
+    )
+    authorized.throwIfAborted()
     let publishedVersion: string | undefined
     const publishingClient = createWebUniversalClient({
-      request,
+      request: ((key: HMRequest['key'], requestInput: HMRequest['input']) =>
+        client.request<HMRequest['key']>(key, requestInput, {signal: authorized})) as typeof request,
       publish: async (payload) => {
-        const result = await publish(payload)
+        const result = await client.publish(payload)
         for (const blob of payload.blobs) {
           const body = decode(blob.data) as {type?: string; heads?: unknown[]}
           if (body.type === 'Ref' && body.heads) publishedVersion = body.heads.map(String).join('.')
         }
         return result
       },
-      getSigner: () => signer,
+      getSigner: () => client.getSigner!(account),
     })
     await publishingClient.publishDocument!({...input, capability, signerAccountUid: account})
     const saved = await request('Resource', id)

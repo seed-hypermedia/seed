@@ -118,9 +118,9 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
   }
   if (source.schedule.kind === 'interval') return `Every ${source.schedule.every} ${source.schedule.unit}`
   if (source.schedule.kind === 'once') return `Once at ${formattedDateMedium(new Date(source.schedule.runAt))}`
-  return `${source.schedule.daysOfWeek.map(dayName).join(', ')} at ${source.schedule.timeOfDay} ${
-    source.schedule.timezone
-  }`
+  return `${source.schedule.daysOfWeek.map(dayName).join(', ')} at ${(
+    source.schedule.timesOfDay ?? [source.schedule.timeOfDay]
+  ).join(', ')} ${source.schedule.timezone}`
 }
 
 // ---------------------------------------------------------------------------
@@ -612,16 +612,56 @@ function ScheduleTriggerFields({
             ))}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <SizableText size="sm" weight="bold">
-                Time of day
+                {(schedule.timesOfDay?.length ?? 1) > 1 ? 'Times of day' : 'Time of day'}
               </SizableText>
-              <Input
-                type="time"
-                value={schedule.timeOfDay}
-                onChange={(event) => setSchedule({...schedule, timeOfDay: event.target.value})}
-              />
-            </label>
+              {(schedule.timesOfDay ?? [schedule.timeOfDay]).map((time, index, times) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    aria-label={`Time ${index + 1}`}
+                    value={time}
+                    onChange={(event) =>
+                      setSchedule(
+                        withTimes(
+                          schedule,
+                          times.map((t, i) => (i === index ? event.target.value : t)),
+                        ),
+                      )
+                    }
+                  />
+                  {times.length > 1 ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Remove ${time}`}
+                      onClick={() =>
+                        setSchedule(
+                          withTimes(
+                            schedule,
+                            times.filter((_, i) => i !== index),
+                          ),
+                        )
+                      }
+                    >
+                      ×
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-fit"
+                onClick={() => {
+                  const times = schedule.timesOfDay ?? [schedule.timeOfDay]
+                  setSchedule(withTimes(schedule, [...times, laterTime(times.at(-1) ?? '09:00')]))
+                }}
+              >
+                + Add a time
+              </Button>
+            </div>
             <label className="flex flex-col gap-1">
               <SizableText size="sm" weight="bold">
                 Timezone
@@ -1083,9 +1123,12 @@ export function TriggerContextView({
   const navigate = useNavigate()
   const Icon = TRIGGER_TYPE_ICONS[context.source.type]
   const activityRoute = useMemo(() => getTriggerActivityRoute(context), [context])
-  const triggerRoute: NavRoute | null = agentId
-    ? {key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: context.triggerId}
-    : null
+  const triggerDocument = context.documentId ? unpackHmId(context.documentId) : null
+  const triggerRoute: NavRoute | null = triggerDocument
+    ? {key: 'document', id: triggerDocument}
+    : agentId
+      ? {key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: context.triggerId}
+      : null
 
   return (
     <div className="bg-muted/40 mb-3 flex min-w-0 flex-col gap-2 rounded-lg border p-3 text-xs">
@@ -1112,7 +1155,8 @@ export function TriggerContextView({
       <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="min-w-0 break-words">{<TriggerSourceSummary source={context.source} />}</span>
         <span>Fired {formattedDateMedium(new Date(context.firedAt))}</span>
-        {context.status && context.status !== 'fired' ? <span>Status: {context.status}</span> : null}
+        {context.status === 'failed' || context.status === 'error' ? <span>Failed</span> : null}
+        {context.status === 'escalated' ? <span>Escalated</span> : null}
       </div>
       {context.source.type === 'webhook' ? <WebhookActivityPreview activity={context.activity} /> : null}
       {context.error ? (
@@ -1562,4 +1606,19 @@ function JsonTemplateField({
       </SizableText>
     </label>
   )
+}
+
+type WeeklySchedule = Extract<Extract<AgentTriggerSource, {type: 'schedule'}>['schedule'], {kind: 'weekly'}>
+
+/** A weekly schedule firing at `times` (sorted; the first is its timeOfDay). */
+function withTimes(schedule: WeeklySchedule, times: string[]): WeeklySchedule {
+  const sorted = [...times].sort()
+  const {timesOfDay: _old, ...rest} = schedule
+  return {...rest, timeOfDay: sorted[0] ?? schedule.timeOfDay, ...(sorted.length > 1 ? {timesOfDay: sorted} : {})}
+}
+
+/** A time two hours after `time`, wrapping at midnight. */
+function laterTime(time: string): string {
+  const [hour = 9, minute = 0] = time.split(':').map(Number)
+  return `${String((hour + 2) % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
