@@ -63,7 +63,9 @@ export async function simplePublishInput(
     .object({
       name: z.string().optional(),
       metadata: z.record(z.string(), z.unknown()).optional(),
-      content: z.string().optional(),
+      // Body text for a new record. Other shapes (an editor's JSON) are not body text: they are left
+      // out rather than failing the save, since a record's data is its metadata.
+      content: z.unknown().optional(),
       visibility: z.enum(['public', 'private']).optional(),
     })
     .strict()
@@ -79,7 +81,7 @@ export async function simplePublishInput(
         value: {key, value: typeof value === 'string' ? value : value === null ? '' : JSON.stringify(value)},
       },
     }))
-  if (fields.content && !doc) {
+  if (typeof fields.content === 'string' && fields.content && !doc) {
     const blockId = Math.random().toString(36).slice(2, 10)
     changes.push(
       {op: {case: 'moveBlock', value: {blockId, parent: '', leftSibling: ''}}},

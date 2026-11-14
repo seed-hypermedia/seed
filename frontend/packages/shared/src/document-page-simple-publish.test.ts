@@ -35,4 +35,12 @@ describe('seed.publishDocument(url, fields)', () => {
     await expect(simplePublishInput(request, 'hm://z6Mkspace', {name: 'x'})).rejects.toThrow('address of a record')
     await expect(simplePublishInput(request, url, {})).rejects.toThrow('needs a name')
   })
+  it('saves a record whose content is not text, leaving the body out', async () => {
+    const request = (async () => ({type: 'not-found'})) as never
+    const input = (await simplePublishInput(request, url, {
+      name: 'x',
+      content: {type: 'doc', content: []},
+    })) as {changes: {op: {case: string}}[]}
+    expect(input.changes.map((c) => c.op.case)).toEqual(['setMetadata'])
+  })
 })

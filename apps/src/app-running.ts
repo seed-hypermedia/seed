@@ -352,7 +352,7 @@ export async function callAppTool(
     })
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {
-      const detail = (execution.stderr.trim() || parsed.logs || '').split('\n').slice(-8).join('\n')
+      const detail = readableToolError(execution.stderr.trim() || parsed.logs || '')
       throw new AppRunError(400, `The tool failed (exit ${execution.exitCode})${detail ? `:\n${detail}` : ''}`)
     }
     if (!parsed.hasResult) throw new AppRunError(400, 'The tool finished without returning a value')
@@ -458,4 +458,17 @@ export async function describeRunningApp(
     ...(app.metadata.summary ? {summary: app.metadata.summary} : {}),
     tools: tools.filter((tool) => tool !== null) as RunningAppTool[],
   }
+}
+
+/**
+ * A failed tool's output as its reader should see it: the last lines, with the tool's code (loaded
+ * from a base64 data URL) named index.ts instead of printed as base64 in every stack frame.
+ */
+export function readableToolError(output: string): string {
+  return output
+    .replace(/data:text\/typescript;base64,[A-Za-z0-9+/=_-]+/g, 'index.ts')
+    .replace(/[A-Za-z0-9+/=_-]{120,}/g, 'index.ts')
+    .split('\n')
+    .slice(-8)
+    .join('\n')
 }
