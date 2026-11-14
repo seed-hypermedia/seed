@@ -186,6 +186,8 @@ export type HostTriggersInfo = {
   active: boolean
   triggers: {trigger: AgentTriggerInfo; webhookSecret?: string; firings: TriggerFiringInfo[]}[]
   errors: {documentId: string; error: string}[]
+  /** For an app: agents' triggers that work on it. */
+  fromAgents?: {documentId: string; agentId: string; name: string; enabled: boolean}[]
 }
 
 /** The triggers of an app or agent on the server that runs it; asking also syncs them there. */

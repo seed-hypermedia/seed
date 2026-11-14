@@ -184,9 +184,15 @@ export function AppChildrenTab({
     errors: hostTriggers.data?.errors ?? [],
     host,
   }
+  const fromAgents = (kind === 'trigger' && host === 'app' && hostTriggers.data?.fromAgents) || []
   return (
     <TabColumn>
-      {!children.isLoading && !listed.length ? (
+      {!children.isLoading && !listed.length && fromAgents.length ? (
+        <SizableText size="sm" color="muted">
+          This app has no triggers of its own. Its automations belong to agents, below: open one to see when it runs and
+          what it does.
+        </SizableText>
+      ) : !children.isLoading && !listed.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
           <SizableText weight="bold">No {noun}s yet.</SizableText>
           <SizableText size="sm" color="muted">
@@ -208,6 +214,29 @@ export function AppChildrenTab({
           detail={kind === 'trigger' ? <TriggerRowDetail item={item} state={triggerStates} /> : undefined}
         />
       ))}
+      {fromAgents.length ? (
+        <div className="mt-4 flex flex-col gap-1">
+          <SizableText size="sm" weight="bold" color="muted">
+            Run by agents
+          </SizableText>
+          <SizableText size="xs" color="muted">
+            Agents’ triggers that work on this app. They belong to the agent: change them there.
+          </SizableText>
+          {fromAgents.map((entry) => {
+            const id = unpackHmId(entry.documentId)
+            if (!id) return null
+            return (
+              <AgentTriggerRow
+                key={entry.documentId}
+                name={entry.name}
+                agentId={entry.agentId}
+                enabled={entry.enabled}
+                onOpen={() => navigate({key: 'document', id})}
+              />
+            )
+          })}
+        </div>
+      ) : null}
       {strays.length ? (
         <div className="mt-4 flex flex-col gap-1">
           <SizableText size="sm" weight="bold" color="muted">
@@ -283,6 +312,45 @@ function AppChildRow({
         {detail}
       </div>
       {action}
+    </div>
+  )
+}
+
+/** An agent's trigger that works on this app, named with its agent. */
+function AgentTriggerRow({
+  name,
+  agentId,
+  enabled,
+  onOpen,
+}: {
+  name: string
+  agentId: string
+  enabled: boolean
+  onOpen: () => void
+}) {
+  const agent = useResource(unpackHmId(agentId))
+  const agentName =
+    (agent.data?.type === 'document' && agent.data.document.metadata?.name) || unpackHmId(agentId)?.path?.at(-1)
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className="hover:bg-muted/60 flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors"
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onOpen()
+      }}
+    >
+      <Zap className="text-muted-foreground mt-1 size-4 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <SizableText weight="bold" className="truncate">
+          {name}
+        </SizableText>
+        <SizableText size="sm" color="muted">
+          {agentName ? `${agentName}’s trigger` : 'An agent’s trigger'}
+          {enabled ? '' : ' · off'}
+        </SizableText>
+      </div>
     </div>
   )
 }
