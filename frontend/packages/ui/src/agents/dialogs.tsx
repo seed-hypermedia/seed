@@ -1067,6 +1067,12 @@ export function CreateAgentDialog({
   // Only the space owner can grant; a location elsewhere (or one chosen later) leaves it to them.
   const canGrantWrite = !input.location || input.location.uid === input.selectedAccountId
   const pendingCreation = useRef<Omit<CreateAgent, '_'>>()
+  // The dialog focuses its first control when it opens; the name is what to type first.
+  const nameInput = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const timer = setTimeout(() => nameInput.current?.focus(), 50)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Checked quick-switch entries name providers on one server; a server switch drops them.
   useEffect(() => {
@@ -1285,7 +1291,7 @@ export function CreateAgentDialog({
           Name
         </SizableText>
         <Input
-          autoFocus
+          ref={nameInput}
           value={name}
           disabled={!!preparedMount.current}
           // The suggested name is selected, so typing replaces it.

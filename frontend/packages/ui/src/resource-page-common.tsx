@@ -3129,23 +3129,30 @@ function DocumentBody({
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = documentPage ? (
-    <div data-document-page-main className="min-h-0 flex-1">
+    <div data-document-page-main className="flex min-h-0 flex-1 flex-col">
       {documentConversionDialog}
-      <DocumentPageView
-        docId={docId}
-        document={document}
-        cid={documentPage}
-        inputParams={route.key === 'document' ? route.id.pageParams : undefined}
-        onInputNavigate={(pageParams, mode) => {
-          const next = {...route, id: {...docId, pageParams}} as NavRoute
-          if (mode === 'replace') replaceRoute(next)
-          else navigate(next)
-        }}
-        perspectiveAccountUid={perspectiveAccountUid}
-        onAccountAccessChange={onPageAccessChange}
-        onParametersChange={onPageParametersChange}
-        fill
-      />
+      {isPage && appTabs ? (
+        <div className="shrink-0 px-5 py-1">
+          <DocumentTools id={docId} resourceTabs={appTabs} currentRoute={route} />
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <DocumentPageView
+          docId={docId}
+          document={document}
+          cid={documentPage}
+          inputParams={route.key === 'document' ? route.id.pageParams : undefined}
+          onInputNavigate={(pageParams, mode) => {
+            const next = {...route, id: {...docId, pageParams}} as NavRoute
+            if (mode === 'replace') replaceRoute(next)
+            else navigate(next)
+          }}
+          perspectiveAccountUid={perspectiveAccountUid}
+          onAccountAccessChange={onPageAccessChange}
+          onParametersChange={onPageParametersChange}
+          fill
+        />
+      </div>
     </div>
   ) : (
     <div
