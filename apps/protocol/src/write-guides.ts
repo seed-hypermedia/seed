@@ -431,7 +431,7 @@ Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weat
 Before you report an app as done:
 
 1. Run it (\`options.action: "run"\`) when it names your server, and call each tool once with real input; \`read <tool>/:calls\` shows the recorded call.
-2. Read back each published document (the app, its tools, pages and triggers, its types and collections) and fix any schema warning.
+2. Read back each published document (the app, its tools, pages and triggers, its types and collections) and fix any schema warning. Records you wrote only to test (a sample article, a test recipe) are not your user's data: delete them before you hand over, or name them clearly as examples.
 3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired.
 4. Say what you could not test. You cannot click a page's buttons: writing a record yourself with write does not prove the page's own save works, so do not call the page verified. Check its code against the page SDK's exact signatures instead (\`seed.publishDocument(recordUrl, {name, metadata})\`) and tell your user to try it.
 
