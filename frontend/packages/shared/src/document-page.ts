@@ -106,7 +106,7 @@ export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {})
   permissions: Object.freeze({request: () => call('permissions.request'), revoke: () => call('permissions.revoke')}),
   request: (key, input) => call('request', {key, input}),
   publish: (input) => call('publish', {input}),
-  publishDocument: (input) => call('publishDocument', {input}),
+  publishDocument: (input, fields) => call('publishDocument', typeof input === 'string' ? {url: input, fields: fields || {}} : {input}),
   signer: Object.freeze({getPublicKey: () => call('signer.getPublicKey'), sign: (data) => call('signer.sign', {data})}),
   hm: Object.freeze({
     parseMarkdown: (markdown) => call('hm.parseMarkdown', {markdown}),
@@ -180,6 +180,15 @@ export type DocumentPageSDK = {
   publish(input: HMPublishBlobsInput): Promise<HMPublishBlobsOutput>
   /** Resolve existing viewer write access, publish, and confirm the new version before resolving. */
   publishDocument(input: Omit<PublishDocumentInput, 'signerAccountUid'>): Promise<{document: string}>
+  /**
+   * Creates or edits the record at `url` (an hm:// address): sets `name` and each `metadata` field
+   * (strings; other values are written as text), and gives a new record `content` as its body text.
+   * An existing record keeps its history: the change builds on its current version.
+   */
+  publishDocument(
+    url: string,
+    fields: {name?: string; metadata?: Record<string, unknown>; content?: string; visibility?: 'public' | 'private'},
+  ): Promise<{document: string}>
   hm: {
     parseMarkdown(markdown: string): Promise<HMBlockNode[]>
     validateContent(content: HMBlockNode[]): Promise<HMBlockNode[]>
