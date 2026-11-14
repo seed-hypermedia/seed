@@ -490,8 +490,9 @@ describe('agent mounting', () => {
     // The prompt page is a subpage of Settings: a back button, and Settings stays the lit tab.
     await page.getByRole('button', {name: 'Back to agent settings', exact: true}).click()
     await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings`)
-    await page.getByRole('button', {name: 'Edit prompt', exact: true}).click()
-    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
+    // Settings' Instructions row opens the agent's Home: its instructions are its document.
+    await page.getByRole('button', {name: 'Open Home', exact: true}).click()
+    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper`)
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-prompt.png')})
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 
