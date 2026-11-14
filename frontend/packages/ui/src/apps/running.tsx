@@ -39,8 +39,18 @@ export function structFields(schema: HypermediaSchema | undefined): StructField[
 }
 
 /** Turns form text into the value a field's kind expects (numbers and booleans parse; JSON for the rest). */
+/** Field kinds typed as plain text, and what each one's box suggests. */
+const TEXT_KINDS: Record<string, string | undefined> = {
+  string: undefined,
+  url: 'https://…',
+  'hm-url': 'hm://…',
+  'ipfs-url': 'ipfs://…',
+  date: 'YYYY-MM-DD',
+  'date-time': 'YYYY-MM-DDTHH:MM',
+}
+
 function fieldValue(field: StructField, text: string): unknown {
-  if (field.kind === 'string') return text
+  if (field.kind in TEXT_KINDS) return text
   if (field.kind === 'integer' || field.kind === 'number' || field.kind === 'float') return Number(text)
   if (field.kind === 'boolean') return text === 'true'
   try {
@@ -404,7 +414,9 @@ function InputField({
           {field.name}
           {field.required ? <span className="text-muted-foreground"> *</span> : null}
         </span>
-        <span className="text-muted-foreground text-xs font-normal">{field.description ?? field.kind}</span>
+        {field.description || (field.kind && field.kind !== field.name) ? (
+          <span className="text-muted-foreground text-xs font-normal">{field.description ?? field.kind}</span>
+        ) : null}
       </Label>
       {field.kind === 'boolean' ? (
         <select
@@ -424,7 +436,13 @@ function InputField({
           type={field.kind === 'integer' || field.kind === 'float' || field.kind === 'number' ? 'number' : 'text'}
           autoComplete="off"
           className="bg-background"
-          placeholder={['string', 'integer', 'float', 'number'].includes(field.kind) ? undefined : 'JSON'}
+          placeholder={
+            field.kind in TEXT_KINDS
+              ? TEXT_KINDS[field.kind]
+              : ['integer', 'float', 'number'].includes(field.kind)
+                ? undefined
+                : 'JSON'
+          }
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
