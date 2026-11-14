@@ -27,6 +27,7 @@ import {DocumentTopBar} from '../document-top-bar'
 
 let container: HTMLDivElement
 let root: Root
+const openRoute = vi.fn()
 let observers: Array<{
   target?: Element
   emit: (isIntersecting: boolean) => void
@@ -34,6 +35,8 @@ let observers: Array<{
 }>
 
 beforeEach(() => {
+  openRoute.mockClear()
+  vi.stubGlobal('PointerEvent', MouseEvent)
   observers = []
   vi.stubGlobal(
     'IntersectionObserver',
@@ -74,13 +77,21 @@ function render(node: React.ReactNode) {
   act(() => {
     root.render(
       <UniversalAppProvider
-        openRoute={vi.fn()}
+        openRoute={openRoute}
         openUrl={vi.fn()}
         universalClient={{request: vi.fn(), publish: vi.fn()} as any}
       >
         {node}
       </UniversalAppProvider>,
     )
+  })
+}
+
+function openPathMenu() {
+  act(() => {
+    container
+      .querySelector('[aria-label="Document path"]')!
+      .dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0, ctrlKey: false}))
   })
 }
 
@@ -146,7 +157,6 @@ describe('DocumentTopBar', () => {
           {id: hmId('site', {path: ['doc']}), metadata: {name: 'Doc'}},
         ]}
         actions={<button type="button">Publish</button>}
-        isMobile
       />,
     )
 
@@ -178,9 +188,86 @@ describe('DocumentTopBar', () => {
   })
 
   it('renders a home document as its own single crumb', () => {
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} isMobile />)
+    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} />)
 
     expect(container.querySelector('nav[aria-label="Breadcrumb"]')).not.toBeNull()
     expect(container.querySelectorAll('a')).toHaveLength(0)
+  })
+
+  it('replaces mobile crumbs with a path menu in hierarchy order and marks the current document', () => {
+    render(
+      <DocumentTopBar
+        isMobile
+        breadcrumbs={[
+          {id: hmId('site'), metadata: {name: 'Site'}},
+          {id: hmId('site', {path: ['projects']}), metadata: {name: 'Projects'}},
+          {id: hmId('site', {path: ['projects', 'mobile']}), metadata: {name: 'Mobile'}},
+          {id: hmId('site', {path: ['projects', 'mobile', 'navigation']}), metadata: {name: 'Navigation guidelines'}},
+        ]}
+      />,
+    )
+    expect(container.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Document path"]')).not.toBeNull()
+    openPathMenu()
+    const items = Array.from(document.querySelectorAll('[role="menuitem"]'))
+    expect(items.map((item) => item.textContent)).toEqual(['Home', 'Projects', 'Mobile', 'Navigation guidelines'])
+    expect(items.slice(0, 3).every((item) => item.tagName === 'A')).toBe(true)
+    expect(items.map((item) => (item as HTMLElement).style.paddingLeft)).toEqual(['8px', '22px', '36px', '50px'])
+    const current = items[3]!
+    expect(current.getAttribute('aria-current')).toBe('page')
+    expect(current.tagName).toBe('DIV')
+    expect(current.className).toContain('font-semibold')
+    expect(current.querySelector('svg.lucide-check')).not.toBeNull()
+    act(() => (items[2] as HTMLElement).click())
+    expect(openRoute).toHaveBeenCalledWith(
+      {key: 'document', id: hmId('site', {path: ['projects', 'mobile']})},
+      undefined,
+    )
+  })
+
+  it('omits the mobile path button at home and for empty breadcrumbs', () => {
+    for (const breadcrumbs of [[], [{id: hmId('site'), metadata: {name: 'Site'}}]]) {
+      render(<DocumentTopBar isMobile breadcrumbs={breadcrumbs} />)
+      expect(container.querySelector('[aria-label="Document path"]')).toBeNull()
+      expect(container.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull()
+    }
+  })
+
+  it('preserves draft, loading, missing and error labels in the mobile menu', () => {
+    render(
+      <DocumentTopBar
+        isMobile
+        breadcrumbs={[
+          {id: hmId('site'), metadata: {}},
+          {id: hmId('site', {path: ['loading']}), metadata: {}, isLoading: true},
+          {id: hmId('site', {path: ['missing']}), metadata: {}, isNotFound: true, fallbackName: 'Missing parent'},
+          {id: hmId('site', {path: ['error']}), metadata: {name: 'Unavailable'}, isError: true},
+          {id: hmId('site', {path: ['draft']}), metadata: {name: 'Draft parent'}, draftId: 'draft-parent'},
+          {label: 'Unpublished section'},
+          {
+            id: hmId('site', {path: ['current']}),
+            metadata: {name: 'Private draft'},
+            isUnpublishedDraft: true,
+            draftId: 'current',
+          },
+        ]}
+      />,
+    )
+    openPathMenu()
+    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
+      'Home',
+      'Loading…',
+      'Missing parent',
+      'Unavailable',
+      'Draft parent',
+      'Unpublished section',
+      'Private draft',
+    ])
+    expect(document.querySelector('[aria-current="page"] .italic')).not.toBeNull()
+    const draftParent = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent === 'Draft parent',
+    )!
+    act(() => draftParent.click())
+    expect(openRoute).toHaveBeenCalledWith({key: 'draft', id: 'draft-parent'}, undefined)
   })
 })
