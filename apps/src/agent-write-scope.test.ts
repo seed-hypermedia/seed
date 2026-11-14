@@ -40,3 +40,14 @@ describe('user time', () => {
     expect(userTimeBlock(undefined)).toBeUndefined()
   })
 })
+
+describe('cron schedules', () => {
+  test('daily and weekly cron lines read as weekly schedules', async () => {
+    const {weeklyFromCron} = await import('./api-service')
+    expect(weeklyFromCron('0 18 * * 0')).toEqual({kind: 'weekly', daysOfWeek: [0], timeOfDay: '18:00'})
+    expect(weeklyFromCron('30 8 * * *')?.daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(weeklyFromCron('0 9 * * 1-5')?.daysOfWeek).toEqual([1, 2, 3, 4, 5])
+    expect(weeklyFromCron('0 9 1 * *')).toBeNull()
+    expect(weeklyFromCron('*/5 * * * *')).toBeNull()
+  })
+})

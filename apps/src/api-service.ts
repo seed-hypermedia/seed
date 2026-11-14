@@ -13021,8 +13021,49 @@ function triggerContinuationSummaryLine(continuation: api.TriggerContinuation | 
   return `runs a script headlessly${onFailure}`
 }
 
+/** A "M H * * D" cron line as a weekly schedule (days 0-6 from Sunday; * is every day), or null. */
+export function weeklyFromCron(expression: string): {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string} | null {
+  const parts = expression.trim().split(/\s+/)
+  if (parts.length !== 5) return null
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [string, string, string, string, string]
+  if (dayOfMonth !== '*' || month !== '*' || !/^\d{1,2}$/.test(minute) || !/^\d{1,2}$/.test(hour)) return null
+  if (Number(minute) > 59 || Number(hour) > 23) return null
+  const days = new Set<number>()
+  if (dayOfWeek === '*') for (let day = 0; day < 7; day++) days.add(day)
+  else
+    for (const part of dayOfWeek.split(',')) {
+      const range = /^(\d)(?:-(\d))?$/.exec(part)
+      if (!range) return null
+      const start = Number(range[1])
+      const end = range[2] === undefined ? start : Number(range[2])
+      for (let day = start; day <= end; day++) days.add(day % 7)
+    }
+  return {
+    kind: 'weekly',
+    daysOfWeek: [...days].sort(),
+    timeOfDay: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+  }
+}
+
 function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger schedule is required')
+  // A daily or weekly cron line ("M H * * D") is read as the weekly schedule it means.
+  const cron =
+    (raw as {kind?: unknown; expression?: unknown; cron?: unknown; timezone?: unknown}).kind === 'cron'
+      ? (raw as {expression?: unknown; cron?: unknown})
+      : null
+  if (cron) {
+    const weekly = weeklyFromCron(String(cron.expression ?? cron.cron ?? ''))
+    if (!weekly)
+      throw new APIError(
+        400,
+        'Only daily or weekly cron lines ("M H * * D") are understood; use {kind: "interval", every, unit}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} or {kind: "once", runAt}',
+      )
+    return normalizeScheduleTrigger({
+      ...weekly,
+      timezone: (raw as {timezone?: string}).timezone,
+    } as api.AgentScheduleTrigger)
+  }
   if (raw.kind === 'interval') {
     const every = normalizeOptionalPositiveInteger(raw.every, 'Schedule interval')
     if (raw.unit !== 'minutes' && raw.unit !== 'hours') throw new APIError(400, 'Schedule interval unit is unsupported')
@@ -13065,7 +13106,10 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
     }
     return {kind: 'once', runAt: raw.runAt, timezone}
   }
-  throw new APIError(400, 'Schedule kind is unsupported')
+  throw new APIError(
+    400,
+    'Schedule kind is unsupported: use {kind: "interval", every, unit: "minutes"|"hours"}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} or {kind: "once", runAt: epochMs}',
+  )
 }
 
 function normalizeBoolean(value: unknown, label: string): boolean {
@@ -17484,6 +17528,17 @@ async function writeDocumentCreate(
   const childId = unpackHmId(`hm://${account}${path}`)
   const {app, refusal} = childId ? await resolveAppParent(client, childId, metadata.type) : {app: null}
   if (refusal) throw new APIError(400, refusal)
+  // A trigger under an app can only call one of the app's tools: nothing there could start a session.
+  if (
+    app &&
+    metadata.type === HM_TRIGGER_TYPE &&
+    app.document.metadata?.type === 'hm://hyper.media/app' &&
+    !metadata.tool
+  )
+    throw new APIError(
+      400,
+      `A trigger under an app calls one of the app's tools (options.trigger.tool). To have an agent do the work when it fires (read records, publish a document), put the trigger under the agent's document instead, with the instructions as its content: read ~/tools/write/triggers.`,
+    )
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
