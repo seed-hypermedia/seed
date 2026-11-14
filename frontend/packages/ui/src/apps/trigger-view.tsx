@@ -103,7 +103,7 @@ export function TriggerDocumentView({
   }, [stored.data])
   useEffect(() => {
     if (draft.content === written.current.content) return
-    setMessage(draft.content.length ? blocksToMarkdown({metadata: {}, content: draft.content} as HMDocument) : '')
+    setMessage(draft.content.length ? messageMarkdown(draft.content) : '')
     written.current.content = draft.content
   }, [draft.content])
   useEffect(() => setChosenAction(null), [document.version])
@@ -539,4 +539,13 @@ function FiringsSection({
       })}
     </section>
   )
+}
+
+/** A trigger's message as its owner reads and writes it: markdown without front matter or block ids. */
+export function messageMarkdown(content: HMBlockNode[]): string {
+  return blocksToMarkdown({metadata: {}, content} as HMDocument)
+    .replace(/^---\n[\s\S]*?---\n/, '')
+    .replace(/ ?<!-- (id|end):[^>]*-->/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }

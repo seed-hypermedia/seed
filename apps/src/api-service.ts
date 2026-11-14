@@ -3758,6 +3758,7 @@ export class Service {
       scheduleKind: schedule.kind,
       scheduledAt: now,
       firedAt: now,
+      manual: true,
       ...('timezone' in schedule && schedule.timezone ? {timezone: schedule.timezone} : {}),
     } as unknown as activityTriggers.ActivityFeedEvent
     const firingId = crypto.randomUUID()
