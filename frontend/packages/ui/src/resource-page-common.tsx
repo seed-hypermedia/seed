@@ -4693,7 +4693,7 @@ function CollectionViewControls({
                 <Icon />
                 {label}
                 {active ? (
-                  <ChevronDown className="size-3 transition-transform [[data-state=open]>&]:rotate-180" />
+                  <ChevronDown className="size-3 transition-transform motion-reduce:transition-none [[data-state=open]>&]:rotate-180" />
                 ) : null}
               </Button>
             </PopoverTrigger>
@@ -4742,7 +4742,7 @@ function CollectionQuerySettings({
               disabled={!canEdit}
               onValueChange={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
             >
-              <SelectTrigger id={`${id}-columns`} className="w-28">
+              <SelectTrigger id={`${id}-columns`} className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
