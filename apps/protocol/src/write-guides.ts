@@ -443,7 +443,7 @@ Before you report an app as done:
 3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired.
 4. Say what you could not test. You cannot click a page's buttons: writing a record yourself with write does not prove the page's own save works, so do not call the page verified. Check its code against the page SDK's exact signatures instead (\`seed.publishDocument(recordUrl, {name, metadata})\`) and tell your user to try it.
 
-Then tell your user, in a few lines: the app's link (the app itself, which opens on its Home tab, not one of its pages), what it holds (its pages, tools, triggers and data collections), anything they need to provide (a private config value such as an API key), and end with the one thing to do first, as an action on the app's own link: "Open [Habit Tracker](hm://…/habit-tracker) and add your first habit." Link the app, not its page or a collection: the app opens on its page and leads to the rest.
+Then tell your user, in a few lines: the app's link (the app itself, which opens on its Home tab, not one of its pages), what it holds (its pages, tools, triggers and data collections), anything they need to provide (a private config value such as an API key), and end with the one thing to do first, as an action on the app's own link: "Open [Habit Tracker](hm://…/habit-tracker) and add your first habit." Link the app, not its page or a collection: the app opens on its page and leads to the rest. After a fix, end the same way, with the one thing to try now to see it work.
 
 ## Revising
 
