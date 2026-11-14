@@ -12622,6 +12622,66 @@ describe('symmetric log: user tool calls', () => {
   })
 })
 
+describe('paged reads', () => {
+  const lines = (count: number) =>
+    Array.from({length: count}, (_, index) => `line ${index} ${'é"'.repeat(20)}`).join('\n')
+
+  test('a result that fits in one page passes through untouched', () => {
+    const result = {summary: 'Read it.', markdown: 'hello'}
+    expect(apisvc.paginateReadResult(result, {address: 'hm://x'})).toBe(result)
+    const listing = {summary: 'Two entries.', entries: [{path: 'a'}, {path: 'b'}]}
+    expect(apisvc.paginateReadResult(listing, {address: '~/memory/'})).toBe(listing)
+  })
+
+  test('long text comes back in pages that rejoin to the original and never truncate', () => {
+    const markdown = lines(4000)
+    expect(Buffer.byteLength(markdown, 'utf8')).toBeGreaterThan(apisvc.MAX_MODEL_TOOL_RESULT_BYTES * 4)
+    let offset = 0
+    let joined = ''
+    let pages = 0
+    for (;;) {
+      const page = apisvc.paginateReadResult(
+        {summary: 'Guide.', kind: 'guide', markdown},
+        {address: '~/tools/write/pages', options: {offset}},
+      )
+      const serialized = JSON.stringify(page)
+      expect(apisvc.boundModelToolResultText(serialized)).toBe(serialized)
+      const info = page.page as {field: string; offset: number; end: number; total: number; nextOffset?: number}
+      expect(info).toMatchObject({field: 'markdown', offset, total: markdown.length})
+      expect(page.kind).toBe('guide')
+      joined += String(page.markdown)
+      pages += 1
+      if (info.nextOffset === undefined) {
+        expect(String(page.summary)).toContain('(the end)')
+        break
+      }
+      // Pages end on a line break, and the summary names the exact next call.
+      expect(String(page.markdown).endsWith('\n')).toBe(true)
+      expect(String(page.summary)).toContain(`options {offset: ${info.nextOffset}}`)
+      expect(info.nextOffset).toBe(info.end)
+      offset = info.nextOffset
+    }
+    expect(joined).toBe(markdown)
+    expect(pages).toBeGreaterThan(4)
+  })
+
+  test('memory file content pages too, and an offset never splits a character', () => {
+    const content = '🦀'.repeat(apisvc.READ_PAGE_BYTES)
+    const first = apisvc.paginateReadResult({summary: 'Read notes/a.md.', content}, {address: '~/memory/notes/a.md'})
+    const info = first.page as {field: string; nextOffset: number}
+    expect(info.field).toBe('content')
+    expect(String(first.content)).not.toMatch(/[\uD800-\uDBFF]$/)
+    const next = apisvc.paginateReadResult(
+      {content},
+      {address: '~/memory/notes/a.md', options: {offset: info.nextOffset + 1}},
+    )
+    expect(String(next.content).startsWith('🦀')).toBe(true)
+    const past = apisvc.paginateReadResult({content}, {address: '~/memory/notes/a.md', options: {offset: 10 ** 9}})
+    expect(past.content).toBe('')
+    expect(past.page).toEqual({field: 'content', offset: content.length, end: content.length, total: content.length})
+  })
+})
+
 describe('model-facing tool result bound', () => {
   test('small results pass through untouched', () => {
     const text = JSON.stringify({summary: 'ok', markdown: 'hello'})

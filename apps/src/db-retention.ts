@@ -10,7 +10,7 @@
  * This module holds the three things that bound it:
  *
  * - {@link boundPersistedToolOutput}: a size cap on the tool output a session stores. The model
- *   never reads more than 8 KiB of a result (`boundModelToolResultText`); the cap only limits what
+ *   never reads more than 32 KiB of a result (`boundModelToolResultText`); the cap only limits what
  *   is kept for people to inspect.
  * - Durable-store retirement: the Pi Durable store of a session nobody has touched for a while is
  *   dropped. Nothing visible changes. The store is rebuilt from the session's log on the session's
