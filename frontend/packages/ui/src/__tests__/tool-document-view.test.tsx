@@ -86,10 +86,20 @@ function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string
   })
 }
 
+function openDefinition() {
+  const button = Array.from(container.querySelectorAll('button')).find(
+    (el) => el.textContent?.startsWith('Definition'),
+  )!
+  act(() => button.click())
+}
+
 describe('ToolDocumentView', () => {
   it('is one page under a session-style header that goes back to the app tools', () => {
     act(() => root.render(<ToolDocumentView docId={toolId} document={tool} canEdit />))
     expect((container.querySelector('input[aria-label="Tool name"]') as HTMLInputElement).value).toBe('forecast')
+    // The definition starts folded, under Run.
+    expect(container.textContent).not.toContain('index.ts')
+    openDefinition()
     expect(container.textContent).toContain('Input')
     expect(container.textContent).toContain('Output')
     expect(container.textContent).toContain('index.ts')
@@ -108,6 +118,7 @@ describe('ToolDocumentView', () => {
     expect(mocks.change).toHaveBeenLastCalledWith({name: 'daily-forecast'})
     setValue(container.querySelector('textarea[aria-label="Tool description"]')!, 'Daily forecast.')
     expect(mocks.change).toHaveBeenLastCalledWith({summary: 'Daily forecast.'})
+    openDefinition()
     setValue(container.querySelector('textarea[aria-label="forecast index.ts"]')!, 'export default async () => 1\n')
     // The code becomes a published folder after a pause, and the draft points at it.
     await act(async () => new Promise((resolve) => setTimeout(resolve, 500)))

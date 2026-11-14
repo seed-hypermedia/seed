@@ -65,6 +65,8 @@ A trigger is a document typed \`hm://hyper.media/trigger\` directly under an age
 {"address":"hm://SPACE/agents/helper/hourly-review","content":"Review current project state.","options":{"name":"Hourly review","trigger":{"source":{"type":"schedule","schedule":{"kind":"interval","every":1,"unit":"hours"}}},"signer":{"publicKey":"SIGNER_UID"}}}
 \`\`\`
 
+- Give every trigger a one-line \`options.metadata.summary\` saying what it does and where its result goes ("Every Sunday at 18:00, writes this week's shopping list to Recipe Box → Shopping Lists"). Its page and its app show it.
+- Replacing a trigger (moving it from an app to yourself, say): delete the old one with \`options.action: "delete"\` rather than leaving it turned off beside the new one.
 - Edit: write the same address with \`options.action: "update"\` and the fields you change (\`options.trigger: {enabled: false}\` turns it off; a new \`content\` replaces the message).
 - Delete: \`options.action: "delete"\` (it also leaves its agent's or app's list).
 - Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. \`read <trigger>/:firings\` lists its recent firings (an app's trigger names the tool call each one made: \`read <tool>/:call/<id>\`). Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
