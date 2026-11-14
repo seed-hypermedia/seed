@@ -49,6 +49,21 @@ const TEXT_KINDS: Record<string, string | undefined> = {
   'date-time': 'YYYY-MM-DDTHH:MM',
 }
 
+/** How a field's type reads to its owner, beside its name. */
+function kindLabel(kind: string): string {
+  if (kind === 'float' || kind === 'integer') return kind === 'float' ? 'number' : 'whole number'
+  if (kind === 'list') return 'list, written as JSON'
+  if (kind === 'struct' || kind === 'map') return 'object, written as JSON'
+  return kind
+}
+
+/** An example for a field typed as JSON. */
+function jsonPlaceholder(kind: string): string {
+  if (kind === 'list') return '["first", "second"]'
+  if (kind === 'struct' || kind === 'map') return '{"name": "value"}'
+  return 'JSON'
+}
+
 function fieldValue(field: StructField, text: string): unknown {
   if (field.kind in TEXT_KINDS) return text
   if (field.kind === 'integer' || field.kind === 'number' || field.kind === 'float') return Number(text)
@@ -431,7 +446,9 @@ function InputField({
           {field.required ? <span className="text-muted-foreground"> *</span> : null}
         </span>
         {field.description || (field.kind && field.kind !== field.name) ? (
-          <span className="text-muted-foreground text-xs font-normal">{field.description ?? field.kind}</span>
+          <span className="text-muted-foreground text-xs font-normal">
+            {field.description ?? kindLabel(field.kind)}
+          </span>
         ) : null}
       </Label>
       {field.kind === 'boolean' ? (
@@ -457,7 +474,7 @@ function InputField({
               ? TEXT_KINDS[field.kind]
               : ['integer', 'float', 'number'].includes(field.kind)
                 ? undefined
-                : 'JSON'
+                : jsonPlaceholder(field.kind)
           }
           value={value}
           disabled={disabled}
