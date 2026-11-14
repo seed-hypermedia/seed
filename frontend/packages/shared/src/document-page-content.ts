@@ -49,7 +49,7 @@ export const DOCUMENT_PAGE_SIGNING_HELPERS = {
  * `seed.publishDocument(url, {name, metadata, content, visibility})`: the raw change input for
  * creating the record at `url`, or editing it on top of its current version when it exists.
  */
-async function simplePublishInput(
+export async function simplePublishInput(
   request: Pick<UniversalClient, 'request'>['request'],
   url: string,
   rawFields: unknown,
