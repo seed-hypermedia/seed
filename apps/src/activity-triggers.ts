@@ -216,6 +216,8 @@ export function activitySummary(event: ActivityFeedEvent): string {
     return `${title} ${status}`
   }
   if (type === 'schedule') {
+    // A Run now firing says so, and who ran it, rather than claiming its schedule fired.
+    if ((event as {manual?: unknown}).manual === true) return 'Run now'
     const scheduledAt = numberField(event, 'scheduledAt')
     const kind = stringField(event, 'scheduleKind') || 'schedule'
     return scheduledAt ? `Scheduled ${kind} at ${new Date(scheduledAt).toISOString()}` : 'Scheduled run'
