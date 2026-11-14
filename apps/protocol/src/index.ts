@@ -231,6 +231,7 @@ export type UnsignedAgentAction =
   | DeleteAgent
   | ListAgentTriggers
   | ListHostTriggers
+  | RunTriggerNow
   | GetAgentTrigger
   | CreateAgentTrigger
   | UpdateAgentTrigger
@@ -630,6 +631,15 @@ export type DeleteAgent = {
 export type ListAgentTriggers = {
   _: 'ListAgentTriggers'
   agentId: string
+}
+
+/**
+ * Fires a schedule trigger once, now, the way its schedule would: an app's trigger calls its tool,
+ * an agent's starts its session. For trying a trigger without waiting for its time. Writers only.
+ */
+export type RunTriggerNow = {
+  _: 'RunTriggerNow'
+  triggerId: string
 }
 
 /**
@@ -2237,6 +2247,12 @@ export type ListAgentTriggersResponse = {
   triggers: AgentTriggerInfo[]
 }
 
+/** Successful response for `RunTriggerNow`: the firing it recorded, and what it started. */
+export type RunTriggerNowResponse = {
+  _: 'RunTriggerNowResponse'
+  firing: {id: string; sessionId?: string; runId?: string}
+}
+
 /** Successful response for `ListHostTriggers`. */
 export type ListHostTriggersResponse = {
   _: 'ListHostTriggersResponse'
@@ -2653,6 +2669,7 @@ export type AgentResponse =
   | DeleteAgentResponse
   | ListAgentTriggersResponse
   | ListHostTriggersResponse
+  | RunTriggerNowResponse
   | GetAgentTriggerResponse
   | CreateAgentTriggerResponse
   | UpdateAgentTriggerResponse

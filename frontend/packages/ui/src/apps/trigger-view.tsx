@@ -35,7 +35,7 @@ import {copyTextToClipboard} from '../copy-to-clipboard'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useResourceDraft} from './resource-draft'
-import {appServerErrorMessage, useAppServerUrl, useHostTriggers} from './running'
+import {appServerErrorMessage, useAppServerUrl, useHostTriggers, useRunTriggerNow} from './running'
 
 /** A new trigger's source: an hourly schedule, edited before it matters (it does nothing until it names an action). */
 export const DEFAULT_TRIGGER_SOURCE: AgentTriggerSource = {
@@ -69,6 +69,7 @@ export function TriggerDocumentView({
   const hostIsAgent = host?.metadata.type === HM_AGENT_TYPE
   const server = useAppServerUrl(hostId ?? docId, host ?? ({metadata: {}} as HMDocument))
   const hostTriggers = useHostTriggers(server.serverUrl, hostId?.id ?? '')
+  const runNow = useRunTriggerNow(server.serverUrl)
   const refs = triggerDocumentRefs(draft.metadata as Record<string, unknown>)
   const stored = useQuery({
     queryKey: ['trigger-document-blobs', refs.sourceCid, refs.inputCid],
@@ -207,6 +208,21 @@ export function TriggerDocumentView({
             enabled={refs.enabled}
             canEdit={canEdit}
             onEnabledChange={(enabled) => draft.change({enabled})}
+            onRunNow={
+              canEdit && state && state.trigger.source.type === 'schedule'
+                ? () =>
+                    runNow.mutate(state.trigger.id, {
+                      onSuccess: () =>
+                        toast.success(
+                          hostIsAgent
+                            ? 'Started: its session appears under Firings'
+                            : 'Started: its tool call appears under Firings',
+                        ),
+                      onError: (error) => toast.error(appServerErrorMessage(error)),
+                    })
+                : undefined
+            }
+            running={runNow.isLoading}
             onOpenSettings={() =>
               hostId && !hostIsAgent && navigate({key: 'document', id: hostId, appView: 'settings'})
             }
@@ -362,6 +378,8 @@ function TriggerStatus({
   canEdit,
   onEnabledChange,
   onOpenSettings,
+  onRunNow,
+  running,
 }: {
   serverUrl: string
   hostIsAgent: boolean
@@ -372,6 +390,9 @@ function TriggerStatus({
   canEdit: boolean
   onEnabledChange: (enabled: boolean) => void
   onOpenSettings: () => void
+  /** Fires it once now, to try it without waiting for its time. */
+  onRunNow?: () => void
+  running?: boolean
 }) {
   const localServerUrl = useLocalAgentServerUrl()
   const where = describeHostServer(serverUrl, localServerUrl.data)
@@ -403,6 +424,11 @@ function TriggerStatus({
           </button>
         ) : null}
       </div>
+      {onRunNow && active !== false && !error ? (
+        <Button size="sm" variant="outline" disabled={running} onClick={onRunNow}>
+          {running ? 'Starting…' : 'Run now'}
+        </Button>
+      ) : null}
       <SizableText size="xs" color="muted">
         {enabled ? 'On' : 'Off'}
       </SizableText>

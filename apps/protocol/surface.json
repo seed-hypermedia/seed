@@ -454,6 +454,12 @@
         "privateConfig?": "Record<string, unknown>"
       }
     },
+    "RunTriggerNow": {
+      "fields": {
+        "_": "\"RunTriggerNow\"",
+        "triggerId": "string"
+      }
+    },
     "SaveAgentTool": {
       "fields": {
         "_": "\"SaveAgentTool\"",
@@ -983,6 +989,12 @@
         "_": "\"RetrySessionResponse\"",
         "assistantEventId": "string",
         "sessionId": "string"
+      }
+    },
+    "RunTriggerNowResponse": {
+      "fields": {
+        "_": "\"RunTriggerNowResponse\"",
+        "firing": "{id: string; runId?: string; sessionId?: string}"
       }
     },
     "SaveAgentToolResponse": {

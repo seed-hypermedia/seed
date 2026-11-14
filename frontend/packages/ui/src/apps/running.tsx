@@ -200,6 +200,20 @@ export function useHostTriggers(serverUrl: string, hostId: string) {
   })
 }
 
+/** Fires a schedule trigger once, now (RunTriggerNow), and refreshes its host's firings. */
+export function useRunTriggerNow(serverUrl: string) {
+  const accountUid = useAccountUid()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (triggerId: string) =>
+      appAction<{firing: {id: string; sessionId?: string; runId?: string}}>(serverUrl, accountUid, {
+        _: 'RunTriggerNow',
+        triggerId,
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({queryKey: ['host-triggers']}),
+  })
+}
+
 /** Whether the app runs on `serverUrl`, and the actions to run, stop and update it. */
 export function useAppRun(serverUrl: string, appId: string) {
   const accountUid = useAccountUid()
