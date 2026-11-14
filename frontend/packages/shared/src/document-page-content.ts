@@ -45,6 +45,64 @@ export const DOCUMENT_PAGE_SIGNING_HELPERS = {
   signBlob: (input: Record<string, unknown>, signer: HMSigner) => signBlob(signer, input),
 }
 
+/**
+ * `seed.publishDocument(url, {name, metadata, content, visibility})`: the raw change input for
+ * creating the record at `url`, or editing it on top of its current version when it exists.
+ */
+async function simplePublishInput(
+  request: Pick<UniversalClient, 'request'>['request'],
+  url: string,
+  rawFields: unknown,
+): Promise<Record<string, unknown>> {
+  const id = hm.unpackHmId(url)
+  if (!id?.path?.length)
+    throw new Error(
+      'publishDocument(url, fields) takes the hm:// address of a record, such as hm://SPACE/collection/record',
+    )
+  const fields = z
+    .object({
+      name: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+      content: z.string().optional(),
+      visibility: z.enum(['public', 'private']).optional(),
+    })
+    .strict()
+    .parse(rawFields ?? {})
+  const existing = await request('Resource', {...id, version: null, latest: true}).catch(() => null)
+  const doc = existing?.type === 'document' ? existing.document : null
+  const metadata = {...(fields.metadata ?? {}), ...(fields.name !== undefined ? {name: fields.name} : {})}
+  const changes: unknown[] = Object.entries(metadata)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => ({
+      op: {
+        case: 'setMetadata',
+        value: {key, value: typeof value === 'string' ? value : value === null ? '' : JSON.stringify(value)},
+      },
+    }))
+  if (fields.content && !doc) {
+    const blockId = Math.random().toString(36).slice(2, 10)
+    changes.push(
+      {op: {case: 'moveBlock', value: {blockId, parent: '', leftSibling: ''}}},
+      {op: {case: 'replaceBlock', value: {id: blockId, type: 'Paragraph', text: fields.content}}},
+    )
+  }
+  if (!changes.length) throw new Error('publishDocument(url, fields) needs a name, metadata or content to write')
+  return {
+    account: id.uid,
+    path: '/' + id.path.join('/'),
+    changes,
+    ...(doc
+      ? {
+          baseVersion: doc.version,
+          genesis: doc.genesis,
+          ...(doc.generationInfo ? {generation: Number(doc.generationInfo.generation)} : {}),
+        }
+      : fields.visibility === 'private'
+        ? {visibility: 2}
+        : {}),
+  }
+}
+
 /** Dispatch SDK calls through the selected viewer's client; never return a key or privileged client. */
 export async function documentPageContent({
   method,
@@ -202,12 +260,14 @@ export async function documentPageContent({
   if (method === 'publish') return publish(HMPublishBlobsInputSchema.parse(object.input))
   if (method === 'publishDocument') {
     if (!account) throw new Error('Sign in to publish a document.')
+    const raw =
+      typeof object.url === 'string' ? await simplePublishInput(request, object.url, object.fields) : object.input
     const input = HMPrepareDocumentChangeInputSchema.extend({
       genesis: z.string().optional(),
       generation: z.union([z.number(), z.bigint()]).optional(),
     })
       .strict()
-      .parse(object.input)
+      .parse(raw)
     const id = hm.unpackHmId(hm.packBaseId(input.account, input.path?.split('/').filter(Boolean) || []))!
     const capability = await hm.resolveCapability({request}, input.account, account, input.path, input.capability)
     if (input.account !== account && !capability) {

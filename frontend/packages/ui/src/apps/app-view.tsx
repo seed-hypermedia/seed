@@ -17,7 +17,8 @@ import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppsPublisher, type AppRef} from './publish'
 import {AppSettingsTab} from './app-settings'
-import {AppRunStatus, useAppRun, useAppServerUrl} from './running'
+import {AppRunStatus, useAppRun, useAppServerUrl, useHostTriggers, type HostTriggersInfo} from './running'
+import {TriggerSourceSummary} from '../agents/trigger-types'
 
 /** One of an app's children, as its tabs list them. */
 export type AppChildItem = {id: UnpackedHypermediaId; kind: AppChildKind | null; metadata?: HMMetadata}
@@ -173,6 +174,16 @@ export function AppChildrenTab({
   const strays = children.strays.filter((item) => item.kind === kind)
   const noun = kind
   const host = app.document.metadata.type === 'hm://hyper.media/agent' ? 'agent' : 'app'
+  // A trigger row says when it fires, what it does and whether it can, as the host's server holds it.
+  const server = useAppServerUrl(app.id, app.document)
+  const hostTriggers = useHostTriggers(kind === 'trigger' ? server.serverUrl : '', app.id.id)
+  const triggerStates: TriggerStates = {
+    active: hostTriggers.data?.active,
+    loading: server.isLoading || hostTriggers.isInitialLoading,
+    triggers: hostTriggers.data?.triggers ?? [],
+    errors: hostTriggers.data?.errors ?? [],
+    host,
+  }
   return (
     <TabColumn>
       {!children.isLoading && !listed.length ? (
@@ -190,12 +201,20 @@ export function AppChildrenTab({
         </div>
       ) : null}
       {listed.map((item) => (
-        <AppChildRow key={item.id.id} item={item} onOpen={() => navigate({key: 'document', id: item.id})} />
+        <AppChildRow
+          key={item.id.id}
+          item={item}
+          onOpen={() => navigate({key: 'document', id: item.id})}
+          detail={kind === 'trigger' ? <TriggerRowDetail item={item} state={triggerStates} /> : undefined}
+        />
       ))}
       {strays.length ? (
         <div className="mt-4 flex flex-col gap-1">
           <SizableText size="sm" weight="bold" color="muted">
-            Not in this app
+            Not in this {host}
+          </SizableText>
+          <SizableText size="xs" color="muted">
+            These are under this {host} but it does not list them, so it does not use them. Add lists one.
           </SizableText>
           {strays.map((item) => (
             <AppChildRow
@@ -232,11 +251,13 @@ function AppChildRow({
   onOpen,
   muted,
   action,
+  detail,
 }: {
   item: AppChildItem
   onOpen: () => void
   muted?: boolean
   action?: ReactNode
+  detail?: ReactNode
 }) {
   const Icon = item.kind === 'tool' ? Wrench : item.kind === 'trigger' ? Zap : Blocks
   return (
@@ -259,6 +280,7 @@ function AppChildRow({
             {item.metadata.summary}
           </SizableText>
         ) : null}
+        {detail}
       </div>
       {action}
     </div>
@@ -290,4 +312,63 @@ function AppHomeRunStatus({app}: {app: AppRef}) {
 export function AgentTriggerDocumentsTab({host, canEdit}: {host: AppRef; canEdit: boolean}) {
   const children = useAppChildren(host.id, host.document)
   return <AppChildrenTab app={host} kind="trigger" appChildren={children} canEdit={canEdit} />
+}
+
+type TriggerStates = {
+  active: boolean | undefined
+  loading: boolean
+  triggers: HostTriggersInfo['triggers']
+  errors: HostTriggersInfo['errors']
+  host: 'app' | 'agent'
+}
+
+/** A trigger's row: when it fires, what it does, and whether it is on and able to fire. */
+function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStates}) {
+  const entry = state.triggers.find((candidate) => candidate.trigger.documentId === item.id.id)
+  const problem = state.errors.find((candidate) => candidate.documentId === item.id.id)?.error
+  const enabled =
+    item.metadata?.enabled !== false && (item.metadata as {enabled?: unknown} | undefined)?.enabled !== 'false'
+  const tool =
+    typeof (item.metadata as {tool?: unknown} | undefined)?.tool === 'string'
+      ? String((item.metadata as {tool: string}).tool)
+          .split('/')
+          .at(-1)
+      : null
+  const status = !enabled
+    ? {label: 'Off', tone: 'muted' as const}
+    : problem
+      ? {label: `Can’t fire: ${problem}`, tone: 'destructive' as const}
+      : state.active === false
+        ? {label: state.host === 'app' ? 'Not running' : 'Not on its server', tone: 'muted' as const}
+        : entry
+          ? {label: 'On', tone: 'success' as const}
+          : state.loading
+            ? null
+            : {label: 'Not active yet', tone: 'muted' as const}
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {entry ? (
+        <SizableText size="xs" color="muted">
+          <TriggerSourceSummary source={entry.trigger.source} />
+          {' · '}
+          {tool ? `calls ${tool}` : 'starts a session'}
+        </SizableText>
+      ) : null}
+      {status ? (
+        <SizableText
+          size="xs"
+          weight="medium"
+          className={
+            status.tone === 'destructive'
+              ? 'text-destructive'
+              : status.tone === 'success'
+                ? 'text-green-700 dark:text-green-400'
+                : 'text-muted-foreground'
+          }
+        >
+          {status.label}
+        </SizableText>
+      ) : null}
+    </div>
+  )
 }
