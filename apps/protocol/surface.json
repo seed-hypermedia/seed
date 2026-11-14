@@ -379,7 +379,8 @@
         "_": "\"MessageSession\"",
         "clientMessageId?": "string",
         "content": "MessageSessionContentPart[]",
-        "sessionId": "string"
+        "sessionId": "string",
+        "timezone?": "string"
       }
     },
     "MountAgent": {

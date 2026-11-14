@@ -1107,6 +1107,11 @@ export type MessageSession = {
   sessionId: string
   content: MessageSessionContentPart[]
   clientMessageId?: string
+  /**
+   * The sender's IANA time zone (`Europe/Madrid`), from their device. The agent reads times the
+   * person names ("every morning at 8") in it, and sees their local time each turn.
+   */
+  timezone?: string
 }
 
 /**

@@ -30,3 +30,13 @@ describe('agent write scope', () => {
     expect(agentWriteScopePrompt('space', DOC, KEY)).toContain('hm://z6MkspaceOwner')
   })
 })
+
+describe('user time', () => {
+  test("the agent sees the person's local time and zone", async () => {
+    const {userTimeBlock} = await import('./api-service')
+    const block = userTimeBlock('Europe/Madrid', new Date('2026-11-14T02:45:00Z'))!
+    expect(block).toContain('zone="Europe/Madrid"')
+    expect(block).toContain('03:45')
+    expect(userTimeBlock(undefined)).toBeUndefined()
+  })
+})
