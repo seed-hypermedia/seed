@@ -368,7 +368,7 @@ Owners open collections too (a page's "see all" link, a trigger's results), so m
 <!-- id:records type:Query attrs:{"style":"Card","columnCount":"2","query":{"includes":[{"space":"","path":"","mode":"Children"}],"sort":[{"term":"updated","reverse":true}]}} -->
 \`\`\`
 
-Use \`"style":"Table"\` for records best compared field by field. Say what the collection holds in its \`metadata.summary\`, not in its body.
+Use \`"style":"Table"\` for records best compared field by field. Keep the app's working state there too (a checkpoint such as \`lastChecked\`, the ids already seen): as a field on the app (\`options.action: "update"\` with \`metadata\`) or a record in a collection, never only in your memory, so your user can see it and the app keeps working if another agent takes over. Say what the collection holds in its \`metadata.summary\`, not in its body.
 
 ## Steps
 
