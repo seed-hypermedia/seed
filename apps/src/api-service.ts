@@ -451,6 +451,8 @@ type RunningSession = {
   completeAfterTools?: boolean
   /** Set by `continue_session`: the turn ends after this tool batch and the successor answers. */
   continuation?: SessionContinuationOutcome
+  /** Set when the model sent nothing for too long and the turn was ended (see MODEL_STALL_MS). */
+  stalled?: boolean
 }
 
 /** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
@@ -972,6 +974,8 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #publicUrl: string | undefined
+  /** How long a turn's model may send nothing (with no tool running) before the turn is ended. */
+  readonly #modelStallMs: number
   /** This server's stable identity, reported in /health so an app's server URL can be recognized as this one. */
   readonly #serverId: string
   readonly #ipfsServerUrl: string
@@ -1075,6 +1079,8 @@ export class Service {
       hmServerUrl?: string
       /** The URL clients reach this server's API at (`https://hyper.media/hm/api/apps`); see config.ts. */
       publicUrl?: string
+      /** See {@link Service.#modelStallMs}; defaults to 8 minutes (long enough for a model reasoning hard without streaming). */
+      modelStallMs?: number
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
       ipfsServerUrl?: string
       /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
@@ -1133,6 +1139,7 @@ export class Service {
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#publicUrl = options.publicUrl || undefined
+    this.#modelStallMs = options.modelStallMs ?? 8 * 60_000
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
@@ -9107,7 +9114,14 @@ export class Service {
       resolveSettled = resolve
     })
     let turnSubmission: durable.Submission | undefined
+    // When the turn last moved, and how many tools are running: a watchdog ends a turn whose model
+    // has gone silent (a provider connection that hangs instead of failing).
+    let lastProgressAt = Date.now()
+    let toolsRunning = 0
     const onHarnessEvent = (event: durable.AgentEvent): void => {
+      lastProgressAt = Date.now()
+      if (event.type === 'tool_execution_start') toolsRunning += 1
+      if (event.type === 'tool_execution_end') toolsRunning = Math.max(0, toolsRunning - 1)
       if (event.type === 'snapshot') {
         // The stream fell too far behind and was handed the current state instead of every step.
         for (const entry of event.entries) projectEntry(entry, turnLive)
@@ -9594,7 +9608,22 @@ export class Service {
             })
           })
         if (live.stopped) await live.abort()
-        settled = await submission.wait(durableSession.CONTEXT)
+        const stallMs = this.#modelStallMs
+        const watchdog = setInterval(
+          () => {
+            if (toolsRunning > 0 || live.stopped || live.stalled) return
+            if (Date.now() - lastProgressAt < stallMs) return
+            live.stalled = true
+            logRunError('the model sent nothing for too long; ending the turn', {sessionId, stallMs})
+            void live.abort?.()
+          },
+          Math.min(15_000, stallMs),
+        )
+        try {
+          settled = await submission.wait(durableSession.CONTEXT)
+        } finally {
+          clearInterval(watchdog)
+        }
         // Every entry of the turn is committed; wait for the stream to hand the last of them over.
         await Promise.race([settledSeen, stream.closed])
       }
@@ -9641,6 +9670,13 @@ export class Service {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
     }
+    if (live.stalled && !live.stopped)
+      throw new APIError(
+        504,
+        `The model sent nothing for ${Math.round(
+          this.#modelStallMs / 60_000,
+        )} minutes, so this turn was ended. Send the message again to retry.`,
+      )
     if (live.stopped) {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()

@@ -4566,6 +4566,71 @@ describe('api service', () => {
     }
   })
 
+  test('ends a turn whose model sends nothing for too long, with a message to retry', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {modelStallMs: 300})
+      await setDefaultProvider(svc, account)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-api-key', value: new TextEncoder().encode('test-key')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-api-key'}},
+          },
+        }),
+      )
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'Help.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: created.agentId}}),
+      )
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      // The provider accepts the request and then sends nothing, until the request is aborted.
+      globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = new ReadableStream({
+          start(controller) {
+            init?.signal?.addEventListener('abort', () => controller.error(new Error('aborted')))
+          },
+        })
+        return new Response(body, {headers: {'Content-Type': 'text/event-stream'}})
+      }) as unknown as typeof fetch
+      const started = Date.now()
+      const reply = await svc
+        .message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'MessageSession', sessionId: session.sessionId, content: [{type: 'text', text: 'Hello'}]},
+          }),
+        )
+        .catch((error: unknown) => ({error: error instanceof Error ? error.message : String(error)}))
+      await svc.drainTriggerSessions()
+      expect(Date.now() - started).toBeLessThan(20_000)
+      const errors = db
+        .query<{event_cbor: Uint8Array}, [string]>(`SELECT event_cbor FROM session_events WHERE session_id = ?`)
+        .all(session.sessionId)
+        .map((row) => cbor.decode<{type?: string; message?: string}>(row.event_cbor))
+        .filter((event) => event.type === 'error')
+      expect(JSON.stringify([reply, errors])).toContain('sent nothing')
+    } finally {
+      globalThis.fetch = originalFetch
+      cleanup()
+    }
+  })
+
   test('processes due schedule triggers idempotently into a session', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
