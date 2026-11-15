@@ -487,6 +487,8 @@ export function readableToolError(output: string): string {
   const lines = output
     .replace(/data:text\/typescript;base64,[A-Za-z0-9+/=_-]+/g, 'index.ts')
     .replace(/[A-Za-z0-9+/=_-]{120,}/g, 'index.ts')
+    // Bun names the tool's default export after a slice of its base64 module URL.
+    .replace(/\b[A-Za-z0-9+/=]{16,}_default\b/g, 'default')
     .split('\n')
   // Bun prints the failing source lines before the error itself: lead with what went wrong.
   const message = lines.findIndex((line) => /^(error|[A-Z]\w*Error): /.test(line.trim()))

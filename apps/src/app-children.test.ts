@@ -62,10 +62,10 @@ describe('tool errors', () => {
         '23 |     throw Error(`GitHub API ${response.status}`);',
         '                   ^',
         'error: GitHub API 404: Not Found',
-        '      at listIssues (index.ts:23:11)',
+        '      at LnF1YW50aXR5fHwnJykudHJpbSgp_default (index.ts:23:11)',
       ].join('\n'),
     )
     expect(text.split('\n')[0]).toBe('error: GitHub API 404: Not Found')
-    expect(text).toContain('index.ts:23:11')
+    expect(text).toContain('at default (index.ts:23:11)')
   })
 })
