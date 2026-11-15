@@ -1045,6 +1045,8 @@ export class Service {
   readonly #triggerMigrationRetryAt = new Map<string, number>()
   /** Why listed trigger documents could not be used, by host id then document id. */
   readonly #triggerDocumentErrors = new Map<string, Map<string, string>>()
+  /** The last firing of each trigger still running a session: the next firing waits for it. */
+  readonly #triggerLanes = new Map<string, Promise<void>>()
   /** Where each mounted agent's keys may write, by agent id: refreshed at most once a minute. */
   readonly #agentWriteScopeCache = new Map<string, {scope: AgentWriteScope; expiresAt: number}>()
   readonly #resolvedSystemPromptCache = new Map<
@@ -11614,7 +11616,8 @@ export class Service {
     activity: activityTriggers.ActivityFeedEvent,
     failure?: TriggerAutomationFailure,
   ): void {
-    const dispatch = (async () => {
+    const runId = failure ? `firing-${firingId}-escalation` : `firing-${firingId}`
+    const start = async () => {
       try {
         const content = await triggerPromptMessage(
           trigger,
@@ -11628,7 +11631,7 @@ export class Service {
         await this.#messageSessionOnce(accountId, sessionId, content, {
           origin: 'trigger',
           background: true,
-          runId: failure ? `firing-${firingId}-escalation` : `firing-${firingId}`,
+          runId,
           triggerFiringId: firingId,
           ...(trigger.continuation?.kind === 'newThread'
             ? {
@@ -11667,9 +11670,34 @@ export class Service {
           error: message,
         })
       }
-    })()
+    }
+    // One firing of a trigger at a time: the next starts when this one's run has ended, so two
+    // firings close together cannot both act on the same state (two agents each seeing "no
+    // congratulation yet" and both posting one).
+    const previous = this.#triggerLanes.get(trigger.id)
+    const dispatch = previous ? previous.then(start) : start()
+    const lane = dispatch.then(() => this.#waitForRunEnd(runId, TRIGGER_LANE_MAX_WAIT_MS))
+    this.#triggerLanes.set(trigger.id, lane)
+    void lane.finally(() => {
+      if (this.#triggerLanes.get(trigger.id) === lane) this.#triggerLanes.delete(trigger.id)
+    })
     this.#pendingTriggerSessions.add(dispatch)
     void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
+  }
+
+  /** Resolves when the run has ended (or parked, or is not there), or after `maxWaitMs`. */
+  async #waitForRunEnd(runId: string, maxWaitMs: number): Promise<void> {
+    const deadline = Date.now() + maxWaitMs
+    while (Date.now() < deadline) {
+      let status: string | undefined
+      try {
+        status = stmt<{status: string}, [string]>(this.#db, `SELECT status FROM runs WHERE id = ?`).get(runId)?.status
+      } catch {
+        return // The service is shutting down.
+      }
+      if (!status || !['queued', 'claimed', 'running'].includes(status)) return
+      await Bun.sleep(1000)
+    }
   }
 
   /**
@@ -14985,6 +15013,8 @@ const TRIGGER_MIGRATION_RETRY_MS = 10 * 60_000
 
 /** How long a trigger row linked to a document survives its host not listing it (propagation lag). */
 const TRIGGER_DOCUMENT_GRACE_MS = 10 * 60_000
+/** How long a firing waits for the trigger's previous firing to finish before starting anyway. */
+const TRIGGER_LANE_MAX_WAIT_MS = 10 * 60_000
 
 /** The signing key an agent is: `signingKey` while it is enabled, else its first enabled key. */
 function primarySigningKeyOf(definition: api.AgentDefinition): string | undefined {
