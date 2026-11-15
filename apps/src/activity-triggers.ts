@@ -318,6 +318,26 @@ export function mentionedAccountsOf(source: Extract<api.AgentTriggerSource, {typ
  */
 export const SELF_ACCOUNT = 'self'
 
+/** `source` with the agent's own accounts named as `self` in mention, reply and author conditions. */
+export function ownAccountsAsSelf(source: api.AgentTriggerSource, own: readonly string[]): api.AgentTriggerSource {
+  if (!own.length) return source
+  const asSelf = (accounts: readonly string[]) => [
+    ...new Set(accounts.map((account) => (own.includes(account) ? SELF_ACCOUNT : account))),
+  ]
+  if (source.type === 'activity')
+    return {
+      ...source,
+      conditions: source.conditions.map((condition) => ({
+        ...condition,
+        source: ownAccountsAsSelf(condition.source as api.AgentTriggerSource, own) as typeof condition.source,
+      })),
+    }
+  if (source.type === 'user-mention') return {...source, mentionedAccounts: asSelf(mentionedAccountsOf(source))}
+  if (source.type === 'comment-reply') return {...source, repliedToAccounts: asSelf(source.repliedToAccounts)}
+  if (source.type === 'document-author-comment') return {...source, documentAuthors: asSelf(source.documentAuthors)}
+  return source
+}
+
 /** `accounts` with `self` replaced by the agent's own accounts. */
 export function resolveSelfAccounts(accounts: readonly string[], context: TriggerMatchContext): string[] {
   if (!accounts.includes(SELF_ACCOUNT)) return [...accounts]

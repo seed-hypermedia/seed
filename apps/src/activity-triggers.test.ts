@@ -168,6 +168,24 @@ describe('activity trigger matching', () => {
     }
     const ownDocuments = {type: 'document-author-comment' as const, documentAuthors: ['self']}
     expect(triggers.activityMatchesTriggerSource(ownDocuments, authored, {ownAccounts: ['z6Mkprimary']})).toBe(true)
+    expect(
+      triggers.ownAccountsAsSelf(
+        {
+          type: 'activity',
+          conditions: [
+            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['z6Mkagent', 'z6Mkother']}},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['z6Mkagent']}},
+          ],
+        },
+        ['z6Mkagent'],
+      ),
+    ).toEqual({
+      type: 'activity',
+      conditions: [
+        {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['self', 'z6Mkother']}},
+        {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['self']}},
+      ],
+    })
     expect(triggers.resolveSelfAccounts(['self', 'z6Mkx'], {ownAccounts: ['z6Mka', 'z6Mkx']})).toEqual([
       'z6Mka',
       'z6Mkx',

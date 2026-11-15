@@ -4006,8 +4006,11 @@ export class Service {
     }
     const childId = unpackHmId(`hm://${space}${path}`)!
     const capability = await resolveCapability(client, space, publicKey, path)
+    // Accounts that are the agent's own become `self`, so the document keeps working when the
+    // agent's primary account changes (its stored row named the account it had then).
+    const own = definition ? agentSigningAccountUids(this.#db, trigger.account, definition) : []
     const fields = await triggerDocumentOps({
-      source: trigger.source,
+      source: activityTriggers.ownAccountsAsSelf(trigger.source, own),
       ...(toolCall ? {tool: toolCall.tool, ...(toolCall.input !== undefined ? {input: toolCall.input} : {})} : {}),
       ...(trigger.enabled ? {} : {enabled: false}),
     })
