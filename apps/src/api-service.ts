@@ -2495,20 +2495,23 @@ export class Service {
    * never blocks agent creation.
    */
   #createDefaultMentionTrigger(accountId: string, agentId: string, definition: api.AgentDefinition): void {
-    const signingKey = definition.signingKey ?? definition.signingKeys?.[0]
-    if (!signingKey) return
-    const mentionAccountId = this.#signingIdentityAccountId(accountId, signingKey)
-    if (!mentionAccountId) return
+    // An agent with no account of its own cannot be mentioned.
+    if (!agentSigningAccountUids(this.#db, accountId, definition).length) return
     try {
       this.#createAgentTriggerOnce(accountId, agentId, {
         name: `Mentions, replies, and comments for ${definition.name}`,
         enabled: true,
         source: {
           type: 'activity',
+          // `self` is whichever accounts the agent signs as when an event arrives, so this keeps
+          // working when its primary account changes or it gains another.
           conditions: [
-            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: [mentionAccountId]}},
-            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [mentionAccountId]}},
-            {id: 'document-comment', source: {type: 'document-author-comment', documentAuthors: [mentionAccountId]}},
+            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: [activityTriggers.SELF_ACCOUNT]}},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [activityTriggers.SELF_ACCOUNT]}},
+            {
+              id: 'document-comment',
+              source: {type: 'document-author-comment', documentAuthors: [activityTriggers.SELF_ACCOUNT]},
+            },
           ],
         },
         prompt: 'Respond to the mention, reply, or comment on your document, performing any action requested.',
@@ -3932,8 +3935,10 @@ export class Service {
         // One with no document form is not tried again until a restart brings new code.
         else this.#triggerMigrationRetryAt.set(row.id, Number.POSITIVE_INFINITY)
       } catch (error) {
-        // No write access yet, or the network: try again in a while.
-        this.#triggerMigrationRetryAt.set(row.id, Date.now() + TRIGGER_MIGRATION_RETRY_MS)
+        // No write access yet, or the network: try again in a while. A new agent's write access is
+        // granted just after it is created, so its first triggers are retried soon.
+        const fresh = row.created_at > Date.now() - TRIGGER_MIGRATION_RETRY_MS
+        this.#triggerMigrationRetryAt.set(row.id, Date.now() + (fresh ? 30_000 : TRIGGER_MIGRATION_RETRY_MS))
         console.warn('[Agents Triggers] Trigger stays stored on the server', {
           triggerId: row.id,
           agentId: row.agent_id,
@@ -11190,9 +11195,8 @@ export class Service {
     for (const trigger of triggers) {
       checked += 1
       const conditions = protocol.activityConditions(trigger.source, trigger.id)
-      const matchContext: activityTriggers.TriggerMatchContext = conditions.some(
-        ({source}) => source.type === 'site-update',
-      )
+      // The agent's own accounts: site-update skips its own activity, and `self` names them.
+      const matchContext: activityTriggers.TriggerMatchContext = trigger.agentId
         ? {ownAccounts: ownAccountsOf(trigger.agentId)}
         : {}
       const matchedConditions = conditions.filter(({source}) =>
@@ -15101,6 +15105,11 @@ function triggerRowsByAddressName(db: Database, accountId: string, agentId: stri
 }
 
 /** One human line describing when a trigger fires, for listings and the Space index. */
+/** Accounts as a trigger summary names them: `self` is the agent itself. */
+function accountsLabel(accounts: readonly string[]): string {
+  return accounts.map((account) => (account === activityTriggers.SELF_ACCOUNT ? 'this agent' : account)).join(', ')
+}
+
 function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
   if (source.type === 'activity')
     return source.conditions.map(({source}) => triggerSourceSummaryLine(source)).join(' OR ')
@@ -15117,10 +15126,10 @@ function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
   }
   if (source.type === 'webhook') return 'inbound webhook deliveries'
   if (source.type === 'document-comment') return `new comments on ${source.resource}`
-  if (source.type === 'user-mention') return `mentions of ${source.mentionedAccounts.join(', ')}`
-  if (source.type === 'comment-reply') return `replies to ${source.repliedToAccounts.join(', ')}`
+  if (source.type === 'user-mention') return `mentions of ${accountsLabel(source.mentionedAccounts)}`
+  if (source.type === 'comment-reply') return `replies to ${accountsLabel(source.repliedToAccounts)}`
   if (source.type === 'document-author-comment') {
-    return `comments on documents by ${source.documentAuthors.join(', ')}`
+    return `comments on documents by ${accountsLabel(source.documentAuthors)}`
   }
   if (source.type === 'site-update') return `activity under ${source.resourcePrefix}`
   if (source.type === 'run-completed') {
@@ -15177,7 +15186,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact (never fires on what this agent itself wrote or commented, unless includeOwnActivity: true)',
       '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} | {kind: "once", runAt: epochMs}}',
       '  another run finishing → {type: "run-completed", agentId?, status?, titleMatch?} · an HTTP request → {type: "webhook"}',
-      'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids.',
+      'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids, or "self" for whichever accounts this agent signs as (it follows a new primary account).',
       'Several activity sources can share ONE action: {type: "activity", conditions: [{id: "stable-id", source: <user-mention, comment-reply, document-author-comment, document-comment or site-update source>}, ...]}. Any condition matches; one event fires once even when it matches several. Preserve condition IDs when editing. Schedules, webhooks and run-completed stay standalone.',
       'Read existing triggers first: agents already have a default trigger for mentions of their account, replies to their comments, and comments on documents they authored. Extend its conditions when the same instructions should handle another event.',
       'If no source expresses what the user asked for, say so and propose the closest option. Do not approximate with a broad filter plus code or prompt instructions that discard most firings: every firing costs a run.',

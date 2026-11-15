@@ -136,9 +136,9 @@ export function activityMatchesTriggerSource(
     return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event, context))
   }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
-  if (source.type === 'user-mention') return matchesUserMention(source, event)
-  if (source.type === 'comment-reply') return matchesCommentReply(source, event)
-  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event)
+  if (source.type === 'user-mention') return matchesUserMention(source, event, context)
+  if (source.type === 'comment-reply') return matchesCommentReply(source, event, context)
+  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event, context)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event, context)
   return false
 }
@@ -312,11 +312,26 @@ export function mentionedAccountsOf(source: Extract<api.AgentTriggerSource, {typ
   return accounts.filter((account) => !!account)
 }
 
+/**
+ * The account a trigger names as `self`: whichever accounts its agent signs as now, so a trigger
+ * about "me" keeps working when the agent's primary account changes or it gains another one.
+ */
+export const SELF_ACCOUNT = 'self'
+
+/** `accounts` with `self` replaced by the agent's own accounts. */
+export function resolveSelfAccounts(accounts: readonly string[], context: TriggerMatchContext): string[] {
+  if (!accounts.includes(SELF_ACCOUNT)) return [...accounts]
+  return [...new Set(accounts.flatMap((account) => (account === SELF_ACCOUNT ? context.ownAccounts ?? [] : [account])))]
+}
+
 function matchesUserMention(
   source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
-  return mentionedAccountsOf(source).some((mentionedAccount) => matchesSingleMention(mentionedAccount, source, event))
+  return resolveSelfAccounts(mentionedAccountsOf(source), context).some((mentionedAccount) =>
+    matchesSingleMention(mentionedAccount, source, event),
+  )
 }
 
 /**
@@ -384,7 +399,9 @@ function matchesSingleMention(
 function matchesCommentReply(
   source: Extract<api.AgentTriggerSource, {type: 'comment-reply'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
+  const repliedToAccounts = resolveSelfAccounts(source.repliedToAccounts, context)
   if (stringField(event, 'type') !== 'comment') return false
   const comment = recordField(event, 'comment')
   const parentAuthorRecord = recordField(event, 'replyParentAuthor')
@@ -393,7 +410,7 @@ function matchesCommentReply(
   const parentAuthor =
     (parentAuthorId && stringField(parentAuthorId, 'uid')) ||
     (replyingComment && stringField(replyingComment, 'author'))
-  if (!parentAuthor || !source.repliedToAccounts.includes(parentAuthor)) return false
+  if (!parentAuthor || !repliedToAccounts.includes(parentAuthor)) return false
   const authorRecord = recordField(event, 'author')
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
@@ -409,17 +426,19 @@ function matchesCommentReply(
 function matchesDocumentAuthorComment(
   source: Extract<api.AgentTriggerSource, {type: 'document-author-comment'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
+  const documentAuthors = resolveSelfAccounts(source.documentAuthors, context)
   if (stringField(event, 'type') !== 'comment') return false
   const targetAuthors = Array.isArray(event.targetAuthorUids)
     ? event.targetAuthorUids.filter((uid): uid is string => typeof uid === 'string')
     : []
-  if (!source.documentAuthors.some((account) => targetAuthors.includes(account))) return false
+  if (!documentAuthors.some((account) => targetAuthors.includes(account))) return false
   const comment = recordField(event, 'comment')
   const authorRecord = recordField(event, 'author')
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
-  if (author && source.documentAuthors.includes(author)) return false
+  if (author && documentAuthors.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 

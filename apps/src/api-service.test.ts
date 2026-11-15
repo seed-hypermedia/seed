@@ -2403,12 +2403,10 @@ describe('api service', () => {
       expect(trigger?.source).toEqual({
         type: 'activity',
         conditions: [
-          {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['z6MkAgentAccountUid']}},
-          {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['z6MkAgentAccountUid']}},
-          {
-            id: 'document-comment',
-            source: {type: 'document-author-comment', documentAuthors: ['z6MkAgentAccountUid']},
-          },
+          // `self` is the agent's accounts at match time, so a new primary account is covered too.
+          {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['self']}},
+          {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['self']}},
+          {id: 'document-comment', source: {type: 'document-author-comment', documentAuthors: ['self']}},
         ],
       })
       expect(agentPromptText(trigger?.prompt)).toBe(

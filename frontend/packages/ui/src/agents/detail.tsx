@@ -840,6 +840,14 @@ export function AgentDetailPage({
                   // A mounted agent's triggers are documents under it, listed like an app's; any still
                   // stored only on the server follow, until they move into documents.
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {triggers.data && !listensForMentions(triggers.data) ? (
+                      <div className="mx-auto w-full max-w-3xl px-4 pt-4">
+                        <SizableText size="sm" color="muted">
+                          No trigger answers mentions of {displayName}, so mentioning it or replying to it does nothing.
+                          Add a trigger that starts a session when this agent is mentioned to change that.
+                        </SizableText>
+                      </div>
+                    ) : null}
                     <AgentTriggerDocumentsTab host={agentHost} canEdit={canWrite} />
                     {(triggers.data || []).some((item) => !item.documentId) ? (
                       <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
@@ -3394,4 +3402,13 @@ function AgentServerHostSection({
       }
     />
   )
+}
+
+/** Whether an enabled trigger starts work when the agent is mentioned or replied to. */
+function listensForMentions(triggers: {enabled: boolean; source: AgentTriggerSource}[]): boolean {
+  const watches = (source: AgentTriggerSource): boolean =>
+    source.type === 'activity'
+      ? source.conditions.some((condition) => watches(condition.source as AgentTriggerSource))
+      : source.type === 'user-mention' || source.type === 'comment-reply'
+  return triggers.some((trigger) => trigger.enabled && watches(trigger.source))
 }

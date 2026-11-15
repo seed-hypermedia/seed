@@ -97,15 +97,15 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
   }
   if (source.type === 'user-mention') {
     const accounts = mentionedAccountsOf(source)
-    const mention = accounts.length ? accounts.map(abbreviateUid).join(', ') : 'anyone'
+    const mention = accounts.length ? accounts.map(accountLabel).join(', ') : 'anyone'
     return `Mention of ${mention}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'comment-reply') {
-    const accounts = source.repliedToAccounts.map(abbreviateUid).join(', ')
+    const accounts = source.repliedToAccounts.map(accountLabel).join(', ')
     return `Reply to ${accounts}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'document-author-comment') {
-    const accounts = source.documentAuthors.map(abbreviateUid).join(', ')
+    const accounts = source.documentAuthors.map(accountLabel).join(', ')
     return `Comment on a document by ${accounts}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'site-update') {
@@ -771,7 +771,13 @@ export function TriggerSourceSummary({source}: {source: AgentTriggerSource}) {
         {mentionedAccountsOf(source).map((uid, index) => (
           <React.Fragment key={uid}>
             {index ? ', ' : null}
-            <TriggerEntityName value={uid} kind="account" />
+            {uid === SELF_ACCOUNT ? (
+              <SizableText size="sm" title="Whichever accounts this agent signs as">
+                This agent
+              </SizableText>
+            ) : (
+              <TriggerEntityName value={uid} kind="account" />
+            )}
           </React.Fragment>
         ))}
         {source.resourcePrefix ? (
@@ -789,7 +795,13 @@ export function TriggerSourceSummary({source}: {source: AgentTriggerSource}) {
         {source.repliedToAccounts.map((uid, index) => (
           <React.Fragment key={uid}>
             {index ? ', ' : null}
-            <TriggerEntityName value={uid} kind="account" />
+            {uid === SELF_ACCOUNT ? (
+              <SizableText size="sm" title="Whichever accounts this agent signs as">
+                This agent
+              </SizableText>
+            ) : (
+              <TriggerEntityName value={uid} kind="account" />
+            )}
           </React.Fragment>
         ))}
         {source.resourcePrefix ? (
@@ -807,7 +819,13 @@ export function TriggerSourceSummary({source}: {source: AgentTriggerSource}) {
         {source.documentAuthors.map((uid, index) => (
           <React.Fragment key={uid}>
             {index ? ', ' : null}
-            <TriggerEntityName value={uid} kind="account" />
+            {uid === SELF_ACCOUNT ? (
+              <SizableText size="sm" title="Whichever accounts this agent signs as">
+                This agent
+              </SizableText>
+            ) : (
+              <TriggerEntityName value={uid} kind="account" />
+            )}
           </React.Fragment>
         ))}
         {source.resourcePrefix ? (
@@ -1008,6 +1026,14 @@ function TriggerEntityPicker({
   )
 }
 
+/** The account a trigger names as `self`: whichever accounts its agent signs as when an event arrives. */
+const SELF_ACCOUNT = 'self'
+
+/** An account as a trigger summary shows it. */
+function accountLabel(uid: string): string {
+  return uid === SELF_ACCOUNT ? 'this agent' : abbreviateUid(uid)
+}
+
 function MentionedAccountsField({
   accounts,
   onChange,
@@ -1024,7 +1050,13 @@ function MentionedAccountsField({
           key={uid}
           className="border-border bg-muted/40 flex items-center justify-between gap-2 rounded-md border p-2 text-sm"
         >
-          <TriggerEntityName value={uid} kind="account" />
+          {uid === SELF_ACCOUNT ? (
+            <SizableText size="sm" title="Whichever accounts this agent signs as">
+              This agent
+            </SizableText>
+          ) : (
+            <TriggerEntityName value={uid} kind="account" />
+          )}
           <Button variant="ghost" size="sm" onClick={() => onChange(accounts.filter((account) => account !== uid))}>
             Remove
           </Button>
