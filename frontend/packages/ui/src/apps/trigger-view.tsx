@@ -319,7 +319,11 @@ export function TriggerDocumentView({
                   value={message}
                   readOnly={!canEdit}
                   onChange={(event) => changeMessage(event.target.value)}
-                  placeholder="Someone mentioned you. Read the comment and answer it."
+                  placeholder={
+                    hostIsAgent
+                      ? 'Someone mentioned you. Read the comment and answer it.'
+                      : 'Read this week’s records, write a short summary into the app, and mention me in a comment on it.'
+                  }
                   rows={5}
                 />
               </>
