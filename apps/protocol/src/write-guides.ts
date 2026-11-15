@@ -454,7 +454,7 @@ Before you report an app as done:
 
 1. Run it (\`options.action: "run"\`) when it names your server, and call each tool once with real input; \`read <tool>/:calls\` shows the recorded call.
 2. Read back each published document (the app, its tools, pages and triggers, its types and collections) and fix any schema warning. Records you wrote only to test (a sample article, a test recipe) are not your user's data: delete them before you hand over, or name them clearly as examples.
-3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired.
+3. Read each trigger back and check \`read <trigger>/:firings\` once it has fired. When a scheduled trigger fills the app (an import, a digest), run its work once now so your user does not open an empty app until the first scheduled time.
 4. Say what you could not test. You cannot click a page's buttons: writing a record yourself with write does not prove the page's own save works, so do not call the page verified. Check its code against the page SDK's exact signatures instead (\`seed.publishDocument(recordUrl, {name, metadata})\`) and tell your user to try it.
 
 Then tell your user, in a few lines: the app's link (the app itself, which opens on its Home tab, not one of its pages), what it holds (its pages, tools, triggers and data collections), anything they need to provide (a private config value such as an API key), and end with the one thing to do first, as an action on the app's own link: "Open [Habit Tracker](hm://…/habit-tracker) and add your first habit." Link the app, not its page or a collection: the app opens on its page and leads to the rest. After a fix, end the same way, with the one thing to try now to see it work.
