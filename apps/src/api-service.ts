@@ -15499,6 +15499,21 @@ async function writeTriggerAddress(
   assertTriggerContinuationCallable(context.db, context.accountId, context.agentId, trigger.continuation)
   assertAgentTriggerWriteIntent(trigger, row, options)
   if (options.dryRun === true) return dryRunTriggerWrite(context, trigger, row)
+  // A mounted agent's new trigger is a document, in the app it works for or under the agent, so its
+  // user sees and edits it there. ~/triggers keeps what a document cannot express.
+  const continuation = trigger.continuation
+  const documentForm =
+    !continuation ||
+    (continuation.kind === 'tool' && continuation.tool.startsWith('hm://')) ||
+    (continuation.kind === 'newThread' &&
+      !continuation.systemPrompt &&
+      continuation.includeAgentSystemPrompt !== false &&
+      !continuation.tools)
+  if (!row && documentForm && context.agentId.startsWith('hm://'))
+    throw new APIError(
+      400,
+      `Create this trigger as a document, where your user sees it: write hm://… with the message as content and options.trigger {source, …}. For work an app does, put it under the app (<app>/<name>) with "agent": "${context.agentId}"; for your own work, under ${context.agentId}/<name>. Read ~/tools/write/triggers. ~/triggers/<name> is only for what a document cannot express (a workflow script, a wake).`,
+    )
   if (row) {
     if (row.merged_into) throw new APIError(409, 'This trigger was combined into another trigger and cannot be edited')
     if (options.expectedUpdatedAt !== undefined && options.expectedUpdatedAt !== row.updated_at) {
