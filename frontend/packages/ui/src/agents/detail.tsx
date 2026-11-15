@@ -849,6 +849,9 @@ export function AgentDetailPage({
                       </div>
                     ) : null}
                     <AgentTriggerDocumentsTab host={agentHost} canEdit={canWrite} />
+                    <AgentAppTriggers
+                      triggers={(triggers.data || []).filter((item) => item.appId && item.documentId)}
+                    />
                     {(triggers.data || []).some((item) => !item.documentId) ? (
                       <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
                         <SizableText size="sm" weight="bold" color="muted" className="px-3">
@@ -3411,4 +3414,48 @@ function listensForMentions(triggers: {enabled: boolean; source: AgentTriggerSou
       ? source.conditions.some((condition) => watches(condition.source as AgentTriggerSource))
       : source.type === 'user-mention' || source.type === 'comment-reply'
   return triggers.some((trigger) => trigger.enabled && watches(trigger.source))
+}
+
+/**
+ * The work an agent does for apps: app triggers that name it to run them. They live in their apps
+ * (changed there); this lists them so the agent's page shows everything it runs.
+ */
+function AgentAppTriggers({
+  triggers,
+}: {
+  triggers: {id: string; name: string; appId?: string; documentId?: string; enabled: boolean}[]
+}) {
+  const navigate = useNavigate()
+  if (!triggers.length) return null
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-1 px-4 pb-4">
+      <SizableText size="sm" weight="bold" color="muted" className="px-3">
+        For apps
+      </SizableText>
+      {triggers.map((trigger) => {
+        const id = trigger.documentId ? unpackHmId(trigger.documentId) : null
+        return (
+          <button
+            key={trigger.id}
+            type="button"
+            className="hover:bg-muted/60 flex flex-col items-start rounded-lg px-3 py-2 text-left"
+            onClick={() => id && navigate({key: 'document', id})}
+          >
+            <SizableText weight="bold">{trigger.name}</SizableText>
+            <SizableText size="sm" color="muted">
+              <AppName appId={trigger.appId} />
+              {trigger.enabled ? '' : ' · off'}
+            </SizableText>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** An app's name, read from its document. */
+function AppName({appId}: {appId?: string}) {
+  const id = appId ? unpackHmId(appId) : null
+  const app = useResource(id)
+  return <>{(app.data?.type === 'document' && app.data.document.metadata?.name) || id?.path?.at(-1) || 'An app'}</>
 }
