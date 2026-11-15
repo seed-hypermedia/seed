@@ -484,10 +484,13 @@ export async function describeRunningApp(
  * from a base64 data URL) named index.ts instead of printed as base64 in every stack frame.
  */
 export function readableToolError(output: string): string {
-  return output
+  const lines = output
     .replace(/data:text\/typescript;base64,[A-Za-z0-9+/=_-]+/g, 'index.ts')
     .replace(/[A-Za-z0-9+/=_-]{120,}/g, 'index.ts')
     .split('\n')
-    .slice(-8)
-    .join('\n')
+  // Bun prints the failing source lines before the error itself: lead with what went wrong.
+  const message = lines.findIndex((line) => /^(error|[A-Z]\w*Error): /.test(line.trim()))
+  if (message < 0) return lines.slice(-8).join('\n')
+  const frame = lines.slice(Math.max(0, message - 6), message).filter((line) => line.trim())
+  return [lines[message]!.trim(), ...lines.slice(message + 1, message + 3), ...frame].join('\n').trim()
 }

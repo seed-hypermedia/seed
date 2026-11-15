@@ -53,4 +53,19 @@ describe('tool errors', () => {
     expect(text).not.toContain('LnN0YXR1')
     expect(text).toContain('index.ts:3:4')
   })
+  test('the error message comes before the source lines Bun prints above it', async () => {
+    const {readableToolError} = await import('@/app-running')
+    const text = readableToolError(
+      [
+        '21 |   const response = await fetch(url, { headers });',
+        '22 |   if (!response.ok) {',
+        '23 |     throw Error(`GitHub API ${response.status}`);',
+        '                   ^',
+        'error: GitHub API 404: Not Found',
+        '      at listIssues (index.ts:23:11)',
+      ].join('\n'),
+    )
+    expect(text.split('\n')[0]).toBe('error: GitHub API 404: Not Found')
+    expect(text).toContain('index.ts:23:11')
+  })
 })
