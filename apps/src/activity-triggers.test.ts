@@ -186,6 +186,32 @@ describe('activity trigger matching', () => {
         {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['self']}},
       ],
     })
+    // The agent's own activity, from any of its accounts, never fires a trigger about itself.
+    const ownReply = {
+      type: 'comment',
+      author: {id: {uid: 'z6Mksecond', id: 'hm://z6Mksecond', path: []}},
+      comment: {author: 'z6Mksecond', targetAccount: 'z6Mksite', targetPath: '/notes', content: []},
+      replyParentAuthor: {id: {uid: 'z6Mkprimary', id: 'hm://z6Mkprimary', path: []}},
+    }
+    const ownAccounts = {ownAccounts: ['z6Mkprimary', 'z6Mksecond']}
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'comment-reply', repliedToAccounts: ['self']},
+        ownReply,
+        ownAccounts,
+      ),
+    ).toBe(false)
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'comment-reply', repliedToAccounts: ['self']},
+        {
+          ...ownReply,
+          author: {id: {uid: 'z6Mkuser', id: 'hm://z6Mkuser', path: []}},
+          comment: {...ownReply.comment, author: 'z6Mkuser'},
+        },
+        ownAccounts,
+      ),
+    ).toBe(true)
     expect(triggers.resolveSelfAccounts(['self', 'z6Mkx'], {ownAccounts: ['z6Mka', 'z6Mkx']})).toEqual([
       'z6Mka',
       'z6Mkx',

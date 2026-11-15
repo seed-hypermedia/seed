@@ -349,6 +349,19 @@ function matchesUserMention(
   event: ActivityFeedEvent,
   context: TriggerMatchContext,
 ): boolean {
+  // The agent mentioning itself (from any of its accounts) is not someone summoning it.
+  if (mentionedAccountsOf(source).includes(SELF_ACCOUNT) && context.ownAccounts?.length) {
+    const authorRecord = recordField(event, 'author')
+    const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+    const comment = recordField(event, 'comment')
+    const mention = activityEventMention(event)
+    const sourceBlob = mention ? recordField(mention, 'sourceBlob') : null
+    const author =
+      (authorId && stringField(authorId, 'uid')) ||
+      (comment && stringField(comment, 'author')) ||
+      (sourceBlob && stringField(sourceBlob, 'author'))
+    if (author && context.ownAccounts.includes(author)) return false
+  }
   return resolveSelfAccounts(mentionedAccountsOf(source), context).some((mentionedAccount) =>
     matchesSingleMention(mentionedAccount, source, event),
   )
@@ -435,6 +448,8 @@ function matchesCommentReply(
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
   if (author === parentAuthor) return false
+  // A trigger about the agent itself never fires on the agent's own activity, from any of its accounts.
+  if (author && source.repliedToAccounts.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 
@@ -459,6 +474,7 @@ function matchesDocumentAuthorComment(
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
   if (author && documentAuthors.includes(author)) return false
+  if (author && source.documentAuthors.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 

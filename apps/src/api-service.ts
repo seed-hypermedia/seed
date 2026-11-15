@@ -1051,6 +1051,8 @@ export class Service {
   readonly #triggerDocumentErrors = new Map<string, Map<string, string>>()
   /** The last firing of each trigger still running a session: the next firing waits for it. */
   readonly #triggerLanes = new Map<string, Promise<void>>()
+  /** How many firings of each trigger are waiting in its lane. */
+  readonly #triggerLaneDepth = new Map<string, number>()
   /** Where each mounted agent's keys may write, by agent id: refreshed at most once a minute. */
   readonly #agentWriteScopeCache = new Map<string, {scope: AgentWriteScope; expiresAt: number}>()
   readonly #resolvedSystemPromptCache = new Map<
@@ -3669,6 +3671,11 @@ export class Service {
             : host.accountId
       } catch (error) {
         errors.set(trigger.documentId, errorMessage(error))
+        // An edit that made the trigger invalid stops it, rather than leaving the old version firing.
+        if (row) {
+          deleteAgentTriggerRows(this.#db, row.account_id, row.id)
+          changed = true
+        }
         continue
       }
       const now = Date.now()
@@ -9121,8 +9128,12 @@ export class Service {
     // has gone silent (a provider connection that hangs instead of failing).
     let lastProgressAt = Date.now()
     let toolsRunning = 0
+    // A snapshot replaces the steps it summarizes, so the tool count is unknown from then on and the
+    // watchdog stands down for the turn rather than cut off a long tool.
+    let toolCountKnown = true
     const onHarnessEvent = (event: durable.AgentEvent): void => {
       lastProgressAt = Date.now()
+      if (event.type === 'snapshot') toolCountKnown = false
       if (event.type === 'tool_execution_start') toolsRunning += 1
       if (event.type === 'tool_execution_end') toolsRunning = Math.max(0, toolsRunning - 1)
       if (event.type === 'snapshot') {
@@ -9612,9 +9623,11 @@ export class Service {
           })
         if (live.stopped) await live.abort()
         const stallMs = this.#modelStallMs
+        // The turn starts now: preparing it (provider setup, replaying the log) is not silence.
+        lastProgressAt = Date.now()
         const watchdog = setInterval(
           () => {
-            if (toolsRunning > 0 || live.stopped || live.stalled) return
+            if (!toolCountKnown || toolsRunning > 0 || live.stopped || live.stalled) return
             if (Date.now() - lastProgressAt < stallMs) return
             live.stalled = true
             logRunError('the model sent nothing for too long; ending the turn', {sessionId, stallMs})
@@ -11713,12 +11726,25 @@ export class Service {
     // One firing of a trigger at a time: the next starts when this one's run has ended, so two
     // firings close together cannot both act on the same state (two agents each seeing "no
     // congratulation yet" and both posting one).
+    // The queue is short: beyond a few waiting firings, a new one starts at once rather than wait
+    // behind a backlog (a restart loses waiting firings until recoverWaitingFirings runs again).
     const previous = this.#triggerLanes.get(trigger.id)
-    const dispatch = previous ? previous.then(start) : start()
+    const waiting = this.#triggerLaneDepth.get(trigger.id) ?? 0
+    const queued = previous && waiting < TRIGGER_LANE_MAX_WAITING
+    if (queued) this.#triggerLaneDepth.set(trigger.id, waiting + 1)
+    const dispatch = queued
+      ? previous.then(() => {
+          this.#triggerLaneDepth.set(trigger.id, Math.max(0, (this.#triggerLaneDepth.get(trigger.id) ?? 1) - 1))
+          return start()
+        })
+      : start()
     const lane = dispatch.then(() => this.#waitForRunEnd(runId, TRIGGER_LANE_MAX_WAIT_MS))
     this.#triggerLanes.set(trigger.id, lane)
     void lane.finally(() => {
-      if (this.#triggerLanes.get(trigger.id) === lane) this.#triggerLanes.delete(trigger.id)
+      if (this.#triggerLanes.get(trigger.id) === lane) {
+        this.#triggerLanes.delete(trigger.id)
+        this.#triggerLaneDepth.delete(trigger.id)
+      }
     })
     this.#pendingTriggerSessions.add(dispatch)
     void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
@@ -11747,6 +11773,38 @@ export class Service {
   async drainTriggerSessions(): Promise<void> {
     await Promise.allSettled([...this.#pendingTriggerSessions])
     await this.#runQueue.awaitIdle()
+  }
+
+  /**
+   * Starts the sessions of recent firings that never got a run: they were waiting in a trigger's
+   * lane (or between creating the session and enqueueing its run) when the server stopped.
+   * Returns how many were started. Run once at startup.
+   */
+  recoverWaitingFirings(now = Date.now()): number {
+    const rows = stmt<
+      {id: string; account_id: string; trigger_id: string; session_id: string; activity_cbor: Uint8Array},
+      [number]
+    >(
+      this.#db,
+      `SELECT f.id, f.account_id, f.trigger_id, f.session_id, f.activity_cbor FROM trigger_firings f
+         WHERE f.session_id IS NOT NULL AND f.status = 'created' AND f.created_at > ?
+           AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.id = 'firing-' || f.id OR r.trigger_firing_id = f.id)
+         ORDER BY f.created_at ASC`,
+    ).all(now - 24 * 60 * 60_000)
+    let started = 0
+    for (const row of rows) {
+      const trigger = this.#getAgentTriggerInfo(row.account_id, row.trigger_id)
+      if (!trigger?.agentId) continue
+      this.#dispatchTriggerSession(
+        row.account_id,
+        trigger,
+        row.id,
+        row.session_id,
+        cbor.decode<activityTriggers.ActivityFeedEvent>(row.activity_cbor),
+      )
+      started += 1
+    }
+    return started
   }
 
   /** Alias for {@link drainTriggerSessions} under the name the runs feature documents. */
@@ -15054,6 +15112,8 @@ const TRIGGER_MIGRATION_RETRY_MS = 10 * 60_000
 const TRIGGER_DOCUMENT_GRACE_MS = 10 * 60_000
 /** How long a firing waits for the trigger's previous firing to finish before starting anyway. */
 const TRIGGER_LANE_MAX_WAIT_MS = 10 * 60_000
+/** Firings of one trigger that may wait for the previous one; more start at once. */
+const TRIGGER_LANE_MAX_WAITING = 3
 
 /** The signing key an agent is: `signingKey` while it is enabled, else its first enabled key. */
 function primarySigningKeyOf(definition: api.AgentDefinition): string | undefined {
@@ -15567,9 +15627,9 @@ async function writeTriggerAddress(
   const trigger = normalizeAgentTriggerInput({...parsed, name} as api.AgentTriggerInput)
   assertTriggerContinuationCallable(context.db, context.accountId, context.agentId, trigger.continuation)
   assertAgentTriggerWriteIntent(trigger, row, options)
-  if (options.dryRun === true) return dryRunTriggerWrite(context, trigger, row)
   // A mounted agent's new trigger is a document, in the app it works for or under the agent, so its
-  // user sees and edits it there. ~/triggers keeps what a document cannot express.
+  // user sees and edits it there. ~/triggers keeps what a document cannot express, and serves an
+  // agent that cannot publish documents (it has none yet, e.g. no write access to its document).
   const continuation = trigger.continuation
   const documentForm =
     !continuation ||
@@ -15578,11 +15638,18 @@ async function writeTriggerAddress(
       !continuation.systemPrompt &&
       continuation.includeAgentSystemPrompt !== false &&
       !continuation.tools)
-  if (!row && documentForm && context.agentId.startsWith('hm://'))
+  const publishesDocuments =
+    context.agentId.startsWith('hm://') &&
+    !!stmt<{id: string}, [string, string]>(
+      context.db,
+      `SELECT id FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND document_id IS NOT NULL LIMIT 1`,
+    ).get(context.accountId, context.agentId)
+  if (!row && documentForm && publishesDocuments)
     throw new APIError(
       400,
       `Create this trigger as a document, where your user sees it: write hm://… with the message as content and options.trigger {source, …}. For work an app does, put it under the app (<app>/<name>) with "agent": "${context.agentId}"; for your own work, under ${context.agentId}/<name>. Read ~/tools/write/triggers. ~/triggers/<name> is only for what a document cannot express (a workflow script, a wake).`,
     )
+  if (options.dryRun === true) return dryRunTriggerWrite(context, trigger, row)
   if (row) {
     if (row.merged_into) throw new APIError(409, 'This trigger was combined into another trigger and cannot be edited')
     if (options.expectedUpdatedAt !== undefined && options.expectedUpdatedAt !== row.updated_at) {

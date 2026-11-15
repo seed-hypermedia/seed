@@ -370,6 +370,34 @@ describe('trigger documents', () => {
         if (run) break
         await Bun.sleep(20)
       }
+
+      // A firing left with a session but no run (the server stopped while it waited) starts on recovery.
+      const waiting = await send(owner, {_: 'CreateSession', agentId: agentUrl})
+      db.run(
+        `INSERT INTO trigger_firings (id, account_id, agent_id, app_id, trigger_id, activity_key, activity_cbor, status, created_at, session_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, ?)`,
+        [
+          'left-waiting',
+          space,
+          agentUrl,
+          appUrl,
+          listed.triggers[0].trigger.id,
+          'manual:left-waiting',
+          cbor.encode({type: 'schedule', scheduleKind: 'interval', scheduledAt: Date.now(), firedAt: Date.now()}),
+          Date.now(),
+          waiting.sessionId,
+        ],
+      )
+      // The earlier firing's run (never started here: model runs are off) holds the trigger's lane.
+      db.run(`UPDATE runs SET status = 'failed' WHERE session_id = ?`, [ran.firing.sessionId])
+      expect(svc.recoverWaitingFirings()).toBe(1)
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        if (db.query(`SELECT id FROM runs WHERE id = 'firing-left-waiting'`).get()) break
+        await Bun.sleep(20)
+      }
+      expect(db.query(`SELECT id FROM runs WHERE id = 'firing-left-waiting'`).get()).not.toBeNull()
+      // Once it has its run, it is not started again.
+      expect(svc.recoverWaitingFirings()).toBe(0)
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)
