@@ -17485,6 +17485,12 @@ async function writeCapabilityCreate(
     'Capability delegate',
     MAX_NAME_BYTES,
   )
+  // A space's owner can already write all of it.
+  if (delegateUid === (target || signer.publicKey))
+    throw new APIError(
+      400,
+      `${delegateUid} owns this space and can already write everything in it: no grant is needed. A page they open saves with that access.`,
+    )
   const role = normalizeBoundedString(request.input.role, 'Capability role', MAX_NAME_BYTES).toUpperCase()
   if (role !== 'WRITER' && role !== 'AGENT') throw new APIError(400, 'Capability role must be WRITER or AGENT')
   const path = normalizeOptionalBoundedString(request.input.path, 'Capability path', 2048)

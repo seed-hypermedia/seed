@@ -5967,6 +5967,8 @@ describe('api service', () => {
       const account = blobs.generateNobleKeyPair()
       const publishedBodies: Uint8Array[] = []
       let openAICallCount = 0
+      // Someone else: a space's owner needs no grant to their own space.
+      const docsWriter = blobs.principalToString(blobs.generateNobleKeyPair().principal)
       let signerPublicKey = ''
       const commentRequestUrls: string[] = []
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
@@ -6094,7 +6096,7 @@ describe('api service', () => {
                             options: {
                               action: 'capability.create',
                               signer: {publicKey: signerPublicKey},
-                              input: {delegate: signerPublicKey, role: 'WRITER', label: 'Docs writer'},
+                              input: {delegate: docsWriter, role: 'WRITER', label: 'Docs writer'},
                             },
                           }),
                         },
