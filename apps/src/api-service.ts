@@ -3897,7 +3897,7 @@ export class Service {
         firingId,
       ])
     if (continuation?.kind !== 'tool' || !trigger.appId) {
-      setStatus('failed', 'An app’s trigger must call one of its tools', null)
+      setStatus('failed', 'An app’s trigger must call one of its tools or name an agent', null)
       return
     }
     setStatus('running', null, null)
@@ -15709,7 +15709,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
             )}) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.`,
           ]
         : []),
-      'Prefer trigger documents: publish a trigger under your agent document (or an app) with write and options.trigger (read ~/tools/write/triggers); it is listed in your document and your user sees it there. Triggers written to ~/triggers/<name> are published as documents for you when you can write your document. Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
+      'Automations are trigger documents: publish one with write and options.trigger (read ~/tools/write/triggers), under the app it works for (naming you as its agent) or under your document for your own work, and your user sees it there. Change, pause or delete one by writing its document (options.action "update" or "delete"). ~/triggers/ lists every trigger you run with its firings; write ~/triggers/<name> only for what a document cannot express (a workflow script with continuation {kind: "script"}, a wake). A trigger can start a session with you, or call a tool with no model at all.',
       'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
       "Delegation is budgeted: `delegation` shows your thoroughness preset and its maximum depth and children per run; a session may override the preset. Each turn's system prompt tells you your current depth and how much room your children have; a leaf worker gets no delegate verb at all.",
       'Your definition (name, model, system prompt, grants, signing keys, thoroughness) is edited by the user in the desktop; you cannot change it yourself.',
