@@ -14,7 +14,7 @@ import {appEmbeddedChildren, HM_TOOL_TYPE, isToolHostType, TOOL_ENTRY_FILE} from
 import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {createSeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
+import {structFields, validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
 import {APP_PRIVATE_CONFIG_ENV, buildAppToolProgram, parseLambdaResult, type CodeExecutor} from '@/code-exec'
@@ -215,6 +215,19 @@ function getRunRow(db: Database, appId: string): AppRunRow | null {
 }
 
 /** Checks a value against an HM schema reference; returns readable violations, or none without a schema. */
+/** A struct schema's fields as a caller reads them: `{owner?: string, perPage: integer}`, or null. */
+async function expectedFields(client: SeedClient, ref: unknown): Promise<string | null> {
+  if (typeof ref !== 'string' || !ref) return null
+  const loaded = await loadSchemaRef(client, ref).catch(() => null)
+  const fields = loaded ? structFields(loaded.schema) : []
+  if (!fields.length) return null
+  const kind = (schema: unknown) => {
+    const type = (schema as {type?: unknown})?.type
+    return typeof type === 'string' ? type.replace('hm://hyper.media/', '') : 'value'
+  }
+  return `{${fields.map((field) => `${field.name}${field.required ? '' : '?'}: ${kind(field.schema)}`).join(', ')}}`
+}
+
 async function schemaViolations(client: SeedClient, ref: unknown, value: unknown): Promise<string[]> {
   if (typeof ref !== 'string' || !ref) return []
   const loaded = await loadSchemaRef(client, ref).catch(() => null)
@@ -323,8 +336,14 @@ export async function callAppTool(
   let error: string | undefined
   try {
     const inputViolations = await schemaViolations(deps.client, tool.metadata.inputSchema, action.input)
-    if (inputViolations.length)
-      throw new AppRunError(400, `Input does not match the tool: ${inputViolations.join('; ')}`)
+    if (inputViolations.length) {
+      // Say what the tool does take, so the caller can fix the call without looking it up.
+      const expected = await expectedFields(deps.client, tool.metadata.inputSchema)
+      throw new AppRunError(
+        400,
+        `Input does not match the tool: ${inputViolations.join('; ')}${expected ? `. It takes ${expected}.` : ''}`,
+      )
+    }
     const privateViolations = await schemaViolations(
       deps.client,
       app.metadata.privateConfigSchema,

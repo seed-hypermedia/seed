@@ -15949,6 +15949,9 @@ export async function executeReadVerb(
   }
 
   if (address === '~/tools' || address === '~/tools/') return toolsListing(context)
+  // An app's or agent's tool is a document: ~/tools/hm://… reads it (its input, output and code).
+  if (address.startsWith('~/tools/hm://'))
+    return executeReadVerb(context, {...input, address: address.slice('~/tools/'.length)})
   if (address.startsWith('~/tools/')) {
     const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
     const [root, guideName, ...extra] = name.split('/')
