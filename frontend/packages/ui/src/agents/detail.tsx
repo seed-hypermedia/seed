@@ -136,6 +136,7 @@ import {
 import {AgentMcpServersSection} from './mcp-servers'
 import {
   TriggerContinuationFields,
+  TriggerRunsAgentContext,
   TriggerSourceFields,
   isTriggerSourceReady,
   isHeadlessContinuation,
@@ -836,50 +837,52 @@ export function AgentDetailPage({
               ) : null}
 
               {tab === 'triggers' && !isTriggerDetail ? (
-                agentHost ? (
-                  // A mounted agent's triggers are documents under it, listed like an app's; any still
-                  // stored only on the server follow, until they move into documents.
-                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                    {triggers.data && !listensForMentions(triggers.data) ? (
-                      <div className="mx-auto w-full max-w-3xl px-4 pt-4">
-                        <SizableText size="sm" color="muted">
-                          No trigger answers mentions of {displayName}, so mentioning it or replying to it does nothing.
-                          Add a trigger that starts a session when this agent is mentioned to change that.
-                        </SizableText>
-                      </div>
-                    ) : null}
-                    <AgentTriggerDocumentsTab host={agentHost} canEdit={canWrite} />
-                    <AgentAppTriggers
-                      triggers={(triggers.data || []).filter((item) => item.appId && item.documentId)}
+                <TriggerRunsAgentContext.Provider value={true}>
+                  {agentHost ? (
+                    // A mounted agent's triggers are documents under it, listed like an app's; any still
+                    // stored only on the server follow, until they move into documents.
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                      {triggers.data && !listensForMentions(triggers.data) ? (
+                        <div className="mx-auto w-full max-w-3xl px-4 pt-4">
+                          <SizableText size="sm" color="muted">
+                            No trigger answers mentions of {displayName}, so mentioning it or replying to it does
+                            nothing. Add a trigger that starts a session when this agent is mentioned to change that.
+                          </SizableText>
+                        </div>
+                      ) : null}
+                      <AgentTriggerDocumentsTab host={agentHost} canEdit={canWrite} />
+                      <AgentAppTriggers
+                        triggers={(triggers.data || []).filter((item) => item.appId && item.documentId)}
+                      />
+                      {(triggers.data || []).some((item) => !item.documentId) ? (
+                        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
+                          <SizableText size="sm" weight="bold" color="muted" className="px-3">
+                            On the server
+                          </SizableText>
+                          <AgentTriggersTab
+                            agentId={agentId}
+                            serverUrl={serverUrl}
+                            selectedAccountId={selectedAccountId}
+                            selectedTriggerId={triggerId}
+                            triggers={(triggers.data || []).filter((item) => !item.documentId)}
+                            isLoading={triggers.isLoading}
+                            readOnly={!canWrite}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <AgentTriggersTab
+                      agentId={agentId}
+                      serverUrl={serverUrl}
+                      selectedAccountId={selectedAccountId}
+                      selectedTriggerId={triggerId}
+                      triggers={triggers.data || []}
+                      isLoading={triggers.isLoading}
+                      readOnly={!canWrite}
                     />
-                    {(triggers.data || []).some((item) => !item.documentId) ? (
-                      <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
-                        <SizableText size="sm" weight="bold" color="muted" className="px-3">
-                          On the server
-                        </SizableText>
-                        <AgentTriggersTab
-                          agentId={agentId}
-                          serverUrl={serverUrl}
-                          selectedAccountId={selectedAccountId}
-                          selectedTriggerId={triggerId}
-                          triggers={(triggers.data || []).filter((item) => !item.documentId)}
-                          isLoading={triggers.isLoading}
-                          readOnly={!canWrite}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <AgentTriggersTab
-                    agentId={agentId}
-                    serverUrl={serverUrl}
-                    selectedAccountId={selectedAccountId}
-                    selectedTriggerId={triggerId}
-                    triggers={triggers.data || []}
-                    isLoading={triggers.isLoading}
-                    readOnly={!canWrite}
-                  />
-                )
+                  )}
+                </TriggerRunsAgentContext.Provider>
               ) : null}
 
               {tab === 'memory' ? (

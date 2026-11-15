@@ -1029,6 +1029,9 @@ function TriggerEntityPicker({
 /** The account a trigger names as `self`: whichever accounts its agent signs as when an event arrives. */
 const SELF_ACCOUNT = 'self'
 
+/** Whether the trigger being edited runs an agent, so its account fields can name "this agent". */
+export const TriggerRunsAgentContext = createContext(false)
+
 /** An account as a trigger summary shows it. */
 function accountLabel(uid: string): string {
   return uid === SELF_ACCOUNT ? 'this agent' : abbreviateUid(uid)
@@ -1043,8 +1046,19 @@ function MentionedAccountsField({
   onChange: (accounts: string[]) => void
   label?: string
 }) {
+  const runsAgent = useContext(TriggerRunsAgentContext)
   return (
     <div className="grid gap-2">
+      {runsAgent && !accounts.includes(SELF_ACCOUNT) ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground justify-self-start"
+          onClick={() => onChange([SELF_ACCOUNT, ...accounts])}
+        >
+          + This agent
+        </Button>
+      ) : null}
       {accounts.map((uid) => (
         <div
           key={uid}

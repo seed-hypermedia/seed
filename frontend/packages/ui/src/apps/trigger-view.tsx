@@ -27,7 +27,7 @@ import {getAgentWebhookUrl} from '../agents/client'
 import {useLocalAgentServerUrl} from '../agents/models'
 import {useSiteAgentMounts} from '../site-agents'
 import {describeHostServer} from '../server-host-card'
-import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
+import {TriggerRunsAgentContext, TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
 import {Switch} from '../components/switch'
@@ -247,7 +247,9 @@ export function TriggerDocumentView({
             <SizableText weight="bold">When</SizableText>
             {source ? (
               canEdit ? (
-                <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
+                <TriggerRunsAgentContext.Provider value={hostIsAgent || action === 'session'}>
+                  <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
+                </TriggerRunsAgentContext.Provider>
               ) : (
                 <SizableText size="sm">
                   <TriggerSourceSummary source={source} />
