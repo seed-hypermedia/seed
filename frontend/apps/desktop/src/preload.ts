@@ -272,18 +272,22 @@ contextBridge.exposeInMainWorld('ipc', {
 
 contextBridge.exposeInMainWorld('autoUpdate', {
   onUpdateStatus: (handler: (status: UpdateStatus) => void) => {
-    ipcRenderer.on('auto-update:status', (_event, status: UpdateStatus) => {
-      handler(status)
-    })
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => handler(status)
+    ipcRenderer.on('auto-update:status', listener)
+    ipcRenderer.send('auto-update:get-status')
+    return () => ipcRenderer.removeListener('auto-update:status', listener)
   },
-  setUpdateStatus: (status: UpdateStatus) => {
-    ipcRenderer.send('auto-update:set-status', status)
+  dismiss: () => {
+    ipcRenderer.send('auto-update:dismiss')
   },
   checkForUpdates: () => {
     ipcRenderer.send('auto-update:check-for-updates')
   },
-  downloadAndInstall: () => {
-    ipcRenderer.send('auto-update:download-and-install')
+  download: () => {
+    ipcRenderer.send('auto-update:download')
+  },
+  restart: () => {
+    ipcRenderer.send('auto-update:restart')
   },
   releaseNotes: () => {
     ipcRenderer.send('auto-update:release-notes')

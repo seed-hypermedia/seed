@@ -41,6 +41,9 @@ export type UpdateStatus =
   | {type: 'checking'}
   | {type: 'update-available'; updateInfo: UpdateInfo}
   | {type: 'downloading'; progress: number}
+  | {type: 'verifying'}
+  | {type: 'ready-to-restart'; updateInfo: UpdateInfo; deferred: boolean}
   | {type: 'restarting'}
   | {type: 'error'; error: string}
   | {type: 'flatpak-info'; message: string}
+  | {type: 'appimage-info'; message: string}

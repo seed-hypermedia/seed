@@ -47,6 +47,11 @@ export default function Footer({children}: {children?: ReactNode}) {
             {getUpdateStatusLabel(updateStatus)}
           </SizableText>
         )}
+        {updateStatus?.type === 'ready-to-restart' && updateStatus.deferred && (
+          <Button size="sm" variant="outline" onClick={() => window.autoUpdate?.restart()}>
+            Restart to Update
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-1">

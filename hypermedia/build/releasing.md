@@ -49,6 +49,8 @@ Look at the commits since the previous tag (`git log <prev-tag>..<tag> --oneline
 
 Manually run the `Generate latest.json (prod)` workflow so desktop auto-update picks up the new version: <!-- id:TsSX-oHy -->
 
+On macOS and Windows, **Download Update** downloads and verifies the release without interrupting the running app. Installation and relaunch begin only after the user chooses **Restart**. **Later** keeps the verified update pending; the footer's **Restart to Update** action remains available. Background checks cannot replace a pending update or trigger a restart. Linux continues to use the download website or its distribution's update mechanism.
+
 ```sh <!-- id:s4pnUPRT -->
 gh workflow run "Generate latest.json (prod)"
 ```
