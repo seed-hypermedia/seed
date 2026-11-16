@@ -123,6 +123,15 @@ describe('DraftVersionItem', () => {
     expect(sendMock).toHaveBeenCalledWith({type: 'draftHidden.set', hidden: false})
   })
 
+  it('drops the selected-row background while the draft is hidden', () => {
+    render()
+    expect(container.firstElementChild?.className).toContain('bg-accent')
+
+    machineMock.draftHidden = true
+    render()
+    expect(container.firstElementChild?.className).not.toContain('bg-accent')
+  })
+
   it('offers no preview while viewing a pinned old version', () => {
     navMock.route = {key: 'document', id: hmId('alice', {path: ['my-doc'], version: 'bafyold'})}
     render()

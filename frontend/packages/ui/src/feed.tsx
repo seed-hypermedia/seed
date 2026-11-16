@@ -389,7 +389,11 @@ export function DraftVersionItem({
   return (
     <div
       className={cn(
-        'bg-accent hover:bg-accent group dark:hover:bg-accent flex items-start gap-2 px-4 py-4 transition-colors',
+        'group flex items-start gap-2 px-4 py-4 transition-colors',
+        // bg-accent marks the row whose content is being viewed; while the
+        // draft is hidden the published version is on screen, so the draft row
+        // renders like any other unselected row.
+        draftHidden ? 'hover:bg-background dark:hover:bg-black/10' : 'bg-accent hover:bg-accent dark:hover:bg-accent',
         isCurrentDraftRoute && !draftHidden && 'ring-border ring-1 ring-inset',
       )}
       {...draftLinkProps}
