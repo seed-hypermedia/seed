@@ -233,7 +233,10 @@ export function AgentMountDestination({
   if (locations.isError)
     return (
       <p role="alert">
-        Could not load writable locations. <Button onClick={() => locations.refetch()}>Retry</Button>
+        Could not load writable locations.{' '}
+        <Button variant="ghost" onClick={() => locations.refetch()}>
+          Retry
+        </Button>
       </p>
     )
   return (

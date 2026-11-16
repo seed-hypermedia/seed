@@ -95,7 +95,7 @@ export function AccountWallet({
 function WalletButton({walletId, onOpen}: {walletId: string; onOpen: () => void}) {
   const wallet = useWallet(walletId)
   return (
-    <Button onClick={onOpen}>
+    <Button variant="ghost" onClick={onOpen}>
       <div className="flex flex-1 items-center justify-between">
         <SizableText family="mono">x{walletId.slice(-8).toUpperCase()}</SizableText>
         <div className="flex items-center gap-3">
@@ -135,7 +135,7 @@ export function WalletPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-between">
-        <Button size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" onClick={onClose}>
           <ChevronLeft className="size-4" />
           Profile
         </Button>
@@ -247,6 +247,7 @@ function WalletDetails({
       <div className="flex justify-between">
         <Tooltip content="Click to Copy Lightning Address">
           <Button
+            variant="ghost"
             size="sm"
             onClick={() => {
               copyTextToClipboard(walletId)
@@ -264,6 +265,7 @@ function WalletDetails({
       </div>
       <div className="flex gap-4">
         <Button
+          variant="ghost"
           className="flex-1"
           size="sm"
           onClick={() => {
@@ -275,6 +277,7 @@ function WalletDetails({
         </Button>
         {addFundsDialog.content}
         <Button
+          variant="ghost"
           className="flex-1"
           size="sm"
           onClick={() => {
@@ -325,6 +328,7 @@ function WithdrawDialog({
         </div>
         <div className="flex gap-4">
           <Button
+            variant="ghost"
             className="flex-1"
             onClick={() => {
               reset()
@@ -334,6 +338,7 @@ function WithdrawDialog({
             Cancel
           </Button>
           <Button
+            variant="ghost"
             className="flex-1"
             onClick={() => {
               payInvoice
@@ -367,10 +372,10 @@ function WithdrawDialog({
         <Input value={payreqInput} onChangeText={setPayreqInput} />
       </Field>
       <div className="flex gap-4">
-        <Button className="flex-1" onClick={onClose}>
+        <Button variant="ghost" className="flex-1" onClick={onClose}>
           Cancel
         </Button>
-        <Button className="flex-1" disabled>
+        <Button variant="ghost" className="flex-1" disabled>
           Send Funds
         </Button>
       </div>
@@ -451,11 +456,11 @@ function AddFundsDialog({
             <Spinner hide={!createInvoice.isLoading} />
           </div>
           <div className="flex gap-4">
-            <Button className="flex-1" onClick={onClose}>
+            <Button variant="ghost" className="flex-1" onClick={onClose}>
               Cancel
             </Button>
 
-            <Button type="submit" className="flex-1" onClick={submit}>
+            <Button variant="ghost" type="submit" className="flex-1" onClick={submit}>
               Create Invoice
             </Button>
           </div>
@@ -486,7 +491,9 @@ function InvoiceInfo({
         <DialogDescription>
           {invoice.amount} SATS have been transferred to {walletName}.
         </DialogDescription>
-        <Button onClick={onCancel}>Done</Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Done
+        </Button>
       </>
     )
   }
@@ -501,6 +508,7 @@ function InvoiceInfo({
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
           <Button
+            variant="ghost"
             onClick={() => {
               copyTextToClipboard(invoice.payload)
               toast.success('Copied Invoice to Clipboard')
@@ -512,7 +520,9 @@ function InvoiceInfo({
           </Button>
         </Tooltip>
       </div>
-      <Button onClick={onCancel}>Cancel</Button>
+      <Button variant="ghost" onClick={onCancel}>
+        Cancel
+      </Button>
     </>
   )
 }
@@ -522,7 +532,9 @@ function ExportWalletDialog({input, onClose}: {input: string; onClose: () => voi
     <>
       <DialogTitle>Wallet Exported</DialogTitle>
       <DialogDescription>Your wallet has been exported. Here is the credentials: {input}</DialogDescription>
-      <Button onClick={onClose}>Done</Button>
+      <Button variant="ghost" onClick={onClose}>
+        Done
+      </Button>
     </>
   )
 }

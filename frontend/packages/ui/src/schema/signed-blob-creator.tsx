@@ -85,6 +85,7 @@ export function SignedBlobCreator({schema, typeName}: {schema: HypermediaSchema;
           {errors.length ? `${errors.length} issue${errors.length > 1 ? 's' : ''} to resolve` : '✓ valid'}
         </span>
         <Button
+          variant="ghost"
           size="sm"
           onClick={publish}
           disabled={publishing || !canSign || errors.length > 0}

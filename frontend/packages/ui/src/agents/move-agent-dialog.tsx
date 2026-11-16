@@ -197,6 +197,7 @@ export function MoveAgentDialog({
           Cancel
         </Button>
         <Button
+          variant="ghost"
           onClick={() => void handleMove()}
           disabled={moving || !targetServerUrl || targetUnreachable || !effectiveProvider}
         >

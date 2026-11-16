@@ -271,7 +271,9 @@ function PreviewStep({
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onContinue}>Continue</Button>
+        <Button variant="ghost" onClick={onContinue}>
+          Continue
+        </Button>
       </div>
     </div>
   )
@@ -469,7 +471,7 @@ function OptionsStep({
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onStart} disabled={!canStart}>
+        <Button variant="ghost" onClick={onStart} disabled={!canStart}>
           {isLoading ? <Spinner size="small" /> : 'Start Import'}
         </Button>
       </div>
@@ -505,7 +507,7 @@ function ImportingStep({onComplete}: {onComplete: (results: ImportResults | null
 
         {progress && (
           <>
-            <div className="h-2 w-full rounded-full bg-gray-200">
+            <div className="bg-border h-2 w-full rounded-full">
               <div
                 className="h-2 w-full origin-left rounded-full bg-blue-600 transition-transform"
                 style={{transform: `scaleX(${percent / 100})`}}
@@ -643,7 +645,7 @@ function CompleteStep({onClose, results}: {onClose: () => void; results: ImportR
             {exportAuthorKeysMutation.isLoading ? 'Exporting…' : 'Export Author Keys'}
           </Button>
         )}
-        <Button onClick={onClose} className={canExportAuthorKeys ? 'flex-1' : 'w-full'}>
+        <Button variant="ghost" onClick={onClose} className={canExportAuthorKeys ? 'flex-1' : 'w-full'}>
           Done
         </Button>
       </div>

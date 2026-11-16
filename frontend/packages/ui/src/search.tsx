@@ -451,7 +451,11 @@ export function SearchResultItem({
         </SizableText>
 
         {unpackedId?.blockRef && (
-          <SizableText size="xs" weight="light" className="line-clamp-1 flex-none text-left font-sans text-gray-400">
+          <SizableText
+            size="xs"
+            weight="light"
+            className="text-muted-foreground line-clamp-1 flex-none text-left font-sans"
+          >
             ...{highlightSearchMatch(item.title, item.searchQuery)}...
           </SizableText>
         )}
@@ -463,7 +467,11 @@ export function SearchResultItem({
             <div className="flex min-w-0 items-center gap-2 overflow-hidden">
               <div className="flex min-w-0 flex-1 items-center">
                 {!!item.path && (
-                  <SizableText size="xs" weight="light" className="line-clamp-1 truncate font-sans text-gray-400">
+                  <SizableText
+                    size="xs"
+                    weight="light"
+                    className="text-muted-foreground line-clamp-1 truncate font-sans"
+                  >
                     {collapsedPath.join(' / ')}
                   </SizableText>
                 )}
@@ -474,8 +482,8 @@ export function SearchResultItem({
                 <SizableText
                   className={cn(
                     'flex-none whitespace-nowrap',
-                    // Same blue as the "Open Space" link on the profile page, so an account never reads as a document.
-                    isProfile ? 'text-blue-500' : 'text-gray-400',
+                    // Same link colour as the "Open Space" link on the profile page, so an account never reads as a document.
+                    isProfile ? 'text-link' : 'text-muted-foreground',
                   )}
                   size="xs"
                   weight="light"

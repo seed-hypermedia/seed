@@ -191,7 +191,12 @@ export function BlobJsonMode({
         onChange={(e) => setText(e.target.value)}
       />
       <div className="flex min-h-8 items-center gap-2">
-        <Button size="sm" disabled={!('value' in validation)} onClick={() => onApply((validation as any).value)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!('value' in validation)}
+          onClick={() => onApply((validation as any).value)}
+        >
           <Check className="size-4" />
           Apply
         </Button>

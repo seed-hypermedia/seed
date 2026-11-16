@@ -259,6 +259,7 @@ function BookmarkRow({
       {privateDocument ? <Lock className="text-muted-foreground size-3.5 shrink-0" /> : null}
       <Tooltip content="Remove from Bookmarks">
         <Button
+          variant="ghost"
           aria-label={`Remove ${title} from Bookmarks`}
           disabled={deleting}
           className="size-8 shrink-0 rounded-lg bg-transparent p-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"

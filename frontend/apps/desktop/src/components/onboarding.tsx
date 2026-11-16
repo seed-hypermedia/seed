@@ -794,7 +794,7 @@ function VaultStep({
               Open the Vault Connect to sign in and connect this device before continuing.
             </Text>
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={handleStartConnection} disabled={isPending || !remoteVaultURL.trim()}>
+              <Button variant="ghost" onClick={handleStartConnection} disabled={isPending || !remoteVaultURL.trim()}>
                 {connectionState === 'connected' ? 'Reconnect in Browser' : 'Connect in Browser'}
               </Button>
               {connectionState === 'connected' ? (
@@ -1338,7 +1338,7 @@ function StepWrapper({children, onPrev}: {children: React.ReactNode; onPrev?: ()
         <div className="no-window-drag flex h-[600px] w-[600px] flex-col items-center justify-center gap-6">
           {onPrev ? (
             <div className="no-window-drag absolute top-10 left-15 z-40">
-              <Button size="icon" onClick={onPrev}>
+              <Button variant="ghost" size="icon" onClick={onPrev}>
                 <ArrowLeft className="text-secondary-foreground size-5" />
               </Button>
             </div>
@@ -1369,7 +1369,7 @@ function OnboardingProgress({currentStep, showVaultStep}: {currentStep: Onboardi
 }
 
 function OnboardingProgressStep({active}: {active: boolean}) {
-  return <div className={cn('size-2 rounded-full', active ? 'bg-primary' : 'bg-gray-300')} />
+  return <div className={cn('size-2 rounded-full', active ? 'bg-primary' : 'bg-border')} />
 }
 
 async function fileToImageData(file: File): Promise<ImageData> {
@@ -1420,7 +1420,7 @@ export function ResetOnboardingButton() {
 
   return (
     <div className="no-window-drag absolute right-2.5 bottom-2.5 z-40 flex gap-2">
-      <Button size="sm" onClick={() => dispatchEditPopover(true)}>
+      <Button variant="ghost" size="sm" onClick={() => dispatchEditPopover(true)}>
         show Edit Dialog
       </Button>
       <Button variant="destructive" size="sm" onClick={handleReset}>

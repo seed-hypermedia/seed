@@ -132,7 +132,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
           />
         ) : isUser ? (
           <div className="flex items-start gap-1">
-            <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] break-words text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
+            <div className="bg-muted text-foreground ml-6 min-w-0 flex-1 rounded-lg border px-3 py-2 text-[13px] break-words [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
               {resolvedBlocks?.length ? (
                 <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
                   <Suspense fallback={<Markdown>{message.content || ''}</Markdown>}>

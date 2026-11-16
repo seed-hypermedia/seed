@@ -116,6 +116,7 @@ export function ImageForm({
       </div>
       {onRemove && url ? (
         <Button
+          variant="ghost"
           size="icon"
           className="grouo-hover:pointer-events-all absolute top-0 right-0 z-50 opacity-0 group-hover:opacity-100"
           onClick={(e) => {

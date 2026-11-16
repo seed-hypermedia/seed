@@ -278,7 +278,11 @@ export function TriggerSourceFields({
           <Button variant="ghost" onClick={() => setEditing(null)}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!editing || !isTriggerSourceReady(editing.draft) || pendingFields.size > 0}>
+          <Button
+            variant="ghost"
+            onClick={save}
+            disabled={!editing || !isTriggerSourceReady(editing.draft) || pendingFields.size > 0}
+          >
             {editing?.isNew ? 'Add condition' : 'Save condition'}
           </Button>
         </DialogFooter>

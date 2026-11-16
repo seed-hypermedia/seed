@@ -136,6 +136,7 @@ function AppSettingsButton() {
   return (
     <Tooltip content="App Settings">
       <Button
+        variant="ghost"
         size="icon"
         className="hover:bg-muted active:bg-muted shrink-none flex size-8 items-center justify-center rounded-md"
         onClick={(e) => {

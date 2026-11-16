@@ -2884,7 +2884,7 @@ function FieldDialog({
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={submit}>
+          <Button variant="ghost" size="sm" onClick={submit}>
             <Check className="size-4" />
             {mode === 'add' ? 'Add' : 'Save'}
           </Button>

@@ -10,9 +10,7 @@ import {cn} from './utils'
 export function CopyUrlField({url, label, size = 'md'}: {url: string; label: string; size?: 'sm' | 'md'}) {
   const {openUrl} = useUniversalAppContext()
   return (
-    <div
-      className={cn('flex items-center rounded-md border border-gray-200', size == 'md' ? 'gap-2 p-2.5' : 'gap-1 p-1')}
-    >
+    <div className={cn('flex items-center rounded-md border', size == 'md' ? 'gap-2 p-2.5' : 'gap-1 p-1')}>
       <div className="flex-1 truncate overflow-hidden whitespace-nowrap">
         <Text size={size} color="muted">
           {url}

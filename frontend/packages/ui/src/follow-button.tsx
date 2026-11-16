@@ -13,7 +13,7 @@ export interface FollowButtonProps {
 export function FollowButton({onClick, disabled, isFollowing}: FollowButtonProps) {
   return (
     <button
-      className="flex items-center gap-2 rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100 dark:bg-gray-800"
+      className="bg-popover text-popover-foreground hover:bg-muted flex items-center gap-2 rounded-lg p-2 font-bold shadow-lg transition-colors"
       onClick={onClick}
       disabled={disabled}
     >

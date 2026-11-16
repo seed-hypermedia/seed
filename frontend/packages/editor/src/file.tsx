@@ -74,7 +74,7 @@ const FileDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   return (
     <MediaContainer editor={editor} block={block} mediaType="file" assign={assign}>
       <div className="group relative w-full">
-        <Button className="w-full justify-start px-4 py-3 select-none" disabled>
+        <Button variant="ghost" className="w-full justify-start px-4 py-3 select-none" disabled>
           <File className="size-4 shrink-0" />
           <SizableText size="md" className="min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap">
             {block.props.name}

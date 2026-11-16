@@ -537,6 +537,7 @@ export function AgentMemoryTab({
                   <RotateCcw className="mr-1 size-3.5" /> Revert
                 </Button>
                 <Button
+                  variant="ghost"
                   size="sm"
                   className="flex-none"
                   onClick={() => void handleSave()}
@@ -704,7 +705,7 @@ export function AgentMemoryTab({
             placeholder="notes/topic.md"
             aria-label="New memory file path"
           />
-          <Button type="submit" size="sm" disabled={!newFilePath.trim() || writeFile.isLoading}>
+          <Button variant="ghost" type="submit" size="sm" disabled={!newFilePath.trim() || writeFile.isLoading}>
             Create
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setAddPanel('none')}>
@@ -735,7 +736,7 @@ export function AgentMemoryTab({
             aria-label="Optional memory path for the download"
             className="max-w-56"
           />
-          <Button type="submit" size="sm" disabled={!webUrl.trim() || downloadFromWeb.isLoading}>
+          <Button variant="ghost" type="submit" size="sm" disabled={!webUrl.trim() || downloadFromWeb.isLoading}>
             {downloadFromWeb.isLoading ? 'Downloading…' : 'Download'}
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setAddPanel('none')}>
@@ -892,7 +893,7 @@ function BinaryFilePreview({file, onDownload}: {file: AgentMemoryFile; onDownloa
             <SizableText size="xs" color="muted" className="text-center">
               This file type has no inline preview.
             </SizableText>
-            <Button onClick={onDownload}>
+            <Button variant="ghost" onClick={onDownload}>
               <Download className="mr-2 size-4" /> Download
             </Button>
           </>

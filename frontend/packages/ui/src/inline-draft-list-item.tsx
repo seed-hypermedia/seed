@@ -165,7 +165,7 @@ export function InlineDraftListItem({
             aria-label="Draft name"
             style={inTable ? {width: `${(title || 'Untitled document').length}ch`} : undefined}
             className={cn(
-              'text-foreground border-none bg-transparent font-sans text-sm outline-none placeholder:text-gray-400',
+              'text-foreground placeholder:text-muted-foreground border-none bg-transparent font-sans text-sm outline-none',
               inTable ? 'max-w-full min-w-0 truncate font-medium' : 'w-full font-bold',
             )}
           />

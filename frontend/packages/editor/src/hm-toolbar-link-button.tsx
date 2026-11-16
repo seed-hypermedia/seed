@@ -95,7 +95,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       </PopoverTrigger>
 
       <PopoverContent
-        className="format-toolbar-item border-border bg-background text-foreground w-fit max-w-[500px] min-w-[400px] border p-0 shadow-md dark:bg-neutral-900 dark:text-neutral-50"
+        className="format-toolbar-item border-border bg-background text-foreground w-fit max-w-[500px] min-w-[400px] border p-0 shadow-md"
         side="bottom"
         sideOffset={52}
       >

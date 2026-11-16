@@ -114,7 +114,11 @@ export function WebSpaceSettingsPage({
               <p role="alert">
                 {resource.isError ? 'Could not load your space.' : 'Publish your space before changing its settings.'}
               </p>
-              {resource.isError ? <Button onClick={() => resource.refetch()}>Retry</Button> : null}
+              {resource.isError ? (
+                <Button variant="ghost" onClick={() => resource.refetch()}>
+                  Retry
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div

@@ -135,7 +135,7 @@ describe('editing-toolbar publish disabled states', () => {
       const labels = Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)
       expect(labels).toEqual(action ? [action] : [])
       const publish = findButtonByText(container, 'Publish')!
-      expect(publish.className.includes('bg-neutral-100')).toBe(changes === 0 || children > 0)
+      expect(publish.className.includes('bg-muted')).toBe(changes === 0 || children > 0)
       if (action) {
         act(() =>
           document.body.querySelector('[role="menuitem"]')!.dispatchEvent(new MouseEvent('click', {bubbles: true})),
@@ -186,8 +186,8 @@ describe('editing-toolbar publish disabled states', () => {
     try {
       const publishTrigger = findButtonByText(container, 'Publish')
       expect(publishTrigger).toBeTruthy()
-      expect(publishTrigger?.className).toContain('bg-neutral-100')
-      expect(publishTrigger?.className).toContain('text-neutral-500')
+      expect(publishTrigger?.className).toContain('bg-muted')
+      expect(publishTrigger?.className).toContain('text-muted-foreground')
     } finally {
       cleanup(root, container)
     }
@@ -219,8 +219,8 @@ describe('editing-toolbar publish disabled states', () => {
     try {
       const publishTrigger = findButtonByText(container, 'Publish')
       expect(publishTrigger).toBeTruthy()
-      expect(publishTrigger?.className).not.toContain('bg-neutral-100')
-      expect(publishTrigger?.className).not.toContain('text-neutral-500')
+      expect(publishTrigger?.className).not.toContain('bg-muted')
+      expect(publishTrigger?.className).not.toContain('text-muted-foreground')
     } finally {
       cleanup(root, container)
     }
@@ -278,8 +278,8 @@ describe('editing-toolbar publish disabled states', () => {
       const publishButton = findButtonByText(container, 'Publish: Make it live now')
       expect(publishButton).toBeTruthy()
       expect(publishButton?.disabled).toBe(true)
-      expect(publishButton?.className).toContain('bg-neutral-100')
-      expect(publishButton?.className).toContain('text-neutral-500')
+      expect(publishButton?.className).toContain('bg-muted')
+      expect(publishButton?.className).toContain('text-muted-foreground')
     } finally {
       cleanup(root, container)
     }

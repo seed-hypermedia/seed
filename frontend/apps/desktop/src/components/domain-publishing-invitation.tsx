@@ -37,6 +37,7 @@ export function DomainPublishingInvitation() {
               Not now
             </Button>
             <Button
+              variant="ghost"
               onClick={() => {
                 if (!id) return
                 dismiss()

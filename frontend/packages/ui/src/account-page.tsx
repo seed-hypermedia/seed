@@ -255,7 +255,7 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
   const linkProps = linkState.kind === 'external' && !IS_DESKTOP ? externalLinkProps : internalLinkProps
 
   return (
-    <a className="flex items-center gap-1 break-all text-blue-500" {...linkProps}>
+    <a className="text-link hover:text-link-hover flex items-center gap-1 break-all" {...linkProps}>
       <span>{linkState.label}</span>
       {linkState.status === 'verified' && linkState.verifiedMessage ? (
         <HoverCard>

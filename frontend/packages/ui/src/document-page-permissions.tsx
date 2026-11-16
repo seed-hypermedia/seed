@@ -141,7 +141,9 @@ export function DocumentPageRunPrompt({
         <p className="text-muted-foreground text-xs">
           Seed remembers this choice for this page and its updates. You can revoke it in Page permissions.
         </p>
-        <Button onClick={() => onRun(trustAuthors)}>Run page</Button>
+        <Button variant="ghost" onClick={() => onRun(trustAuthors)}>
+          Run page
+        </Button>
       </div>
     </div>
   )
@@ -299,7 +301,7 @@ export function DocumentPagePermissionPrompt({
         </p>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onDecision('deny')}>Deny</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onDecision(choice)}>
+          <AlertDialogAction variant="ghost" onClick={() => onDecision(choice)}>
             {pagePermissionLabel(choice, request)}
           </AlertDialogAction>
         </AlertDialogFooter>

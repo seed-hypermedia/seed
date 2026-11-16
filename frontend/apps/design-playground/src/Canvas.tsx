@@ -32,6 +32,12 @@ export function storyUrl(id: string): string {
   url.searchParams.set('path', '/story/' + id)
   return url.href
 }
+const buttonDefaultOptions = [
+  {variant: 'ghost', label: 'A · ghost (current): no background until hover'},
+  {variant: 'outline', label: 'B · outline: bordered, neutral fill'},
+  {variant: 'secondary', label: 'C · secondary: soft neutral fill'},
+  {variant: 'default', label: 'D · default: primary fill'},
+] as const
 function Composition({title, children}: {title: string; children: ReactNode}) {
   return (
     <article className="composition bg-card rounded-lg border p-6 shadow-sm">
@@ -108,6 +114,28 @@ export function Canvas() {
             </label>
             <Button type="submit">Save settings</Button>
           </form>
+        </Composition>
+        <Composition title="Button default options">
+          <div className="flex flex-col gap-4">
+            <Text size="sm" color="muted">
+              Candidates for what a plain {'<Button>'} renders. Production call sites now pass their variant explicitly,
+              so changing the default only affects new code.
+            </Text>
+            {buttonDefaultOptions.map((option) => (
+              <div key={option.variant} className="flex flex-col gap-2 border-t pt-3">
+                <Text size="sm" weight="semibold">
+                  {option.label}
+                </Text>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant={option.variant}>Save settings</Button>
+                  <Button variant={option.variant}>Verify connection</Button>
+                  <Button variant={option.variant} size="sm">
+                    Comment
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </Composition>
         <Composition title="Publish flow">
           <div className="flex flex-col gap-4">

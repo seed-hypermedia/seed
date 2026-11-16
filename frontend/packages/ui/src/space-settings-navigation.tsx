@@ -179,7 +179,7 @@ export function SpaceSettingsNavigation({
               type="button"
               onClick={openNewDialog}
               disabled={atLinkLimit}
-              className="border-border text-muted-foreground hover:text-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-3 transition-colors hover:border-neutral-400 disabled:pointer-events-none disabled:opacity-50 dark:hover:border-neutral-500"
+              className="border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-3 transition-colors disabled:pointer-events-none disabled:opacity-50"
             >
               <Plus className="size-4" />
               Add a link
@@ -776,7 +776,7 @@ function NavLinkKindOption({
     <label
       className={cn(
         'bg-card flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 transition-colors',
-        selected ? 'border-primary' : 'border-border hover:border-neutral-400 dark:hover:border-neutral-500',
+        selected ? 'border-primary' : 'border-border hover:border-muted-foreground/50',
       )}
     >
       <Icon className="size-4 shrink-0" />

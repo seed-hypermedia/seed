@@ -59,7 +59,7 @@ export function ChatMessageComposer({
         }}
       />
       {actions ?? (
-        <Button onClick={onSend} disabled={disabled || sendDisabled}>
+        <Button variant="ghost" onClick={onSend} disabled={disabled || sendDisabled}>
           <Send className="size-4" />
         </Button>
       )}

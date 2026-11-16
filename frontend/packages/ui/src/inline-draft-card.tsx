@@ -114,7 +114,7 @@ export function InlineDraftCard({
         {/* Image placeholder */}
         <div
           className={cn(
-            'relative flex h-40 w-full shrink-0 items-center justify-center bg-gray-50 @md:h-auto @md:w-1/2 dark:bg-gray-900',
+            'bg-muted relative flex h-40 w-full shrink-0 items-center justify-center @md:h-auto @md:w-1/2',
             banner && '@md:h-auto',
           )}
         >
@@ -133,7 +133,7 @@ export function InlineDraftCard({
                 onClick={(e) => e.stopPropagation()}
                 placeholder="Untitled document"
                 className={cn(
-                  'text-foreground block w-full border-none bg-transparent font-sans leading-tight font-bold outline-none placeholder:text-gray-400',
+                  'text-foreground placeholder:text-muted-foreground block w-full border-none bg-transparent font-sans leading-tight font-bold outline-none',
                   banner ? 'text-2xl' : 'text-lg',
                 )}
               />

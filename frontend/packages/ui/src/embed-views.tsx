@@ -78,7 +78,7 @@ export function ErrorBlock({
           {children}
         </div>
         {open ? (
-          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
+          <pre className="border-border bg-muted rounded-md border p-2">
             <code className="font-mono text-xs wrap-break-word">{JSON.stringify(debugData, null, 4)}</code>
           </pre>
         ) : null}
@@ -278,8 +278,8 @@ function HmLinkEmbed({
       viewType="Link"
     >
       <div className="flex w-full items-center gap-2 overflow-hidden">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900/30">
-          <Icon className="size-4 text-emerald-700 dark:text-emerald-400" strokeWidth={1.75} />
+        <div className="bg-muted flex size-7 shrink-0 items-center justify-center rounded-md">
+          <Icon className="text-muted-foreground size-4" strokeWidth={1.75} />
         </div>
         {titleIsLink ? (
           <a

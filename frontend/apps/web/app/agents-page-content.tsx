@@ -23,7 +23,9 @@ function SignedOutNotice() {
         Sign in to configure and chat with your agents. Your local web identity signs every agent action, so agents are
         only available once you are signed in.
       </SizableText>
-      <Button onClick={() => createAccount({source: 'login'})}>Sign in</Button>
+      <Button variant="ghost" onClick={() => createAccount({source: 'login'})}>
+        Sign in
+      </Button>
       {content}
     </div>
   )

@@ -101,7 +101,7 @@ function BrowserRegistration() {
       {state.status === 'done' ? (
         <SizableText color="success">This space is now registered on this site.</SizableText>
       ) : (
-        <Button onClick={register} loading={state.status === 'busy'} disabled={state.status === 'busy'}>
+        <Button variant="ghost" onClick={register} loading={state.status === 'busy'} disabled={state.status === 'busy'}>
           Register this space on this site
         </Button>
       )}

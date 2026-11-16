@@ -35,7 +35,7 @@ export function FacePile({accounts, accountsMetadata}: {accounts: string[]; acco
         <div className={cn('flex', overlapClass, '-ml-2')}>
           <Text
             size="xs"
-            className="size-6 text-center leading-5 text-gray-400"
+            className="text-muted-foreground size-6 text-center leading-5"
             style={{
               fontSize: '10px',
             }}

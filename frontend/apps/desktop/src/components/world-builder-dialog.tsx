@@ -148,7 +148,7 @@ export function WorldBuilderDialog({input, onClose}: {input: WorldBuilderDialogI
         <Button variant="ghost" onClick={onClose} disabled={!!progress}>
           Cancel
         </Button>
-        <Button onClick={create} disabled={!!progress || !name.trim() || types.size === 0}>
+        <Button variant="ghost" onClick={create} disabled={!!progress || !name.trim() || types.size === 0}>
           Create world
         </Button>
       </div>

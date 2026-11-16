@@ -414,6 +414,7 @@ export function WebBrowser() {
           <div className="flex justify-end gap-2">
             <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
             <Button
+              variant="ghost"
               disabled={clearing}
               onClick={async () => {
                 setClearing(true)

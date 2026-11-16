@@ -13,6 +13,7 @@ export function FocusButton({onPress, label}: {onPress: () => void; label?: stri
   return (
     <Tooltip content={label ? `Focus ${label}` : 'Focus'}>
       <Button
+        variant="ghost"
         onClick={(e) => {
           e.stopPropagation()
           onPress()
@@ -67,6 +68,7 @@ export function SmallListItem({
 
   return (
     <Button
+      variant="ghost"
       className={cn(
         'user-select-none group h-auto min-h-8 w-full text-left outline-none',
         active && 'bg-accent text-accent-foreground',
@@ -107,6 +109,7 @@ export function SmallListItem({
       </div>
       {isCollapsed != null ? (
         <Button
+          variant="ghost"
           className="absolute -left-6"
           size="sm"
           onClick={(e) => {

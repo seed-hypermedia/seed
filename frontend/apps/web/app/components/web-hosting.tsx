@@ -470,6 +470,7 @@ function HostingLogin({
             </Button>
           ) : null}
           <Button
+            variant="ghost"
             type="submit"
             loading={host.startEmailCode.isLoading || host.verifyEmailCode.isLoading}
             disabled={!!pending && (code.length !== 4 || pending.expireTime <= now)}
@@ -785,7 +786,7 @@ function HostingDialogContent({
             <p className="text-sm">Your hosting address is reserved. Retry to finish publishing your space.</p>
           ) : null}
           <DialogFooter>
-            <Button type="submit" loading={busy}>
+            <Button variant="ghost" type="submit" loading={busy}>
               <UploadCloud className="size-4" />
               {setupUrl ? 'Finish Publishing' : 'Publish Space'}
             </Button>
@@ -818,7 +819,7 @@ function HostingDialogContent({
               />
             </label>
             <DialogFooter>
-              <Button type="submit" loading={busy}>
+              <Button variant="ghost" type="submit" loading={busy}>
                 Publish to Domain
                 <UploadCloud className="size-4" />
               </Button>
@@ -833,7 +834,11 @@ function HostingDialogContent({
                   ? 'Sign in to the Seed Hosting account that owns this site to add a custom domain.'
                   : 'Create a free Seed address before connecting your domain.'}
             </p>
-            {!siteUrl ? <Button onClick={() => setStep('free')}>Choose a Seed Address</Button> : null}
+            {!siteUrl ? (
+              <Button variant="ghost" onClick={() => setStep('free')}>
+                Choose a Seed Address
+              </Button>
+            ) : null}
           </div>
         )
       ) : null}
@@ -957,7 +962,7 @@ export function WebDomainSetupPage({siteId, hostname}: {siteId: UnpackedHypermed
     content = (
       <div className="flex flex-col items-start gap-4">
         <p>Sign in to the Seed Hosting account that started this domain setup to resume checking its progress.</p>
-        <Button loading={switchingAccount} onClick={() => void openLogin(expired)}>
+        <Button variant="ghost" loading={switchingAccount} onClick={() => void openLogin(expired)}>
           Sign in to Seed Hosting
         </Button>
       </div>
@@ -977,7 +982,9 @@ export function WebDomainSetupPage({siteId, hostname}: {siteId: UnpackedHypermed
     content = (
       <div className="flex flex-col items-start gap-4">
         <ErrorMessage error={host.sites.error} />
-        <Button onClick={() => void host.sites.refetch()}>Retry Domain Setup</Button>
+        <Button variant="ghost" onClick={() => void host.sites.refetch()}>
+          Retry Domain Setup
+        </Button>
       </div>
     )
   else if (ownedSite && serverDomain?.status === 'Active' && siteUrl === `https://${hostname}`)
@@ -1004,6 +1011,7 @@ export function WebDomainSetupPage({siteId, hostname}: {siteId: UnpackedHypermed
         </p>
         <ErrorMessage error={host.resumeDomain.error} />
         <Button
+          variant="ghost"
           loading={host.resumeDomain.isLoading}
           onClick={() =>
             void host.resumeDomain
@@ -1165,7 +1173,7 @@ export function WebDomainSettings({siteId, page = false}: {siteId: UnpackedHyper
       ) : (
         <>
           <p className="text-muted-foreground">Publish this space to make it available to anyone with a browser.</p>
-          <Button className="self-start" onClick={() => publish.open({id: siteId})}>
+          <Button variant="ghost" className="self-start" onClick={() => publish.open({id: siteId})}>
             Publish to Web Domain
           </Button>
         </>

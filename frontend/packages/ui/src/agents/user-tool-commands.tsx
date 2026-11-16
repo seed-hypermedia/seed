@@ -242,7 +242,7 @@ function FormShell({
             {blockedReason}
           </SizableText>
         ) : null}
-        <Button size="sm" type="submit" disabled={!canRun || busy || !!blockedReason}>
+        <Button variant="ghost" size="sm" type="submit" disabled={!canRun || busy || !!blockedReason}>
           {busy ? 'Running…' : 'Run'}
         </Button>
       </div>

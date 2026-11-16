@@ -216,7 +216,7 @@ export function SubscriptionSignIn({
         </Notice>
       ) : null}
       <div>
-        <Button type="button" disabled={startOAuth.isLoading} onClick={() => void handleStart()}>
+        <Button variant="ghost" type="button" disabled={startOAuth.isLoading} onClick={() => void handleStart()}>
           {startOAuth.isLoading ? <Spinner className="size-4" /> : null}
           {currentStatus === 'failed' ? 'Try again' : subscription.signInLabel}
         </Button>

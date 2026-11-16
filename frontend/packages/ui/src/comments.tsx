@@ -418,7 +418,7 @@ export const Discussions = memo(function Discussions({
       {panelContent}
       {hasNewComments && (
         <div className="sticky bottom-2 flex justify-center">
-          <Button size="sm" onClick={scrollToBottom}>
+          <Button variant="ghost" size="sm" onClick={scrollToBottom}>
             New comments
           </Button>
         </div>
@@ -1267,7 +1267,7 @@ function NoComments({}: {}) {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquare className="size-25 text-gray-200" size={48} />
+      <MessageSquare className="text-muted-foreground/40 size-25" size={48} />
       <SizableText size="md" className="font-sans">
         {tx('No comments here, yet!')}
       </SizableText>
