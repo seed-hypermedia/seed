@@ -742,9 +742,10 @@ describe('DraftHiddenActions', () => {
 
   it('restores the draft from the Show changes button', () => {
     const {container, root} = renderNode(<DraftHiddenActions />)
-    const button = [...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Show changes')
-    expect(button).not.toBeUndefined()
-    expect(container.querySelector('button[aria-label="About the published preview"]')).not.toBeNull()
+    const button = container.querySelector('button[data-testid="draft-hidden-actions"]')
+    expect(button).not.toBeNull()
+    expect(button!.textContent).toContain('Show changes')
+    expect(container.querySelector('[aria-label="About the published preview"]')).not.toBeNull()
 
     act(() => {
       ;(button as HTMLButtonElement).click()
