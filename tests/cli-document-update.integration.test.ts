@@ -16,7 +16,15 @@ import {tmpdir} from 'os'
 import * as path from 'path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {generateTestAccount, type TestAccount} from '../frontend/apps/cli/src/test/account-helpers'
+import {buildDocumentUpdate} from '../frontend/apps/cli/src/utils/document-update'
 import {createSignerFromKey} from '../frontend/apps/cli/src/utils/signer'
+import {
+  computeReplaceOps,
+  createBlocksMap,
+  hmBlockNodeToBlockNode,
+  toAPIBlockNode,
+} from '../frontend/packages/client/src/block-diff'
+import {resolveEditableDocument} from '../frontend/packages/client/src/document-state'
 import {
   createDocumentBlobs,
   createSeedClient,
@@ -215,7 +223,7 @@ describe('seed-cli document update', () => {
     expect(editOps[0]!.block.id).toBe(b)
     expect(editOps[0]!.block.text).toBe('Beta 2')
 
-    // Move the third block to the end: the client lists the whole level, the server stores one move.
+    // Move the third block to the end: one move is requested and one is stored.
     const current = await getMarkdown('/edit')
     const lines = current.split('\n')
     const gammaAt = lines.findIndex((line) => line.includes('Gamma three'))
@@ -228,8 +236,8 @@ describe('seed-cli document update', () => {
     const moveOps = await latestOps('/edit')
     expect(moveOps).toHaveLength(1)
     expect(moveOps[0]!.type).toBe('MoveBlocks')
-    // Swapping the last two is one move either way; the server keeps the first that differs.
-    expect(moveOps[0]!.blocks).toEqual([d])
+    // The block that moved is the one sent; the rest of the level is not mentioned.
+    expect(moveOps[0]!.blocks).toEqual([c])
   })
 
   it('publishes no new version when the same file is applied again', async () => {
@@ -416,6 +424,234 @@ describe('seed-cli document update', () => {
     expect(rootTexts(after.content)[1]!.startsWith('A long paragraph.')).toBe(true)
   })
 
+  /** A paragraph node for `-f blocks.json`, which carries block ids and nesting exactly. */
+  const node = (id: string, children: unknown[] = []) => ({
+    block: {id, type: 'Paragraph', text: `Text ${id}`, annotations: [], attributes: {}},
+    children,
+  })
+  /** The document's block ids as a nested list: `['a', ['b', ['c']]]` is `a`, then `b` with child `c`. */
+  const shape = (content: HMBlockNode[] | undefined): unknown[] =>
+    (content ?? []).map((n) => (n.children?.length ? [n.block.id, shape(n.children)] : n.block.id))
+
+  it('places inserted blocks where the file has them: after the first block, in the middle, nested', async () => {
+    const write = async (name: string, tree: unknown[]) => {
+      const result = await cliOk('document', 'update', hm('/insert'), '-f', file(name, JSON.stringify(tree)))
+      expect(result.stderr).toContain('Document updated')
+      return shape((await readDocument('/insert')).content)
+    }
+    await cliOk(
+      'document',
+      'create',
+      '-f',
+      file('insert-0.json', JSON.stringify([node('f1'), node('f2'), node('f3')])),
+      '-p',
+      '/insert',
+      '--name',
+      'Insert',
+    )
+    expect(shape((await readDocument('/insert')).content)).toEqual(['f1', 'f2', 'f3'])
+
+    // After the unchanged first block.
+    expect(await write('insert-1.json', [node('f1'), node('n1'), node('f2'), node('f3')])).toEqual([
+      'f1',
+      'n1',
+      'f2',
+      'f3',
+    ])
+    // One block moved, and nothing else.
+    expect((await latestOps('/insert')).filter((op) => op.type === 'MoveBlocks').map((op) => op.blocks)).toEqual([
+      ['n1'],
+    ])
+
+    // In the middle.
+    expect(await write('insert-2.json', [node('f1'), node('n1'), node('f2'), node('n2'), node('f3')])).toEqual([
+      'f1',
+      'n1',
+      'f2',
+      'n2',
+      'f3',
+    ])
+
+    // Nested: a first child, then one after that unchanged first child, then one in the middle.
+    expect(
+      await write('insert-3.json', [
+        node('f1'),
+        node('n1'),
+        node('f2', [node('c1'), node('c2')]),
+        node('n2'),
+        node('f3'),
+      ]),
+    ).toEqual(['f1', 'n1', ['f2', ['c1', 'c2']], 'n2', 'f3'])
+    expect(
+      await write('insert-4.json', [
+        node('f1'),
+        node('n1'),
+        node('f2', [node('c1'), node('c3'), node('c2')]),
+        node('n2'),
+        node('f3'),
+      ]),
+    ).toEqual(['f1', 'n1', ['f2', ['c1', 'c3', 'c2']], 'n2', 'f3'])
+    expect(
+      await write('insert-5.json', [
+        node('f1'),
+        node('n1'),
+        node('f2', [node('c1'), node('c3'), node('c4'), node('c2', [node('g1')])]),
+        node('n2'),
+        node('f3'),
+      ]),
+    ).toEqual(['f1', 'n1', ['f2', ['c1', 'c3', 'c4', ['c2', ['g1']]]], 'n2', 'f3'])
+
+    // At the very start, and at the very end.
+    expect(
+      await write('insert-6.json', [
+        node('n0'),
+        node('f1'),
+        node('n1'),
+        node('f2', [node('c1'), node('c3'), node('c4'), node('c2', [node('g1')])]),
+        node('n2'),
+        node('f3'),
+        node('n9'),
+      ]),
+    ).toEqual(['n0', 'f1', 'n1', ['f2', ['c1', 'c3', 'c4', ['c2', ['g1']]]], 'n2', 'f3', 'n9'])
+
+    // The second block moved to the end, behind the unchanged first.
+    expect(
+      await write('insert-7.json', [
+        node('n0'),
+        node('n1'),
+        node('f2', [node('c1'), node('c3'), node('c4'), node('c2', [node('g1')])]),
+        node('n2'),
+        node('f3'),
+        node('n9'),
+        node('f1'),
+      ]),
+    ).toEqual(['n0', 'n1', ['f2', ['c1', 'c3', 'c4', ['c2', ['g1']]]], 'n2', 'f3', 'n9', 'f1'])
+  })
+
+  it('reads back every reordering as written, whoever builds the change (seeded random edits)', async () => {
+    // The daemon drops moves it should keep in some reorderings (see serverChanges). This walks
+    // one document through many small edits and checks the tree after each: moves of one block
+    // and of runs, across levels, with inserts and deletes mixed in.
+    let seed = 20261116
+    const random = (n: number) => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed % n
+    }
+    type Tree = Array<{id: string; children: Tree}>
+    const toNodes = (tree: Tree): unknown[] => tree.map((t) => node(t.id, toNodes(t.children)))
+    const toShape = (tree: Tree): unknown[] => tree.map((t) => (t.children.length ? [t.id, toShape(t.children)] : t.id))
+    /** Every list of siblings in the tree, the root first. */
+    const levels = (tree: Tree): Tree[] => [tree, ...tree.flatMap((t) => levels(t.children))]
+    const clone = (tree: Tree): Tree => tree.map((t) => ({id: t.id, children: clone(t.children)}))
+    let fresh = 0
+    const mutate = (current: Tree): Tree => {
+      const tree = clone(current)
+      const all = levels(tree)
+      const pick = () => all[random(all.length)]!
+      const steps = 1 + random(2)
+      for (let step = 0; step < steps; step++) {
+        const kind = random(10)
+        const from = pick()
+        if (kind < 2 || from.length === 0) {
+          // Insert a new block anywhere.
+          const into = pick()
+          into.splice(random(into.length + 1), 0, {id: `x${++fresh}`, children: []})
+        } else if (kind < 3 && from.length > 1) {
+          from.splice(random(from.length), 1)
+        } else if (kind < 5) {
+          // A run of one to three neighbours moves within its level.
+          const length = 1 + random(Math.min(3, from.length))
+          const run = from.splice(random(from.length - length + 1), length)
+          from.splice(random(from.length + 1), 0, ...run)
+        } else if (kind < 8) {
+          // One block moves within its level.
+          const [block] = from.splice(random(from.length), 1)
+          from.splice(random(from.length + 1), 0, block!)
+        } else {
+          // A childless block moves to another level (so it can never land inside itself).
+          const leaves = from.filter((t) => t.children.length === 0)
+          if (!leaves.length) continue
+          const block = leaves[random(leaves.length)]!
+          from.splice(from.indexOf(block), 1)
+          const targets = levels(tree)
+          const into = targets[random(targets.length)]!
+          into.splice(random(into.length + 1), 0, block)
+        }
+      }
+      return tree
+    }
+
+    let tree: Tree = ['a', 'b', 'c', 'd', 'e'].map((id) => ({id, children: []}))
+    tree[1]!.children = ['p', 'q', 'r'].map((id) => ({id, children: []}))
+    await cliOk(
+      'document',
+      'create',
+      '-f',
+      file('random-0.json', JSON.stringify(toNodes(tree))),
+      '-p',
+      '/random',
+      '--name',
+      'Random',
+    )
+    const id = unpackHmId(hm('/random'))!
+    const signer = createSignerFromKey(account.keyPair)
+    const builtBy = {server: 0, local: 0, unchanged: 0}
+    for (let round = 0; round < 60; round++) {
+      const next = mutate(tree)
+      const base = await resolveEditableDocument(client, id)
+      const ops = computeReplaceOps(
+        createBlocksMap((base.document.content ?? []).map(toAPIBlockNode)),
+        (toNodes(next) as HMBlockNode[]).map(hmBlockNodeToBlockNode),
+      )
+      const update = await buildDocumentUpdate({
+        client,
+        signer,
+        account: account.accountId,
+        path: '/random',
+        state: base.state,
+        ops,
+        content: base.document.content,
+        minGeneration: base.document.generationInfo?.generation,
+      })
+      if (update.changed) {
+        builtBy[update.builtBy]++
+        await client.publish({blobs: update.blobs})
+      } else builtBy.unchanged++
+      const got = shape((await readDocument('/random')).content)
+      expect(got, `round ${round}: ${JSON.stringify(toShape(tree))} -> ${JSON.stringify(toShape(next))}`).toEqual(
+        toShape(next),
+      )
+      tree = next
+    }
+    // Most edits are ones the server can take.
+    expect(builtBy.server).toBeGreaterThan(builtBy.local)
+  }, 300_000)
+
+  it('rewrites a metadata map entry by entry: one removed, one kept, one added', async () => {
+    await createParagraphs('/map', 'Map', ['Body'])
+    await cliOk(
+      'document',
+      'update',
+      hm('/map'),
+      '--metadata',
+      JSON.stringify({labels: {red: 'r', green: 'g'}, plain: 'text'}),
+    )
+    expect(((await readDocument('/map')).metadata as Record<string, any>).labels).toEqual({red: 'r', green: 'g'})
+
+    // Remove one entry, keep one as it is, add one.
+    await cliOk(
+      'document',
+      'update',
+      hm('/map'),
+      '--metadata',
+      JSON.stringify({labels: {red: null, green: 'g', blue: 'b'}}),
+    )
+    const after = (await readDocument('/map')).metadata as Record<string, any>
+    expect(after.labels).toEqual({green: 'g', blue: 'b'})
+    expect(after.plain).toBe('text')
+    expect(after.name).toBe('Map')
+  })
+
   it('space import updates existing documents the same way, including one that moved', async () => {
     // A space of its own, so the import sees only these documents.
     account = generateTestAccount()
@@ -468,6 +704,46 @@ describe('seed-cli document update', () => {
     const movedOps = await latestOps('/second')
     expect(movedOps).toHaveLength(1)
     expect(movedOps[0]!.block.text).toBe('Echo, moved')
+
+    // A block inserted after the unchanged first block, and one in the middle.
+    const oneSource = readFileSync(oneFile, 'utf-8')
+    const oneLines = oneSource.split('\n')
+    const alfaAt = oneLines.findIndex((line) => line.includes('Alfa'))
+    const charlieAt = oneLines.findIndex((line) => line.includes('Charlie'))
+    oneLines.splice(charlieAt, 0, 'Middle', '')
+    oneLines.splice(alfaAt + 1, 0, '', 'After first')
+    writeFileSync(oneFile, oneLines.join('\n'))
+    await cliOk('space', 'import', 'self', '-d', dir)
+    expect(rootTexts((await readDocument('/one')).content)).toEqual([
+      'Alfa',
+      'After first',
+      'Bravo!',
+      'Middle',
+      'Charlie',
+    ])
+
+    // A metadata map: written, then rewritten with one entry removed, one kept and one added,
+    // and a plain value turned into a map.
+    const withFrontmatter = (source: string, extra: string) => source.replace(/^---\n/, `---\n${extra}\n`)
+    await cliOk('space', 'export', 'self', '-d', dir)
+    const exported = readFileSync(oneFile, 'utf-8')
+    writeFileSync(oneFile, withFrontmatter(exported, 'labels:\n  red: r\n  green: g\nkind: plain'))
+    await cliOk('space', 'import', 'self', '-d', dir)
+    const mapped = (await readDocument('/one')).metadata as Record<string, any>
+    expect(mapped.labels).toEqual({red: 'r', green: 'g'})
+    expect(mapped.kind).toBe('plain')
+    writeFileSync(oneFile, withFrontmatter(exported, 'labels:\n  green: g\n  blue: b\nkind:\n  of: map'))
+    await cliOk('space', 'import', 'self', '-d', dir)
+    const remapped = (await readDocument('/one')).metadata as Record<string, any>
+    expect(remapped.labels).toEqual({green: 'g', blue: 'b'})
+    expect(remapped.kind).toEqual({of: 'map'})
+    expect(remapped.name).toBe('One')
+    // And back from a map to a plain value.
+    writeFileSync(oneFile, withFrontmatter(exported, 'labels:\n  green: g\n  blue: b\nkind: plain again'))
+    await cliOk('space', 'import', 'self', '-d', dir)
+    const plainAgain = (await readDocument('/one')).metadata as Record<string, any>
+    expect(plainAgain.kind).toBe('plain again')
+    expect(plainAgain.labels).toEqual({green: 'g', blue: 'b'})
 
     // And the space is settled again.
     const settled = await cliOk('space', 'import', 'self', '-d', dir)

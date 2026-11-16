@@ -161,6 +161,29 @@ describe('metadataDiffOp', () => {
       ],
     })
   })
+
+  test('a map is rewritten entry by entry, never cleared and set again', () => {
+    expect(metadataDiffOp({labels: {red: 'r', green: 'g'}}, {labels: {green: 'g', blue: 'b'}})).toEqual({
+      type: 'SetAttributes',
+      attrs: [
+        {key: ['labels', 'blue'], value: 'b'},
+        {key: ['labels', 'red'], value: null},
+      ],
+    })
+  })
+
+  test('a leaf that becomes a map, or a map that becomes a leaf, gets no null', () => {
+    // A write at a key removes what was stored above and below it; a null there would remove
+    // the new value as well.
+    expect(metadataDiffOp({kind: 'plain'}, {kind: {of: 'map'}})).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['kind', 'of'], value: 'map'}],
+    })
+    expect(metadataDiffOp({kind: {of: 'map', and: 'more'}}, {kind: 'plain'})).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['kind'], value: 'plain'}],
+    })
+  })
 })
 
 describe('importSpace file links', () => {

@@ -716,6 +716,7 @@ export function registerDocumentCommands(program: Command) {
           path: docPath,
           state: base.state,
           ops,
+          content: existingDoc.content,
           capability,
           minGeneration: base.redirect ? Date.now() : existingDoc.generationInfo?.generation,
         })
