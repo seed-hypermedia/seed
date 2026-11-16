@@ -11,7 +11,7 @@ import {
   HM_TRIGGER_TYPE,
   isToolHostType,
   parentDocumentId,
-  triggerDocumentRefs,
+  triggerDocumentFields,
 } from '@seed-hypermedia/client/apps'
 import type {SeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -71,13 +71,9 @@ export async function readHostTriggers(
       continue
     }
     try {
-      const refs = triggerDocumentRefs(document.metadata as Record<string, unknown>)
-      if (!refs.sourceCid) throw new Error('This trigger has no source: set when it fires')
-      const [source, input, author] = await Promise.all([
-        readBlobValue(client, refs.sourceCid),
-        refs.inputCid ? readBlobValue(client, refs.inputCid) : Promise.resolve(undefined),
-        signerOfVersion(client, document.version),
-      ])
+      const refs = triggerDocumentFields(document.metadata as Record<string, unknown>)
+      if (refs.source === undefined) throw new Error('This trigger has no source: set when it fires')
+      const author = await signerOfVersion(client, document.version)
       if (refs.tool) assertHostTool(hostId, refs.tool)
       const trigger: TriggerDocument = {
         documentId,
@@ -86,9 +82,9 @@ export async function readHostTriggers(
         name:
           (typeof document.metadata?.name === 'string' && document.metadata.name) || child.id.path?.at(-1) || 'Trigger',
         enabled: refs.enabled,
-        source,
+        source: refs.source,
         tool: refs.tool,
-        input,
+        input: refs.input,
         content: document.content ?? [],
       }
       cache?.set(documentId, trigger)
@@ -106,13 +102,6 @@ function assertHostTool(hostId: UnpackedHypermediaId, tool: string) {
   const parent = toolId ? parentDocumentId(toolId) : null
   if (!toolId || !parent || parent.id !== hostId.id)
     throw new Error(`The trigger calls ${tool}, which is not a tool of ${hostId.id}`)
-}
-
-/** The decoded value of a DAG-CBOR blob. */
-async function readBlobValue(client: Client, cid: string): Promise<unknown> {
-  const result = await client.request('GetCID', {cid})
-  if (result.value === undefined) throw new Error(`Blob ${cid} is not available`)
-  return result.value
 }
 
 /** The account that signed the (first head of the) version, or null when it cannot be read. */

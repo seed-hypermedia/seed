@@ -24,13 +24,21 @@ describe('trigger documents', () => {
       {source: {type: 'webhook'}, tool: 'hm://z6Mkspace/app/say', input: {text: '$event.payload.text'}},
       false,
     )
-    expect(created.metadata).toMatchObject({
-      type: 'hm://hyper.media/trigger',
-      source: expect.stringMatching(/^ipfs:\/\//),
-      tool: 'hm://z6Mkspace/app/say',
-      input: expect.stringMatching(/^ipfs:\/\//),
+    // The whole trigger is in the document's metadata, its sets stored as maps.
+    expect(created).toEqual({
+      metadata: {
+        type: 'hm://hyper.media/trigger',
+        source: {type: 'webhook'},
+        tool: 'hm://z6Mkspace/app/say',
+        input: {text: '$event.payload.text'},
+      },
+      blobs: [],
     })
-    expect(created.blobs).toHaveLength(2)
+    const weekly = await apisvc.resolveWriteTrigger(
+      {source: {type: 'schedule', schedule: {kind: 'weekly', daysOfWeek: [1, 5], timeOfDay: '09:00', timezone: 'UTC'}}},
+      false,
+    )
+    expect(weekly.metadata.source).toMatchObject({schedule: {daysOfWeek: {mon: true, fri: true}}})
     // Creating needs a source; turning one off does not.
     await expect(apisvc.resolveWriteTrigger({tool: 'hm://z6Mkspace/app/say'}, false)).rejects.toThrow()
     const off = await apisvc.resolveWriteTrigger({enabled: false}, true)
@@ -40,6 +48,31 @@ describe('trigger documents', () => {
       type: 'hm://hyper.media/trigger',
       tool: null,
     })
+  })
+
+  test('document writes store a map one key per entry, replacing it exactly; a list stays one value', () => {
+    expect(
+      apisvc.metadataToWriteSetAttributes({
+        name: 'Recipe',
+        tags: {dinner: true, quick: true},
+        steps: ['chop', 'fry'],
+        empty: {},
+        gone: null,
+      } as never),
+    ).toEqual<unknown>([
+      {
+        type: 'SetAttributes',
+        attrs: [
+          {key: ['name'], value: 'Recipe'},
+          {key: ['tags'], value: null},
+          {key: ['tags', 'dinner'], value: true},
+          {key: ['tags', 'quick'], value: true},
+          {key: ['steps'], value: ['chop', 'fry']},
+          {key: ['empty'], value: null},
+          {key: ['gone'], value: null},
+        ],
+      },
+    ])
   })
 
   test('principals decode from dag-json bytes', () => {
@@ -113,8 +146,6 @@ describe('trigger documents', () => {
       if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
       if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
       if (href.includes('/api/GetCID')) {
-        if (href.includes('bafysource')) return Response.json(serialize({value: {type: 'webhook'}}))
-        if (href.includes('bafyinput')) return Response.json(serialize({value: {text: '$event.payload.message'}}))
         // The change behind the trigger's version: signed by the space owner.
         return Response.json(
           serialize({value: {signer: {'/': {bytes: Buffer.from(new Uint8Array(owner.principal)).toString('base64')}}}}),
@@ -131,9 +162,9 @@ describe('trigger documents', () => {
               document(triggerUrl, {
                 name: 'On hook',
                 type: 'hm://hyper.media/trigger',
-                source: 'ipfs://bafysource',
+                source: {type: 'webhook'},
                 tool: toolUrl,
-                input: 'ipfs://bafyinput',
+                input: {text: '$event.payload.message'},
               }),
             ),
           )
@@ -235,7 +266,11 @@ describe('trigger documents', () => {
     const trigger = (url: string) =>
       document(
         url,
-        {name: url.split('/').at(-1), type: 'hm://hyper.media/trigger', source: 'ipfs://bafysource'},
+        {
+          name: url.split('/').at(-1),
+          type: 'hm://hyper.media/trigger',
+          source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}},
+        },
         message,
       )
     const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
@@ -274,10 +309,6 @@ describe('trigger documents', () => {
       if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
       if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
       if (href.includes('/api/GetCID')) {
-        if (href.includes('bafysource'))
-          return Response.json(
-            serialize({value: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}}),
-          )
         return signerOf(owner)
       }
       if (href.includes('/api/Resource')) {

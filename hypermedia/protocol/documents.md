@@ -50,7 +50,7 @@ The body carries a list of operations, each a map with a `type` tag. Unknown fie
 | `DeleteBlocks` | `blocks: [id]` | move the blocks to the trash. <!-- id:W1iI7JY5 --> |
 | `SetKey` | `key`, `value` | deprecated flat metadata set; still accepted. <!-- id:3wXyzl0x --> |
 
-Attribute values are strings, booleans, integers up to 2^53−1, or null (meaning deleted). Each page under [change/op](../change/op.md) has the exact schema. <!-- id:iy1o91rD -->
+Attribute values are strings, booleans, integers up to 2^53−1, null (meaning deleted), or lists (only when the change is built by the SDK or CLI: the daemon's `PrepareDocumentChange` has no list value). Each page under [change/op](../change/op.md) has the exact schema. <!-- id:iy1o91rD -->
 
 ## Op ids and ordering <!-- id:k1UO9rJB -->
 
@@ -63,6 +63,15 @@ One quirk is visible on the wire. Inside a multi-block `MoveBlocks`, `DeleteBloc
 The daemon replays a document's changes in dependency order and resolves conflicts with two small [CRDTs](https://crdt.tech/). A CRDT is a set of rules that brings every replica to the same state, in whatever order the changes arrived. <!-- id:On67PVZa -->
 
 **Metadata is last-writer-wins by op id, with structural pruning.** Each key path holds a register. A newer op id overwrites it, and an older or equal one is ignored. Setting `["a","b"]` deletes an older register at `["a"]` or at `["a","b","c"]`. If an ancestor or descendant register is newer, the incoming set is dropped. So a map and a nested key never coexist. <!-- id:j1SSPPFr -->
+
+**What this means for data kept in attributes.** Every key path merges on its own, so the shape of the data decides what survives concurrent edits:
+
+- **A map written one key per entry** (`tags.dinner = true`, `tags.quick = true`) merges: two people changing different entries both keep their edits, one entry changes without touching the rest, a null removes one entry, and every entry is searchable (the attribute index stores each single value under its dotted key path).
+- **A list is one value.** There are no list operations (insert, remove one item), so a list is replaced whole and the later write wins; concurrent edits to it lose all but one. The attribute index skips lists, so they cannot be searched or filtered on. Lists are read back exactly as written.
+- **A whole map written as one value** (`tags = {dinner: true}`) behaves like a list: it replaces every older entry under that key.
+- **Replacing a map exactly** is a null at its key followed by its entries, in one change: the entries' op ids are newer than the null, so they win over it, and the null removed every older entry.
+
+So store a set as `{<item>: true}` and a keyed collection as a map keyed by id. Keep a list only for a small value edited as a unit by one writer. Anything ordered that several people edit belongs in the body (blocks merge as an ordered tree) or in child documents. Trigger documents follow these rules: see [triggers](../apps/triggers.md).
 
 **The block tree is a move tree with RGA sibling lists.** Every parent, including the root and the trash, has an ordered list of children kept as an [RGA](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) sequence. A block is inserted after its `ref`. Concurrent inserts at the same ref are ordered by op id, and the newer op lands closer to the ref. For a block that has been moved several times, the **latest move wins** and earlier positions become invisible. A move that would make a block its own ancestor is ignored. Positions are stored as fractional-index strings so ordered traversal is cheap. A block that has state from `ReplaceBlock` but no visible position is returned as a **detached block**, and the apps still render it. Custom navigation menus are built this way. <!-- id:MCep09Yb -->
 

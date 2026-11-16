@@ -131,6 +131,8 @@ import {
   parentDocumentId,
   replaceContentOps,
   triggerDocumentOps,
+  triggerSourceFromMetadata,
+  triggerSourceToMetadata,
 } from '@seed-hypermedia/client/apps'
 import {withTimeout} from '@/poll-loop'
 import {loadMermaidParser} from './mermaid-parser'
@@ -14622,8 +14624,8 @@ async function resolveWritePageFolder(
 }
 
 /**
- * Turns `options.trigger` ({source, tool?, input?, enabled?}) into a trigger document's metadata and
- * the DAG-CBOR blobs it references. The source is validated like any trigger's.
+ * Turns `options.trigger` ({source, tool?, input?, enabled?}) into a trigger document's metadata.
+ * The source is validated like any trigger's.
  */
 export async function resolveWriteTrigger(
   raw: unknown,
@@ -14633,22 +14635,23 @@ export async function resolveWriteTrigger(
     throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/triggers')
   // An update changes only what it names: {enabled: false} alone turns a trigger off.
   const source =
-    raw.source === undefined && isUpdate ? undefined : normalizeAgentTriggerSource(raw.source as api.AgentTriggerSource)
+    raw.source === undefined && isUpdate
+      ? undefined
+      : // Either form: the one stored in the document (sets as maps, as a read shows it) or lists.
+        normalizeAgentTriggerSource(triggerSourceFromMetadata(raw.source) as api.AgentTriggerSource)
   if (raw.tool !== undefined && raw.tool !== null && (typeof raw.tool !== 'string' || !raw.tool.startsWith('hm://')))
     throw new APIError(400, 'options.trigger.tool is the hm:// URL of a tool of the same app or agent')
   if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean')
     throw new APIError(400, 'options.trigger.enabled is true or false')
-  const {ops, blobs} = await triggerDocumentOps({
-    ...(source ? {source} : {}),
-    ...(typeof raw.tool === 'string' ? {tool: raw.tool} : raw.tool === null ? {tool: null} : {}),
-    ...(raw.input !== undefined ? {input: raw.input} : {}),
-    ...(raw.enabled !== undefined ? {enabled: raw.enabled as boolean} : {}),
-  })
+  // Written into the document's metadata: the source's sets as maps (one key per entry), and a
+  // null clears an attribute (tool: null makes an agent's trigger start a session again).
   const metadata: Record<string, unknown> = {type: HM_TRIGGER_TYPE}
-  // A null clears an attribute: tool: null makes an agent's trigger start a session again.
-  for (const op of ops)
-    if (op.type === 'SetAttributes') for (const attr of op.attrs) metadata[attr.key[0]!] = attr.value
-  return {metadata, blobs}
+  if (source) metadata.source = triggerSourceToMetadata(source)
+  if (typeof raw.tool === 'string') metadata.tool = raw.tool
+  else if (raw.tool === null) metadata.tool = null
+  if (raw.input !== undefined) metadata.input = raw.input
+  if (raw.enabled !== undefined) metadata.enabled = raw.enabled
+  return {metadata, blobs: []}
 }
 
 /** A tool's code folder resolved from `options.tool`, ready to publish beside the document change. */
@@ -16714,9 +16717,8 @@ export async function executeWriteVerb(
     const toolFolder = await resolveWriteToolFolder(context, options.tool)
     if (toolFolder && pageFolder) throw new APIError(400, 'A document is either a page or a tool, not both.')
     // A trigger: options.trigger holds when it fires (source) and what it does (a host tool and its
-    // input template, or for an agent nothing: the document's body starts a session). The source
-    // and input are published as DAG-CBOR blobs beside the change. A trigger lives under an app or
-    // an agent, like a tool.
+    // input template, or for an agent nothing: the document's body starts a session). Both are
+    // stored in the document's metadata. A trigger lives under an app or an agent, like a tool.
     const triggerFields =
       options.trigger === undefined ? null : await resolveWriteTrigger(options.trigger, action === 'update')
     if (triggerFields && (pageFolder || toolFolder))
@@ -19530,10 +19532,24 @@ function mergeWriteMetadata(
   return metadata
 }
 
-function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
-  const attrs = Object.entries(metadata)
-    .filter((entry) => entry[1] !== undefined)
-    .map(([key, value]) => ({key: [key], value}))
+/**
+ * Document attributes merge key by key: every key path is its own last-writer-wins value, a null
+ * removes one, and a list is a single value replaced whole. A nested map is stored one entry per key
+ * (each entry can then be edited, and searched, on its own). What the write tool writes for a key
+ * becomes exactly that value: a map is cleared, then set entry by entry, so entries dropped from it
+ * do not linger.
+ */
+export function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
+  const attrs: {key: string[]; value: unknown}[] = []
+  const leaves = (key: string[], value: unknown) => {
+    if (isPlainMap(value)) for (const [child, childValue] of Object.entries(value)) leaves([...key, child], childValue)
+    else if (value !== undefined) attrs.push({key, value})
+  }
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value === undefined) continue
+    if (isPlainMap(value)) attrs.push({key: [key], value: null})
+    leaves([key], value)
+  }
   return attrs.length ? ([{type: 'SetAttributes', attrs}] as DocumentOperation[]) : []
 }
 

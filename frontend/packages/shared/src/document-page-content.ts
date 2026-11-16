@@ -70,7 +70,7 @@ function attributeChanges(fields: Record<string, unknown>, path: string[]): unkn
       throw new Error(
         `The field "${keyPath.join(
           '.',
-        )}" is a list, and record fields cannot hold lists: store it as text (one item per line, or comma-separated) or in the record's body.`,
+        )}" is a list, and record fields cannot hold lists: store a set as a map ({"dinner": true, "quick": true}), and anything ordered in the record's body or as child records.`,
       )
     if (typeof value === 'object') return attributeChanges(value as Record<string, unknown>, keyPath)
     return set({case: 'stringValue', value: String(value)})
