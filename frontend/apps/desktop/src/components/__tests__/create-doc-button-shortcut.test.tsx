@@ -24,6 +24,11 @@ vi.mock('@/models/documents', () => ({
   useChildDrafts: () => [],
 }))
 vi.mock('@/models/experiments', () => ({useExperiments: () => ({data: {}})}))
+// The New button reads the route (an app's Triggers tab makes a trigger first).
+vi.mock('@shm/shared/utils/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared/utils/navigation')>()),
+  useNavRoute: () => ({key: 'document'}),
+}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: (id: unknown) => useResourceMock(id)}))
 vi.mock('@shm/shared/models/queries', () => ({queryQueryBlock: () => ({queryKey: ['noop'], enabled: false})}))
 vi.mock('@shm/shared/routing', () => ({useUniversalClient: () => ({})}))

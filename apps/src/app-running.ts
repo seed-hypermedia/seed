@@ -154,6 +154,13 @@ async function requireRunsHere(deps: AppRunDeps, appId: UnpackedHypermediaId, ap
 }
 
 /** Throws unless `signer` may write the app's space: its own space, or a WRITER/AGENT capability there. */
+/** Whether `account` can write the space `id` lives in (its owner, or a writer capability at or above `id`). */
+export async function isSpaceWriter(client: SeedClient, id: UnpackedHypermediaId, account: string): Promise<boolean> {
+  if (id.uid === account) return true
+  const path = id.path?.length ? `/${id.path.join('/')}` : ''
+  return !!(await resolveCapability(client, id.uid, account, path).catch(() => undefined))
+}
+
 async function requireSpaceWriter(client: SeedClient, appId: UnpackedHypermediaId, signer: string) {
   if (appId.uid === signer) return
   const path = appId.path?.length ? `/${appId.path.join('/')}` : ''

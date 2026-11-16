@@ -212,6 +212,75 @@ describe('sqlite', () => {
     }
   })
 
+  test('a database behind the trigger-documents migration keeps its triggers, firings and claims', () => {
+    const db = createMemoryDatabase()
+    try {
+      const target = sqlite.migrations.findIndex((migration) => migration.includes('agent_triggers_before_documents'))
+      // Build the schema as it was before this migration: the newest migrations after it are newer
+      // than any database this test models, so start from the current schema and roll the trigger
+      // tables back to their old shape.
+      db.run(
+        sqlite.schema
+          .replace(/    app_id TEXT,\n    document_id TEXT,\n    document_version TEXT,\n    author TEXT,\n/u, '')
+          .replace(/,\n    CHECK \(agent_id IS NOT NULL OR app_id IS NOT NULL\)/u, '')
+          .replace(/CREATE INDEX agent_triggers_by_app[^\n]*\n\n/u, '')
+          .replace(/CREATE UNIQUE INDEX agent_triggers_by_document[^\n]*\n\n/u, '')
+          .replace(
+            /    agent_id TEXT REFERENCES agents \(id\),\n    app_id TEXT,\n    trigger_id/u,
+            '    agent_id TEXT NOT NULL REFERENCES agents (id),\n    trigger_id',
+          )
+          .replace(/    tool_call_id TEXT,\n/u, ''),
+      )
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion - target - 1),
+      ])
+      const now = 1_700_000_000_000
+      db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
+      db.run(
+        `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+         VALUES ('agent', 'acct', X'A0', '/tmp/agent', 'idle', ?, ?)`,
+        [now, now],
+      )
+      db.run(
+        `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+         VALUES ('trig', 'acct', 'agent', 'Mentions', 1, X'A0', 'hi', ?, ?)`,
+        [now, now],
+      )
+      db.run(
+        `INSERT INTO trigger_firings (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
+         VALUES ('f1', 'acct', 'agent', 'trig', 'k1', X'A0', 'succeeded', ?)`,
+        [now],
+      )
+      db.run(`INSERT INTO trigger_event_claims (account_id, trigger_id, activity_key) VALUES ('acct', 'trig', 'k1')`)
+
+      expect(sqlite.openWithDatabase(db).ok).toBe(true)
+      expect(db.query(`SELECT id, name, prompt FROM agent_triggers`).all()).toEqual([
+        {id: 'trig', name: 'Mentions', prompt: 'hi'},
+      ])
+      expect(db.query(`SELECT id, trigger_id FROM trigger_firings`).all()).toEqual([{id: 'f1', trigger_id: 'trig'}])
+      expect(db.query(`PRAGMA foreign_key_check`).all()).toEqual([])
+      expect(columnExists(db, 'agent_triggers', 'document_id')).toBe(true)
+      expect(columnExists(db, 'trigger_firings', 'tool_call_id')).toBe(true)
+      // An app's trigger has no agent.
+      db.run(
+        `INSERT INTO agent_triggers (id, account_id, app_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+         VALUES ('app-trig', 'acct', 'hm://z6Mkspace/app', 'Daily', 1, X'A0', '', ?, ?)`,
+        [now, now],
+      )
+      expect(() =>
+        db.run(
+          `INSERT INTO agent_triggers (id, account_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+           VALUES ('orphan', 'acct', 'Nobody', 1, X'A0', '', ?, ?)`,
+          [now, now],
+        ),
+      ).toThrow()
+      expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
+    } finally {
+      sqlite.closeDatabase(db)
+    }
+  })
+
   test('a database behind the trigger-claims migration gains its claims and history fields', () => {
     // Start immediately before this migration, independent of newer prepended migrations.
     const db = createMemoryDatabase()

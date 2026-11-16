@@ -970,6 +970,73 @@ function startsSpecialBlock(rest: string): boolean {
  * metadata and stripped from the content before tokenizing. Block IDs from
  * `<!-- id:… -->` comments are preserved; absent ids are generated.
  */
+const RESOLVED_EMBED_OPEN =
+  /^(\s*)<!--\s*embed:\s*([^;\s]+)\s*((?:;[^>]*?)?)\s*-->\s*(?:<!--\s*id:([A-Za-z0-9_-]+)(?:\s+type:[A-Za-z0-9_-]+)?(?:\s+attrs:(\{.*\}))?\s*-->)?\s*$/
+const RESOLVED_EMBED_CLOSE = /^\s*<!--\s*\/embed:\s*([^\s]+)\s*-->\s*$/
+
+/**
+ * Turns each resolved embed back into the embed it came from. Resolved markdown (what an agent's
+ * `read` returns) prints an embed as its target's content between `<!-- embed: URL; title: …;
+ * view: … -->` and `<!-- /embed: URL -->`. Written back, that range must become the Embed block
+ * again, not paragraphs copied out of the embedded document, so a read-then-write round trip keeps
+ * the document's embeds. Nested embeds inside the range belong to the embedded document and go
+ * with it. Lines inside code fences are left alone.
+ */
+export function collapseResolvedEmbeds(markdown: string): string {
+  if (!markdown.includes('<!--') || !/<!--\s*embed:/.test(markdown)) return markdown
+  const lines = markdown.split('\n')
+  const out: string[] = []
+  let fence: string | null = null
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const fenceMatch = /^\s*(```+|~~~+)/.exec(line)
+    if (fenceMatch) {
+      if (!fence) fence = fenceMatch[1]!
+      else if (fenceMatch[1]!.startsWith(fence[0]!) && fenceMatch[1]!.length >= fence.length) fence = null
+      out.push(line)
+      continue
+    }
+    const open = fence ? null : RESOLVED_EMBED_OPEN.exec(line)
+    if (!open) {
+      out.push(line)
+      continue
+    }
+    const [, indent = '', link = '', rest = '', id, rawAttrs] = open
+    // Find the matching close, counting nested embeds of any target.
+    let depth = 1
+    let end = -1
+    for (let j = i + 1; j < lines.length; j++) {
+      if (RESOLVED_EMBED_OPEN.test(lines[j]!)) depth++
+      else if (RESOLVED_EMBED_CLOSE.test(lines[j]!) && --depth === 0) {
+        end = j
+        break
+      }
+    }
+    if (end === -1) {
+      out.push(line)
+      continue
+    }
+    const attrs: Record<string, unknown> = {}
+    if (rawAttrs) {
+      try {
+        Object.assign(attrs, JSON.parse(rawAttrs))
+      } catch {
+        // Unreadable attributes: keep the embed, drop them.
+      }
+    }
+    for (const part of rest.split(';')) {
+      const m = /^\s*(view|version|block)\s*:\s*(.+?)\s*$/.exec(part)
+      if (m && m[1] === 'view') attrs.view = m[2]
+    }
+    const comment = `<!-- id:${id || generateBlockId()} type:Embed${
+      Object.keys(attrs).length ? ` attrs:${JSON.stringify(attrs)}` : ''
+    } -->`
+    out.push(`${indent}<${link}> ${comment}`)
+    i = end
+  }
+  return out.join('\n')
+}
+
 export function parseMarkdown(
   markdown: string,
   options: ParseMarkdownOptions = {},
@@ -978,7 +1045,7 @@ export function parseMarkdown(
   metadata: HMMetadata
 } {
   const {content, metadata} = parseFrontmatter(markdown, options)
-  const lines = content.split('\n')
+  const lines = collapseResolvedEmbeds(content).split('\n')
   const infos = lines.map(analyzeLine)
   const root: Frame = {list: [], childIndent: 0}
   const stack: Frame[] = [root]

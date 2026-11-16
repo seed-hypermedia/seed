@@ -325,7 +325,7 @@ export const documentRouteSchema = z.object({
     ])
     .optional(),
   /** The tab of an app (`hm://hyper.media/app`) or the Settings tab of a tool; Home / Tool when absent. */
-  appView: z.enum(['tools', 'pages', 'settings']).optional(),
+  appView: z.enum(['tools', 'pages', 'triggers', 'settings']).optional(),
   /** One recorded run (call) of a tool, shown as its own page: `<tool>/:call/<id>`. */
   toolCallId: z.string().optional(),
   agentSessionId: z.string().optional(),

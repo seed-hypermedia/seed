@@ -1,3 +1,5 @@
+import {isToolHostType} from '@seed-hypermedia/client/apps'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useSelectedAccountId} from '@/selected-account'
@@ -14,7 +16,7 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
-import {CreateAppDialog, CreateToolDialog} from '@shm/ui/apps/create-dialogs'
+import {CreateAppDialog, CreateToolDialog, CreateTriggerDialog} from '@shm/ui/apps/create-dialogs'
 import type {AppRef} from '@shm/ui/apps/publish'
 import {appResourceKind} from '@shm/ui/apps/tabs'
 import {useAgentServerOptions} from '@shm/ui/agents/models'
@@ -32,7 +34,7 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench} from 'lucide-react'
+import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench, Zap} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -69,6 +71,7 @@ export function useCreateDocumentMenuItem({
   const locationKind = appResourceKind(locationDocument?.metadata.type)
   const createApp = useAppDialog(CreateAppDialog)
   const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -84,7 +87,7 @@ export function useCreateDocumentMenuItem({
   const menuItem = useMemo<MenuItemType | null>(() => {
     if (!myAccountIds.data?.length) return null
     if (!canEdit || !canCreateChildren) return null
-    if (locationKind === 'tool') return null
+    if (locationKind === 'tool' || locationKind === 'trigger') return null
     if (locationKind === 'app')
       return {
         key: 'new',
@@ -96,6 +99,12 @@ export function useCreateDocumentMenuItem({
             label: 'Tool',
             icon: <Wrench className="size-4" />,
             onClick: () => locationDocument && createTool.open({app: {id: locationId, document: locationDocument}}),
+          },
+          {
+            key: 'new-trigger',
+            label: 'Trigger',
+            icon: <Zap className="size-4" />,
+            onClick: () => locationDocument && createTrigger.open({host: {id: locationId, document: locationDocument}}),
           },
         ],
       }
@@ -184,6 +193,7 @@ export function useCreateDocumentMenuItem({
         {createAgent.content}
         {createApp.content}
         {createTool.content}
+        {createTrigger.content}
       </>
     ),
   }
@@ -385,6 +395,9 @@ function DesktopActorButton({
 /** Actor-backed document creation split button for the desktop document toolbar. */
 export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedHypermediaId}) {
   const client = useUniversalClient()
+  const route = useNavRoute()
+  const appView = route.key === 'document' ? route.appView : undefined
+  const agentView = route.key === 'document' ? route.agentView : undefined
   const current = useResource(locationId)
   const currentDocument = current.data?.type === 'document' ? current.data.document : undefined
   const currentCapability = useSelectedAccountCapability(locationId)
@@ -431,12 +444,26 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   }
   if (!currentDocument || !canEditCurrent) return null
-  // Only documents and collections take children; an agent's page is the agent.
-  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
-  // An app's New makes its tools; a tool takes no children.
   const kind = appResourceKind(currentDocument.metadata?.type)
-  if (kind === 'tool') return null
-  if (kind === 'app') return <NewToolButton app={{id: locationId, document: currentDocument}} />
+  const isAgent = currentDocument.metadata?.type === 'hm://hyper.media/agent'
+  // On a tool or a trigger, New makes another one of the same kind in its app or agent.
+  if (kind === 'tool' || kind === 'trigger') {
+    if (!parentId || !parentDocument || !isToolHostType(parentDocument.metadata?.type) || !canEditParent) return null
+    return <NewHostChildButton host={{id: parentId, document: parentDocument}} first={kind} />
+  }
+  // An agent's page is the agent: New appears on its Triggers tab, and makes a trigger.
+  if (isAgent)
+    return agentView === 'triggers' ? (
+      <NewHostChildButton host={{id: locationId, document: currentDocument}} first="trigger" />
+    ) : null
+  // An app's New makes its tools and triggers: on its Triggers tab a trigger first, else a tool.
+  if (kind === 'app')
+    return (
+      <NewHostChildButton
+        host={{id: locationId, document: currentDocument}}
+        first={appView === 'triggers' ? 'trigger' : 'tool'}
+      />
+    )
 
   return (
     <DesktopActorButton
@@ -452,19 +479,34 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
   )
 }
 
-/** The New button on an app: tools are the only children made here (agents build its pages). */
-function NewToolButton({app}: {app: AppRef}) {
+/**
+ * The New button in an app or agent (or on one of its tools or triggers): it makes tools and
+ * triggers (agents build pages). `first` is what New makes on a click; the menu lists both.
+ */
+function NewHostChildButton({host, first}: {host: AppRef; first: 'tool' | 'trigger'}) {
   const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
+  const tool = {
+    key: 'new-tool',
+    label: 'Tool',
+    icon: <Wrench className="size-4" />,
+    onSelect: () => createTool.open({app: host}),
+  }
+  const trigger = {
+    key: 'new-trigger',
+    label: 'Trigger',
+    icon: <Zap className="size-4" />,
+    onSelect: () => createTrigger.open({host}),
+  }
   return (
     <>
       <DocumentCreateButton
         onCreate={() => {}}
         onImport={() => {}}
-        options={[
-          {key: 'new-tool', label: 'Tool', icon: <Wrench className="size-4" />, onSelect: () => createTool.open({app})},
-        ]}
+        options={first === 'trigger' ? [trigger, tool] : [tool, trigger]}
       />
       {createTool.content}
+      {createTrigger.content}
     </>
   )
 }

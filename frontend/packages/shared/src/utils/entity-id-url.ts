@@ -124,7 +124,7 @@ export function mountedAgentRoute(route: NavRoute): NavRoute {
 }
 
 /** App and tool tabs live at `:app/<view>`; plain `:tools` and `:settings` belong to agents. */
-export const APP_VIEWS = ['tools', 'pages', 'settings'] as const
+export const APP_VIEWS = ['tools', 'pages', 'triggers', 'settings'] as const
 
 /** Suffix used by every mounted-agent and app-tab URL producer. */
 export function agentDocumentViewPath(route: DocumentRoute): string | undefined {
@@ -241,7 +241,7 @@ export function extractViewTermFromUrl(url: string): {
       toolCallId: decodeURIComponent(callMatch[1]!),
     }
   }
-  const appMatch = inspectCleanUrl.match(/\/:app\/(tools|pages|settings)(?=[?#]|$)/)
+  const appMatch = inspectCleanUrl.match(/\/:app\/(tools|pages|triggers|settings)(?=[?#]|$)/)
   if (appMatch) {
     return {
       url: inspectCleanUrl.replace(appMatch[0], ''),

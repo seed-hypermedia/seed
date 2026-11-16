@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {
   addAppChildOps,
+  HM_TRIGGER_TYPE,
+  triggerDocumentOps,
+  triggerDocumentRefs,
   appChildKind,
   appEmbeddedChildren,
   isAppChildId,
@@ -69,5 +72,42 @@ describe('app children', () => {
     expect(parentDocumentId(forecast)?.id).toBe(app.id)
     expect(parentDocumentId(unpackHmId('hm://z6MkApp/top')!)?.id).toBe('hm://z6MkApp')
     expect(parentDocumentId(unpackHmId('hm://z6MkApp')!)).toBeNull()
+  })
+})
+
+describe('trigger documents', () => {
+  it('are app children', () => {
+    expect(appChildKind(HM_TRIGGER_TYPE)).toBe('trigger')
+  })
+  it('write their source and input as DAG-CBOR blobs and read them back as references', async () => {
+    const {ops, blobs} = await triggerDocumentOps({
+      source: {type: 'schedule', schedule: {cron: '0 9 * * *'}},
+      tool: 'hm://z6Mkspace/app/send',
+      input: {text: '$event.payload'},
+      enabled: false,
+    })
+    expect(blobs).toHaveLength(2)
+    const op = ops[0] as {type: 'SetAttributes'; attrs: {key: string[]; value: unknown}[]}
+    const metadata = Object.fromEntries(op.attrs.map((attr) => [attr.key[0], attr.value]))
+    expect(triggerDocumentRefs(metadata)).toEqual({
+      sourceCid: blobs[0]!.cid,
+      tool: 'hm://z6Mkspace/app/send',
+      inputCid: blobs[1]!.cid,
+      enabled: false,
+    })
+  })
+  it('clears the tool and input', async () => {
+    const {ops, blobs} = await triggerDocumentOps({tool: null, input: null})
+    expect(blobs).toEqual([])
+    expect(ops).toEqual([
+      {
+        type: 'SetAttributes',
+        attrs: [
+          {key: ['tool'], value: null},
+          {key: ['input'], value: null},
+        ],
+      },
+    ])
+    expect(triggerDocumentRefs({}).enabled).toBe(true)
   })
 })

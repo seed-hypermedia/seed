@@ -9,7 +9,7 @@ import {
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import type {DocumentRoute} from '@shm/shared/routes'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Blocks, FileCode2, Wrench} from 'lucide-react'
+import {Blocks, FileCode2, Wrench, Zap} from 'lucide-react'
 import {useMemo, type ReactNode} from 'react'
 import {Button} from '../button'
 import {DocumentPageView, documentPageCid} from '../document-page'
@@ -67,6 +67,8 @@ export function AppDocumentView({
   const children = useAppChildren(docId, document)
   if (appView === 'tools') return <AppChildrenTab app={app} kind="tool" appChildren={children} canEdit={canEdit} />
   if (appView === 'pages') return <AppChildrenTab app={app} kind="page" appChildren={children} canEdit={canEdit} />
+  if (appView === 'triggers')
+    return <AppChildrenTab app={app} kind="trigger" appChildren={children} canEdit={canEdit} />
   if (appView === 'settings') return <AppSettingsTab app={app} canEdit={canEdit} />
   return (
     <AppHomeTab
@@ -164,7 +166,7 @@ function AppChildrenTab({
   const publisher = useAppsPublisher()
   const listed = children.listed.filter((item) => item.kind === kind)
   const strays = children.strays.filter((item) => item.kind === kind)
-  const noun = kind === 'tool' ? 'tool' : 'page'
+  const noun = kind
   return (
     <TabColumn>
       {!children.isLoading && !listed.length ? (
@@ -173,7 +175,9 @@ function AppChildrenTab({
           <SizableText size="sm" color="muted">
             {kind === 'tool'
               ? 'A tool is one function of this app: what it takes, what it returns, and its code. Add one with New in the toolbar.'
-              : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
+              : kind === 'trigger'
+                ? 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
+                : 'Pages are built by agents for now. Ask an agent to add a page to this app.'}
           </SizableText>
         </div>
       ) : null}
@@ -226,7 +230,7 @@ function AppChildRow({
   muted?: boolean
   action?: ReactNode
 }) {
-  const Icon = item.kind === 'tool' ? Wrench : Blocks
+  const Icon = item.kind === 'tool' ? Wrench : item.kind === 'trigger' ? Zap : Blocks
   return (
     <div
       role="button"

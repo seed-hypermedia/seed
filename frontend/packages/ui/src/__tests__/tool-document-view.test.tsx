@@ -14,7 +14,9 @@ const toolId = hmId('alice', {path: ['weather', 'forecast']})
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  update: vi.fn(async () => {}),
+  change: vi.fn(),
+  storeBlobs: vi.fn(async () => {}),
+  metadata: {} as Record<string, unknown>,
 }))
 
 vi.mock('@shm/shared', async (importOriginal) => ({
@@ -38,9 +40,17 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
 vi.mock('../get-file-url', () => ({useFileUrl: () => (url: string) => url}))
 vi.mock('../schema/schema-resolve', () => ({useResolvedSchema: () => ({schema: undefined, isLoading: false})}))
 vi.mock('../apps/publish', () => ({
-  useAppsPublisher: () => ({update: mocks.update}),
-  setAttribute: (key: string, value: string | null) => ({type: 'SetAttributes', attrs: [{key: [key], value}]}),
   toolCodeFolder: async () => ({code: 'ipfs://bafynewcode', blobs: [{cid: 'bafynewcode', data: new Uint8Array()}]}),
+}))
+// The tool edits its document's draft: every change stages there (the top bar publishes it).
+vi.mock('../apps/resource-draft', () => ({
+  useResourceDraft: () => ({
+    metadata: mocks.metadata,
+    content: [],
+    change: mocks.change,
+    storeBlobs: mocks.storeBlobs,
+    canEdit: true,
+  }),
 }))
 vi.mock('../toast', () => ({toast: {success: vi.fn(), error: vi.fn()}}))
 
@@ -59,7 +69,9 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   mocks.navigate.mockClear()
-  mocks.update.mockClear()
+  mocks.change.mockClear()
+  mocks.storeBlobs.mockClear()
+  mocks.metadata = tool.metadata as Record<string, unknown>
 })
 afterEach(() => {
   act(() => root.unmount())
@@ -90,26 +102,18 @@ describe('ToolDocumentView', () => {
     })
   })
 
-  it('saves name, description and code in one publish', async () => {
+  it('stages name, description and code edits in the draft, with no Save button of its own', async () => {
     act(() => root.render(<ToolDocumentView docId={toolId} document={tool} canEdit />))
     setValue(container.querySelector('input[aria-label="Tool name"]')!, 'daily-forecast')
+    expect(mocks.change).toHaveBeenLastCalledWith({name: 'daily-forecast'})
     setValue(container.querySelector('textarea[aria-label="Tool description"]')!, 'Daily forecast.')
+    expect(mocks.change).toHaveBeenLastCalledWith({summary: 'Daily forecast.'})
     setValue(container.querySelector('textarea[aria-label="forecast index.ts"]')!, 'export default async () => 1\n')
-    const save = Array.from(container.querySelectorAll('button')).find((el) => el.textContent?.includes('Save'))!
-    await act(async () => save.click())
-    expect(mocks.update).toHaveBeenCalledTimes(1)
-    const [id, ops, blobs] = mocks.update.mock.calls[0] as unknown as [
-      {id: string},
-      {attrs: {key: string[]; value: unknown}[]}[],
-      unknown[],
-    ]
-    expect(id.id).toBe(toolId.id)
-    expect(ops.map((op) => [op.attrs[0]!.key[0], op.attrs[0]!.value])).toEqual([
-      ['name', 'daily-forecast'],
-      ['summary', 'Daily forecast.'],
-      ['code', 'ipfs://bafynewcode'],
-    ])
-    expect(blobs).toHaveLength(1)
+    // The code becomes a published folder after a pause, and the draft points at it.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 500)))
+    expect(mocks.storeBlobs).toHaveBeenCalledTimes(1)
+    expect(mocks.change).toHaveBeenLastCalledWith({code: 'ipfs://bafynewcode'})
+    expect(Array.from(container.querySelectorAll('button')).some((el) => el.textContent?.includes('Save'))).toBe(false)
   })
 
   it('shows readers the tool without editing controls', () => {

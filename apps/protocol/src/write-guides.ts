@@ -53,10 +53,26 @@ Any tool you made before resources existed was moved to \`~/memory/tools/<name>/
 Call a tool resource with the call verb and its hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`.`,
   },
   triggers: {
-    summary: 'Create, edit, enable, disable, or delete an automation trigger.',
+    summary:
+      'Create, edit, enable, disable, or delete an automation trigger: a trigger document under your agent or an app, or ~/triggers/<name>.',
     markdown: `# Writing triggers
 
-Write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first: it lists current triggers and which source fits which request (mentions, replies, comments, document changes, schedules). New triggers default to enabled.
+## Trigger documents (use these)
+
+A trigger is a document typed \`hm://hyper.media/trigger\` directly under an agent's document (yours, for your own automations) or under an app, listed in it as a card like a tool. Your user sees it there, on the Triggers tab, and can edit it. Publish one with \`options.trigger: {source, tool?, input?, enabled?}\`: the source is the same shape as below; with \`tool\` (a tool of the same agent or app, by hm:// URL) a firing calls that tool with \`input\` as a template, and without it (an agent's trigger only) a firing starts a session with you whose first message is the trigger's content. An app's trigger must call one of the app's tools; it fires while the app runs, and the call is recorded as made by the trigger's author.
+
+\`\`\`json
+{"address":"hm://SPACE/agents/helper/hourly-review","content":"Review current project state.","options":{"name":"Hourly review","trigger":{"source":{"type":"schedule","schedule":{"kind":"interval","every":1,"unit":"hours"}}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+- Edit: write the same address with \`options.action: "update"\` and the fields you change (\`options.trigger: {enabled: false}\` turns it off; a new \`content\` replaces the message).
+- Delete: \`options.action: "delete"\` (it also leaves its agent's or app's list).
+- Read one: \`read\` its hm:// address; \`source\` and \`input\` are \`ipfs://\` links, \`read\` them for the JSON. \`read <trigger>/:firings\` lists its recent firings (an app's trigger names the tool call each one made: \`read <tool>/:call/<id>\`). Your own triggers, documents included, are also listed with their firings at \`~/triggers/\` (a document trigger names its document there; edit it as a document).
+- You need write access where the trigger goes. Without it, ask your user to give you write access from your People tab, or to add the trigger themselves.
+
+## Triggers stored on the server: ~/triggers/<name>
+
+For what a document cannot express yet (a workflow script, a wake, or calling a built-in tool such as search), write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`enabled\` and \`continuation\`. Read \`~/triggers/\` first: it lists current triggers and which source fits which request (mentions, replies, comments, document changes, schedules). New triggers default to enabled.
 
 Check a trigger before saving it with \`options: {dryRun: true}\`: the write is validated and, for activity sources, replayed against recent activity to show how often it would have fired. Nothing is saved, so never create test triggers. If no source expresses the request, tell the user instead of approximating with a broad filter.
 
@@ -70,7 +86,7 @@ A trigger's \`continuation\` decides what a firing does. The default starts a th
 {"address":"~/triggers/deploy-hook","content":"{\"source\":{\"type\":\"webhook\"},\"continuation\":{\"kind\":\"tool\",\"tool\":\"record-deploy\",\"input\":{\"payload\":\"$event.payload\"},\"onFailure\":\"thread\"},\"prompt\":\"The deploy recorder failed; investigate and fix the record.\"}"}
 \`\`\`
 
-Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. An edit keeps the kind of source that starts the trigger; switching kinds needs \`options: {replaceSource: true}\`, and interval schedules under 5 minutes need \`options: {frequentSchedule: true}\`, only when the user asked for exactly that. Trigger writes do not use a signer.`,
+Replace the stored trigger to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. An edit keeps the kind of source that starts the trigger; switching kinds needs \`options: {replaceSource: true}\`, and interval schedules under 5 minutes need \`options: {frequentSchedule: true}\`, only when the user asked for exactly that. Writes to ~/triggers do not use a signer. A stored trigger that a document can express is published as a trigger document under you once you can write your document, and from then on it is that document.`,
   },
   ipfs: {
     summary: 'Publish a file to IPFS, or a JSON object: a schema, an object that follows one, or a signed blob.',
@@ -323,7 +339,7 @@ Use click handlers for actions rather than form submission. Disable Submit while
     summary: 'Build an app: the only home for pages and tools; its card embeds list them.',
     markdown: `# Building apps and tools
 
-An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools** and its custom HTML **pages**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
+An **app** is a published Seed document with \`metadata.type: "hm://hyper.media/app"\`. Its children are its **tools**, its custom HTML **pages** and its **triggers**, and nothing else. Apps are the only way to have a page or a tool: every page and every tool belongs to an app (an agent can host tools and pages the same way; your own agent document works). Every child lives directly under its app (\`hm://SPACE/apps/weather/forecast\` under \`hm://SPACE/apps/weather\`) and is listed by a card embed in the app's content. Seed shows an app as tabs (Home, Tools, Pages, Settings), not as a text document.
 
 A **tool** is a document with \`metadata.type: "hm://hyper.media/tool"\`: a name, a summary saying what it does, an input schema, an optional output schema, and code. Once someone runs the app on an app server, anyone can call its tools; an agent's tools run whenever the agent is mounted. When someone asks you to make a tool, they always mean this: a tool resource in an app or an agent. You have no private tools, and \`~/tools/<name>\` cannot be written.
 
@@ -358,7 +374,27 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 - You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SIGNER_UID/apps/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
 - A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
+- \`read <tool>/:calls\` lists a tool's recent calls on this server (any app's tool you can read, and yours), and \`read <tool>/:call/<id>\` one call with its input and output: check how a tool or its triggers have been doing before changing it.
 - Call a tool of a running app with the call verb and the tool's hm:// URL: \`{"tool": "hm://SPACE/apps/weather/forecast", "input": {"city": "Lisbon"}}\`. The result is the tool's output; a stopped app answers that it is not running.
+
+## Triggers
+
+A **trigger** is a resource too: a document typed \`hm://hyper.media/trigger\` directly under an app or an agent, listed by a card embed like a tool. It says when it fires (its **source**: activity conditions, a schedule, a webhook, or a run finishing; the same shapes as \`~/triggers\`) and what it does:
+
+- **Call a tool** of the same app or agent: \`tool\` is the tool's hm:// URL and \`input\` an input template whose string values \`"$event"\` and \`"$event.<path>"\` are filled from the event (for a webhook, \`"$event.payload"\` is the posted JSON). An app's trigger must call a tool; the call is recorded as made by the trigger's author.
+- **Start a session** (an agent's trigger only): leave out \`tool\` and write the first message as the trigger's content.
+
+Publish one with \`options.trigger\`; the publisher stores the source and input, sets the type and lists the trigger in its host:
+
+\`\`\`json
+{"address":"hm://SIGNER_UID/apps/weather/morning","options":{"name":"Morning forecast","trigger":{"source":{"type":"schedule","schedule":{"kind":"weekly","daysOfWeek":[1,2,3,4,5],"timeOfDay":"07:00","timezone":"Europe/Lisbon"}},"tool":"hm://SIGNER_UID/apps/weather/forecast","input":{"city":"Lisbon"}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+\`\`\`json
+{"address":"hm://SPACE/agents/helper/on-mention","content":"Someone mentioned you. Read the comment and answer it.","options":{"name":"On mention","trigger":{"source":{"type":"activity","conditions":[{"type":"user-mention","mentionedAccounts":["SIGNER_UID"]}]}},"signer":{"publicKey":"SIGNER_UID"}}}
+\`\`\`
+
+An app's triggers are active while the app runs on its server; an agent's while the agent is mounted. Turn one off with \`"enabled": false\`, change it by writing the same address with \`options.action: "update"\` and \`options.trigger\` again, and delete it with \`options.action: "delete"\`. A trigger is the document: there is nothing to set up anywhere else.
 
 ## Example
 
@@ -380,7 +416,7 @@ Then make the radar page the app's home: \`{"address":"hm://SIGNER_UID/apps/weat
 
 - Read a tool's current code with \`read ipfs://<code CID>/index.ts\` (the \`code\` attribute names the folder), edit it in memory, then write the same address with \`options.action: "update"\` and \`options.tool\` again. Its schemas stay unless \`metadata\` replaces them.
 - Delete a tool or page with \`options.action: "delete"\`; it also leaves the app's list.
-- Do not edit the app's content by hand to list children; the publisher keeps the embeds in order, oldest first.`,
+- Do not edit the app's content by hand to list children; the publisher keeps the embeds in order, oldest first. The same holds for an agent's document: tools, pages, triggers and apps written directly under it are listed there for you. An app does not have to live under an agent; when it does, it shows on the agent's Home.`,
   },
   comments: {
     summary: 'Create comments and replies, then update or delete existing comment records.',

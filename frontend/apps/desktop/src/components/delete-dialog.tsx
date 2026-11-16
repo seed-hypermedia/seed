@@ -1,3 +1,4 @@
+import {isToolHostType} from '@seed-hypermedia/client/apps'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
@@ -72,9 +73,9 @@ export function DeleteDocumentDialog({
   const childDocIds = childDocs.map((item) => hmId(id.uid, {path: item.path}))
   const document = doc.data.document
   const kind = appResourceKind(document.metadata.type)
-  // A deleted tool or page also leaves the list of the app it belongs to.
+  // A deleted tool, trigger or page also leaves the list of the app or agent it belongs to.
   const listingApp: AppRef | undefined =
-    parentId && parent.data?.type === 'document' && appResourceKind(parent.data.document.metadata.type) === 'app'
+    parentId && parent.data?.type === 'document' && isToolHostType(parent.data.document.metadata.type)
       ? {id: parentId, document: parent.data.document}
       : undefined
 

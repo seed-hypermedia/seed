@@ -14,7 +14,7 @@ export type DeleteDocumentDialogProps = {
   canDelete?: boolean
   cannotDeleteReason?: string
   /** What is being deleted: a mounted agent's document is deleted as the agent, server side included; apps and tools are named as such. */
-  subject?: 'document' | 'agent' | 'app' | 'tool'
+  subject?: 'document' | 'agent' | 'app' | 'tool' | 'trigger'
   onConfirm: () => Promise<void> | void
   onClose?: () => void
   onSuccess?: () => void
@@ -90,7 +90,9 @@ export function DeleteDocumentDialog({
               ? 'This permanently removes the app, its tools and its pages. Links pointing to them will break.'
               : subject === 'tool'
                 ? 'This permanently removes the tool and takes it out of its app. Links pointing to it will break.'
-                : 'This permanently removes the document and all its content. Links pointing to it from other documents will break.'}
+                : subject === 'trigger'
+                  ? 'This permanently removes the trigger and takes it out of its app or agent: it stops firing.'
+                  : 'This permanently removes the document and all its content. Links pointing to it from other documents will break.'}
         </Text>
       </div>
 

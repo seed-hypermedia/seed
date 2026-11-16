@@ -1,19 +1,23 @@
-import {HM_APP_TYPE, HM_TOOL_TYPE} from '@seed-hypermedia/client/apps'
+import {HM_APP_TYPE, HM_TOOL_TYPE, HM_TRIGGER_TYPE} from '@seed-hypermedia/client/apps'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DocumentPanelRoute, DocumentRoute, NavRoute} from '@shm/shared/routes'
-import {FileCode2, House, Settings, Wrench, type LucideIcon} from 'lucide-react'
+import {FileCode2, House, Settings, Wrench, Zap, type LucideIcon} from 'lucide-react'
 
 /** Which typed resource with its own tabs a document is, if any. */
-export function appResourceKind(type: unknown): 'app' | 'tool' | null {
+export function appResourceKind(type: unknown): 'app' | 'tool' | 'trigger' | null {
   if (type === HM_APP_TYPE) return 'app'
   if (type === HM_TOOL_TYPE) return 'tool'
+  if (type === HM_TRIGGER_TYPE) return 'trigger'
   return null
 }
 
 /** A tab in a typed resource's tab bar. */
 export type ResourceTab = {label: string; tooltip: string; icon: LucideIcon; active: boolean; route: NavRoute}
 
-/** An app's tabs: Home, Tools, Pages and Settings. A tool shows its app's tabs, with Tools selected. */
+/**
+ * An app's tabs: Home, Tools, Pages, Triggers and Settings. A tool shows its app's tabs with Tools
+ * selected, a trigger with Triggers selected.
+ */
 export function appResourceTabs(
   id: UnpackedHypermediaId,
   appView: DocumentRoute['appView'],
@@ -31,6 +35,7 @@ export function appResourceTabs(
     tab('Home', House, undefined),
     tab('Tools', Wrench, 'tools'),
     tab('Pages', FileCode2, 'pages'),
+    tab('Triggers', Zap, 'triggers'),
     tab('Settings', Settings, 'settings'),
   ]
 }

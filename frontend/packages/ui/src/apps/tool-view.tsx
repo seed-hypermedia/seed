@@ -4,8 +4,7 @@ import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {useResource} from '@shm/shared/models/entity'
 import {useQuery} from '@tanstack/react-query'
-import {Save} from 'lucide-react'
-import {useEffect, useState, type ReactNode} from 'react'
+import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
@@ -18,15 +17,18 @@ import {publishSchemaObject} from '../schema/schema-document'
 import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
-import {setAttribute, toolCodeFolder, useAppsPublisher} from './publish'
+import {toolCodeFolder} from './publish'
+import {useResourceDraft} from './resource-draft'
 import {ToolRunSection} from './running'
 
 const noSchemaNav = () => {}
 
 /**
- * A tool, shown inside its app (the app's tabs stay above it, Tools selected) like an agent
- * session: a header with a back button and the tool's name, then one page with its description,
- * schemas and code. Every edit is published together with Save.
+ * A tool, shown inside its app or agent (the host's tabs stay above it, Tools selected) like an
+ * agent session: a header with a back button and the tool's name, then one page with its
+ * description, schemas and code. Edits stage into the document's draft like any document's: it
+ * saves itself, the top bar's Publish button appears once there are changes, and Discard Changes
+ * drops them.
  */
 export function ToolDocumentView({
   docId,
@@ -38,75 +40,66 @@ export function ToolDocumentView({
   canEdit: boolean
 }) {
   const client = useUniversalClient()
-  const publisher = useAppsPublisher()
   const navigate = useNavigate()
-  const saved = document.metadata
-  const source = useToolSource(saved.code)
-  const [name, setName] = useState(saved.name ?? '')
-  const [summary, setSummary] = useState(saved.summary ?? '')
-  // A schema edit, or null to remove it; undefined while the saved schema is untouched.
+  const draft = useResourceDraft(document)
+  const saved = draft.metadata
+  const source = useToolSource(typeof saved.code === 'string' ? saved.code : undefined)
+  // Schema and code edits show at once; the draft takes them (as published blobs) after a pause.
   const [input, setInput] = useState<HypermediaSchema | null | undefined>(undefined)
   const [output, setOutput] = useState<HypermediaSchema | null | undefined>(undefined)
   const [code, setCode] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const written = useRef<{inputSchema?: unknown; outputSchema?: unknown; code?: unknown}>({})
+  // A version or draft that these fields did not write (published elsewhere, or discarded) replaces them.
   useEffect(() => {
-    setName(saved.name ?? '')
-    setSummary(saved.summary ?? '')
-    setInput(undefined)
-    setOutput(undefined)
-    setCode(null)
-  }, [saved.name, saved.summary, saved.inputSchema, saved.outputSchema, saved.code])
-  const codeDirty = code !== null && code !== (source.data ?? '')
-  const dirty =
-    name !== (saved.name ?? '') ||
-    summary !== (saved.summary ?? '') ||
-    input !== undefined ||
-    output !== undefined ||
-    codeDirty
+    if (saved.inputSchema !== written.current.inputSchema) setInput(undefined)
+    if (saved.outputSchema !== written.current.outputSchema) setOutput(undefined)
+    if (saved.code !== written.current.code) setCode(null)
+    written.current = {inputSchema: saved.inputSchema, outputSchema: saved.outputSchema, code: saved.code}
+  }, [saved.inputSchema, saved.outputSchema, saved.code])
   const appId = parentDocumentId(docId)
   const appResource = useResource(appId)
   const appDocument = appResource.data?.type === 'document' ? appResource.data.document : null
   // Apps and agents both host tools; an agent's tools go back to the agent itself.
   const hostIsAgent = appDocument?.metadata.type === HM_AGENT_TYPE
 
-  async function schemaRefFor(schema: HypermediaSchema | null) {
-    return schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  function later(key: string, run: () => Promise<void>) {
+    clearTimeout(timers.current[key])
+    timers.current[key] = setTimeout(() => {
+      run().catch((error) => toast.error(error instanceof Error ? error.message : String(error)))
+    }, 400)
   }
-  async function save() {
-    setSaving(true)
-    try {
-      const ops = []
-      if (name !== (saved.name ?? '')) ops.push(setAttribute('name', name.trim()))
-      if (summary !== (saved.summary ?? '')) ops.push(setAttribute('summary', summary.trim() || null))
-      if (input !== undefined) ops.push(setAttribute('inputSchema', await schemaRefFor(input)))
-      if (output !== undefined) ops.push(setAttribute('outputSchema', await schemaRefFor(output)))
-      const folder = codeDirty && code !== null ? await toolCodeFolder(code) : null
-      if (folder) ops.push(setAttribute('code', folder.code))
-      await publisher.update(docId, ops, folder?.blobs ?? [])
-      toast.success('Tool saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSaving(false)
-    }
+  function changeSchema(key: 'inputSchema' | 'outputSchema', schema: HypermediaSchema | null) {
+    ;(key === 'inputSchema' ? setInput : setOutput)(schema)
+    later(key, async () => {
+      const ref = schema ? `ipfs://${await publishSchemaObject(client, schema as Record<string, unknown>)}` : null
+      written.current[key] = ref ?? undefined
+      draft.change({[key]: ref})
+    })
   }
+  function changeCode(text: string) {
+    setCode(text)
+    later('code', async () => {
+      const folder = await toolCodeFolder(text)
+      await draft.storeBlobs(folder.blobs)
+      written.current.code = folder.code
+      draft.change({code: folder.code})
+    })
+  }
+  const name = typeof saved.name === 'string' ? saved.name : ''
+  const summary = typeof saved.summary === 'string' ? saved.summary : ''
+  const inputSchemaRef = typeof saved.inputSchema === 'string' ? saved.inputSchema : undefined
+  const outputSchemaRef = typeof saved.outputSchema === 'string' ? saved.outputSchema : undefined
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AgentSubpageHeader
-        title={canEdit ? name : saved.name || docId.path?.at(-1) || ''}
+        title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Tool name"
-        onTitleChange={canEdit ? setName : undefined}
+        onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent' : 'Back to app tools'}
         onBack={() =>
           appId && navigate(hostIsAgent ? {key: 'document', id: appId} : {key: 'document', id: appId, appView: 'tools'})
-        }
-        actions={
-          canEdit && dirty ? (
-            <Button size="sm" variant="default" disabled={saving || !name.trim()} onClick={() => void save()}>
-              <Save className="size-3.5" /> {saving ? 'Saving…' : 'Save'}
-            </Button>
-          ) : null
         }
       />
       <section className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6 overflow-y-auto p-4">
@@ -116,10 +109,10 @@ export function ToolDocumentView({
               aria-label="Tool description"
               value={summary}
               placeholder="What the tool does"
-              onChange={(event) => setSummary(event.target.value)}
+              onChange={(event) => draft.change({summary: event.target.value || null})}
             />
           ) : (
-            <SizableText color="muted">{saved.summary || 'No description.'}</SizableText>
+            <SizableText color="muted">{summary || 'No description.'}</SizableText>
           )}
         </Section>
         {appId ? (
@@ -127,25 +120,25 @@ export function ToolDocumentView({
             appId={appId}
             app={appDocument}
             toolId={docId}
-            inputSchemaRef={saved.inputSchema}
+            inputSchemaRef={inputSchemaRef}
             onOpenSettings={() => navigate({key: 'document', id: appId, appView: 'settings'})}
           />
         ) : null}
         <Section title="Input">
           <SchemaField
             label="Input"
-            schemaRef={input === null ? undefined : saved.inputSchema}
+            schemaRef={input === null ? undefined : inputSchemaRef}
             value={input ?? null}
-            onChange={setInput}
+            onChange={(schema) => changeSchema('inputSchema', schema)}
             canEdit={canEdit}
           />
         </Section>
         <Section title="Output">
           <SchemaField
             label="Output"
-            schemaRef={output === null ? undefined : saved.outputSchema}
+            schemaRef={output === null ? undefined : outputSchemaRef}
             value={output ?? null}
-            onChange={setOutput}
+            onChange={(schema) => changeSchema('outputSchema', schema)}
             canEdit={canEdit}
             optional
           />
@@ -157,12 +150,12 @@ export function ToolDocumentView({
             </SizableText>
           ) : (
             <CodeTextArea
-              aria-label={`${saved.name || 'Tool'} ${TOOL_ENTRY_FILE}`}
+              aria-label={`${name || 'Tool'} ${TOOL_ENTRY_FILE}`}
               className="min-h-80"
               value={code ?? (source.isLoading ? '' : source.data ?? '')}
               placeholder={source.isLoading ? 'Loading…' : undefined}
               readOnly={!canEdit}
-              onChange={(event) => setCode(event.currentTarget.value)}
+              onChange={(event) => changeCode(event.currentTarget.value)}
             />
           )}
           <SizableText size="xs" color="muted">

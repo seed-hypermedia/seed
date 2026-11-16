@@ -6,6 +6,7 @@ import {AgentHomeComposer} from './agents/home-composer'
 import {AgentPromptMigration} from './agents/prompt-migration'
 import {ToolCallView} from './apps/tool-call-view'
 import {ToolDocumentView} from './apps/tool-view'
+import {TriggerDocumentView} from './apps/trigger-view'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
@@ -2298,8 +2299,8 @@ function DocumentBody({
         ? undefined
         : appKind === 'app'
           ? appResourceTabs(docId, route.appView, panelRoute)
-          : // A tool stays inside its app: the app's tabs, Tools selected.
-            appResourceTabs(parentDocumentId(docId) ?? docId, 'tools'),
+          : // A tool or trigger stays inside its app: the app's tabs, its kind selected.
+            appResourceTabs(parentDocumentId(docId) ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
     [appKind, route, docId, panelRoute],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
@@ -3335,6 +3336,8 @@ function DocumentBody({
           <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
         ) : route.key === 'document' && appKind === 'tool' ? (
           <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+        ) : route.key === 'document' && appKind === 'trigger' ? (
+          <TriggerDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
         ) : route.key === 'document' && route.agentView ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (

@@ -96,7 +96,11 @@ CREATE INDEX agent_collaborators_by_account ON agent_collaborators (account_id, 
 CREATE TABLE agent_triggers (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
-    agent_id TEXT NOT NULL REFERENCES agents (id),
+    agent_id TEXT REFERENCES agents (id),
+    app_id TEXT,
+    document_id TEXT,
+    document_version TEXT,
+    author TEXT,
     name TEXT NOT NULL,
     enabled INTEGER NOT NULL,
     source_cbor BLOB NOT NULL,
@@ -108,10 +112,15 @@ CREATE TABLE agent_triggers (
     updated_at INTEGER NOT NULL,
     last_checked_at INTEGER,
     last_fired_at INTEGER,
-    last_error TEXT
+    last_error TEXT,
+    CHECK (agent_id IS NOT NULL OR app_id IS NOT NULL)
 ) WITHOUT ROWID;
 
 CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DESC);
+
+CREATE INDEX agent_triggers_by_app ON agent_triggers (app_id);
+
+CREATE UNIQUE INDEX agent_triggers_by_document ON agent_triggers (document_id);
 
 CREATE TABLE trigger_event_claims (
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -187,7 +196,8 @@ CREATE INDEX session_continuations_by_predecessor ON session_continuations (pred
 CREATE TABLE trigger_firings (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
-    agent_id TEXT NOT NULL REFERENCES agents (id),
+    agent_id TEXT REFERENCES agents (id),
+    app_id TEXT,
     trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
     activity_key TEXT NOT NULL,
     session_id TEXT REFERENCES sessions (id),
@@ -195,6 +205,7 @@ CREATE TABLE trigger_firings (
     body_digest BLOB,
     context_cbor BLOB,
     run_id TEXT,
+    tool_call_id TEXT,
     status TEXT NOT NULL,
     error TEXT,
     created_at INTEGER NOT NULL,

@@ -230,6 +230,7 @@ export type UnsignedAgentAction =
   | UpdateAgent
   | DeleteAgent
   | ListAgentTriggers
+  | ListHostTriggers
   | GetAgentTrigger
   | CreateAgentTrigger
   | UpdateAgentTrigger
@@ -629,6 +630,17 @@ export type DeleteAgent = {
 export type ListAgentTriggers = {
   _: 'ListAgentTriggers'
   agentId: string
+}
+
+/**
+ * Lists the triggers an app's or agent's trigger documents define on this server, syncing the host
+ * first (so a just-published trigger is already listed), with each one's recent firings. Unsigned
+ * requests work; a signed request from a writer of the host's space also gets webhook secrets.
+ */
+export type ListHostTriggers = {
+  _: 'ListHostTriggers'
+  /** The app's or agent's versionless hm:// URL. */
+  hostId: string
 }
 
 /** Loads one trigger plus sessions created by that trigger. */
@@ -1309,7 +1321,16 @@ export type AgentInfo = {
 export type AgentTriggerInfo = {
   id: string
   account: string
+  /** The agent the trigger belongs to; empty for an app's trigger (see `appId`). */
   agentId: string
+  /** The app the trigger belongs to, for a trigger document under an app. */
+  appId?: string
+  /** The trigger document this trigger was projected from (versionless hm:// id), if any. */
+  documentId?: string
+  /** The version of that document the projection reflects. */
+  documentVersion?: string
+  /** The account whose trigger this is: an app trigger's tool calls are recorded as theirs. */
+  author?: string
   name: string
   enabled: boolean
   source: AgentTriggerSource
@@ -2211,6 +2232,17 @@ export type ListAgentTriggersResponse = {
   triggers: AgentTriggerInfo[]
 }
 
+/** Successful response for `ListHostTriggers`. */
+export type ListHostTriggersResponse = {
+  _: 'ListHostTriggersResponse'
+  hostId: string
+  /** False when this server does not run the host (an agent not here, an app not running here). */
+  active: boolean
+  triggers: {trigger: AgentTriggerInfo; webhookSecret?: string; firings: TriggerFiringInfo[]}[]
+  /** Listed trigger documents that could not be used, and why. */
+  errors: {documentId: string; error: string}[]
+}
+
 /** One time a trigger fired, as shown on its page. */
 export type TriggerFiringInfo = {
   id: string
@@ -2229,6 +2261,8 @@ export type TriggerFiringInfo = {
   sessionId?: string
   /** The headless run this firing started, for tool/script continuations. */
   runId?: string
+  /** The app tool call an app's trigger made (see `GetAppToolCall`). */
+  toolCallId?: string
 }
 
 /** Successful response for `GetAgentTrigger`. */
@@ -2613,6 +2647,7 @@ export type AgentResponse =
   | GetAgentResponse
   | DeleteAgentResponse
   | ListAgentTriggersResponse
+  | ListHostTriggersResponse
   | GetAgentTriggerResponse
   | CreateAgentTriggerResponse
   | UpdateAgentTriggerResponse
