@@ -15,7 +15,11 @@ import {resolveEditableDocument} from './document-state'
 import type {CollectedBlob} from './file-to-ipfs'
 import {hmIdPathToEntityQueryPath, packHmId, unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from './hm-types'
 import type {BlockNode} from './markdown-to-blocks'
-import {documentOperationsToChanges, prepareDocumentUpdateBlobs, withoutLeadingMovesInPlace} from './prepare-change'
+import {
+  clientBuiltDocumentUpdateBlobs,
+  prepareDocumentUpdateBlobs,
+  UnpreparableDocumentUpdateError,
+} from './prepare-change'
 import type {AnySigner} from './signer'
 
 export const HM_APP_TYPE = 'hm://hyper.media/app'
@@ -171,7 +175,9 @@ export function removeAppChildOps(
  * The Change is computed by the daemon (`PrepareDocumentChange`, through
  * {@link prepareDocumentUpdateBlobs}), which leaves out every op that would change nothing. When
  * nothing is left, `changed` is false and `blobs` holds only `extraBlobs`: no Change and no Ref.
- * Publish `blobs` only when it is not empty.
+ * Publish `blobs` only when it is not empty. The one update the daemon cannot be asked for, a
+ * reorder in which neighbouring blocks move together, is built here as listed instead
+ * ({@link clientBuiltDocumentUpdateBlobs}); the result has the same shape.
  *
  * A redirected address is followed: the update lands on the document the address presents
  * (`targetId`).
@@ -193,17 +199,25 @@ export async function createDocumentUpdateBlobs({
 }): Promise<{blobs: CollectedBlob[]; targetId: UnpackedHypermediaId; changed: boolean}> {
   if (!ops.length) throw new Error('No document changes to publish')
   const base = await resolveEditableDocument(client, id)
-  const update = await prepareDocumentUpdateBlobs({
-    client,
+  const target = {
     signer,
     account: base.targetId.uid,
     path: hmIdPathToEntityQueryPath(base.targetId.path),
-    baseVersion: base.state.version,
-    // Ops that re-list a level begin with moves of blocks already in place; see the function.
-    changes: withoutLeadingMovesInPlace(documentOperationsToChanges(ops), base.document.content),
+    ops,
     capability,
-    genesis: base.state.genesis,
     currentGeneration: base.document.generationInfo?.generation,
+  }
+  const update = await prepareDocumentUpdateBlobs({
+    ...target,
+    client,
+    baseVersion: base.state.version,
+    content: base.document.content ?? [],
+    genesis: base.state.genesis,
+  }).catch((error) => {
+    // A reorder the daemon would misapply (see preparableDocumentChanges) is built here instead,
+    // stored as listed.
+    if (!(error instanceof UnpreparableDocumentUpdateError)) throw error
+    return clientBuiltDocumentUpdateBlobs({...target, state: base.state})
   })
   return {blobs: [...update.blobs, ...extraBlobs], targetId: base.targetId, changed: update.changed}
 }

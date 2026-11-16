@@ -10,8 +10,10 @@ import {
   documentOperationsToChanges,
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
+  clientBuiltDocumentUpdateBlobs,
+  preparableDocumentChanges,
   prepareDocumentUpdateBlobs,
-  withoutLeadingMovesInPlace,
+  UnpreparableDocumentUpdateError,
 } from './prepare-change'
 
 const ACCOUNT = 'z6MksV3sM8YJxFqv8kV4m4wQdD4sP2wJvB8c2kHh9Qx7LmNo'
@@ -119,56 +121,83 @@ describe('documentOperationsToChanges', () => {
   })
 })
 
-describe('withoutLeadingMovesInPlace', () => {
-  const node = (id: string, children: unknown[] = []) => ({block: {id}, children})
-  const content = [node('a'), node('b', [node('b1'), node('b2')]), node('c')]
-  const move = (blockId: string, parent: string, leftSibling: string) => ({
-    op: {case: 'moveBlock' as const, value: {blockId, parent, leftSibling}},
-  })
-  const moves = (blocks: string[], parent = '') => documentOperationsToChanges([{type: 'MoveBlocks', blocks, parent}])
+describe('preparableDocumentChanges', () => {
+  const content = (...ids: string[]) => ids.map((id) => ({block: {id}, children: []}))
+  const reorder = (blocks: string[], parent = ''): DocumentOperation => ({type: 'MoveBlocks', blocks, parent})
+  /** The moves requested, as `block>leftSibling`. */
+  const moves = (result: ReturnType<typeof preparableDocumentChanges>) => {
+    if ('unpreparable' in result) throw new Error(result.unpreparable)
+    return result.changes
+      .filter((change) => change.op.case === 'moveBlock')
+      .map((change: any) => `${change.op.value.blockId}>${change.op.value.leftSibling}`)
+  }
 
-  it('removes the moves of the leading blocks that are where the document has them', () => {
-    // A block inserted after the first one: the first block is not re-placed, and the new block
-    // is anchored on it.
-    expect(withoutLeadingMovesInPlace(moves(['a', 'new', 'b', 'c']), content)).toEqual([
-      move('new', '', 'a'),
-      move('b', '', 'new'),
-      move('c', '', 'b'),
+  it('sends a block inserted after the first block as the only move, anchored on it', () => {
+    expect(moves(preparableDocumentChanges([reorder(['a', 'x', 'b', 'c'])], content('a', 'b', 'c')))).toEqual(['x>a'])
+  })
+
+  it('sends a block appended, and a block put first', () => {
+    expect(moves(preparableDocumentChanges([reorder(['a', 'b', 'x'])], content('a', 'b')))).toEqual(['x>b'])
+    expect(moves(preparableDocumentChanges([reorder(['x', 'a', 'b'])], content('a', 'b')))).toEqual(['x>'])
+  })
+
+  it('sends nothing for a level re-listed as it is', () => {
+    expect(moves(preparableDocumentChanges([reorder(['a', 'b', 'c'])], content('a', 'b', 'c')))).toEqual([])
+  })
+
+  it('sends one block moved to the end as one move, not a re-listing of the level', () => {
+    expect(moves(preparableDocumentChanges([reorder(['a', 'c', 'd', 'b'])], content('a', 'b', 'c', 'd')))).toEqual([
+      'b>d',
     ])
-    // A block appended: only its own move is left.
-    expect(withoutLeadingMovesInPlace(moves(['a', 'b', 'c', 'new']), content)).toEqual([move('new', '', 'c')])
-    // A level re-listed unchanged leaves nothing.
-    expect(withoutLeadingMovesInPlace(moves(['b1', 'b2'], 'b'), content)).toEqual([])
-  })
-
-  it('keeps every move from the first one that differs', () => {
-    // `c` is where it was relative to `b`, but `b` is not: nothing after the break is removed.
-    expect(withoutLeadingMovesInPlace(moves(['b', 'a', 'c']), content)).toEqual(moves(['b', 'a', 'c']))
-    expect(withoutLeadingMovesInPlace(moves(['a', 'c', 'b']), content)).toEqual([
-      move('c', '', 'a'),
-      move('b', '', 'c'),
+    expect(moves(preparableDocumentChanges([reorder(['b', 'c', 'd', 'a'])], content('a', 'b', 'c', 'd')))).toEqual([
+      'a>d',
     ])
-    // A block that changes parent is a move, even to the same left sibling.
-    expect(withoutLeadingMovesInPlace(moves(['b1'], ''), content)).toEqual([move('b1', '', '')])
   })
 
-  it('leaves a move alone when it does not start a chain or its parent was already written to', () => {
-    // An anchored move with no chain before it says where the block goes; it is kept as written.
-    expect(withoutLeadingMovesInPlace([move('b', '', 'a')], content)).toEqual([move('b', '', 'a')])
-    // Something was placed at the start of the level first, so "a at the start" is now a real move.
-    const changes = [move('new', '', ''), move('a', '', '')]
-    expect(withoutLeadingMovesInPlace(changes, content)).toEqual(changes)
+  it('asks for no move when a deleted block sat between two that stay', () => {
+    expect(
+      moves(
+        preparableDocumentChanges([reorder(['a', 'c']), {type: 'DeleteBlocks', blocks: ['b']}], content('a', 'b', 'c')),
+      ),
+    ).toEqual([])
   })
 
-  it('keeps other changes in place and needs a document to compare with', () => {
-    const changes = [
-      {op: {case: 'replaceBlock' as const, value: {id: 'a', type: 'Paragraph', text: 'A'}}},
-      ...moves(['a', 'b', 'c']),
-      {op: {case: 'deleteBlock' as const, value: 'b1'}},
-    ]
-    expect(withoutLeadingMovesInPlace(changes, content)).toEqual([changes[0], changes[4]])
-    expect(withoutLeadingMovesInPlace(changes, undefined)).toEqual(changes)
-    expect(withoutLeadingMovesInPlace(changes, [])).toEqual(changes)
+  it('puts a partial list at the start, ahead of the blocks it leaves out', () => {
+    expect(moves(preparableDocumentChanges([reorder(['x', 'y'])], content('a', 'b')))).toEqual(['x>', 'y>x'])
+    // [b, a, c]: either b goes first or a goes behind b; one move either way.
+    expect(moves(preparableDocumentChanges([reorder(['b'])], content('a', 'b', 'c')))).toEqual(['a>b'])
+    // An empty document: every block is new, placed in order.
+    expect(moves(preparableDocumentChanges([reorder(['x', 'y'])], []))).toEqual(['x>', 'y>x'])
+    expect(moves(preparableDocumentChanges([reorder(['x', 'y'])], undefined))).toEqual(['x>', 'y>x'])
+  })
+
+  it('places a block arriving from another level; the level it left needs nothing', () => {
+    const tree = [{block: {id: 'a'}, children: content('k', 'l')}, ...content('b')]
+    expect(moves(preparableDocumentChanges([reorder(['l'], 'a'), reorder(['a', 'k', 'b'])], tree))).toEqual(['k>a'])
+    // A first child that becomes the first block of the root is a move, to the same (empty) left.
+    expect(moves(preparableDocumentChanges([reorder(['k', 'a', 'b'])], tree))).toEqual(['k>'])
+  })
+
+  it('reports neighbours that move together, and ops that place something twice, as unpreparable', () => {
+    const together = preparableDocumentChanges([reorder(['c', 'd', 'a', 'b'])], content('a', 'b', 'c', 'd'))
+    expect('unpreparable' in together && together.unpreparable).toContain('moves together with the block before it')
+    const twice = preparableDocumentChanges([reorder(['a']), reorder(['b'])], content('a', 'b'))
+    expect('unpreparable' in twice && twice.unpreparable).toContain('twice')
+    const listedTwice = preparableDocumentChanges([reorder(['a', 'a'])], content('a', 'b'))
+    expect('unpreparable' in listedTwice && listedTwice.unpreparable).toContain('twice')
+  })
+
+  it('passes replaces, deletes and attributes through in order', () => {
+    const result = preparableDocumentChanges(
+      [
+        {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Title'}]},
+        {type: 'ReplaceBlock', block: {id: 'z', type: 'Paragraph', text: 'Z', annotations: []}},
+        {type: 'DeleteBlocks', blocks: ['y']},
+      ],
+      content('y', 'z'),
+    )
+    if ('unpreparable' in result) throw new Error(result.unpreparable)
+    expect(result.changes.map((change) => change.op.case)).toEqual(['setMetadata', 'replaceBlock', 'deleteBlock'])
   })
 })
 
@@ -316,6 +345,7 @@ describe('prepareDocumentUpdateBlobs', () => {
       path: '/notes/first',
       baseVersion: HEAD,
       ops,
+      content: [],
       capability: CAPABILITY,
     })
 
@@ -355,6 +385,7 @@ describe('prepareDocumentUpdateBlobs', () => {
       path: '/notes/first',
       baseVersion: HEAD,
       ops,
+      content: [],
     })
     expect(result).toEqual({changed: false, blobs: [], version: HEAD})
     expect(signer.sign).not.toHaveBeenCalled()
@@ -389,7 +420,7 @@ describe('prepareDocumentUpdateBlobs', () => {
 
   it('uses the given generation as it is, and never goes below the current one otherwise', async () => {
     const request = vi.fn(async () => ({unsignedChange: unsignedChange([{type: 'x'}], 1000)}))
-    const base = {client: {request} as any, signer: makeSigner(), account: ACCOUNT, baseVersion: HEAD, ops}
+    const base = {client: {request} as any, signer: makeSigner(), account: ACCOUNT, baseVersion: HEAD, ops, content: []}
     const generationOf = async (extra: object) => {
       const result = await prepareDocumentUpdateBlobs({...base, ...extra})
       return result.changed ? result.generation : null
@@ -398,6 +429,34 @@ describe('prepareDocumentUpdateBlobs', () => {
     expect(await generationOf({currentGeneration: 500n})).toBe(1000)
     expect(await generationOf({currentGeneration: '2000'})).toBe(2000) // a writer whose clock ran ahead
     expect(await generationOf({generation: 7, currentGeneration: 2000})).toBe(7)
+  })
+
+  it('converts ops against the document content, and refuses ops it cannot send safely', async () => {
+    const request = vi.fn(async (_key: string, _input: any) => ({unsignedChange: unsignedChange([{type: 'x'}])}))
+    const base = {client: {request} as any, signer: makeSigner(), account: ACCOUNT, baseVersion: HEAD}
+    const content = ['a', 'b', 'c', 'd'].map((id) => ({block: {id}, children: []}))
+    const reorder = (blocks: string[]): DocumentOperation[] => [{type: 'MoveBlocks', blocks, parent: ''}]
+
+    // A block inserted after the first: one move, anchored on the block before it.
+    await prepareDocumentUpdateBlobs({...base, ops: reorder(['a', 'x', 'b', 'c', 'd']), content})
+    expect(request.mock.calls[0]![1].changes).toEqual([
+      {op: {case: 'moveBlock', value: {blockId: 'x', parent: '', leftSibling: 'a'}}},
+    ])
+    // A level re-listed as it is asks the daemon nothing.
+    request.mockClear()
+    expect(await prepareDocumentUpdateBlobs({...base, ops: reorder(['a', 'b', 'c', 'd']), content})).toEqual({
+      changed: false,
+      blobs: [],
+      version: HEAD,
+    })
+    expect(request).not.toHaveBeenCalled()
+    // Neighbours moving together: a typed error, and no request.
+    await expect(
+      prepareDocumentUpdateBlobs({...base, ops: reorder(['c', 'd', 'a', 'b']), content}),
+    ).rejects.toBeInstanceOf(UnpreparableDocumentUpdateError)
+    // Ops that move blocks cannot be converted without the content.
+    await expect(prepareDocumentUpdateBlobs({...base, ops: reorder(['a'])})).rejects.toThrow(/content is required/)
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('requires a base version and one source of changes', async () => {
@@ -457,9 +516,87 @@ describe('createDocumentUpdateBlobs', () => {
     expect((await createDocumentUpdateBlobs({client: seedClient, signer: makeSigner(), id, ops})).blobs).toEqual([])
   })
 
+  it('builds a reorder the daemon would misapply here, as listed, with the same result shape', async () => {
+    const seedClient = client(unsignedChange([]))
+    const document = {
+      version: HEAD,
+      genesis: GENESIS,
+      content: ['a', 'b', 'c', 'd'].map((blockId) => ({block: {id: blockId}, children: []})),
+      generationInfo: {genesis: GENESIS, generation: 5n},
+    }
+    seedClient.request.mockImplementation(async (key: string) => {
+      if (key === 'Resource') return {type: 'document', document}
+      if (key === 'ListChanges') {
+        return {
+          changes: [
+            {id: GENESIS, deps: []},
+            {id: HEAD, deps: [GENESIS]},
+          ],
+        }
+      }
+      throw new Error(`unexpected request ${key}`)
+    })
+    const together: DocumentOperation[] = [{type: 'MoveBlocks', blocks: ['c', 'd', 'a', 'b'], parent: ''}]
+    const update = await createDocumentUpdateBlobs({
+      client: seedClient,
+      signer: makeSigner(),
+      id,
+      ops: together,
+      extraBlobs,
+    })
+    expect(update.changed).toBe(true)
+    expect(update.targetId).toEqual(id)
+    expect(update.blobs).toHaveLength(3)
+    expect(update.blobs[2]).toBe(extraBlobs[0])
+    const change = cborDecode(update.blobs[0]!.data) as Record<string, any>
+    expect(change.body.ops).toEqual(together)
+    expect(String(change.genesis)).toBe(GENESIS)
+    expect(change.deps.map(String)).toEqual([HEAD])
+    expect(change.depth).toBe(2)
+    const ref = cborDecode(update.blobs[1]!.data) as Record<string, any>
+    expect(ref.path).toBe('/apps/weather')
+    expect(String(ref.heads[0])).toBe(update.blobs[0]!.cid)
+    expect(String(ref.genesisBlob)).toBe(GENESIS)
+  })
+
   it('still refuses an empty list of ops', async () => {
     await expect(
       createDocumentUpdateBlobs({client: client(unsignedChange([])), signer: makeSigner(), id, ops: []}),
     ).rejects.toThrow('No document changes to publish')
+  })
+})
+
+describe('clientBuiltDocumentUpdateBlobs', () => {
+  it('stores the ops as given on the given heads, and keeps the generation floor', async () => {
+    const ops: DocumentOperation[] = [{type: 'MoveBlocks', blocks: ['c', 'd', 'a', 'b'], parent: ''}]
+    const result = await clientBuiltDocumentUpdateBlobs({
+      signer: makeSigner(),
+      account: ACCOUNT,
+      path: '/notes/first',
+      state: {genesis: GENESIS, heads: [HEAD], headDepth: 1},
+      ops,
+      capability: CAPABILITY,
+      currentGeneration: Number.MAX_SAFE_INTEGER,
+    })
+    expect(result.changed).toBe(true)
+    expect(result.genesis).toBe(GENESIS)
+    expect(result.generation).toBe(Number.MAX_SAFE_INTEGER)
+    expect(result.blobs[0]!.cid).toBe(result.version)
+    const change = cborDecode(result.blobs[0]!.data) as Record<string, any>
+    expect(change.body.ops).toEqual(ops)
+    expect(change.deps.map(String)).toEqual([HEAD])
+    expect(change.depth).toBe(2)
+    const ref = cborDecode(result.blobs[1]!.data) as Record<string, any>
+    expect(ref.path).toBe('/notes/first')
+    expect(String(ref.capability)).toBe(CAPABILITY)
+    expect(Number(ref.generation)).toBe(Number.MAX_SAFE_INTEGER)
+
+    const unfloored = await clientBuiltDocumentUpdateBlobs({
+      signer: makeSigner(),
+      account: ACCOUNT,
+      state: {genesis: GENESIS, heads: [HEAD], headDepth: 1},
+      ops,
+    })
+    expect(Math.abs(unfloored.generation - Date.now())).toBeLessThan(60_000)
   })
 })
