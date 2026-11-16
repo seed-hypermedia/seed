@@ -56,6 +56,7 @@ import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
+import {buildDocumentUpdate} from './document-update'
 import {resolveFileLinks} from './file-links'
 
 /** Run `fn` over `items` with at most `limit` in flight; results in input order. */
@@ -1063,33 +1064,33 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     result.updated.push(file)
     if (opts.dryRun) return
 
-    const state = (await getBase()).state
-    const {unsignedBytes, ts} = createChangeOps({
+    // The server computes the Change from the document's real state (see buildDocumentUpdate),
+    // so only what differs is stored. A document that has just moved here already holds a Ref
+    // with a current-time generation at this path, which the new Ref must not go below.
+    const attached = [...schemaBlobs, ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid}))]
+    const update = await buildDocumentUpdate({
+      client: opts.client,
+      signer: opts.signer,
+      account: opts.account,
+      path,
+      state: (await getBase()).state,
       ops,
-      genesisCid: CID.parse(state.genesis),
-      deps: state.heads.map((h) => CID.parse(h)),
-      depth: state.headDepth + 1,
+      capability: opts.capability,
+      minGeneration:
+        movedFrom !== null
+          ? Date.now()
+          : (oldDoc as {generationInfo?: {generation?: number | bigint | string}}).generationInfo?.generation,
     })
-    const changeBlock = await createChange(unsignedBytes, opts.signer)
-    const ref = await createVersionRef(
-      {
-        space: opts.account,
-        path,
-        genesis: state.genesis,
-        version: changeBlock.cid.toString(),
-        generation: Number(ts),
-        capability: opts.capability,
-      },
-      opts.signer,
-    )
-    await opts.client.publish({
-      blobs: [
-        {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-        ...ref.blobs,
-        ...schemaBlobs,
-        ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
-      ],
-    })
+    if (!update.changed) {
+      // The ops asked for nothing the document does not already hold: no new version.
+      log(`same    ${label}  (the server found nothing to change)`)
+      result.updated.splice(result.updated.lastIndexOf(file), 1)
+      result.unchanged.push(file)
+      if (attached.length) await opts.client.publish({blobs: attached})
+      return
+    }
+    if (update.builtBy === 'local') log(`        ${label}: change built locally, ${update.localReason}`)
+    await opts.client.publish({blobs: [...update.blobs, ...attached]})
   }
   await mapPool(files, CONCURRENCY, processFile)
   return result
