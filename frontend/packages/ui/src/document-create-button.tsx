@@ -42,9 +42,16 @@ export function DocumentCreateButton({
 
   return (
     <div className="bg-background flex items-center overflow-hidden rounded-md border border-green-900 shadow-xs dark:border-green-700">
-      <Button type="button" size="sm" disabled={disabled || !primary} className="rounded-none" onClick={primary}>
+      <Button
+        type="button"
+        size="sm"
+        disabled={disabled || !primary}
+        aria-label="New"
+        className="rounded-none"
+        onClick={primary}
+      >
         <Plus className="size-4" />
-        New
+        <span className="hidden sm:inline">New</span>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

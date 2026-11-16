@@ -2,7 +2,7 @@ import {IS_DESKTOP} from '@shm/shared/constants'
 import {Minimize2} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
-import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
+import {Breadcrumbs, DocumentPathMenu, type BreadcrumbEntry} from './document-header'
 import {SiteSidebarToggle} from './site-sidebar-context'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -57,7 +57,7 @@ export function DocumentTopBar({
       ref={barRef}
       data-document-top-bar=""
       className={cn(
-        'border-border dark:bg-background relative z-40 flex h-12 w-full shrink-0 items-center gap-2 bg-white px-4',
+        'border-border dark:bg-background relative z-40 flex h-12 w-full shrink-0 items-center gap-2 bg-white pr-4 pl-3 sm:pl-4',
         // The border is the only separator; nothing is elevated over the content.
         'border-b',
         isMobile && 'sticky top-0',
@@ -65,7 +65,13 @@ export function DocumentTopBar({
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {!IS_DESKTOP && <SiteSidebarToggle />}
-        {breadcrumbs?.length ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
+        {breadcrumbs?.length ? (
+          isMobile ? (
+            <DocumentPathMenu breadcrumbs={breadcrumbs} />
+          ) : (
+            <Breadcrumbs breadcrumbs={breadcrumbs} />
+          )
+        ) : null}
         {status ? (
           <div data-document-status="" className="flex shrink-0 items-center gap-1">
             {status}
