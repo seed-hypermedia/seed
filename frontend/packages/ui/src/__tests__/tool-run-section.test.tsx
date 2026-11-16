@@ -16,6 +16,7 @@ const toolId = hmId('alice', {path: ['weather', 'forecast']})
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   navigate: vi.fn(),
+  schema: undefined as unknown,
 }))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => mocks.navigate}))
 vi.mock('../hm-icon', () => ({HMIcon: () => null}))
@@ -30,19 +31,20 @@ vi.mock('@shm/shared/models/entity', () => ({
 }))
 vi.mock('../agents/client', () => ({sendAgentAction: mocks.send}))
 vi.mock('../schema/schema-resolve', () => ({
-  useResolvedSchema: () => ({
-    schema: {
-      type: 'hm://hyper.media/struct',
-      properties: {city: {value: {type: 'hm://hyper.media/string'}, required: true}},
-    },
-    isLoading: false,
-  }),
+  useResolvedSchema: () => ({schema: mocks.schema, registry: {}, isLoading: false}),
 }))
 vi.mock('../toast', () => ({toast: {success: vi.fn(), error: vi.fn()}}))
 
 const app = {
   metadata: {name: 'Weather', type: 'hm://hyper.media/app', appEnvironmentUrl: 'http://apps.test'},
 } as unknown as HMDocument
+
+// jsdom has no ResizeObserver, which the optional-field switch measures itself with.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
 
 let root: Root
 let container: HTMLDivElement
@@ -51,6 +53,10 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   mocks.send.mockReset()
+  mocks.schema = {
+    type: 'hm://hyper.media/struct',
+    properties: {city: {value: {type: 'hm://hyper.media/string'}, required: true}},
+  }
 })
 afterEach(() => {
   act(() => root.unmount())
@@ -111,7 +117,7 @@ async function render(running: boolean) {
 describe('ToolRunSection', () => {
   it('shows the input form and Run while the app runs, and the result after a call', async () => {
     await render(true)
-    const input = container.querySelector<HTMLInputElement>('#tool-input-city')
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="city"]')
     expect(input).not.toBeNull()
     const run = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Run'))
     expect(run).toBeDefined()
@@ -137,12 +143,52 @@ describe('ToolRunSection', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: toolId, toolCallId: 'old'})
   })
 
+  it('draws a list of objects as typed rows, and sends a real list', async () => {
+    mocks.schema = {
+      type: 'hm://hyper.media/struct',
+      properties: {
+        ingredients: {
+          required: true,
+          value: {
+            type: 'hm://hyper.media/list',
+            items: {
+              type: 'hm://hyper.media/struct',
+              properties: {
+                name: {value: {type: 'hm://hyper.media/string'}, required: true},
+                amount: {value: {type: 'hm://hyper.media/float'}},
+              },
+            },
+          },
+        },
+      },
+    }
+    await render(true)
+    const button = (text: string) =>
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.trim() === text)!
+    await act(async () => button('+ item').click())
+    const name = container.querySelector<HTMLInputElement>('input[aria-label="name"]')!
+    expect(name).not.toBeNull()
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, 'flour')
+      name.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    await act(async () => {
+      button('Run').click()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({_: 'CallAppTool', input: {ingredients: [{name: 'flour'}]}}),
+      }),
+    )
+  })
+
   it('shows no form while the app is not running, only a way to its settings', async () => {
     await render(false)
     expect(container.textContent).toContain('This app is not running')
     expect(container.textContent).toContain('Run it from the app’s settings')
     // No form while the app is not running.
-    expect(container.querySelector('#tool-input-city')).toBeNull()
+    expect(container.querySelector('input[aria-label="city"]')).toBeNull()
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent?.trim() === 'Run')).toBe(false)
   })
 })
