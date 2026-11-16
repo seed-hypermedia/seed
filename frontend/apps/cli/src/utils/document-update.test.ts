@@ -8,7 +8,7 @@ import {
   type DocumentOperation,
   type DocumentState,
 } from '@seed-hypermedia/client'
-import {attributesServerCannotPrepare, buildDocumentUpdate} from './document-update'
+import {attributesServerCannotPrepare, buildDocumentUpdate, serverChanges} from './document-update'
 import {deriveKeyPairFromMnemonic} from './key-derivation'
 import {createSignerFromKey} from './signer'
 
@@ -100,11 +100,73 @@ describe('attributesServerCannotPrepare', () => {
   })
 })
 
+describe('serverChanges', () => {
+  const content = (...ids: string[]) => ids.map((id) => ({block: {id}, children: []}))
+  const reorder = (blocks: string[], parent = ''): DocumentOperation => ({type: 'MoveBlocks', blocks, parent})
+  /** The moves requested, as `block>leftSibling`. */
+  const moves = (result: ReturnType<typeof serverChanges>) => {
+    if ('unsupported' in result) throw new Error(result.unsupported)
+    return result.changes
+      .filter((change) => change.op.case === 'moveBlock')
+      .map((change: any) => `${change.op.value.blockId}>${change.op.value.leftSibling}`)
+  }
+
+  test('a block inserted after the first block is the only move, anchored on it', () => {
+    expect(moves(serverChanges([reorder(['a', 'x', 'b', 'c'])], content('a', 'b', 'c')))).toEqual(['x>a'])
+  })
+
+  test('a block appended, and a block put first', () => {
+    expect(moves(serverChanges([reorder(['a', 'b', 'x'])], content('a', 'b')))).toEqual(['x>b'])
+    expect(moves(serverChanges([reorder(['x', 'a', 'b'])], content('a', 'b')))).toEqual(['x>'])
+  })
+
+  test('one block moved to the end is one move, not a re-listing of the level', () => {
+    expect(moves(serverChanges([reorder(['a', 'c', 'd', 'b'])], content('a', 'b', 'c', 'd')))).toEqual(['b>d'])
+    expect(moves(serverChanges([reorder(['b', 'c', 'd', 'a'])], content('a', 'b', 'c', 'd')))).toEqual(['a>d'])
+  })
+
+  test('a deleted block between two that stay asks for no move', () => {
+    expect(
+      moves(serverChanges([reorder(['a', 'c']), {type: 'DeleteBlocks', blocks: ['b']}], content('a', 'b', 'c'))),
+    ).toEqual([])
+  })
+
+  test('a partial list goes to the start, ahead of the blocks it leaves out', () => {
+    expect(moves(serverChanges([reorder(['x', 'y'])], content('a', 'b')))).toEqual(['x>', 'y>x'])
+    // [b, a, c]: either b goes first or a goes behind b; one move either way.
+    expect(moves(serverChanges([reorder(['b'])], content('a', 'b', 'c')))).toEqual(['a>b'])
+  })
+
+  test('a block arriving from another level is placed; the level it left needs nothing', () => {
+    const tree = [{block: {id: 'a'}, children: content('k', 'l')}, ...content('b')]
+    expect(moves(serverChanges([reorder(['l'], 'a'), reorder(['a', 'k', 'b'])], tree))).toEqual(['k>a'])
+  })
+
+  test('neighbours that move together cannot be sent', () => {
+    const result = serverChanges([reorder(['c', 'd', 'a', 'b'])], content('a', 'b', 'c', 'd'))
+    expect('unsupported' in result && result.unsupported).toContain('moves together with the block before it')
+  })
+
+  test('replaces, deletes and attributes pass through in order', () => {
+    const result = serverChanges([setName, paragraph, {type: 'DeleteBlocks', blocks: ['z']}], content('z'))
+    if ('unsupported' in result) throw new Error(result.unsupported)
+    expect(result.changes.map((change) => change.op.case)).toEqual(['setMetadata', 'replaceBlock', 'deleteBlock'])
+  })
+})
+
 describe('buildDocumentUpdate', () => {
   test('no ops is not a change and asks the server nothing', async () => {
     const state = await documentState()
     const {client, calls} = fakeClient(() => preparedChange(state, []))
-    const result = await buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops: []})
+    const result = await buildDocumentUpdate({
+      client,
+      signer,
+      account: key.accountId,
+      path: '/doc',
+      state,
+      ops: [],
+      content: [],
+    })
     expect(result).toEqual({changed: false, blobs: [], version: state.version})
     expect(calls).toHaveLength(0)
   })
@@ -120,6 +182,7 @@ describe('buildDocumentUpdate', () => {
       path: '/doc',
       state,
       ops: [setName, paragraph],
+      content: [],
       capability: undefined,
       minGeneration: 9_000,
     })
@@ -155,6 +218,7 @@ describe('buildDocumentUpdate', () => {
       path: '/doc',
       state,
       ops: [setName],
+      content: [],
     })
     expect(calls).toHaveLength(1)
     expect(result).toEqual({changed: false, blobs: [], version: state.version})
@@ -164,7 +228,15 @@ describe('buildDocumentUpdate', () => {
     const state = await documentState()
     const {client, calls} = fakeClient(() => preparedChange(state, []))
     const ops: DocumentOperation[] = [{type: 'SetAttributes', attrs: [{key: ['rating'], value: 4.5}]}, paragraph]
-    const result = await buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops})
+    const result = await buildDocumentUpdate({
+      client,
+      signer,
+      account: key.accountId,
+      path: '/doc',
+      state,
+      ops,
+      content: [],
+    })
     expect(calls).toHaveLength(0)
     if (!result.changed) throw new Error('expected a change')
     expect(result.builtBy).toBe('local')
@@ -177,6 +249,25 @@ describe('buildDocumentUpdate', () => {
     const ref = decodeBlob(result.blobs[1]!.data)
     expect(ref.path).toBe('/doc')
     expect(ref.heads.map(String)).toEqual([result.version])
+  })
+
+  test('a reorder the server cannot take is built locally, without asking it', async () => {
+    const state = await documentState()
+    const {client, calls} = fakeClient(() => preparedChange(state, []))
+    const ops: DocumentOperation[] = [{type: 'MoveBlocks', blocks: ['c', 'd', 'a', 'b'], parent: ''}]
+    const result = await buildDocumentUpdate({
+      client,
+      signer,
+      account: key.accountId,
+      path: '/doc',
+      state,
+      ops,
+      content: ['a', 'b', 'c', 'd'].map((id) => ({block: {id}, children: []})),
+    })
+    expect(calls).toHaveLength(0)
+    if (!result.changed) throw new Error('expected a change')
+    expect(result.builtBy).toBe('local')
+    expect(decodeBlob(result.blobs[0]!.data).body.ops).toEqual(ops)
   })
 
   test('a request refused as too large (413) is built locally', async () => {
@@ -193,6 +284,7 @@ describe('buildDocumentUpdate', () => {
       path: '/doc',
       state,
       ops: [paragraph],
+      content: [],
       minGeneration: Number.MAX_SAFE_INTEGER,
     })
     if (!result.changed) throw new Error('expected a change')
@@ -214,7 +306,7 @@ describe('buildDocumentUpdate', () => {
       },
     } as any
     await expect(
-      buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops: [paragraph]}),
+      buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops: [paragraph], content: []}),
     ).rejects.toThrow(/server's clock is behind/)
   })
 
@@ -226,7 +318,7 @@ describe('buildDocumentUpdate', () => {
       },
     } as any
     await expect(
-      buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops: [paragraph]}),
+      buildDocumentUpdate({client, signer, account: key.accountId, path: '/doc', state, ops: [paragraph], content: []}),
     ).rejects.toThrow(/403/)
   })
 })

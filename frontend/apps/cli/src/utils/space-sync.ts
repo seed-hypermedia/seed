@@ -847,6 +847,13 @@ function metadataLeaves(metadata: Record<string, unknown> | undefined, prefix: s
 /**
  * The SetAttributes op turning `oldMetadata` into `newMetadata`: changed and
  * added leaves are set, leaves missing from the new metadata are nulled.
+ *
+ * A map is rewritten entry by entry, never as "clear the key, then set its
+ * entries": the server leaves out the entries whose value is unchanged and
+ * keeps the clear, which removes the whole map. For the same reason a leaf
+ * that gave way to a map (`kind: plain` to `kind: {of: map}`) or a map that
+ * gave way to a leaf gets no null: a write at a key already removes what was
+ * stored above and below it, and a null there would remove the new value too.
  */
 export function metadataDiffOp(
   oldMetadata: Record<string, unknown> | undefined,
@@ -860,8 +867,12 @@ export function metadataDiffOp(
     seen.add(k)
     if (!oldLeaves.has(k) || oldLeaves.get(k) !== leaf.value) attrs.push(leaf)
   }
-  for (const [k] of oldLeaves) {
-    if (!seen.has(k)) attrs.push({key: k.split(' '), value: null})
+  const kept = metadataLeaves(newMetadata).map((leaf) => leaf.key)
+  const within = (a: string[], b: string[]) => a.length <= b.length && a.every((segment, i) => segment === b[i])
+  for (const leaf of metadataLeaves(oldMetadata)) {
+    if (seen.has(leaf.key.join(' '))) continue
+    if (kept.some((key) => within(key, leaf.key) || within(leaf.key, key))) continue
+    attrs.push({key: leaf.key, value: null})
   }
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
@@ -1075,6 +1086,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       path,
       state: (await getBase()).state,
       ops,
+      content: oldDoc.content,
       capability: opts.capability,
       minGeneration:
         movedFrom !== null
