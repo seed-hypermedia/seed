@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
+// BlockNoteEditor must load before the HM schema, which depends on it through a cycle. The blank line below keeps
+// organize-imports from sorting the schema above it.
+import {BlockNoteEditor} from '../BlockNoteEditor'
+
 import {TextSelection} from 'prosemirror-state'
 import {describe, expect, it, vi} from 'vitest'
 import {hmBlockSchema} from '../../../schema'
-import {BlockNoteEditor} from '../BlockNoteEditor'
 import type {Block, PartialBlock} from '../extensions/Blocks/api/blockTypes'
 import {stripBlockWhitespaces} from '../extensions/Blocks/nodes/externalHtmlPaste'
 
