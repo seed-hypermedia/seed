@@ -1,6 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import type {SeedClient} from './client'
-import {describeRedirect, editRefGeneration, followRedirects, resolveEditableDocument} from './document-state'
+import {
+  describeRedirect,
+  followRedirects,
+  resolveDocumentState,
+  resolveEditableDocument,
+  sameDocumentVersion,
+} from './document-state'
 import {packHmId, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 const SPACE_A = 'z6MkwRA1sPTdRk6nvDBs2eZiXAxYtvxRusN3faHibKPULdrL'
@@ -51,7 +57,61 @@ const CHANGES = {
   ],
 }
 
+describe('resolveDocumentState', () => {
+  it('reports the latest head timestamp to the millisecond, and every change of the history', async () => {
+    const docId = id(`hm://${SPACE_A}/notes`)
+    const OTHER = 'bafyreihlnsrncs74ilkjhpl5zbhiyix5rip2kntvkca72gsxr2pspms3sm'
+    const client = stubClient({
+      resources: {},
+      changes: {
+        [packHmId(docId)]: {
+          changes: [
+            {id: GENESIS, deps: [], createTime: '1970-01-01T00:00:00Z'},
+            {id: HEAD, deps: [GENESIS], createTime: '2026-11-17T08:00:00.123Z'},
+            {id: OTHER, deps: [GENESIS], createTime: '2026-11-17T08:00:01Z'},
+          ],
+        },
+      },
+    })
+    const state = await resolveDocumentState(client, packHmId(docId))
+    expect(state.heads).toEqual([HEAD, OTHER])
+    expect(state.headTs).toBe(Date.parse('2026-11-17T08:00:01Z'))
+    expect(state.changeIds).toEqual([GENESIS, HEAD, OTHER])
+    // A server that does not say when a head was made leaves the time unknown.
+    const bare = stubClient({resources: {}, changes: {[packHmId(docId)]: CHANGES}})
+    expect((await resolveDocumentState(bare, packHmId(docId))).headTs).toBeUndefined()
+  })
+})
+
+describe('sameDocumentVersion', () => {
+  it('compares heads in any order', () => {
+    expect(sameDocumentVersion('a.b', 'b.a')).toBe(true)
+    expect(sameDocumentVersion('a', 'a.b')).toBe(false)
+    expect(sameDocumentVersion(undefined, '')).toBe(true)
+  })
+})
+
 describe('resolveEditableDocument', () => {
+  it('reads the document and its heads again, once, when a write landed between the two reads', async () => {
+    const docId = id(`hm://${SPACE_A}/notes`)
+    const NEWER = 'bafyreihlnsrncs74ilkjhpl5zbhiyix5rip2kntvkca72gsxr2pspms3sm'
+    const stale = documentResource(docId)
+    const fresh = {...stale, document: {...stale.document, version: NEWER}}
+    const newerChanges = {changes: [...CHANGES.changes, {id: NEWER, deps: [HEAD]}]}
+    const reads: string[] = []
+    const resources = [stale, fresh]
+    const client = {
+      request: async (key: string) => {
+        reads.push(key)
+        return key === 'Resource' ? resources.shift() ?? fresh : newerChanges
+      },
+    } as unknown as SeedClient
+    const base = await resolveEditableDocument(client, docId)
+    expect(reads).toEqual(['Resource', 'ListChanges', 'Resource', 'ListChanges'])
+    expect(base.document.version).toBe(NEWER)
+    expect(base.state.version).toBe(NEWER)
+  })
+
   it('returns the document and DAG state for a plain document address', async () => {
     const docId = id(`hm://${SPACE_A}/notes`)
     const client = stubClient({
@@ -61,7 +121,8 @@ describe('resolveEditableDocument', () => {
     const base = await resolveEditableDocument(client, docId)
     expect(base.redirect).toBeNull()
     expect(base.targetId).toEqual(docId)
-    expect(base.state).toEqual({genesis: GENESIS, heads: [HEAD], headDepth: 1, version: HEAD})
+    expect(base.state).toMatchObject({genesis: GENESIS, heads: [HEAD], headDepth: 1, version: HEAD})
+    expect(base.state.changeIds).toEqual([GENESIS, HEAD])
   })
 
   it('follows a republish redirect to the target and reports the redirect', async () => {
@@ -225,22 +286,5 @@ describe('followRedirects (what a reader sees at a redirected address)', () => {
       },
     })
     await expect(followRedirects(client, a)).rejects.toThrow('Redirect cycle detected')
-  })
-})
-
-describe('editRefGeneration (an edit never opens a new generation)', () => {
-  const FRESH = 1_763_000_000_000
-
-  it('keeps the generation the document already has', () => {
-    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 1000n}}, FRESH)).toBe(1000)
-    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 0n}}, FRESH)).toBe(0)
-  })
-
-  it('takes a fresh generation to supersede a redirect at the edited path', () => {
-    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 1000n}}, FRESH, true)).toBe(FRESH)
-  })
-
-  it('falls back to a fresh generation when the document reports none', () => {
-    expect(editRefGeneration({}, FRESH)).toBe(FRESH)
   })
 })

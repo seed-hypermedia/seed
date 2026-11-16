@@ -6,15 +6,17 @@
  * This module provides:
  *
  * - Pure decision logic: should a link be added?
- * - Change builder: what to ask the daemon to change in the parent
- * - Full I/O convenience: fetch parent, check, prepare the change, sign, publish
+ * - Operation builder: what DocumentOperations to emit
+ * - Full I/O convenience: fetch parent, check, build the change, sign, publish
  */
 
 import type {HMBlockNode, HMDocument, UnpackedHypermediaId} from './hm-types'
 import type {AnySigner} from './signer'
 import {entityQueryPathToHmIdPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
-import {prepareDocumentUpdateBlobs, type DocumentChanges} from './prepare-change'
+import type {DocumentOperation} from './change'
+import {resolveDocumentState} from './document-state'
+import {documentUpdateBlobs} from './prepare-change'
 
 // ── Layer 1: Pure decision logic (no I/O) ────────────────────────────────────
 
@@ -115,29 +117,37 @@ export function shouldAutoLinkParent(
   return true
 }
 
-// ── Layer 2: Change builder (no I/O) ─────────────────────────────────────────
+// ── Layer 2: Operation builder (no I/O) ──────────────────────────────────────
 
 /**
- * The changes that append an Embed Card block for `childHmUrl` to a parent document: the new
- * block's content, and one placement of it after the parent's last root block (or first, in an
- * empty parent).
+ * Generate the DocumentOperations to append an Embed Card block to a parent document.
  *
- * These are `PrepareDocumentChange` changes, not native ops, because only a `moveBlock` can name
- * the block to its left; a native `MoveBlocks` places from the start of the level and would have
- * to list (and so re-move) every root block. No existing block is touched.
+ * The returned operations include a ReplaceBlock for the new embed block and a
+ * MoveBlocks that lists ALL root-level block IDs (existing + new) to ensure
+ * correct ordering. The CBOR MoveBlocks format with no `ref` positions blocks
+ * from the start, so we must re-specify the full ordering.
+ *
+ * Sent through `documentUpdateBlobs`, the daemon stores only the new block and
+ * its one placement after the last root block; a Change built from these ops
+ * directly stores the whole list.
  */
-export function createAutoLinkOps(parentDocument: HMDocument, childHmUrl: string, newBlockId: string): DocumentChanges {
-  const rootBlockIds = (parentDocument.content || []).map((node) => node.block.id).filter(Boolean)
-  const lastRootBlockId = rootBlockIds[rootBlockIds.length - 1] ?? ''
+export function createAutoLinkOps(
+  parentDocument: HMDocument,
+  childHmUrl: string,
+  newBlockId: string,
+): DocumentOperation[] {
+  const existingRootBlockIds = (parentDocument.content || []).map((node) => node.block.id).filter(Boolean)
+
+  const embedBlock = {
+    id: newBlockId,
+    type: 'Embed',
+    link: childHmUrl,
+    attributes: {view: 'Card'},
+  }
 
   return [
-    {
-      op: {
-        case: 'replaceBlock',
-        value: {id: newBlockId, type: 'Embed', link: childHmUrl, attributes: {view: 'Card'}},
-      },
-    },
-    {op: {case: 'moveBlock', value: {blockId: newBlockId, parent: '', leftSibling: lastRootBlockId}}},
+    {type: 'ReplaceBlock', block: embedBlock},
+    {type: 'MoveBlocks', blocks: [...existingRootBlockIds, newBlockId], parent: ''},
   ]
 }
 
@@ -164,9 +174,11 @@ export type AutoLinkChildToParentOptions = {
  *
  * Computes the parent path, fetches the parent document, decides whether a link
  * is needed (using `shouldAutoLinkParent`), and if so publishes an Embed Card
- * block to the parent document. The parent's Change is computed by the daemon
- * (`PrepareDocumentChange`) on top of the version that was read, and holds only
- * the new block and its placement.
+ * block to the parent document. The parent's Change goes through
+ * `documentUpdateBlobs`: the daemon computes it on top of the version that was
+ * read, so it holds only the new block and its placement; when the daemon
+ * cannot be asked or does not give a usable answer, the Change is built here
+ * and lists every root block, as it always did.
  *
  * Returns true if a link was added, false otherwise. Throws on network errors.
  */
@@ -210,16 +222,19 @@ export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions):
   // Generate a block ID for the embed
   const newBlockId = generateBlockId()
 
-  // Build the changes, and let the daemon compute the Change on top of the version just read.
-  const update = await prepareDocumentUpdateBlobs({
+  // The heads to build on. When they are not the version just read, the helper builds the
+  // Change itself rather than ask the daemon to place blocks against content that has moved on.
+  const state = await resolveDocumentState(client, `hm://${account}${parentPath}`)
+  const update = await documentUpdateBlobs({
     client,
     signer,
     account,
     path: parentPath,
-    baseVersion: parentDocument.version,
-    changes: createAutoLinkOps(parentDocument, childHmUrl, newBlockId),
+    state,
+    ops: createAutoLinkOps(parentDocument, childHmUrl, newBlockId),
+    content: parentDocument.content ?? [],
+    documentVersion: parentDocument.version,
     capability,
-    genesis: parentDocument.genesis,
     currentGeneration: parentDocument.generationInfo?.generation,
   })
   if (!update.changed) return false

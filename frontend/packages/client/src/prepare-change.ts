@@ -11,14 +11,17 @@
  * whole-number document attribute, is written again even when equal. Moves, text, links,
  * annotations and other attribute values are compared as you would expect.)
  *
- * This module is the seam for updating an EXISTING document that way:
+ * This module is the seam for updating an EXISTING document that way. {@link documentUpdateBlobs}
+ * is the one function to call: it asks the daemon, checks what comes back, and builds the Change
+ * here instead whenever the daemon cannot be asked, refuses, does not answer in time or answers
+ * with something implausible. Its parts are exported for callers that need one of them alone:
  *
  * 1. {@link preparableDocumentChanges} turns native ops into the request's `changes`, in the form
  *    the daemon applies correctly, or says that it cannot ({@link documentOperationsToChanges} is
  *    the plain conversion underneath, which is NOT safe to send for a document that has content).
  * 2. {@link prepareDocumentUpdateBlobs} asks the daemon for the unsigned Change, signs it and
  *    returns the Change and Ref blobs without publishing them, so a caller can publish them
- *    together with file blobs, tombstones or another document's blobs.
+ *    together with file blobs, tombstones or another document's blobs. It has none of the guards.
  * 3. {@link clientBuiltDocumentUpdateBlobs} is the way out for an update the daemon cannot be
  *    asked for: the Change built here, stored as written.
  *
@@ -28,9 +31,10 @@
 
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {CID} from 'multiformats/cid'
-import {createChange, createChangeOps, signDocumentChange, type DocumentOperation} from './change'
+import {createChange, createChangeOps, signDocumentChange, visibilityToCbor, type DocumentOperation} from './change'
 import type {SeedClient} from './client'
-import type {DocumentState} from './document-state'
+import {sameDocumentVersion, type DocumentState} from './document-state'
+import {SeedClientError} from './errors'
 import type {CollectedBlob} from './file-to-ipfs'
 import type {HMPrepareDocumentChangeInput} from './hm-types'
 import {createVersionRef} from './ref'
@@ -197,7 +201,19 @@ export class UnpreparableDocumentUpdateError extends Error {
  *
  * A native `MoveBlocks` puts its blocks at the start of the level, in order, ahead of the blocks it
  * does not list; that is the result computed here when a list is not the whole level. Ops that
- * order the same level twice, or place a block twice, are unpreparable too.
+ * order the same level twice, place a block twice, or delete a block and place it are
+ * unpreparable too.
+ *
+ * Every `replaceBlock` comes before the first `moveBlock` or `deleteBlock`. The daemon learns that
+ * a new block can be a parent when it sees its `replaceBlock`, but only until the first move or
+ * delete of the request; a new block's content sent after that point makes a move under it fail
+ * ("desired parent block is not in the tree"). The moves themselves keep the order of the ops.
+ *
+ * An update that turns a block's descendant into its ancestor (a parent and child swapping places,
+ * or any longer loop of that kind) is unpreparable: the daemon either refuses it ("cycle
+ * detected") or, on versions deployed in 2026, never answers and keeps a CPU busy. Only the
+ * document's current tree is known here. The same daemons also never answer for a document whose
+ * HISTORY holds such a turn; {@link documentUpdateBlobs} checks the history for that.
  */
 export function preparableDocumentChanges(
   ops: DocumentOperation[],
@@ -239,9 +255,23 @@ export function preparableDocumentChanges(
       }
     }
   }
+  for (const id of Array.from(destination.keys())) {
+    // The daemon keeps the delete and drops the placement, whichever comes first.
+    if (deleted.has(id)) return {unpreparable: `the update deletes block ${id} and places it`}
+  }
+  const loop = blockInLoop([...edgesOf(parentOf), ...edgesOf(destination)])
+  if (loop !== null) {
+    return {unpreparable: `the update puts block ${loop} under a block that is, or was, inside it`}
+  }
 
+  // Every replace first (see above), then the rest in the order given.
+  const replaces: DocumentChanges = []
   const changes: DocumentChanges = []
   for (const op of ops) {
+    if (op.type === 'ReplaceBlock') {
+      replaces.push(...documentOperationsToChanges([op]))
+      continue
+    }
     if (op.type !== 'MoveBlocks') {
       changes.push(...documentOperationsToChanges([op]))
       continue
@@ -275,7 +305,54 @@ export function preparableDocumentChanges(
       changes.push({op: {case: 'moveBlock', value: {blockId, parent, leftSibling}}})
     }
   }
-  return {changes}
+  return {changes: [...replaces, ...changes]}
+}
+
+/** `[parent, child]` for each entry of a child-to-parent map. */
+function edgesOf(parentOf: Map<string, string>): Array<[string, string]> {
+  return Array.from(parentOf, ([child, parent]) => [parent, child] as [string, string])
+}
+
+/**
+ * A block that lies on a loop of `[parent, child]` edges, or null when there is none.
+ *
+ * The edges are every place a block has been put: under its parent in the document, under the
+ * parent a request moves it to, and (when the history is known) under every parent it ever had.
+ * The daemon keeps all of them, the ones a block has since left included, and walks them when it
+ * writes a Change with moves. A loop makes that walk endless on the versions deployed in 2026.
+ */
+function blockInLoop(edges: Array<[string, string]>): string | null {
+  const children = new Map<string, string[]>()
+  for (const [parent, child] of edges) {
+    if (parent === child) return child
+    if (!parent) continue
+    const list = children.get(parent)
+    if (list) list.push(child)
+    else children.set(parent, [child])
+  }
+  // Depth-first, without recursion: `open` blocks are on the path being walked.
+  const open = new Set<string>()
+  const done = new Set<string>()
+  for (const start of Array.from(children.keys())) {
+    if (done.has(start)) continue
+    const stack: Array<{id: string; next: number}> = [{id: start, next: 0}]
+    open.add(start)
+    while (stack.length) {
+      const top = stack[stack.length - 1]!
+      const child = children.get(top.id)?.[top.next++]
+      if (child === undefined) {
+        open.delete(top.id)
+        done.add(top.id)
+        stack.pop()
+      } else if (open.has(child)) {
+        return child
+      } else if (!done.has(child)) {
+        open.add(child)
+        stack.push({id: child, next: 0})
+      }
+    }
+  }
+  return null
 }
 
 /** Indexes of the longest strictly rising run of the non-negative values in `values`. */
@@ -500,6 +577,8 @@ export type PrepareDocumentUpdateInput = {
   currentGeneration?: number | bigint | string
   /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
   visibility?: number
+  /** Aborts the request. */
+  signal?: AbortSignal
 }
 
 /** The outcome of {@link prepareDocumentUpdateBlobs}. */
@@ -513,6 +592,9 @@ export type PrepareDocumentUpdateResult =
       version: string
       genesis: string
       generation: number
+      /** The new Change's timestamp (milliseconds) and depth: what a Change built on top of it needs. */
+      ts: number
+      depth: number
     }
   | {
       /** Every requested change is already true of the document: there is nothing to publish. */
@@ -535,7 +617,9 @@ export type PrepareDocumentUpdateResult =
  * there is nothing to publish. An empty list of ops gives the same result without a request.
  *
  * The site is trusted for the Change's content: the bytes it returns are signed as they are, the
- * way `client.publishDocument` does.
+ * way `client.publishDocument` does. There is no timeout, no check of the answer and no way out
+ * when the daemon refuses; {@link documentUpdateBlobs} adds those and is what an update should
+ * normally go through.
  */
 export async function prepareDocumentUpdateBlobs(
   input: PrepareDocumentUpdateInput,
@@ -548,20 +632,35 @@ export async function prepareDocumentUpdateBlobs(
   const unchanged: PrepareDocumentUpdateResult = {changed: false, blobs: [], version: input.baseVersion}
   if (!changes.length) return unchanged
 
-  const {unsignedChange} = await input.client.request('PrepareDocumentChange', {
-    account: input.account,
-    path: input.path ?? '',
-    baseVersion: input.baseVersion,
-    changes,
-    capability: input.capability,
-    visibility: input.visibility,
-  })
+  const {unsignedChange} = await input.client.request(
+    'PrepareDocumentChange',
+    {
+      account: input.account,
+      path: input.path ?? '',
+      baseVersion: input.baseVersion,
+      changes,
+      capability: input.capability,
+      visibility: input.visibility,
+    },
+    {signal: input.signal},
+  )
   if (isEmptyPreparedChange(unsignedChange)) return unchanged
+  return signPreparedChange(input, unsignedChange)
+}
 
+/** Signs an unsigned Change from the daemon and the Version Ref for it. */
+async function signPreparedChange(
+  input: Pick<
+    PrepareDocumentUpdateInput,
+    'signer' | 'account' | 'path' | 'genesis' | 'generation' | 'currentGeneration' | 'capability' | 'visibility'
+  >,
+  unsignedChange: Uint8Array,
+): Promise<Extract<PrepareDocumentUpdateResult, {changed: true}>> {
+  const decoded = cborDecode(unsignedChange) as {ts?: number | bigint; depth?: number | bigint}
+  const changeTs = Number(decoded.ts ?? 0)
   let generation = input.generation
   if (generation == null && input.currentGeneration != null) {
     const current = Number(input.currentGeneration)
-    const changeTs = Number((cborDecode(unsignedChange) as {ts?: number | bigint}).ts ?? 0)
     if (Number.isFinite(current) && current > changeTs) generation = current
   }
 
@@ -583,6 +682,8 @@ export async function prepareDocumentUpdateBlobs(
     version: signed.changeCid.toString(),
     genesis: signed.genesis,
     generation: signed.generation,
+    ts: changeTs,
+    depth: Number(decoded.depth ?? 0),
   }
 }
 
@@ -604,33 +705,50 @@ export type ClientBuiltDocumentUpdateInput = {
   account: string
   /** Document path in API form (`/notes/first`); `''` or omitted for the home document. */
   path?: string
-  /** The change history to build on (`resolveDocumentState`, or `resolveEditableDocument().state`). */
-  state: Pick<DocumentState, 'genesis' | 'heads' | 'headDepth'>
+  /**
+   * The change history to build on (`resolveDocumentState`, or `resolveEditableDocument().state`).
+   * `headTs` matters: see the timestamp rule below.
+   */
+  state: Pick<DocumentState, 'genesis' | 'heads' | 'headDepth' | 'headTs'>
   ops: DocumentOperation[]
   /** Writer capability CID, when the signer writes into another account's space. */
   capability?: string
-  /** The lowest generation the Ref may take; the Ref's generation is otherwise this machine's clock. */
+  /** The lowest generation the Ref may take; the Ref's generation is otherwise the Change's timestamp. */
   currentGeneration?: number | bigint | string
+  /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
+  visibility?: number
+  /** This machine's clock in milliseconds. Defaults to `Date.now`. */
+  now?: () => number
 }
 
 /**
  * Builds the blobs for the next version of an existing document without the daemon: the Change
- * holds `ops` exactly as given, stamped with this machine's clock, on top of `state.heads`.
+ * holds `ops` exactly as given, on top of `state.heads`.
+ *
+ * Its timestamp is this machine's clock, or one millisecond after the latest head
+ * (`state.headTs`) when the clock is not past it. A Change must be later than the Changes it
+ * builds on: the daemon stores one that is not and then reads the document as broken ("missing
+ * dependency"). The heads often carry another machine's clock (a prepared Change carries the
+ * site's), so a clock a second behind is enough to hit that.
  *
  * Nothing is compared with the document, so an op that changes nothing is stored too. Use it for
  * the updates {@link prepareDocumentUpdateBlobs} cannot make: ops that are unpreparable
  * ({@link UnpreparableDocumentUpdateError}), attribute values the request cannot carry, or a
- * request the site refuses as too large. Returns the same shape as a prepared update that changed
- * the document; nothing is published.
+ * request the site refuses. Returns the same shape as a prepared update that changed the
+ * document; nothing is published.
  */
 export async function clientBuiltDocumentUpdateBlobs(
   input: ClientBuiltDocumentUpdateInput,
 ): Promise<Extract<PrepareDocumentUpdateResult, {changed: true}>> {
+  const now = Math.floor((input.now ?? Date.now)())
+  const headTs = input.state.headTs
+  const depth = input.state.headDepth + 1
   const {unsignedBytes, ts} = createChangeOps({
     ops: input.ops,
     genesisCid: CID.parse(input.state.genesis),
     deps: input.state.heads.map((head) => CID.parse(head)),
-    depth: input.state.headDepth + 1,
+    depth,
+    ts: BigInt(headTs !== undefined && Number.isFinite(headTs) && headTs >= now ? headTs + 1 : now),
   })
   const change = await createChange(unsignedBytes, input.signer)
   const floor = input.currentGeneration == null ? NaN : Number(input.currentGeneration)
@@ -644,6 +762,7 @@ export async function clientBuiltDocumentUpdateBlobs(
       version,
       generation,
       capability: input.capability,
+      visibility: visibilityToCbor(input.visibility),
     },
     input.signer,
   )
@@ -656,5 +775,442 @@ export async function clientBuiltDocumentUpdateBlobs(
     version,
     genesis: input.state.genesis,
     generation,
+    ts: Number(ts),
+    depth,
+  }
+}
+
+/** How long {@link documentUpdateBlobs} waits for `PrepareDocumentChange` before building the Change itself. */
+export const DEFAULT_PREPARE_TIMEOUT_MS = 15_000
+
+/**
+ * The largest prepared Change {@link documentUpdateBlobs} signs. A stored block may be 2 MB and a
+ * publish request 4 MB; a daemon that repeats moves has been seen to answer a one-block insert
+ * with 2 to 23 MB.
+ */
+export const DEFAULT_MAX_PREPARED_CHANGE_BYTES = 1024 * 1024
+
+/** The most Changes of a document's history {@link documentUpdateBlobs} reads to check its moves. */
+export const DEFAULT_MAX_MOVE_HISTORY_CHANGES = 500
+
+/** What to update, for {@link documentUpdateBlobs}. */
+export type DocumentUpdateBlobsInput = {
+  /** Any client that reaches a Seed API (`PrepareDocumentChange`, `GetCID`). */
+  client: Pick<SeedClient, 'request'>
+  /** Signs the Change and the Ref. The daemon never sees the key. */
+  signer: AnySigner
+  /** Account (space) of the address being written. */
+  account: string
+  /** Path of the address being written, in API form (`/notes/first`); `''` or omitted for the home document. */
+  path?: string
+  /**
+   * The change history to build on (`resolveEditableDocument().state`). For an address that holds
+   * a redirect this is the redirect target's state: the Change continues the target's history
+   * and the Ref lands at `path`.
+   */
+  state: DocumentState
+  /** Native ops to apply, computed against `content`. */
+  ops: DocumentOperation[]
+  /** The content of the document the ops were computed against (`document.content`). */
+  content: DocumentContent
+  /**
+   * The version `content` was read at (`document.version`). When it does not name the heads of
+   * `state`, the content is stale, so nothing is asked of the daemon and the Change is built here.
+   */
+  documentVersion?: string
+  /**
+   * The ops to store when the Change is built here, if they should differ from `ops`. A caller
+   * that keeps part of an update out of `ops` because the daemon cannot carry it puts the whole
+   * update here, so a Change built here needs no second Change on top. Used only when `ops` is
+   * not empty and the daemon's Change is not used.
+   */
+  localOps?: DocumentOperation[]
+  /** Writer capability CID, when the signer writes into another account's space. */
+  capability?: string
+  /**
+   * The lowest generation the new Ref may take: for an ordinary update the generation the path
+   * holds now (`document.generationInfo.generation`), for a redirect takeover the current time.
+   */
+  currentGeneration?: number | bigint | string
+  /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
+  visibility?: number
+  /** This machine's clock in milliseconds, for a Change built here. Defaults to `Date.now`. */
+  now?: () => number
+  /** How long to wait for the daemon's answer. Defaults to {@link DEFAULT_PREPARE_TIMEOUT_MS}. */
+  prepareTimeoutMs?: number
+  /** The largest prepared Change to sign. Defaults to {@link DEFAULT_MAX_PREPARED_CHANGE_BYTES}. */
+  maxPreparedChangeBytes?: number
+  /**
+   * Whether to read the document's history before a request that moves or deletes blocks, and
+   * build the Change here when a block was ever put inside one of its own descendants. Daemons
+   * deployed in 2026 never answer such a request and keep a CPU busy for good, so this is on by
+   * default. It costs one `GetCID` per Change of the history the first time a document is updated
+   * by this process (they are remembered). Turn it off only for daemons known to be fixed.
+   */
+  checkMoveHistory?: boolean
+  /** The most Changes to read for that check; a longer history is built here. Defaults to {@link DEFAULT_MAX_MOVE_HISTORY_CHANGES}. */
+  maxMoveHistoryChanges?: number
+}
+
+/** The outcome of {@link documentUpdateBlobs}. */
+export type DocumentUpdateBlobsResult =
+  | (Extract<PrepareDocumentUpdateResult, {changed: true}> & {
+      /** Who computed the Change: the server (only what differs is stored), or this process (the ops as written). */
+      builtBy: 'server' | 'local'
+      /** Why the Change was built here, in words fit to show after "built locally because". */
+      localReason?: string
+    })
+  | Extract<PrepareDocumentUpdateResult, {changed: false}>
+
+/**
+ * Builds the blobs for the next version of an existing document: the one way an update should be
+ * made. Nothing is published; the caller publishes `blobs`.
+ *
+ * The daemon is asked for the Change (`PrepareDocumentChange`), so that only what differs from
+ * the document is stored, and `{changed: false}` comes back when nothing differs. The Change is
+ * built here instead (`builtBy: 'local'`, with `localReason`), holding the ops as written, when:
+ *
+ * - `content` is not the content at the heads (`documentVersion` differs from `state.version`);
+ * - the ops cannot be put in a request the daemon applies correctly
+ *   ({@link preparableDocumentChanges}), or hold an attribute value the request cannot carry;
+ * - the request moves or deletes blocks and the document's history shows a block put inside one
+ *   of its own descendants, cannot be read, or is too long to read (`checkMoveHistory`);
+ * - the daemon does not answer within `prepareTimeoutMs` (the document is then built here for
+ *   the next ten minutes without asking again);
+ * - the site refuses the request as too large (413) or does not know `PrepareDocumentChange`;
+ * - the daemon fails to apply the changes (a 5xx such as "is not in the tree" or "cycle
+ *   detected"), or its clock is not past the document's latest Change ("must be greater than ts
+ *   of its dependency");
+ * - the Change it answers with is not plausible for the request: it moves, replaces or deletes
+ *   blocks the request did not name, places more blocks than the request did, or is larger than
+ *   `maxPreparedChangeBytes`.
+ *
+ * Falling back is safe because `PrepareDocumentChange` only reads: the daemon loads the document,
+ * applies the changes in memory and returns unsigned bytes (`PrepareChange` in
+ * `backend/api/documents/v3alpha/documents.go` stores nothing). Whatever happened to that request,
+ * nothing was published, so building the Change here cannot publish the update twice.
+ *
+ * Errors that are the caller's to see are thrown as they are: a refusal for lack of permission, a
+ * 4xx about the request itself, and a network failure (the site that could not be reached for
+ * this would not take the publish either).
+ */
+export async function documentUpdateBlobs(input: DocumentUpdateBlobsInput): Promise<DocumentUpdateBlobsResult> {
+  const {state} = input
+  const unchanged: DocumentUpdateBlobsResult = {changed: false, blobs: [], version: state.version}
+  if (!input.ops.length) return unchanged
+
+  const local = async (localReason: string): Promise<DocumentUpdateBlobsResult> => {
+    const built = await clientBuiltDocumentUpdateBlobs({
+      signer: input.signer,
+      account: input.account,
+      path: input.path,
+      state: {...state, headTs: state.headTs ?? (await headTimestamp(input.client, state.heads))},
+      ops: parentsFirst(input.localOps ?? input.ops),
+      capability: input.capability,
+      currentGeneration: input.currentGeneration,
+      visibility: input.visibility,
+      now: input.now,
+    })
+    return {...built, builtBy: 'local', localReason}
+  }
+
+  if (input.documentVersion !== undefined && !sameDocumentVersion(input.documentVersion, state.version)) {
+    return local('the document changed while it was being read')
+  }
+
+  let changes: DocumentChanges
+  try {
+    const preparable = preparableDocumentChanges(input.ops, input.content)
+    if ('unpreparable' in preparable) return local(`the server cannot place the blocks (${preparable.unpreparable})`)
+    changes = preparable.changes
+  } catch (error) {
+    // A value the request cannot carry (a fraction, a list, a key with a dot).
+    return local(`the server cannot be sent this update (${errorText(error)})`)
+  }
+  if (!changes.length) return unchanged
+
+  const documentKey = `${input.account}${input.path ?? ''}`
+  const silentUntil = unansweredDocuments.get(documentKey)
+  if (silentUntil !== undefined) {
+    if (silentUntil > Date.now()) return local('the server did not answer an earlier request for this document')
+    unansweredDocuments.delete(documentKey)
+  }
+
+  const movesBlocks = changes.some(({op}) => op.case === 'moveBlock' || op.case === 'deleteBlock')
+  if (movesBlocks && input.checkMoveHistory !== false) {
+    const hazard = await moveHistoryHazard(
+      input.client,
+      state.changeIds,
+      changes,
+      input.maxMoveHistoryChanges ?? DEFAULT_MAX_MOVE_HISTORY_CHANGES,
+    )
+    if (hazard) return local(hazard)
+  }
+
+  const timeoutMs = input.prepareTimeoutMs ?? DEFAULT_PREPARE_TIMEOUT_MS
+  const abort = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timedOut = Symbol('timed out')
+  let unsignedChange: Uint8Array
+  try {
+    const request = input.client.request(
+      'PrepareDocumentChange',
+      {
+        account: input.account,
+        path: input.path ?? '',
+        baseVersion: state.version,
+        changes,
+        capability: input.capability,
+        visibility: input.visibility,
+      },
+      {signal: abort.signal},
+    )
+    // The request is aborted, and also raced: a client whose fetch ignores the signal still ends here.
+    request.catch(() => {})
+    const answer = await Promise.race([
+      request,
+      new Promise<typeof timedOut>((resolve) => {
+        timer = setTimeout(() => {
+          abort.abort()
+          resolve(timedOut)
+        }, timeoutMs)
+      }),
+    ])
+    if (answer === timedOut) {
+      unansweredDocuments.set(documentKey, Date.now() + UNANSWERED_DOCUMENT_MS)
+      return local(`the server did not answer within ${Math.round(timeoutMs / 100) / 10} s`)
+    }
+    unsignedChange = answer.unsignedChange
+  } catch (error) {
+    const refusal = prepareRefusal(error)
+    if (refusal === null) throw error
+    return local(refusal)
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (isEmptyPreparedChange(unsignedChange)) return unchanged
+  const implausible = implausiblePreparedChange(
+    unsignedChange,
+    changes,
+    input.maxPreparedChangeBytes ?? DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+  )
+  if (implausible) return local(`the server's change is not what was asked for (${implausible})`)
+
+  const signed = await signPreparedChange({...input, genesis: state.genesis}, unsignedChange)
+  return {...signed, builtBy: 'server'}
+}
+
+/**
+ * `ops` with each `MoveBlocks` after the `MoveBlocks` that places its parent.
+ *
+ * A diff lists a level after the levels inside it. Stored that way, a parent and child that swap
+ * places do not swap: the old parent is put under its old child while that child is still inside
+ * it, a loop every reader ignores, and the old parent stays where it was. Parents first, each
+ * block is placed under a parent that is already where it will be. Only the `MoveBlocks` ops
+ * trade places among themselves, and only when one is out of order; everything else stays put.
+ */
+function parentsFirst(ops: DocumentOperation[]): DocumentOperation[] {
+  const slots: number[] = []
+  const placedBy = new Map<string, number>()
+  ops.forEach((op, index) => {
+    if (op.type !== 'MoveBlocks') return
+    slots.push(index)
+    for (const block of op.blocks) if (!placedBy.has(block)) placedBy.set(block, index)
+  })
+  const ordered: number[] = []
+  const visiting = new Set<number>()
+  const visit = (index: number) => {
+    if (ordered.includes(index) || visiting.has(index)) return
+    visiting.add(index)
+    const parent = (ops[index] as Extract<DocumentOperation, {type: 'MoveBlocks'}>).parent ?? ''
+    const before = parent ? placedBy.get(parent) : undefined
+    if (before !== undefined) visit(before)
+    visiting.delete(index)
+    ordered.push(index)
+  }
+  slots.forEach(visit)
+  if (ordered.every((index, position) => index === slots[position])) return ops
+  const out = [...ops]
+  slots.forEach((slot, position) => {
+    out[slot] = ops[ordered[position]!]!
+  })
+  return out
+}
+
+/** Documents (`account` + `path`) whose prepare request went unanswered, and until when not to ask again. */
+const unansweredDocuments = new Map<string, number>()
+const UNANSWERED_DOCUMENT_MS = 10 * 60_000
+
+/**
+ * Why a failed `PrepareDocumentChange` can be answered by building the Change here, or null when
+ * the error is the caller's to see.
+ *
+ * A site answers every daemon error with HTTP 500 and the daemon's message, which starts with the
+ * gRPC code in brackets. Errors from applying the changes carry no code of their own
+ * (`[unknown]`); refusals about who is asking or what was asked carry one, and are not retried
+ * another way.
+ */
+function prepareRefusal(error: unknown): string | null {
+  if (!(error instanceof SeedClientError)) return null
+  const text = `${error.message} ${error.body ?? ''}`
+  if (error.status === 413) return 'the server refused the request as too large (HTTP 413)'
+  if (error.status === 404 && /Unknown action key/i.test(text)) return 'the server has no PrepareDocumentChange'
+  if (error.status < 500) return null
+  if (/must be greater than ts of its dependency/.test(text)) {
+    return "the server's clock is not past the time of the document's latest change"
+  }
+  if (
+    /\[(permission_denied|unauthenticated|invalid_argument|not_found|failed_precondition|already_exists|unimplemented|out_of_range)\]/.test(
+      text,
+    ) ||
+    /permission|not allowed|unauthori[sz]ed|forbidden/i.test(text)
+  ) {
+    return null
+  }
+  const said = /"error"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(error.body ?? '')?.[1] ?? error.message
+  return `the server could not prepare it (HTTP ${error.status}: ${said.slice(0, 200)})`
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Why an unsigned Change from the daemon is not a plausible answer to `changes`, or null when it is.
+ *
+ * The daemon writes a subset of what was asked: a block already in place is not moved, a block
+ * already holding the content is not replaced. So a prepared Change never places more blocks than
+ * the request has `moveBlock` changes, and never moves, replaces or deletes a block the request
+ * did not name. (It stores one `MoveBlocks` per run of neighbours, so the count is of blocks
+ * placed, not of ops.) A daemon that repeats moves (seen in 2026: every move once per stale entry
+ * of each ancestor, compounding with depth) breaks the first rule and is caught here, before
+ * anything is signed.
+ */
+export function implausiblePreparedChange(
+  unsignedChange: Uint8Array,
+  changes: DocumentChanges,
+  maxBytes: number = DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+): string | null {
+  if (unsignedChange.byteLength > maxBytes) {
+    return `it is ${unsignedChange.byteLength} bytes, over the ${maxBytes} this client signs`
+  }
+  const moved = new Map<string, number>()
+  const replaced = new Set<string>()
+  const deleted = new Set<string>()
+  let moves = 0
+  for (const {op} of changes) {
+    if (op.case === 'moveBlock') {
+      moved.set(op.value.blockId, (moved.get(op.value.blockId) ?? 0) + 1)
+      moves++
+    } else if (op.case === 'replaceBlock') {
+      replaced.add(String((op.value as {id?: unknown}).id))
+    } else if (op.case === 'deleteBlock') {
+      deleted.add(op.value)
+    }
+  }
+  const ops = (cborDecode(unsignedChange) as {body?: {ops?: unknown} | null}).body?.ops
+  const placedTimes = new Map<string, number>()
+  let placed = 0
+  let replaces = 0
+  for (const op of Array.isArray(ops) ? (ops as Array<Record<string, unknown>>) : []) {
+    const blocks = Array.isArray(op.blocks) ? (op.blocks as unknown[]) : []
+    if (op.type === 'MoveBlocks') {
+      for (const block of blocks) {
+        const id = String(block)
+        const wanted = moved.get(id)
+        if (wanted === undefined) return `it moves block ${id}, which the request does not`
+        const times = (placedTimes.get(id) ?? 0) + 1
+        if (times > wanted)
+          return `it places block ${id} ${times} times, the request ${wanted === 1 ? 'once' : `${wanted} times`}`
+        placedTimes.set(id, times)
+      }
+      placed += blocks.length
+    } else if (op.type === 'DeleteBlocks') {
+      for (const block of blocks) {
+        if (!deleted.has(String(block))) return `it deletes block ${String(block)}, which the request does not`
+      }
+    } else if (op.type === 'ReplaceBlock') {
+      const id = String((op.block as {id?: unknown} | undefined)?.id)
+      if (!replaced.has(id)) return `it replaces block ${id}, which the request does not`
+      replaces++
+    }
+  }
+  if (placed > moves) return `it places blocks ${placed} times for ${moves} requested`
+  if (replaces > replaced.size) return `it replaces blocks ${replaces} times for ${replaced.size} requested`
+  return null
+}
+
+/** `[parent, child]` for every block placement of each Change already read, by Change CID. */
+const moveHistoryCache = new Map<string, Array<[string, string]>>()
+const MOVE_HISTORY_CACHE_SIZE = 20_000
+
+/**
+ * Why a request that moves or deletes blocks must not be sent for this document, or null when it
+ * can be.
+ *
+ * Reads the Changes of the document's history (`GetCID`, eight at a time, remembered by CID) and
+ * collects every place a block was ever put. The request is refused when those, together with the
+ * request's own moves, hold a loop: see {@link blockInLoop}. A history that cannot be read is a
+ * reason too, because the answer to a wrong guess is a daemon that never answers.
+ */
+async function moveHistoryHazard(
+  client: Pick<SeedClient, 'request'>,
+  changeIds: string[] | undefined,
+  changes: DocumentChanges,
+  maxChanges: number,
+): Promise<string | null> {
+  if (!changeIds) return "the document's history is not known, so its moves cannot be checked"
+  const unread = changeIds.filter((cid) => !moveHistoryCache.has(cid))
+  if (unread.length > maxChanges) {
+    return `the document's history is ${changeIds.length} changes long, too long to check its moves`
+  }
+  try {
+    let next = 0
+    const worker = async () => {
+      while (next < unread.length) {
+        const cid = unread[next++]!
+        const {value} = await client.request('GetCID', {cid})
+        // An answer without the Change in it says nothing about its moves.
+        if (!value || typeof value !== 'object') throw new Error(`the site did not return change ${cid}`)
+        const ops = (value as {body?: {ops?: unknown} | null}).body?.ops
+        const edges: Array<[string, string]> = []
+        for (const op of Array.isArray(ops) ? (ops as Array<Record<string, unknown>>) : []) {
+          if (op.type !== 'MoveBlocks' || !Array.isArray(op.blocks)) continue
+          const parent = typeof op.parent === 'string' ? op.parent : ''
+          for (const block of op.blocks) edges.push([parent, String(block)])
+        }
+        if (moveHistoryCache.size >= MOVE_HISTORY_CACHE_SIZE) moveHistoryCache.clear()
+        moveHistoryCache.set(cid, edges)
+      }
+    }
+    await Promise.all(Array.from({length: Math.min(8, unread.length)}, worker))
+  } catch (error) {
+    return `the document's history could not be read to check its moves (${errorText(error).slice(0, 200)})`
+  }
+  const edges: Array<[string, string]> = []
+  for (const cid of changeIds) edges.push(...(moveHistoryCache.get(cid) ?? []))
+  for (const {op} of changes) {
+    if (op.case === 'moveBlock') edges.push([op.value.parent ?? '', op.value.blockId])
+  }
+  const loop = blockInLoop(edges)
+  return loop === null
+    ? null
+    : `block ${loop} was once inside a block that is now inside it, which this server cannot prepare a move for`
+}
+
+/** The latest timestamp among the head Changes, read from the Changes themselves; undefined when they cannot be read. */
+async function headTimestamp(client: Pick<SeedClient, 'request'>, heads: string[]): Promise<number | undefined> {
+  try {
+    let latest = 0
+    for (const cid of heads) {
+      const {value} = await client.request('GetCID', {cid})
+      const ts = Number((value as {ts?: unknown} | undefined)?.ts)
+      if (!Number.isFinite(ts)) return undefined
+      latest = Math.max(latest, ts)
+    }
+    return latest
+  } catch {
+    return undefined
   }
 }
