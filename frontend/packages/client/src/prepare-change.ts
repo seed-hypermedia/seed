@@ -13,20 +13,27 @@
  *
  * This module is the seam for updating an EXISTING document that way:
  *
- * 1. {@link documentOperationsToChanges} turns native ops into the request's `changes`.
+ * 1. {@link preparableDocumentChanges} turns native ops into the request's `changes`, in the form
+ *    the daemon applies correctly, or says that it cannot ({@link documentOperationsToChanges} is
+ *    the plain conversion underneath, which is NOT safe to send for a document that has content).
  * 2. {@link prepareDocumentUpdateBlobs} asks the daemon for the unsigned Change, signs it and
  *    returns the Change and Ref blobs without publishing them, so a caller can publish them
  *    together with file blobs, tombstones or another document's blobs.
+ * 3. {@link clientBuiltDocumentUpdateBlobs} is the way out for an update the daemon cannot be
+ *    asked for: the Change built here, stored as written.
  *
  * Creating a document (and the home document's genesis) stays with `createDocumentBlobs` and
  * `createChangeOps`: a first Change has no earlier state to be redundant against.
  */
 
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {signDocumentChange, type DocumentOperation} from './change'
+import {CID} from 'multiformats/cid'
+import {createChange, createChangeOps, signDocumentChange, type DocumentOperation} from './change'
 import type {SeedClient} from './client'
+import type {DocumentState} from './document-state'
 import type {CollectedBlob} from './file-to-ipfs'
 import type {HMPrepareDocumentChangeInput} from './hm-types'
+import {createVersionRef} from './ref'
 import type {AnySigner} from './signer'
 
 /** The `changes` of a `PrepareDocumentChange` request. */
@@ -74,6 +81,10 @@ const ANNOTATION_FIELDS = new Set(['type', 'link', 'starts', 'ends', 'attributes
  *
  * To place a block anywhere but the start of a level, write the `moveBlock` change yourself: it
  * names the left sibling, which a native `MoveBlocks` cannot.
+ *
+ * This is the plain conversion. Its moves are NOT safe to send for a document that already has
+ * blocks: the daemon misplaces blocks when a level is re-listed. Use
+ * {@link preparableDocumentChanges} for an update.
  */
 export function documentOperationsToChanges(ops: DocumentOperation[]): DocumentChanges {
   const changes: DocumentChanges = []
@@ -111,67 +122,6 @@ export function documentOperationsToChanges(ops: DocumentOperation[]): DocumentC
   return changes
 }
 
-/**
- * Leaves out the `moveBlock` changes that only re-place the leading blocks of a level where the
- * document already has them.
- *
- * Ops that re-list a whole level (`MoveBlocks` with every block of it, as a diff of two trees
- * produces) start with "first block at the start", which is usually already true. The daemon drops
- * most moves that change nothing, but not that one cleanly: it treats a first block moved to the
- * start as moved, discards the move only when it writes the Change, and then anchors the block
- * that follows on nothing. A block inserted or moved to right after an unchanged first block
- * lands BEFORE it (seen on a real daemon, 2026-11-16: `[A, B]` plus a new block after `A` read
- * back as `[new, A, B]`). Sites run the daemon they run, so the request must not contain that move.
- *
- * `content` is the document the changes were computed against. For each parent, the moves that
- * form an unbroken chain from the start (`leftSibling: ''`, then each block after the one before)
- * and match the document's own order are removed; the chain ends at the first move that differs,
- * and everything from there on is kept, anchored on a block this request does not move. A parent
- * that an earlier kept move already placed something under is left alone.
- */
-export function withoutLeadingMovesInPlace(
-  changes: DocumentChanges,
-  content: Array<{block: {id: string}; children?: unknown}> | undefined | null,
-): DocumentChanges {
-  const placed = new Map<string, {parent: string; left: string}>()
-  const walk = (nodes: unknown, parent: string) => {
-    if (!Array.isArray(nodes)) return
-    let left = ''
-    for (const node of nodes as Array<{block?: {id?: unknown}; children?: unknown}>) {
-      const id = node?.block?.id
-      if (typeof id !== 'string' || !id) continue
-      placed.set(id, {parent, left})
-      left = id
-      walk(node.children, id)
-    }
-  }
-  walk(content, '')
-  if (!placed.size) return changes
-
-  const out: DocumentChanges = []
-  /** Parents a kept move has placed a block under: nothing more is removed there. */
-  const touched = new Set<string>()
-  /** The chain of removed moves being followed: its parent and the last block removed. */
-  let chain: {parent: string; last: string} | null = null
-  for (const change of changes) {
-    if (change.op.case !== 'moveBlock') {
-      out.push(change)
-      continue
-    }
-    const {blockId, parent = '', leftSibling = ''} = change.op.value
-    const continues = leftSibling === '' || (chain !== null && chain.parent === parent && chain.last === leftSibling)
-    const was = placed.get(blockId)
-    if (continues && !touched.has(parent) && was && was.parent === parent && was.left === leftSibling) {
-      chain = {parent, last: blockId}
-      continue
-    }
-    chain = null
-    touched.add(parent)
-    out.push(change)
-  }
-  return out
-}
-
 function attributeChange(key: string[], value: unknown): DocumentChangeInput {
   const name = Array.isArray(key) ? key.join('.') : String(key)
   if (!Array.isArray(key) || key.length === 0) throw new Error('SetAttributes: an attribute needs a key')
@@ -203,6 +153,150 @@ function attributeChange(key: string[], value: unknown): DocumentChangeInput {
       Array.isArray(value) ? 'list' : typeof value
     } value; a document attribute is a string, a whole number, a boolean or null`,
   )
+}
+
+/** A document's block tree (`document.content`), as far as placing blocks needs it. */
+export type DocumentContent = Array<{block: {id: string}; children?: unknown}> | undefined | null
+
+/**
+ * Thrown by {@link prepareDocumentUpdateBlobs} for ops that {@link preparableDocumentChanges}
+ * cannot turn into a request the daemon applies correctly. Build that update with
+ * {@link clientBuiltDocumentUpdateBlobs} instead.
+ */
+export class UnpreparableDocumentUpdateError extends Error {
+  constructor(readonly reason: string) {
+    super(`This update cannot be prepared by the server: ${reason}`)
+    this.name = 'UnpreparableDocumentUpdateError'
+  }
+}
+
+/**
+ * The `changes` to send to `PrepareDocumentChange` for `ops`, or why they cannot be sent.
+ *
+ * This is the one conversion to use for an update of a document that has content. `content` is the
+ * content of the document the ops were computed against (the one `baseVersion` names).
+ *
+ * Replaces, deletes and attributes go as {@link documentOperationsToChanges} writes them. Moves do
+ * not. A `MoveBlocks` from a diff lists a whole level, which as a request is "first block at the
+ * start, each next block after the one before". The daemon (as seen on a real one, 2026-11-16)
+ * gets that wrong in two ways:
+ *
+ * - a first block "moved" to where it already is makes the block after it land before it:
+ *   `[a, b]` plus a new block after `a` reads back as `[new, a, b]`;
+ * - a block whose move leaves it behind the same block as before is not written, even when that
+ *   block itself moved: `[a, b, c, d]` to `[a, c, d, b]` sent as a chain stores only the move of
+ *   `c` and reads back `[a, c, b, d]`.
+ *
+ * So each level is sent as the fewest moves that produce it: the longest run of blocks already in
+ * the right order relative to each other stays put and is not mentioned, and every other block is
+ * placed after the block that precedes it in the result. No block in place is ever sent, which
+ * covers the first case. The second cannot be said to the daemon at all when a block that has to
+ * move keeps its left neighbour (`[a, b, c, d]` to `[c, d, a, b]`: whichever pair moves, its
+ * second block follows its first as before). Such an update is `unpreparable`: build it with
+ * {@link clientBuiltDocumentUpdateBlobs}, where the level is stored as listed.
+ *
+ * A native `MoveBlocks` puts its blocks at the start of the level, in order, ahead of the blocks it
+ * does not list; that is the result computed here when a list is not the whole level. Ops that
+ * order the same level twice, or place a block twice, are unpreparable too.
+ */
+export function preparableDocumentChanges(
+  ops: DocumentOperation[],
+  content: DocumentContent,
+): {changes: DocumentChanges} | {unpreparable: string} {
+  const parentOf = new Map<string, string>()
+  const leftOf = new Map<string, string>()
+  const childrenOf = new Map<string, string[]>()
+  const walk = (nodes: unknown, parent: string) => {
+    if (!Array.isArray(nodes)) return
+    const ids: string[] = []
+    for (const node of nodes as Array<{block?: {id?: unknown}; children?: unknown}>) {
+      const id = node?.block?.id
+      if (typeof id !== 'string' || !id) continue
+      parentOf.set(id, parent)
+      leftOf.set(id, ids[ids.length - 1] ?? '')
+      ids.push(id)
+      walk(node.children, id)
+    }
+    childrenOf.set(parent, ids)
+  }
+  walk(content, '')
+
+  const deleted = new Set<string>()
+  /** Where each listed block is headed: the parent of the MoveBlocks that lists it. */
+  const destination = new Map<string, string>()
+  const orderedParents = new Set<string>()
+  for (const op of ops) {
+    if (op.type === 'DeleteBlocks') for (const id of op.blocks) deleted.add(id)
+    if (op.type === 'MoveBlocks') {
+      const parent = op.parent ?? ''
+      if (orderedParents.has(parent)) {
+        return {unpreparable: `the update orders the blocks under ${parent ? `block ${parent}` : 'the root'} twice`}
+      }
+      orderedParents.add(parent)
+      for (const id of op.blocks) {
+        if (destination.has(id)) return {unpreparable: `the update places block ${id} twice`}
+        destination.set(id, parent)
+      }
+    }
+  }
+
+  const changes: DocumentChanges = []
+  for (const op of ops) {
+    if (op.type !== 'MoveBlocks') {
+      changes.push(...documentOperationsToChanges([op]))
+      continue
+    }
+    const parent = op.parent ?? ''
+    for (const blockId of op.blocks) {
+      if (typeof blockId !== 'string' || !blockId) throw new Error('MoveBlocks: every block needs an id')
+    }
+    const before = childrenOf.get(parent) ?? []
+    // The level as it will read: the listed blocks, then the ones that stay behind them.
+    const level = [...op.blocks, ...before.filter((id) => !deleted.has(id) && !destination.has(id))]
+    // Blocks that were already under this parent, by their old position; the longest run of them
+    // in rising order stays where it is.
+    const settled = longestRisingRun(level.map((id) => (parentOf.get(id) === parent ? before.indexOf(id) : -1)))
+    for (let index = 0; index < level.length; index++) {
+      if (settled.has(index)) continue
+      const blockId = level[index]!
+      const leftSibling = index > 0 ? level[index - 1]! : ''
+      if (parentOf.get(blockId) === parent) {
+        // What the block followed before: its left neighbour, or the nearest one not deleted.
+        let was = leftOf.get(blockId) ?? ''
+        const followed = new Set([was])
+        while (was && deleted.has(was)) {
+          was = leftOf.get(was) ?? ''
+          followed.add(was)
+        }
+        if (followed.has(leftSibling)) {
+          return {unpreparable: `block ${blockId} moves together with the block before it`}
+        }
+      }
+      changes.push({op: {case: 'moveBlock', value: {blockId, parent, leftSibling}}})
+    }
+  }
+  return {changes}
+}
+
+/** Indexes of the longest strictly rising run of the non-negative values in `values`. */
+function longestRisingRun(values: number[]): Set<number> {
+  const best: number[] = new Array(values.length).fill(0)
+  const previous: number[] = new Array(values.length).fill(-1)
+  let end = -1
+  for (let i = 0; i < values.length; i++) {
+    if (values[i]! < 0) continue
+    best[i] = 1
+    for (let j = 0; j < i; j++) {
+      if (values[j]! >= 0 && values[j]! < values[i]! && best[j]! + 1 > best[i]!) {
+        best[i] = best[j]! + 1
+        previous[i] = j
+      }
+    }
+    if (end < 0 || best[i]! > best[end]!) end = i
+  }
+  const run = new Set<number>()
+  for (let i = end; i >= 0; i = previous[i]!) run.add(i)
+  return run
 }
 
 /**
@@ -375,8 +469,17 @@ export type PrepareDocumentUpdateInput = {
   path?: string
   /** The version to build on: the document's current heads joined with `.`. */
   baseVersion: string
-  /** Native ops to apply; converted with {@link documentOperationsToChanges}. Give this or `changes`. */
+  /**
+   * Native ops to apply; converted with {@link preparableDocumentChanges}, which needs `content`.
+   * Give this or `changes`. Ops the daemon cannot be asked for throw
+   * {@link UnpreparableDocumentUpdateError}.
+   */
   ops?: DocumentOperation[]
+  /**
+   * With `ops`: the content of the document at `baseVersion` (`document.content`), which the ops
+   * were computed against. Required when the ops move blocks; `[]` for a document with no blocks.
+   */
+  content?: DocumentContent
   /** Changes already in the request's form, for what native ops cannot say (a `moveBlock` with a left sibling). */
   changes?: DocumentChanges
   /** Writer capability CID, when the signer writes into another account's space. */
@@ -441,7 +544,7 @@ export async function prepareDocumentUpdateBlobs(
   if (!input.baseVersion) {
     throw new Error('baseVersion is required: prepareDocumentUpdateBlobs updates an existing document')
   }
-  const changes = input.changes ?? documentOperationsToChanges(input.ops ?? [])
+  const changes = input.changes ?? changesForOps(input.ops ?? [], input.content)
   const unchanged: PrepareDocumentUpdateResult = {changed: false, blobs: [], version: input.baseVersion}
   if (!changes.length) return unchanged
 
@@ -480,5 +583,78 @@ export async function prepareDocumentUpdateBlobs(
     version: signed.changeCid.toString(),
     genesis: signed.genesis,
     generation: signed.generation,
+  }
+}
+
+function changesForOps(ops: DocumentOperation[], content: DocumentContent): DocumentChanges {
+  if (content === undefined && ops.some((op) => op.type === 'MoveBlocks')) {
+    throw new Error(
+      'content is required with ops that move blocks: pass the content of the document the ops were computed against',
+    )
+  }
+  const prepared = preparableDocumentChanges(ops, content)
+  if ('unpreparable' in prepared) throw new UnpreparableDocumentUpdateError(prepared.unpreparable)
+  return prepared.changes
+}
+
+/** What to update, for {@link clientBuiltDocumentUpdateBlobs}. */
+export type ClientBuiltDocumentUpdateInput = {
+  signer: AnySigner
+  /** Account (space) the document lives in. */
+  account: string
+  /** Document path in API form (`/notes/first`); `''` or omitted for the home document. */
+  path?: string
+  /** The change history to build on (`resolveDocumentState`, or `resolveEditableDocument().state`). */
+  state: Pick<DocumentState, 'genesis' | 'heads' | 'headDepth'>
+  ops: DocumentOperation[]
+  /** Writer capability CID, when the signer writes into another account's space. */
+  capability?: string
+  /** The lowest generation the Ref may take; the Ref's generation is otherwise this machine's clock. */
+  currentGeneration?: number | bigint | string
+}
+
+/**
+ * Builds the blobs for the next version of an existing document without the daemon: the Change
+ * holds `ops` exactly as given, stamped with this machine's clock, on top of `state.heads`.
+ *
+ * Nothing is compared with the document, so an op that changes nothing is stored too. Use it for
+ * the updates {@link prepareDocumentUpdateBlobs} cannot make: ops that are unpreparable
+ * ({@link UnpreparableDocumentUpdateError}), attribute values the request cannot carry, or a
+ * request the site refuses as too large. Returns the same shape as a prepared update that changed
+ * the document; nothing is published.
+ */
+export async function clientBuiltDocumentUpdateBlobs(
+  input: ClientBuiltDocumentUpdateInput,
+): Promise<Extract<PrepareDocumentUpdateResult, {changed: true}>> {
+  const {unsignedBytes, ts} = createChangeOps({
+    ops: input.ops,
+    genesisCid: CID.parse(input.state.genesis),
+    deps: input.state.heads.map((head) => CID.parse(head)),
+    depth: input.state.headDepth + 1,
+  })
+  const change = await createChange(unsignedBytes, input.signer)
+  const floor = input.currentGeneration == null ? NaN : Number(input.currentGeneration)
+  const generation = Number.isFinite(floor) && floor > Number(ts) ? floor : Number(ts)
+  const version = change.cid.toString()
+  const ref = await createVersionRef(
+    {
+      space: input.account,
+      path: input.path ?? '',
+      genesis: input.state.genesis,
+      version,
+      generation,
+      capability: input.capability,
+    },
+    input.signer,
+  )
+  return {
+    changed: true,
+    blobs: [
+      {data: new Uint8Array(change.bytes), cid: version},
+      ...ref.blobs.map((blob) => ({data: blob.data, cid: blob.cid!})),
+    ],
+    version,
+    genesis: input.state.genesis,
+    generation,
   }
 }

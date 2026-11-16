@@ -24,6 +24,12 @@ import {generateTestAccount, type TestAccount} from '../frontend/apps/cli/src/te
 import {createSignerFromKey} from '../frontend/apps/cli/src/utils/signer'
 import {createDocumentUpdateBlobs} from '../frontend/packages/client/src/apps'
 import {
+  computeReplaceOps,
+  createBlocksMap,
+  hmBlockNodeToBlockNode,
+  toAPIBlockNode,
+} from '../frontend/packages/client/src/block-diff'
+import {
   autoLinkChildToParent,
   createDocumentBlobs,
   createSeedClient,
@@ -255,6 +261,7 @@ describe('document updates through PrepareDocumentChange', () => {
       path: '/twice',
       baseVersion: applied.version,
       ops,
+      content: applied.content,
     })
     expect(direct).toEqual({changed: false, blobs: [], version: applied.version})
     expect((await readDocument('/twice')).version).toBe(applied.version)
@@ -364,6 +371,7 @@ describe('document updates through PrepareDocumentChange', () => {
       path: '/prepared',
       baseVersion: base.version,
       ops,
+      content: base.content ?? [],
     })
     expect(update.changed).toBe(true)
     await client.publish({blobs: update.blobs})
@@ -408,4 +416,128 @@ describe('document updates through PrepareDocumentChange', () => {
     expect(await attrs(prepared.version)).toEqual(await attrs(native.version))
     expect(await attrs(prepared.version)).toHaveLength(5)
   })
+
+  /** The document's block ids as a nested list: `['a', ['b', ['c']]]` is `a`, then `b` with child `c`. */
+  const shape = (content: HMBlockNode[] | undefined): unknown[] =>
+    (content ?? []).map((n) => (n.children?.length ? [n.block.id, shape(n.children)] : n.block.id))
+
+  type Tree = Array<{id: string; children: Tree}>
+  const flat = (...ids: string[]): Tree => ids.map((id) => ({id, children: []}))
+  const toShape = (tree: Tree): unknown[] => tree.map((t) => (t.children.length ? [t.id, toShape(t.children)] : t.id))
+  const toNodes = (tree: Tree): HMBlockNode[] =>
+    tree.map(
+      (t) =>
+        ({
+          block: {id: t.id, type: 'Paragraph', text: `Text ${t.id}`, annotations: [], attributes: {}},
+          children: toNodes(t.children),
+        }) as unknown as HMBlockNode,
+    )
+
+  /** Brings the document to `tree` through createDocumentUpdateBlobs and reads its block tree back. */
+  async function writeTree(docPath: string, tree: Tree) {
+    const id = unpackHmId(`hm://${account.accountId}${docPath}`)!
+    const before = await readDocument(docPath)
+    const ops = computeReplaceOps(
+      createBlocksMap((before.content ?? []).map(toAPIBlockNode)),
+      toNodes(tree).map(hmBlockNodeToBlockNode),
+    )
+    if (!ops.length) return {got: shape(before.content), moves: [] as string[][], published: false}
+    const update = await createDocumentUpdateBlobs({client, signer, id, ops})
+    if (update.blobs.length) await client.publish({blobs: update.blobs})
+    const after = await readDocument(docPath)
+    const moves = update.changed
+      ? (await storedOps(after.version)).filter((op) => op.type === 'MoveBlocks').map((op) => op.blocks as string[])
+      : []
+    return {got: shape(after.content), moves, published: update.changed}
+  }
+
+  it('places blocks where the ops put them: after the first block, moved to the end, moved together', async () => {
+    const start = async (docPath: string, ...ids: string[]) => {
+      await createDocument(docPath, [
+        {type: 'SetAttributes', attrs: [{key: ['name'], value: docPath}]},
+        ...ids.map((id) => paragraph(id, `Text ${id}`)),
+        {type: 'MoveBlocks', blocks: ids, parent: ''},
+      ])
+    }
+    // A new block after the unchanged first block (the daemon put it first when the level was
+    // re-listed from its first block).
+    await start('/place-insert', 'f1', 'f2', 'f3')
+    const inserted = await writeTree('/place-insert', flat('f1', 'n1', 'f2', 'f3'))
+    expect(inserted.got).toEqual(['f1', 'n1', 'f2', 'f3'])
+    expect(inserted.moves).toEqual([['n1']])
+
+    // One block moved to the end (sent as a chain, the daemon stored only the move of `c`).
+    await start('/place-end', 'a', 'b', 'c', 'd')
+    const toEnd = await writeTree('/place-end', flat('a', 'c', 'd', 'b'))
+    expect(toEnd.got).toEqual(['a', 'c', 'd', 'b'])
+    expect(toEnd.moves).toEqual([['b']])
+
+    // Neighbours that move together cannot be asked of the daemon: built here, as listed.
+    await start('/place-together', 'a', 'b', 'c', 'd')
+    const together = await writeTree('/place-together', flat('c', 'd', 'a', 'b'))
+    expect(together.got).toEqual(['c', 'd', 'a', 'b'])
+    expect(together.moves).toEqual([['c', 'd', 'a', 'b']])
+  })
+
+  it('reads back every edit as written (seeded random edits through createDocumentUpdateBlobs)', async () => {
+    let seed = 20261116
+    const random = (n: number) => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed % n
+    }
+    const levels = (tree: Tree): Tree[] => [tree, ...tree.flatMap((t) => levels(t.children))]
+    const clone = (tree: Tree): Tree => tree.map((t) => ({id: t.id, children: clone(t.children)}))
+    let fresh = 0
+    const mutate = (current: Tree): Tree => {
+      const tree = clone(current)
+      const all = levels(tree)
+      const pick = () => all[random(all.length)]!
+      const steps = 1 + random(2)
+      for (let step = 0; step < steps; step++) {
+        const kind = random(10)
+        const from = pick()
+        if (kind < 2 || from.length === 0) {
+          const into = pick()
+          into.splice(random(into.length + 1), 0, {id: `x${++fresh}`, children: []})
+        } else if (kind < 3 && from.length > 1) {
+          from.splice(random(from.length), 1)
+        } else if (kind < 5) {
+          // A run of one to three neighbours moves within its level.
+          const length = 1 + random(Math.min(3, from.length))
+          const run = from.splice(random(from.length - length + 1), length)
+          from.splice(random(from.length + 1), 0, ...run)
+        } else if (kind < 8) {
+          const [block] = from.splice(random(from.length), 1)
+          from.splice(random(from.length + 1), 0, block!)
+        } else {
+          // A childless block moves to another level (so it can never land inside itself).
+          const leaves = from.filter((t) => t.children.length === 0)
+          if (!leaves.length) continue
+          const block = leaves[random(leaves.length)]!
+          from.splice(from.indexOf(block), 1)
+          const targets = levels(tree)
+          const into = targets[random(targets.length)]!
+          into.splice(random(into.length + 1), 0, block)
+        }
+      }
+      return tree
+    }
+
+    await createDocument('/random', [{type: 'SetAttributes', attrs: [{key: ['name'], value: 'Random'}]}])
+    let tree: Tree = flat('a', 'b', 'c', 'd', 'e')
+    tree[1]!.children = flat('p', 'q', 'r')
+    expect((await writeTree('/random', tree)).got).toEqual(toShape(tree))
+    let published = 0
+    for (let round = 0; round < 60; round++) {
+      const next = mutate(tree)
+      const result = await writeTree('/random', next)
+      if (result.published) published++
+      expect(
+        result.got,
+        `round ${round}: ${JSON.stringify(toShape(tree))} -> ${JSON.stringify(toShape(next))}`,
+      ).toEqual(toShape(next))
+      tree = next
+    }
+    expect(published).toBeGreaterThan(30)
+  }, 300_000)
 })

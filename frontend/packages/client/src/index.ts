@@ -125,13 +125,17 @@ export {
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
+  clientBuiltDocumentUpdateBlobs,
   documentOperationsToChanges,
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
+  preparableDocumentChanges,
   prepareDocumentUpdateBlobs,
-  withoutLeadingMovesInPlace,
+  UnpreparableDocumentUpdateError,
 } from './prepare-change'
 export type {
+  ClientBuiltDocumentUpdateInput,
+  DocumentContent,
   DocumentChangeInput,
   DocumentChanges,
   PrepareDocumentUpdateInput,

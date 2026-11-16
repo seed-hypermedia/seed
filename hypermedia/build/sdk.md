@@ -135,23 +135,30 @@ const update = await prepareDocumentUpdateBlobs({
   path: '/notes/first',
   baseVersion: resource.document.version,
   ops,
+  content: resource.document.content,
   currentGeneration: resource.document.generationInfo?.generation,
 })
 if (update.changed) await client.publish({blobs: update.blobs})
 ```
 
-`prepareDocumentUpdateBlobs({client, signer, account, path?, baseVersion, ops | changes, capability?, genesis?, generation?, currentGeneration?, visibility?})` sends the ops to the site's `PrepareDocumentChange`, where the [daemon](../apps/daemon.md) applies them to the document's real state and writes a Change holding only what differs. A block already in place is not moved, a block that already has that content is not replaced, an attribute that already has that value is not set. It then signs that Change and its Version Ref with your signer and returns `{changed: true, blobs, version, genesis, generation}`. It does not publish, so you can send the blobs together with file blobs or another document's blobs in one `client.publish`. The key never leaves your process. <!-- id:3p3tUyJA -->
+`prepareDocumentUpdateBlobs({client, signer, account, path?, baseVersion, ops + content | changes, capability?, genesis?, generation?, currentGeneration?, visibility?})` sends the ops to the site's `PrepareDocumentChange`, where the [daemon](../apps/daemon.md) applies them to the document's real state and writes a Change holding only what differs. A block already in place is not moved, a block that already has that content is not replaced, an attribute that already has that value is not set. It then signs that Change and its Version Ref with your signer and returns `{changed: true, blobs, version, genesis, generation}`. It does not publish, so you can send the blobs together with file blobs or another document's blobs in one `client.publish`. The key never leaves your process. <!-- id:3p3tUyJA -->
 
 When every op is already true of the document, the daemon answers with a Change that has no operations. The helper then returns `{changed: false, blobs: []}` and signs nothing. Do not publish in that case: there is no new version.
 
-`ops` are converted with `documentOperationsToChanges`, which you can also call yourself. A `MoveBlocks` has no anchor, so it places its blocks at the start of the parent in the order listed. To place a block somewhere else without listing its siblings, pass `changes` with a `moveBlock` that names the `leftSibling`. `SetAttributes` values must be strings, whole numbers, booleans or null, and block attributes must be plain JSON. Anything else throws before the request is made.
+`ops` are converted with `preparableDocumentChanges(ops, content)`, which you can also call yourself. `content` is the content of the document the ops were computed against (`document.content` at `baseVersion`), and it is required when the ops move blocks. Replaces, deletes and attributes go as written. Each level a `MoveBlocks` orders is sent as the fewest moves that produce it: the blocks already in the right order are not mentioned, and every other block is placed after the block before it. A `MoveBlocks` has no anchor, so a list that is not the whole level places its blocks at the start of the parent, ahead of the others. To write a move yourself, pass `changes` with a `moveBlock` that names the `leftSibling`. `SetAttributes` values must be strings, whole numbers, booleans or null, and block attributes must be plain JSON. Anything else throws before the request is made.
 
-Two things a prepared update must not be sent, both seen on a real daemon:
+The conversion exists because a real daemon misplaces blocks when it is sent a level as a diff lists it, first block first:
 
-- **A level re-listed from its first block.** A `MoveBlocks` naming a whole level starts with "first block at the start". The daemon treats that as a move, discards it when it writes the Change, and then anchors the next block on nothing, so a block inserted right after an unchanged first block lands before it. Pass the changes through `withoutLeadingMovesInPlace(changes, document.content)` first: it removes the moves of the leading blocks that are already where the document has them. `createDocumentUpdateBlobs` does this for you.
-- **A map cleared and set again.** A Change you build yourself can say "this key is exactly this map" as `{key: [k], value: null}` followed by every entry. Sent to the daemon, the unchanged entries are left out and the clear is kept, which removes the whole map. Send the entries, plus a `null` for each entry the document has and the new map does not.
+- **A first block "moved" to where it already is.** The daemon treats it as a move, discards it when it writes the Change, and then anchors the next block on nothing, so a block inserted right after an unchanged first block lands before it.
+- **A block that still follows the same block.** Its move is not written, even when the block before it moved: `[a, b, c, d]` to `[a, c, d, b]` sent as a chain stores only the move of `c` and reads back `[a, c, b, d]`.
 
-A site may also refuse a large request body with a 413 (some cap their API bodies at a few KB). `client.publish` gets around that by storing blob by blob; a prepare request has no such route, so build the Change yourself when that happens.
+Sending the fewest moves avoids both, except for one shape: neighbouring blocks that move together (`[a, b, c, d]` to `[c, d, a, b]`), where a block that must move keeps the block before it. `preparableDocumentChanges` returns `{unpreparable: reason}` for that instead of `{changes}`, and `prepareDocumentUpdateBlobs` throws `UnpreparableDocumentUpdateError`. Build that update with `clientBuiltDocumentUpdateBlobs({signer, account, path?, state, ops, capability?, currentGeneration?})`, which stores the ops as listed on top of `state` (from `resolveEditableDocument` or `resolveDocumentState`) and returns the same `{changed: true, blobs, version, genesis, generation}`. `createDocumentUpdateBlobs` does all of this for you. `documentOperationsToChanges` is the plain conversion underneath; do not send its moves for a document that already has blocks.
+
+One more thing a prepared update must not be sent:
+
+- **A map cleared and set again.** A Change you build yourself can say "this key is exactly this map" as `{key: [k], value: null}` followed by every entry. Sent to the daemon, the unchanged entries are left out and the clear is kept, which removes the whole map. Send the entries, plus a `null` for each entry the document has and the new map does not. A key that changes between a plain value and a map needs no `null`: a write at a key removes what was stored above and below it.
+
+A site may also refuse a large request body with a 413 (some cap their API bodies at a few KB). `client.publish` gets around that by storing blob by blob; a prepare request has no such route, so build the Change yourself (`clientBuiltDocumentUpdateBlobs`) when that happens.
 
 The Ref's generation is the new Change's timestamp unless you pass `generation`. Pass `currentGeneration` so the Ref never falls below the generation the path already has, which would leave the update published and ignored.
 

@@ -6988,7 +6988,8 @@ describe('api service', () => {
         path: '/weather',
         baseVersion: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
       })
-      expect(prepares[0]!.changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'moveBlock', 'moveBlock'])
+      // The new card and its one move: blocks already in place are not sent (preparableDocumentChanges).
+      expect(prepares[0]!.changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'moveBlock'])
       const changes = publishes[0]!.blobs
         .map((blob) => {
           try {
