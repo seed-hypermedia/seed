@@ -12,7 +12,8 @@ This page is the reference for the grammar, the filter and the attribute listing
 key=value     key="two words"     key!=value     key>=3     key<10     compare (typed: string, integer, boolean)
 key:text      key~text                                                  contains, case-insensitive
 key^text                                                                starts with
-has:key       missing:key                                               presence
+has:key       missing:key       empty:key                               presence; empty = missing, or an empty string
+"Due Date"=x    has:"Depends On"                                       a key with spaces is quoted
 in:<space uid>    in:<hm:// url>                                        scope to a space or a document subtree
 path:/specs       path:/specs/*                                         exact path, or a path prefix
 $author:<uid>     $created>=2026-09-01     $updated<2026-10-01          built-in fields: any one author; create or update time
@@ -22,7 +23,7 @@ free words   "quoted phrases"                                           full-tex
 view:table   cols:title,status   sort:status,-priority                  presentation directives
 ```
 
-Keys are attribute names. Nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. Quotes do not change the type: `priority="3"` is also an integer comparison. Parsing is forgiving. A malformed part becomes a diagnostic and never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
+Keys are attribute names. Nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. A quoted value is always a string: `version="3"` compares with the string `3`, `version=3` with the integer. Keys and exact (`=`) values are case-sensitive, so `Priority=High` does not match `priority: high`; `key:text` ignores case. `key!=value` matches only documents that have the key, while `NOT key=value` also matches documents without it. `empty:key` is shorthand for `(missing:key OR key="")`, which is what a blank field in a table usually is. Only scalar values (string, integer, boolean) are indexed: a list-valued attribute cannot be matched by its items. Parsing is forgiving. A malformed part becomes a diagnostic and never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
 
 Examples: <!-- id:pcdMQ6vr -->
 

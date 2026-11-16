@@ -163,6 +163,50 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 {"address":"hm://TARGET_UID/notes","content":"Complete replacement body.","options":{"action":"update","name":"Renamed Notes","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
 \`\`\`
 
+## Many documents at once
+
+A request such as "set Priority to High on every issue where it is empty" is one query and one script, not a document-by-document chat. Never answer that you cannot enumerate the documents.
+
+1. Find them with the \`query\` tool: \`{childrenOf: "hm://SPACE_UID/tasks", q: "empty:Priority", count: true}\` tells you how many, and the same call without \`count\` lists them.
+2. Delegate a script child that collects every page first (writing while paging skips documents), then updates each one. An update without \`content\` changes only the attributes you name and leaves the body and the other attributes alone.
+
+\`\`\`js
+export default async function (input, ctx) {
+  const docs = []
+  let pageToken
+  do {
+    const page = await ctx.call(
+      'query',
+      {childrenOf: input.parent, q: input.q, pageSize: 100, ...(pageToken ? {pageToken} : {})},
+      {description: 'Find the documents to change'},
+    )
+    docs.push(...page.results)
+    pageToken = page.nextPageToken
+  } while (pageToken)
+  const failed = []
+  for (let i = 0; i < docs.length; i += 8) {
+    await ctx.parallel(
+      docs.slice(i, i + 8).map((doc) => async () => {
+        try {
+          const result = await ctx.call(
+            'write',
+            {address: doc.url, options: {action: 'update', metadata: input.set}},
+            {description: 'Update ' + (doc.name || doc.url)},
+          )
+          if (result && result.type === 'hypermedia_write_error') failed.push({url: doc.url, error: result.message})
+        } catch (error) {
+          failed.push({url: doc.url, error: String((error && error.message) || error)})
+        }
+      }),
+    )
+    ctx.progress({fraction: Math.min(1, (i + 8) / docs.length), label: 'Updated ' + Math.min(i + 8, docs.length) + ' of ' + docs.length})
+  }
+  return {matched: docs.length, updated: docs.length - failed.length, failed}
+}
+\`\`\`
+
+Call it with \`delegate {title, script, input: {parent: "hm://SPACE_UID/tasks", q: "empty:Priority", set: {Priority: "High"}}}\`. Afterwards run the count again to confirm nothing is left, and report how many documents changed and any that failed.
+
 ## Other lifecycle actions
 
 - Move: \`options: {action: "move", toPath: "/new-path"}\`. Use \`"/"\` for account home.
