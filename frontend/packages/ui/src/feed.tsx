@@ -4,7 +4,12 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
-import {useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {
+  selectDraftHidden,
+  selectPublishedVersion,
+  useDocumentSelector,
+  useDocumentSend,
+} from '@shm/shared/models/use-document-machine'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
@@ -20,7 +25,7 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
-import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
+import {CircleAlert, Eye, EyeOff, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
 import {type ComponentType, Fragment, useEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
 import {AccountAvatar} from './account-avatar'
@@ -348,7 +353,8 @@ export function Feed({
   )
 }
 
-function DraftVersionItem({
+/** The "Unpublished Changes" row in a single-resource versions feed. Exported for testing. */
+export function DraftVersionItem({
   draft,
   hasNewerPublishedVersion,
 }: {
@@ -357,24 +363,34 @@ function DraftVersionItem({
 }) {
   const currentRoute = useNavRoute()
   const send = useDocumentSend()
+  const draftHidden = useDocumentSelector(selectDraftHidden)
+  const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const draftRoute = {
     key: 'document' as const,
     id: hmId(draft.docId.uid, {
       path: draft.docId.path,
     }),
   }
-  const draftLinkProps = useRouteLink(merge({}, currentRoute, draftRoute))
+  const draftLinkProps = useRouteLink(merge({}, currentRoute, draftRoute), {
+    onClick: () => {
+      // Selecting the draft row always means "show my draft".
+      if (draftHidden) send({type: 'draftHidden.set', hidden: false})
+    },
+  })
   const isCurrentDraftRoute =
     currentRoute.key === 'document' &&
     currentRoute.id.uid === draft.docId.uid &&
     currentRoute.id.version === null &&
     JSON.stringify(currentRoute.id.path ?? []) === JSON.stringify(draft.docId.path ?? [])
+  // The preview toggle only applies while the draft overlay is what the
+  // current route would render (the latest/unversioned view).
+  const canToggleDraftPreview = isCurrentDraftRoute && !!publishedVersion
 
   return (
     <div
       className={cn(
         'bg-accent hover:bg-accent group dark:hover:bg-accent flex items-start gap-2 px-4 py-4 transition-colors',
-        isCurrentDraftRoute && 'ring-border ring-1 ring-inset',
+        isCurrentDraftRoute && !draftHidden && 'ring-border ring-1 ring-inset',
       )}
       {...draftLinkProps}
     >
@@ -391,6 +407,23 @@ function DraftVersionItem({
           ) : null}
         </div>
       </div>
+      {canToggleDraftPreview ? (
+        <Tooltip content={draftHidden ? 'Show draft changes' : 'Preview published version'}>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={draftHidden ? 'Show draft changes' : 'Preview published version'}
+            className="text-muted-foreground -m-1 size-7 shrink-0 opacity-70 hover:opacity-100"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              send({type: 'draftHidden.set', hidden: !draftHidden})
+            }}
+          >
+            {draftHidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+          </Button>
+        </Tooltip>
+      ) : null}
       <Tooltip content="Discard changes">
         <Button
           size="icon"

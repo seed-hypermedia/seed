@@ -163,6 +163,16 @@ export function DocumentMachineProvider({
             const publishedContent = hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
             editorHandlersRef.current?.replaceCurrentContent?.(publishedContent)
           },
+          // After saving out of `editing`, restore what should be visible: the published
+          // document when the draft is hidden, otherwise the current baseline (used by the
+          // version.changed exit, where editorBaseline already tracks the target version).
+          pushExitContentToEditor: ({context}) => {
+            const blocks = context.draftHidden
+              ? hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
+              : context.editorBaseline
+            if (!blocks) return
+            editorHandlersRef.current?.replaceCurrentContent?.(blocks)
+          },
           applyExternalDraftState: enqueueActions(({context, event, enqueue}) => {
             if (
               event.type !== 'draft.externallyModified' ||
@@ -758,9 +768,18 @@ export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): E
   return getCollectionEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
 }
 
+/** Whether the user has temporarily hidden the draft to preview the published version. */
+export function selectDraftHidden(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.draftHidden
+}
+
 /** Whether draft content is allowed to overlay the published document for the current route. */
 export function selectDraftOverlayAllowed(snapshot: DocumentMachineSnapshot): boolean {
-  return shouldAllowDraftOverlay(snapshot.context.isLatestVersion, snapshot.context.routeVersion)
+  return shouldAllowDraftOverlay(
+    snapshot.context.isLatestVersion,
+    snapshot.context.routeVersion,
+    snapshot.context.draftHidden,
+  )
 }
 
 /** Whether the current route can start or continue document edits. */

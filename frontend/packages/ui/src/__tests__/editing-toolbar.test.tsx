@@ -676,3 +676,51 @@ describe('isPublishShortcutTarget', () => {
     }
   })
 })
+
+describe('PublishPopoverBody published preview toggle', () => {
+  beforeEach(() => {
+    selectMock.document = {version: 'bafy123', metadata: {}}
+    selectMock.draftId = 'draft-1'
+    selectMock.metadata = {}
+    sendMock.mockReset()
+    useAccountMock.mockReset()
+    useAccountMock.mockReturnValue({data: undefined})
+  })
+
+  it('hides the draft and closes the popover from the changes row', () => {
+    const onClose = vi.fn()
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={hmId('acct-1', {path: ['my-doc']})}
+        changeCount={2}
+        onPublish={vi.fn()}
+        onClose={onClose}
+        publishDisabled={false}
+      />,
+    )
+    const button = container.querySelector('button[aria-label="Preview published version"]') as HTMLButtonElement
+    expect(button).not.toBeNull()
+
+    act(() => {
+      button.click()
+    })
+    expect(sendMock).toHaveBeenCalledWith({type: 'draftHidden.set', hidden: true})
+    expect(onClose).toHaveBeenCalled()
+    cleanup(root, container)
+  })
+
+  it('offers no preview when the document was never published', () => {
+    selectMock.document = {version: '', metadata: {}}
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={hmId('acct-1', {path: ['my-doc']})}
+        changeCount={2}
+        onPublish={vi.fn()}
+        onClose={vi.fn()}
+        publishDisabled={false}
+      />,
+    )
+    expect(container.querySelector('button[aria-label="Preview published version"]')).toBeNull()
+    cleanup(root, container)
+  })
+})

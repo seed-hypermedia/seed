@@ -17,7 +17,7 @@ import {
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {pathNameify} from '@shm/shared/utils/path'
-import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
+import {Check, ChevronRight, Clock, Copy, Eye, FileDiff, Pencil, Trash, X} from 'lucide-react'
 import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {PathInput} from './path-input'
@@ -358,6 +358,22 @@ export function PublishPopoverBody({
         <span className="flex-1">
           {changeCount === 0 ? 'No changes to publish' : `${changeCount} ${changeCount === 1 ? 'change' : 'changes'}`}
         </span>
+        {!!publishedDoc?.version ? (
+          <Tooltip content="Preview published version">
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Preview published version"
+              className="text-muted-foreground -my-2 size-7 shrink-0"
+              onClick={() => {
+                send({type: 'draftHidden.set', hidden: true})
+                onClose()
+              }}
+            >
+              <Eye className="size-4" />
+            </Button>
+          </Tooltip>
+        ) : null}
       </div>
 
       {unpublishedChildCount > 0 ? (
