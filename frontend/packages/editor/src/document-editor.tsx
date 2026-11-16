@@ -789,8 +789,8 @@ export function DocumentEditor({
             onPointerDown={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              focusEditorEnd()
             }}
+            onClick={focusEditorEnd}
           />
         )}
         {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}

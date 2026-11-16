@@ -219,6 +219,7 @@ type FixtureName =
   | 'withTwoEmbeds'
   | 'draftAndPublished'
   | 'allBlocks'
+  | 'longText'
 
 const text = (text: string) =>
   ({
@@ -357,6 +358,8 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
     } as any,
     p('p-bottom', [text('Last paragraph')]),
   ],
+
+  longText: Array.from({length: 30}, (_, i) => p(`p-long-${i + 1}`, [text(`Paragraph ${i + 1}`)])),
 }
 
 function getFixtureFromUrl(): FixtureName {
