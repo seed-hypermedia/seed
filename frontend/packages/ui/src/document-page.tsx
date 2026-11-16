@@ -1,6 +1,6 @@
 import type {SchemaFetchClient} from '@seed-hypermedia/client/schema-resolve'
 import {createDocumentPageInput, type DocumentPageInputState} from '@shm/shared/document-page-input'
-import {useQuery, useQueryClient} from '@tanstack/react-query'
+import {QueryObserver, useQuery, useQueryClient} from '@tanstack/react-query'
 import React from 'react'
 import {cn} from './utils'
 import {Button} from './button'
@@ -15,6 +15,7 @@ import {
   type DocumentPageRunStatus,
 } from './document-page-permissions'
 import {
+  documentPageAccessWithoutPrompts,
   grantPageRun,
   pagePermissionOwner,
   pagePermissionStorageKey,
@@ -31,12 +32,17 @@ import {
 } from '@shm/shared/document-page-permissions'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {documentPageStorage, mountDocumentPage} from '@shm/shared/document-page-sandbox'
+import {
+  createDocumentPageWatches,
+  type DocumentPageWatchMessage,
+  type DocumentPageWatchMethod,
+} from '@shm/shared/document-page-watch'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {isToolHostType, parentDocumentId} from '@seed-hypermedia/client/apps'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import type {DocumentPagePlatform} from '@shm/shared/document-page'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {queryAccount} from '@shm/shared/models/queries'
+import {queryAccount, queryDirectory, queryResource} from '@shm/shared/models/queries'
 import {useUniversalClient, useOpenUrl, useUniversalAppContext} from '@shm/shared/routing'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -81,7 +87,17 @@ type PageContentHandler = (method: string, params: unknown, signal: AbortSignal)
 type PageRuntimeProps = DocumentPageViewProps & {
   content: PageContentHandler
   subscribeInput: (listener: (state: DocumentPageInputState) => void) => () => void
+  /** Receive watched-read pushes for the frame. Unsubscribing does not end the page's watches. */
+  subscribeData: (listener: (message: DocumentPageWatchMessage) => void) => () => void
+  /** End the page's watches: its frame navigated, reloaded or closed. */
+  closeWatches: () => void
 }
+
+/**
+ * How often a host with no change feed of its own (the web) checks watched data. The desktop
+ * invalidates queries from its activity feed instead, so it never polls here.
+ */
+const PAGE_WATCH_FALLBACK_INTERVAL_MS = 5_000
 
 /** Render only approved launches, then gate each data or signing capability independently. */
 export function DocumentPageView(props: DocumentPageViewProps) {
@@ -315,9 +331,78 @@ function DocumentPageSession({
   React.useLayoutEffect(() => {
     input.update(props.inputParams)
   }, [input, props.inputParams])
+  // Live reads. The page's watches outlive re-renders of this component, so they read through a
+  // ref to the current client, permissions and document version.
+  const dataListeners = React.useRef(new Set<(message: DocumentPageWatchMessage) => void>())
+  const subscribeData = React.useCallback((listener: (message: DocumentPageWatchMessage) => void) => {
+    dataListeners.current.add(listener)
+    return () => {
+      dataListeners.current.delete(listener)
+    }
+  }, [])
+  const watchHost = React.useRef({
+    read: (
+      _method: DocumentPageWatchMethod,
+      _params: Record<string, unknown>,
+      _signal: AbortSignal,
+      _refresh: boolean,
+    ) => Promise.reject<unknown>(new Error('Page closed.')),
+    observe: (_method: DocumentPageWatchMethod, _params: Record<string, unknown>, _changed: () => void) => () => {},
+  })
+  watchHost.current = {
+    read: (method, params, signal, refresh) =>
+      documentPageContent({
+        method,
+        params,
+        signal,
+        client,
+        // A refresh never prompts: data changing must not interrupt the viewer.
+        access: refresh ? documentPageAccessWithoutPrompts(access) : access,
+        visibility,
+        context: {protocol: 1, document: documentId, version, account, page: props.cid},
+      }),
+    observe: (method, params, changed) => {
+      const id = typeof params.url === 'string' ? unpackHmId(params.url) : null
+      // A pinned version never changes, and a profile is not a document the host can observe here.
+      if (!id || id.version || id.path?.[0] === ':profile') return () => {}
+      if (method === 'resource' && id.id === documentId) return () => {}
+      const observer = new QueryObserver<unknown>(queryClient, {
+        ...(method === 'directory'
+          ? queryDirectory(client, id, params.all ? 'AllDescendants' : 'Children')
+          : queryResource(client, id)),
+        refetchInterval: client.subscribeEntity ? false : PAGE_WATCH_FALLBACK_INTERVAL_MS,
+      } as ConstructorParameters<typeof QueryObserver<unknown>>[1])
+      let seen = observer.getCurrentResult().dataUpdatedAt
+      const unobserve = observer.subscribe((result) => {
+        if (result.isFetching || !result.dataUpdatedAt || result.dataUpdatedAt === seen) return
+        seen = result.dataUpdatedAt
+        changed()
+      })
+      // Watching also asks the node to keep this data synced, as an open document does.
+      const unsubscribe = client.subscribeEntity?.({id, recursive: method === 'directory'})
+      return () => {
+        unobserve()
+        unsubscribe?.()
+      }
+    },
+  }
+  const watches = React.useMemo(
+    () =>
+      createDocumentPageWatches({
+        read: (...args) => watchHost.current.read(...args),
+        observe: (...args) => watchHost.current.observe(...args),
+        send: (message) => {
+          dataListeners.current.forEach((listener) => listener(message))
+        },
+      }),
+    [],
+  )
+  React.useEffect(() => () => watches.close(), [watches])
   const content = React.useCallback<PageContentHandler>(
     async (method, params, signal) => {
       signal.throwIfAborted()
+      if (method === 'watch.start') return watches.start(params, signal)
+      if (method === 'watch.stop') return watches.stop(params)
       if (method === 'input.get') return input.read(undefined, signal)
       if (method === 'input.push' || method === 'input.replace') {
         if (
@@ -386,10 +471,13 @@ function DocumentPageSession({
         void queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS]})
         void queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
         void queryClient.invalidateQueries({queryKey: [queryKeys.ENTITY]})
+        void queryClient.invalidateQueries({queryKey: [queryKeys.DOC_LIST_DIRECTORY]})
+        // The page's own write shows in its watches at once, without waiting for the change feed.
+        watches.refreshAll()
       }
       return result
     },
-    [account, client, queryClient, access, documentId, version, visibility, props.cid, openUrl, input, app],
+    [account, client, queryClient, access, documentId, version, visibility, props.cid, openUrl, input, app, watches],
   )
   const platform = getDocumentPagePlatform()
   const name = props.document.metadata?.name || 'This page'
@@ -411,9 +499,22 @@ function DocumentPageSession({
       )}
       <div className={cn(props.fill && 'min-h-0 flex-1')}>
         {platform && 'loadPageHtml' in platform ? (
-          <SandboxDocumentPageView {...props} platform={platform} content={content} subscribeInput={input.subscribe} />
+          <SandboxDocumentPageView
+            {...props}
+            platform={platform}
+            content={content}
+            subscribeInput={input.subscribe}
+            subscribeData={subscribeData}
+            closeWatches={watches.close}
+          />
         ) : (
-          <LegacyDocumentPageView {...props} content={content} subscribeInput={input.subscribe} />
+          <LegacyDocumentPageView
+            {...props}
+            content={content}
+            subscribeInput={input.subscribe}
+            subscribeData={subscribeData}
+            closeWatches={watches.close}
+          />
         )}
       </div>
       {parameters && <DocumentPageParameters input={input} onClose={() => setParameters(false)} />}
@@ -447,6 +548,8 @@ function SandboxDocumentPageView({
   platform,
   content,
   subscribeInput,
+  subscribeData,
+  closeWatches,
 }: PageRuntimeProps & {
   platform: Extract<DocumentPagePlatform, {loadPageHtml: unknown}>
 }) {
@@ -461,6 +564,7 @@ function SandboxDocumentPageView({
     const controller = new AbortController()
     let session: ReturnType<typeof mountDocumentPage> | undefined
     let unsubscribe: (() => void) | undefined
+    let unsubscribeData: (() => void) | undefined
     setError('')
     setLoading(true)
     platform
@@ -479,6 +583,7 @@ function SandboxDocumentPageView({
           },
         })
         unsubscribe = subscribeInput(session.inputChanged)
+        unsubscribeData = subscribeData(session.dataChanged)
         await session.ready
         if (!controller.signal.aborted) setLoading(false)
       })
@@ -491,9 +596,12 @@ function SandboxDocumentPageView({
     return () => {
       controller.abort()
       unsubscribe?.()
+      unsubscribeData?.()
       session?.destroy()
+      // The frame is gone, and with it every listener the page registered.
+      closeWatches()
     }
-  }, [platform, id, cid, version, account, content, subscribeInput])
+  }, [platform, id, cid, version, account, content, subscribeInput, subscribeData, closeWatches])
   return (
     <section
       aria-label={resourceDocument.metadata?.name || 'Page'}
@@ -511,7 +619,16 @@ function SandboxDocumentPageView({
   )
 }
 
-function LegacyDocumentPageView({docId, document, cid, fill = false, content, subscribeInput}: PageRuntimeProps) {
+function LegacyDocumentPageView({
+  docId,
+  document,
+  cid,
+  fill = false,
+  content,
+  subscribeInput,
+  subscribeData,
+  closeWatches,
+}: PageRuntimeProps) {
   const account = useSelectedAccountId()
   const client = useUniversalClient()
   const queryClient = useQueryClient()
@@ -546,6 +663,11 @@ function LegacyDocumentPageView({docId, document, cid, fill = false, content, su
     }
   }, [platform, docId.id, cid, account])
 
+  // A new launch or a reload inside the frame starts a fresh page: its old watches have no listeners.
+  // Kept apart from the effect below, which also re-runs when only the host handler changes, and
+  // declared first so the old watches end before the new page's queued calls are released.
+  React.useLayoutEffect(() => closeWatches, [url, navigation > 1 ? navigation : 0, closeWatches])
+
   React.useLayoutEffect(() => {
     if (!url) return
     const controller = new AbortController()
@@ -560,15 +682,19 @@ function LegacyDocumentPageView({docId, document, cid, fill = false, content, su
     const unsubscribe = subscribeInput(
       (state) => frame.current?.contentWindow?.postMessage({seedPage: 1, type: 'seed-input', state}, origin),
     )
+    const unsubscribeData = subscribeData(
+      (message) => frame.current?.contentWindow?.postMessage({seedPage: 1, type: 'seed-data', message}, origin),
+    )
     // Inline scripts run before iframe load. Release their queued SDK calls only after
     // installing this navigation's controller, so load cannot cancel initialization.
     if (navigation) frame.current?.contentWindow?.postMessage({seedPage: 1, type: 'seed-ready'}, origin)
     return () => {
       unsubscribe()
+      unsubscribeData()
       controller.abort()
       window.removeEventListener('message', listener)
     }
-  }, [url, client, queryClient, content, navigation, subscribeInput])
+  }, [url, client, queryClient, content, navigation, subscribeInput, subscribeData])
 
   if (!platform) {
     return (
