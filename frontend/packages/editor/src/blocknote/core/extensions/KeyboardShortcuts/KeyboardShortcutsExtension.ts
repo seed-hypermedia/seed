@@ -2,7 +2,11 @@ import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
-import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
+import {
+  getPrevBlockInfo,
+  mergeBlocksCommand,
+  removeBlockKeepingChildren,
+} from '../../api/blockManipulation/commands/mergeBlocks'
 import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestBlock'
 import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
@@ -181,10 +185,21 @@ export const KeyboardShortcutsExtension = Extension.create<{
                     // still has text, Backspace just moves selection up onto the
                     // previous block; deleting here would silently drop that text.
                     if (!blockInfo.blockContent.node.textContent) {
-                      state.tr.deleteRange(
-                        blockInfo.block.beforePos + 1,
-                        blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
-                      )
+                      const prevSiblingInfo = getPrevBlockInfo(state.doc, blockInfo.block.beforePos)
+
+                      if (blockInfo.childContainer && prevSiblingInfo) {
+                        removeBlockKeepingChildren(
+                          state.tr,
+                          prevSiblingInfo.block.beforePos,
+                          blockInfo.block.beforePos,
+                          false,
+                        )
+                      } else {
+                        state.tr.deleteRange(
+                          blockInfo.block.beforePos + 1,
+                          blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
+                        )
+                      }
                     }
                     return true
                   }

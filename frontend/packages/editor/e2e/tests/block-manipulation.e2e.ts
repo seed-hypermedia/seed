@@ -128,6 +128,66 @@ test.describe('Block Manipulation', () => {
       expect(text).toContain('FirstSecond')
     })
 
+    test('Should keep the list under the block above when Backspace removes the empty line', async ({
+      editorHelpers,
+      page,
+    }) => {
+      const parentId: string = await page.evaluate(() => {
+        const ed = window.TEST_EDITOR.editor
+        if (!ed) throw new Error('TEST_EDITOR.editor not found')
+        const inserted = ed.insertBlocks(
+          [
+            {
+              type: 'paragraph',
+              content: [{type: 'text', text: 'one block', styles: {}}],
+              props: {childrenType: 'Unordered'},
+              children: [
+                {type: 'paragraph', content: [{type: 'text', text: 'item 1', styles: {}}]},
+                {type: 'paragraph', content: [{type: 'text', text: 'item 2', styles: {}}]},
+              ],
+            },
+          ],
+          ed.topLevelBlocks[0]!.id,
+          'after',
+        )
+        return inserted[0]!.id
+      })
+      await page.waitForTimeout(150)
+      await page.evaluate((id) => {
+        const ed = window.TEST_EDITOR.editor
+        if (!ed) throw new Error('TEST_EDITOR.editor not found')
+        ed.setTextCursorPosition(id, 'end')
+        ed.focus()
+      }, parentId)
+      await page.waitForTimeout(120)
+
+      const blockCountBefore = await page.evaluate(() => window.TEST_EDITOR.getBlocks().length)
+
+      await editorHelpers.pressKey('Enter')
+      await page.waitForTimeout(150)
+      await editorHelpers.pressKey('Backspace')
+      await page.waitForTimeout(200)
+
+      const result = await page.evaluate((id) => {
+        const blocks = window.TEST_EDITOR.getBlocks()
+        const parent = blocks.find((b: any) => b.id === id)
+        return {
+          count: blocks.length,
+          parent: parent
+            ? {
+                childrenType: parent.props?.childrenType,
+                children: parent.children.map((c: any) => c.content?.[0]?.text),
+              }
+            : null,
+        }
+      }, parentId)
+
+      expect(result.parent).not.toBeNull()
+      expect(result.parent!.childrenType).toBe('Unordered')
+      expect(result.parent!.children).toEqual(['item 1', 'item 2'])
+      expect(result.count).toBe(blockCountBefore)
+    })
+
     test('Should delete selected text with Delete key', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Hello World')
 
