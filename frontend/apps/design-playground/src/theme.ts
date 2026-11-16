@@ -193,7 +193,7 @@ export function overrideCss(overrides: Tokens, defaults: Tokens): string {
         .filter(([name, value]) => value !== (defaults[mode][name] ?? defaults.light[name]))
         .sort(([a], [b]) => a.localeCompare(b))
       return entries.length
-        ? (mode === 'light' ? ':root' : '.dark') +
+        ? (mode === 'light' ? ':root:not(.dark)' : '.dark') +
             ' {\n' +
             entries.map(([name, value]) => '  ' + name + ': ' + value + ';').join('\n') +
             '\n}'

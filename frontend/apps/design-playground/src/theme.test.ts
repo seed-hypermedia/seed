@@ -125,7 +125,17 @@ describe('override stylesheet', () => {
         {light: {'--background': source.light['--background']!, '--primary': '#123456'}, dark: {'--primary': 'white'}},
         source,
       ),
-    ).toBe(':root {\n  --primary: #123456;\n}\n\n.dark {\n  --primary: white;\n}')
+    ).toBe(':root:not(.dark) {\n  --primary: #123456;\n}\n\n.dark {\n  --primary: white;\n}')
+  })
+  it('scopes light-only overrides away from dark mode', () => {
+    const css = overrideCss({light: {'--background': '#123456'}, dark: {}}, source)
+    expect(css).toContain(':root:not(.dark) {')
+    expect(css).not.toContain(':root {')
+    expect(css).not.toContain('.dark {')
+  })
+  it('omits dark overrides that reset to the dark defaults', () => {
+    const css = overrideCss({light: {}, dark: {'--background': source.dark['--background']!}}, source)
+    expect(css).toBe('')
   })
   it('omits empty blocks', () => expect(overrideCss({light: {}, dark: {}}, source)).toBe(''))
 })

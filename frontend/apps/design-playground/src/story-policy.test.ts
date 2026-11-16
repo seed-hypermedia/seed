@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {closedOverlayArgs, countStories, inlineStoryReason} from './story-policy'
+import {closedOverlayArgs, countStories, inlineStoryReason, storySource} from './story-policy'
 
 describe('inline story policy', () => {
   it('counts the entire catalogue before any stories mount', () => {
@@ -37,6 +37,37 @@ describe('inline story policy', () => {
       expect(inlineStoryReason('Example', {}, source)).toContain('hardcodes an open overlay')
     expect(inlineStoryReason('Example', {}, '<Dialog open={false}>')).toBe('')
     expect(inlineStoryReason('Example', {}, '<Dialog open={args.open}>')).toBe('')
+  })
+  it('classifies hardcoded overlays per export instead of per module', () => {
+    const source = `
+export default {title: 'Components/AccountSwitcher'}
+export const AccountSwitcher = () => <DropdownMenu defaultOpen />
+export const Identity = () => <div />
+export const AccountList = () => <div />
+`
+    expect(inlineStoryReason('Components/AccountSwitcher', {}, storySource(source, 'AccountSwitcher'))).toContain(
+      'hardcodes an open overlay',
+    )
+    expect(inlineStoryReason('Components/AccountSwitcher', {}, storySource(source, 'Identity'))).toBe('')
+    expect(inlineStoryReason('Components/AccountSwitcher', {}, storySource(source, 'AccountList'))).toBe('')
+  })
+  it('keeps shared templates when removing other story exports', () => {
+    const source = `
+const Template = () => <Dialog open />
+export const First = () => <Template />
+export const Second = () => <Template />
+`
+    for (const exportName of ['First', 'Second'])
+      expect(inlineStoryReason('Example', {}, storySource(source, exportName))).toContain('hardcodes an open overlay')
+  })
+  it('keeps meta-level renders when removing other story exports', () => {
+    const source = `
+export default {render: () => <Popover defaultOpen />}
+export const First = () => <div />
+export const Second = () => <div />
+`
+    for (const exportName of ['First', 'Second'])
+      expect(inlineStoryReason('Example', {}, storySource(source, exportName))).toContain('hardcodes an open overlay')
   })
   it('recognizes internal modals that do not expose a closed state', () => {
     for (const title of ['Pages/DocumentPageParameters', 'Pages/DocumentPagePermissions'])

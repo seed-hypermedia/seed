@@ -3,7 +3,7 @@ import {composeStories, composeStory, setProjectAnnotations} from '@storybook/re
 import preview from '../../../packages/ui/.storybook/preview'
 import {storyUrl} from './Canvas'
 import type {Mode} from './theme'
-import {closedOverlayArgs, countStories, inlineStoryReason} from './story-policy'
+import {closedOverlayArgs, countStories, inlineStoryReason, storySource} from './story-policy'
 
 type StoryModule = Parameters<typeof composeStories>[0]
 const modules = import.meta.glob<StoryModule>('../../../packages/ui/src/**/*.stories.tsx', {eager: true})
@@ -46,10 +46,10 @@ export const storyGroups = Object.entries(modules)
 /** Static catalogue totals classified by the same policy used for inline story tiles. */
 export const storyTotals = countStories(
   storyGroups.flatMap((group) =>
-    Object.values(group.composed.stories).map((Story) => ({
+    Object.entries(group.composed.stories).map(([exportName, Story]) => ({
       title: group.title,
       args: Story.args,
-      source: sources[group.file] ?? '',
+      source: storySource(sources[group.file] ?? '', exportName),
     })),
   ),
 )
@@ -96,30 +96,34 @@ const StoryGroup = memo(function StoryGroup({group, mode}: {group: (typeof story
         <Fallback reason={composed.reason} />
       ) : (
         <div className="story-grid">
-          {Object.entries(composed.stories).map(([name, Story]) => (
-            <article className="story-tile" key={name} data-story-id={Story.id}>
-              <header>
-                <span>{Story.storyName ?? name}</span>
-                <a href={storyUrl(Story.id)} target="_blank" rel="noreferrer">
-                  Storybook ↗
-                </a>
-              </header>
-              {!visible ? (
-                <div className="story-pending">Scroll to preview</div>
-              ) : inlineStoryReason(group.title, Story.args, sources[group.file] ?? '') ? (
-                <Fallback reason={inlineStoryReason(group.title, Story.args, sources[group.file] ?? '')} />
-              ) : (
-                <StoryBoundary key={mode}>
-                  <div className="story-surface" data-story-status="rendered">
-                    <Story {...closedOverlayArgs(Story.args)} />
-                    {Object.keys(closedOverlayArgs(Story.args)).length > 0 && (
-                      <p className="closed-caption">Overlay closed by default · open in Storybook</p>
-                    )}
-                  </div>
-                </StoryBoundary>
-              )}
-            </article>
-          ))}
+          {Object.entries(composed.stories).map(([name, Story]) => {
+            const source = storySource(sources[group.file] ?? '', name)
+            const reason = inlineStoryReason(group.title, Story.args, source)
+            return (
+              <article className="story-tile" key={name} data-story-id={Story.id}>
+                <header>
+                  <span>{Story.storyName ?? name}</span>
+                  <a href={storyUrl(Story.id)} target="_blank" rel="noreferrer">
+                    Storybook ↗
+                  </a>
+                </header>
+                {!visible ? (
+                  <div className="story-pending">Scroll to preview</div>
+                ) : reason ? (
+                  <Fallback reason={reason} />
+                ) : (
+                  <StoryBoundary key={mode}>
+                    <div className="story-surface" data-story-status="rendered">
+                      <Story {...closedOverlayArgs(Story.args)} />
+                      {Object.keys(closedOverlayArgs(Story.args)).length > 0 && (
+                        <p className="closed-caption">Overlay closed by default · open in Storybook</p>
+                      )}
+                    </div>
+                  </StoryBoundary>
+                )}
+              </article>
+            )
+          })}
         </div>
       )}
     </div>
