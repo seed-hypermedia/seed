@@ -424,7 +424,7 @@ export function DraftVersionItem({
               send({type: 'draftHidden.set', hidden: !draftHidden})
             }}
           >
-            {draftHidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            {draftHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
           </Button>
         </Tooltip>
       ) : null}

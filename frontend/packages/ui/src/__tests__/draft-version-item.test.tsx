@@ -94,6 +94,9 @@ describe('DraftVersionItem', () => {
     render()
     const button = container.querySelector('button[aria-label="Preview published version"]') as HTMLButtonElement
     expect(button).not.toBeNull()
+    // Draft visible → the button offers hiding, so it shows the eye-off icon.
+    expect(button.querySelector('svg.lucide-eye-off')).not.toBeNull()
+    expect(button.querySelector('svg.lucide-eye')).toBeNull()
 
     act(() => {
       button.click()
@@ -106,6 +109,9 @@ describe('DraftVersionItem', () => {
     render()
     const button = container.querySelector('button[aria-label="Show draft changes"]') as HTMLButtonElement
     expect(button).not.toBeNull()
+    // Draft hidden → the button offers showing, so it shows the eye icon.
+    expect(button.querySelector('svg.lucide-eye')).not.toBeNull()
+    expect(button.querySelector('svg.lucide-eye-off')).toBeNull()
 
     act(() => {
       button.click()

@@ -4,6 +4,7 @@ import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useAccount} from '@shm/shared/models/entity'
 import {
   selectDocument,
+  selectDraftHidden,
   selectDraftId,
   selectEffectivePublishPath,
   selectMetadata,
@@ -17,7 +18,7 @@ import {
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {pathNameify} from '@shm/shared/utils/path'
-import {Check, ChevronRight, Clock, Copy, Eye, FileDiff, Pencil, Trash, X} from 'lucide-react'
+import {Check, ChevronRight, Clock, Copy, EyeOff, FileDiff, Info, Pencil, Trash, X} from 'lucide-react'
 import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {PathInput} from './path-input'
@@ -370,7 +371,7 @@ export function PublishPopoverBody({
                 onClose()
               }}
             >
-              <Eye className="size-4" />
+              <EyeOff className="size-4" />
             </Button>
           </Tooltip>
         ) : null}
@@ -644,6 +645,38 @@ export function PublishButtonWithPopover({
         </Popover>
       ) : null}
       <OptionsDropdown menuItems={allItems} align="end" side="bottom" />
+    </div>
+  )
+}
+
+/**
+ * Top-bar chrome shown while a draft is hidden to preview the published version: a
+ * "Show changes" restore button next to an info affordance explaining the preview.
+ * Exported for testing.
+ */
+export function DraftHiddenActions() {
+  const draftHidden = useDocumentSelector(selectDraftHidden)
+  const draftId = useDocumentSelector(selectDraftId)
+  const send = useDocumentSend()
+  if (!draftHidden || !draftId) return null
+  return (
+    <div className="flex items-center gap-1" data-testid="draft-hidden-actions">
+      <Button size="sm" variant="outline" onClick={() => send({type: 'draftHidden.set', hidden: false})}>
+        Show changes
+      </Button>
+      <Tooltip
+        side="bottom"
+        content="You're viewing the latest published version. Click “Show changes” to go back to your unpublished changes."
+      >
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="About the published preview"
+          className="text-muted-foreground size-7"
+        >
+          <Info className="size-3.5" />
+        </Button>
+      </Tooltip>
     </div>
   )
 }

@@ -127,7 +127,7 @@ import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {DocumentPageView, documentPageCid} from './document-page'
-import {usePublishError} from './editing-toolbar'
+import {DraftHiddenActions, usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
@@ -148,7 +148,6 @@ import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
   Braces,
-  EyeOff,
   FileText,
   Grid3X3,
   Info,
@@ -1962,31 +1961,6 @@ function useRenderedMetadata(document: HMDocument | null | undefined): HMMetadat
   )
 }
 
-/** Slim notice shown while a draft is hidden to preview the published version. */
-function DraftHiddenBanner() {
-  const draftHidden = useDocumentSelector(selectDraftHidden)
-  const draftId = useDocumentSelector(selectDraftId)
-  const send = useDocumentSend()
-  if (!draftHidden || !draftId) return null
-  return (
-    <div
-      role="status"
-      data-testid="draft-hidden-banner"
-      className="bg-muted text-muted-foreground flex items-center gap-2 px-4 py-2 text-xs"
-    >
-      <EyeOff className="size-3.5 shrink-0" />
-      <span className="min-w-0 flex-1">Previewing the published version — your unpublished changes are hidden.</span>
-      <button
-        type="button"
-        className="text-foreground shrink-0 font-medium underline-offset-2 hover:underline"
-        onClick={() => send({type: 'draftHidden.set', hidden: false})}
-      >
-        Show draft
-      </button>
-    </div>
-  )
-}
-
 /** Distance the document must scroll before its back-to-top control appears. */
 export const BACK_TO_TOP_SCROLL_OFFSET = 200
 
@@ -3115,7 +3089,7 @@ function DocumentBody({
       </AlertDialogContent>
     </AlertDialog>
   )
-  const documentContentAction = getDocumentContentAction({
+  const baseDocumentContentAction = getDocumentContentAction({
     activeView,
     isEditing,
     hasDraft: draftOverlayAllowed && ctx.draftId !== null,
@@ -3124,6 +3098,17 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // While the draft is hidden the draft chrome is suppressed, so the action slot falls back
+  // to the plain options menu; pair it with the "Show changes" restore controls then.
+  const documentContentAction =
+    baseDocumentContentAction === actionButtons ? (
+      <>
+        <DraftHiddenActions />
+        {actionButtons}
+      </>
+    ) : (
+      baseDocumentContentAction
+    )
   // A document that DEFINES a type (carries a `schemaDefinition`) gets header
   // actions: New Document / New Collection typed by it (or Create, for a signed type).
   // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
@@ -3578,7 +3563,6 @@ function DocumentBody({
           ref={elementRef}
         >
           {documentTopBar}
-          <DraftHiddenBanner />
           {mainPageContent}
           {activeView === 'comments' && <div ref={setMainCommentsFooter} className="sticky bottom-20 z-10 shrink-0" />}
           {floatingButtonsAction}
@@ -3640,7 +3624,6 @@ function DocumentBody({
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          <DraftHiddenBanner />
           {fixedHeightMain ? (
             mainPageContent
           ) : (
