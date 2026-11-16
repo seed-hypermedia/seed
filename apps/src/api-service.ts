@@ -155,7 +155,7 @@ import type {
   HMDocumentAttributeKind,
   HMRawDocumentInfo,
 } from '@seed-hypermedia/client/hm-types'
-import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
+import {compileExploreQuery, parseExploreQuery, type ExplorePredicate} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
 import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
 import {
@@ -623,11 +623,21 @@ export function narrowDefinitionTools(base: string[], specTools: string[]): stri
   return base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish))
 }
 
-function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+/**
+ * Callables every agent holds whatever its `tools` array says. They only read what the always-on
+ * `read` verb can already reach (a `:directory` listing carries the same attributes), and an agent
+ * without them cannot answer "which documents have X" at all. Agent settings offer no toggle for
+ * them, so gating them on `tools` left every agent made in the app without attribute queries.
+ */
+const ALWAYS_ON_CALLABLES: readonly string[] = [callableToolRegistry.query.name, callableToolRegistry.attributes.name]
+
+export function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
   const serviceCallables = serviceCallableNames()
   const requested = definition.tools?.map(normalizeSeedToolName)
   const enabled =
-    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+    requested === undefined
+      ? serviceCallables
+      : serviceCallables.filter((name) => requested.includes(name) || ALWAYS_ON_CALLABLES.includes(name))
   return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
 }
 
@@ -14337,37 +14347,113 @@ function rawDocumentUrl(info: HMRawDocumentInfo): string {
   return path ? `hm://${info.account}/${path}` : `hm://${info.account}`
 }
 
-/** A one-line rendering of a document's attributes, standard header fields first, bounded. */
-function attributesLine(metadata: Record<string, unknown> | undefined, max = 400): string {
-  if (!metadata) return ''
-  const entries = Object.entries(metadata).filter(([key]) => key !== 'name')
-  const text = entries
-    .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
-    .join(' · ')
+/** How an attribute value reads in a listing: absent and empty are spelled out, never blank. */
+function attributeText(value: unknown): string {
+  if (value === undefined || value === null) return '(missing)'
+  if (value === '') return '""'
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+/** The value at a key, or at a dotted path of nested keys when no attribute has that exact name. */
+function attributeAtPath(metadata: Record<string, unknown> | undefined, key: string): unknown {
+  if (!metadata) return undefined
+  if (key in metadata) return metadata[key]
+  let current: unknown = metadata
+  for (const part of key.split('.')) {
+    if (!isRecord(current)) return undefined
+    current = current[part]
+  }
+  return current
+}
+
+/**
+ * A one-line rendering of a document's attributes, bounded. Without `select` it is every attribute
+ * the document has except its name; with it, exactly those keys in that order, absent ones shown
+ * as `(missing)` so a column the caller asked about is never silently blank.
+ */
+function attributesLine(metadata: Record<string, unknown> | undefined, max = 400, select?: string[]): string {
+  const entries: Array<[string, unknown]> = select
+    ? select.map((key) => [key, attributeAtPath(metadata, key)])
+    : Object.entries(metadata ?? {}).filter(([key]) => key !== 'name')
+  const text = entries.map(([key, value]) => `${key}: ${attributeText(value)}`).join(' · ')
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
+/** `$`-prefixed names for a document's built-in fields, as `sort:` in `q` and `select` spell them. */
+const AGENT_QUERY_BUILTIN_NAMES: Record<string, (typeof AGENT_QUERY_BUILTIN_SORTS)[number]> = {
+  $name: 'NAME',
+  $path: 'PATH',
+  $created: 'CREATE_TIME',
+  $updated: 'UPDATE_TIME',
+  $activity: 'ACTIVITY_TIME',
+  $comments: 'COMMENT_COUNT',
+}
+
+type AgentQueryPlan = {
+  filter: HMDocumentFilter | undefined
+  warnings: string[]
+  /** The attribute predicates of `q`, for the hints a query with no results gets. */
+  predicates: ExplorePredicate[]
+  /** The `sort:` directive of `q`, when it carries one. */
+  sort: HMDocumentSort[] | undefined
+  /** The one space `q` is scoped to, when it names exactly one: hints look values up there. */
+  account: string | undefined
+}
+
 /** Compile `q` (the Explore grammar) and/or a raw `filter` into one DocumentFilter, with warnings. */
-function compileAgentQueryFilter(
-  q: string,
-  rawFilter: unknown,
-): {filter: HMDocumentFilter | undefined; warnings: string[]} {
+function compileAgentQueryFilter(q: string, rawFilter: unknown): AgentQueryPlan {
   const warnings: string[] = []
   const parts: HMDocumentFilter[] = []
+  let predicates: ExplorePredicate[] = []
+  let sort: HMDocumentSort[] | undefined
+  let account: string | undefined
   if (q) {
     const parsed = parseExploreQuery(q)
     const compiled = compileExploreQuery(parsed, {type: 'node'})
-    for (const diagnostic of compiled.diagnostics) warnings.push(diagnostic.message)
+    // A malformed query still compiles to something; say what was wrong with it rather than
+    // answer a different question without comment.
+    for (const diagnostic of [...parsed.diagnostics, ...compiled.diagnostics]) {
+      if (!warnings.includes(diagnostic.message)) warnings.push(diagnostic.message)
+    }
     if (compiled.textTerms.length) {
       warnings.push(
         `Free-text terms are not matched by query (${compiled.textTerms
           .map((term) => (term.phrase ? `"${term.value}"` : term.value))
-          .join(', ')}); use the search tool for text.`,
+          .join(', ')}); use the search tool for text. A key with spaces is quoted before its operator: "Due Date"=x.`,
       )
     }
     if (compiled.requestedTypes.length || compiled.excludedTypes.length) {
       warnings.push('`type:` predicates are ignored by query: it only returns documents.')
     }
+    if (parsed.presentation.view || parsed.presentation.columns) {
+      warnings.push('`view:` and `cols:` are ignored by query; pass `select` to choose the attributes shown.')
+    }
+    if (
+      compiled.documentPredicates.some(
+        (predicate) =>
+          predicate.kind === 'attribute' && predicate.operator === 'comparison' && predicate.comparison === '!=',
+      )
+    ) {
+      warnings.push(
+        '`key!=value` matches only documents that have the key; write `NOT key=value` to include documents without it.',
+      )
+    }
+    if (parsed.presentation.sort?.length) {
+      sort = parsed.presentation.sort.map((rule): HMDocumentSort => {
+        const builtin = AGENT_QUERY_BUILTIN_NAMES[rule.key.toLowerCase()]
+        const descending = rule.direction === 'desc'
+        return builtin
+          ? {attribute: `BUILTIN_SORT_ATTRIBUTE_${builtin}` as HMDocumentSort['attribute'], descending}
+          : {key: rule.key, descending}
+      })
+    }
+    predicates = compiled.documentPredicates
+    const spaces = new Set(
+      compiled.positiveScopes.flatMap((scope) =>
+        scope.scope === 'space' ? [scope.value] : scope.scope === 'url' ? [unpackHmId(scope.value)?.uid ?? ''] : [],
+      ),
+    )
+    if (spaces.size === 1) account = [...spaces][0] || undefined
     if (compiled.filter) parts.push(compiled.filter)
   }
   if (rawFilter !== undefined) {
@@ -14375,7 +14461,7 @@ function compileAgentQueryFilter(
     parts.push(rawFilter as HMDocumentFilter)
   }
   const filter = parts.length === 0 ? undefined : parts.length === 1 ? parts[0] : {and: {filters: parts}}
-  return {filter, warnings}
+  return {filter, warnings, predicates, sort, account}
 }
 
 function agentQuerySort(raw: unknown): HMDocumentSort[] | undefined {
@@ -14393,63 +14479,301 @@ function agentQuerySort(raw: unknown): HMDocumentSort[] | undefined {
   })
 }
 
+/**
+ * `childrenOf`: the direct children of one document. The daemon's filters can scope to a subtree
+ * (the document itself and every descendant) but not to one level, so the subtree is queried and
+ * the level kept here; a page can therefore come back shorter than `pageSize`.
+ */
+function agentQueryChildScope(
+  raw: unknown,
+): {url: string; account: string; filter: HMDocumentFilter; isChild: (info: HMRawDocumentInfo) => boolean} | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (typeof raw !== 'string') throw new APIError(400, 'query childrenOf must be an hm:// document URL')
+  const trimmed = raw.trim().replace(/\/:directory$/, '')
+  const parent = unpackHmId(trimmed.startsWith('hm://') ? trimmed : `hm://${trimmed}`)
+  if (!parent) throw new APIError(400, 'query childrenOf must be an hm:// document URL')
+  const parentPath = (parent.path ?? []).filter(Boolean)
+  const url = packBaseId(parent.uid, parentPath)
+  return {
+    url,
+    account: parent.uid,
+    filter: {urlMatch: {url, prefix: true}},
+    isChild: (info) =>
+      info.account === parent.uid && (info.path ?? '').split('/').filter(Boolean).length === parentPath.length + 1,
+  }
+}
+
+function agentQuerySelect(raw: unknown): string[] | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw) || raw.some((key) => typeof key !== 'string' || !key.trim())) {
+    throw new APIError(400, 'query select must be an array of attribute keys')
+  }
+  const keys = raw.map((key) => (key as string).trim())
+  return keys.length ? keys : undefined
+}
+
+/** A document's built-in fields under the `$` names `select` and `groupBy` accept. */
+function agentQueryRowFields(info: HMRawDocumentInfo): Record<string, unknown> {
+  return {
+    ...(info.metadata ?? {}),
+    $path: info.path ?? '',
+    $created: info.createTime,
+    $updated: info.updateTime,
+    $authors: info.authors?.length ? info.authors.join(', ') : undefined,
+  }
+}
+
+/** Most documents a counting query reads before it reports a lower bound. */
+const AGENT_QUERY_COUNT_MAX_DOCUMENTS = 5000
+/** Most subtree pages one `childrenOf` listing reads to fill a page with direct children. */
+const AGENT_QUERY_CHILD_SCAN_PAGES = 20
+/** Rows of a listing stop here so the page token and the notes always fit the model's result. */
+const AGENT_QUERY_ROWS_BYTES = 24 * 1024
+
+/**
+ * Why a query that should have matched found nothing: attribute keys and string values compare
+ * exactly, so `priority=high` misses `Priority: High`. Looks the keys of `q` up among the names
+ * documents use, and an equality's value among the values that key takes. Best effort: a lookup
+ * that fails adds no hint.
+ */
+async function agentQueryEmptyHints(
+  client: ReturnType<typeof createSeedClient>,
+  predicates: ExplorePredicate[],
+  account: string | undefined,
+): Promise<string[]> {
+  const hints: string[] = []
+  const seen = new Set<string>()
+  const where = account ? ' in this space' : ''
+  for (const predicate of predicates) {
+    if (predicate.kind !== 'attribute' || seen.has(predicate.key) || seen.size >= 4) continue
+    seen.add(predicate.key)
+    const path = predicate.key.split('.')
+    const last = path[path.length - 1]!
+    const spelled = (name: string) => `\`${[...path.slice(0, -1), name].join('.')}\``
+    try {
+      const known = await client.request('ListDocumentAttributeNames', {
+        account,
+        parentPath: path.slice(0, -1),
+        prefix: last,
+        pageSize: 50,
+      })
+      const names = (known.names ?? []).map((entry) => entry.name)
+      const variants = names.filter((name) => name !== last && name.toLowerCase() === last.toLowerCase())
+      if (!names.includes(last)) {
+        hints.push(
+          variants.length
+            ? `No document has an attribute \`${predicate.key}\`. Keys are case-sensitive: did you mean ${variants
+                .map(spelled)
+                .join(' or ')}?`
+            : `No document has an attribute \`${predicate.key}\`; call attributes to list the names in use.`,
+        )
+        continue
+      }
+      // The names listing is network-wide (a space only orders it), so a key that exists somewhere
+      // may still be the wrong spelling here: the values, which a space does restrict, decide.
+      const listed = await client.request('ListDocumentAttributeValues', {
+        path,
+        kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING',
+        account,
+        pageSize: 30,
+      })
+      const values = (listed.values ?? []).flatMap((entry) =>
+        typeof entry.value?.stringValue === 'string' ? [entry.value.stringValue] : [],
+      )
+      const otherSpellings = variants.length
+        ? ` Keys are case-sensitive, and ${variants.map(spelled).join(' and ')} ${
+            variants.length === 1 ? 'is' : 'are'
+          } also in use: check which spelling these documents carry.`
+        : ''
+      if (!values.length) {
+        if (otherSpellings)
+          hints.push(`No document${where} has a text value for \`${predicate.key}\`.${otherSpellings}`)
+        continue
+      }
+      if (predicate.operator !== 'comparison' || predicate.comparison !== '=' || typeof predicate.value !== 'string') {
+        continue
+      }
+      const wanted = predicate.value
+      if (values.includes(wanted)) continue
+      const shown = (value: string) => (value === '' ? '"" (empty)' : `"${value}"`)
+      const closest = values.filter((value) => value.toLowerCase() === wanted.toLowerCase())
+      hints.push(
+        closest.length
+          ? `No document${where} has \`${
+              predicate.key
+            }\` exactly "${wanted}". Values compare exactly: did you mean ${closest.map(shown).join(' or ')}? (\`${
+              predicate.key
+            }:${wanted}\` matches ignoring case.)`
+          : `No document${where} has \`${predicate.key}\` exactly "${wanted}". Values in use${where}: ${values
+              .slice(0, 20)
+              .map(shown)
+              .join(', ')}${listed.nextPageToken || values.length > 20 ? ', …' : ''}.`,
+      )
+    } catch {
+      // A hint is a courtesy; the empty result stands on its own.
+    }
+  }
+  return hints
+}
+
 async function executeAgentServiceQuery(
   context: AgentServicePiToolContext,
   raw: unknown,
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
   const q = typeof input.q === 'string' ? input.q.trim() : ''
-  if (!q && input.filter === undefined) throw new APIError(400, 'query needs `q` (Explore grammar) or `filter`')
-  const {filter, warnings} = compileAgentQueryFilter(q, input.filter)
-  if (!filter) throw new APIError(400, `query has no attribute conditions: ${warnings.join(' ') || q}`)
-  const sort = agentQuerySort(input.sort)
-  const pageSize = boundedInteger(input.pageSize, 25, 1, 100)
-  const pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const childScope = agentQueryChildScope(input.childrenOf)
+  if (!q && input.filter === undefined && !childScope) {
+    throw new APIError(400, 'query needs `q` (Explore grammar), `filter`, or `childrenOf`')
+  }
+  const plan = compileAgentQueryFilter(q, input.filter)
+  const filters = [childScope?.filter, plan.filter].filter((part): part is HMDocumentFilter => !!part)
+  if (!filters.length) throw new APIError(400, `query has no attribute conditions: ${plan.warnings.join(' ') || q}`)
+  const filter = filters.length === 1 ? filters[0]! : {and: {filters}}
+  const sort = agentQuerySort(input.sort) ?? plan.sort
+  const select = agentQuerySelect(input.select)
+  const groupBy = typeof input.groupBy === 'string' && input.groupBy.trim() ? input.groupBy.trim() : undefined
+  const warnings = [...plan.warnings]
   const client = createSeedClient(context.hmServerUrl)
-  const output = await client.request('QueryDocuments', {filter, sort, pageSize, pageToken})
-  const results = (output.documents ?? []).map((info) => ({
+  const described = [q ? `\`${q}\`` : '', childScope ? `children of ${childScope.url}` : ''].filter(Boolean).join(', ')
+  const forWhat = described ? ` for ${described}` : ''
+  const notes = (extra: string[] = []) => [...warnings, ...extra].map((warning) => `Note: ${warning}`)
+
+  // Counting: read every match (bounded) and report how many there are, by value when grouped.
+  if (input.count === true || groupBy) {
+    let total = 0
+    let pageToken: string | undefined
+    const groups = new Map<string, number>()
+    do {
+      const output = await client.request('QueryDocuments', {filter, pageSize: 100, pageToken})
+      for (const info of output.documents ?? []) {
+        if (childScope && !childScope.isChild(info)) continue
+        total++
+        if (groupBy) {
+          const value = attributeText(attributeAtPath(agentQueryRowFields(info), groupBy))
+          groups.set(value, (groups.get(value) ?? 0) + 1)
+        }
+      }
+      pageToken = output.nextPageToken || undefined
+    } while (pageToken && total < AGENT_QUERY_COUNT_MAX_DOCUMENTS)
+    const complete = !pageToken
+    const counts = [...groups.entries()]
+      .map(([value, count]) => ({value, count}))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+    const hints =
+      total === 0 ? await agentQueryEmptyHints(client, plan.predicates, childScope?.account ?? plan.account) : []
+    const summary = `${complete ? '' : 'At least '}${total} document${total === 1 ? '' : 's'}${forWhat}.`
+    return {
+      summary,
+      total,
+      complete,
+      ...(groupBy ? {groupBy, counts} : {}),
+      markdown: [
+        summary,
+        ...(complete ? [] : [`Counting stopped at ${total} documents; narrow the query for an exact total.`]),
+        ...(groupBy ? ['', `By \`${groupBy}\`:`, ...counts.map((entry) => `- ${entry.value}: ${entry.count}`)] : []),
+        ...(warnings.length || hints.length ? ['', ...notes(hints)] : []),
+      ].join('\n'),
+      q: q || undefined,
+      childrenOf: childScope?.url,
+      filter,
+      ...(warnings.length || hints.length ? {warnings: [...warnings, ...hints]} : {}),
+    }
+  }
+
+  const pageSize = boundedInteger(input.pageSize, 50, 1, 100)
+  let pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const documents: HMRawDocumentInfo[] = []
+  let pagesRead = 0
+  do {
+    const output = await client.request('QueryDocuments', {filter, sort, pageSize, pageToken})
+    pagesRead++
+    for (const info of output.documents ?? []) {
+      if (!childScope || childScope.isChild(info)) documents.push(info)
+    }
+    pageToken = output.nextPageToken || undefined
+    // Only a direct-children listing reads on: its pages lose the deeper descendants.
+  } while (childScope && pageToken && documents.length < pageSize && pagesRead < AGENT_QUERY_CHILD_SCAN_PAGES)
+  const nextPageToken = pageToken
+  const results = documents.map((info) => ({
     url: rawDocumentUrl(info),
     name: typeof info.metadata?.name === 'string' ? info.metadata.name : undefined,
     account: info.account,
     path: info.path ?? '',
     attributes: info.metadata ?? {},
     authors: info.authors ?? [],
+    createTime: info.createTime,
     updateTime: info.updateTime,
     version: info.version,
   }))
-  const nextPageToken = output.nextPageToken || undefined
-  const markdown = results.length
-    ? [
-        `Query results${q ? ` for \`${q}\`` : ''} (${results.length} document${results.length === 1 ? '' : 's'}${
-          nextPageToken ? ', more available' : ''
-        })`,
-        '',
-        ...results.flatMap((result, index) => [
-          `${index + 1}. [${result.name || result.url}](${result.url})`,
-          ...(result.updateTime ? [`   - Updated: ${result.updateTime}`] : []),
-          ...(Object.keys(result.attributes).length ? [`   - Attributes: ${attributesLine(result.attributes)}`] : []),
+  const hints =
+    results.length === 0 && !nextPageToken
+      ? await agentQueryEmptyHints(client, plan.predicates, childScope?.account ?? plan.account)
+      : []
+  const count = `${results.length} document${results.length === 1 ? '' : 's'}`
+  const summary = results.length
+    ? nextPageToken
+      ? `${count} on this page${forWhat}; more exist.`
+      : `Found ${count}${forWhat}; that is all of them.`
+    : nextPageToken
+      ? `No documents on this page${forWhat}; more pages exist.`
+      : `No documents match${described ? ` ${described}` : ' the filter'}.`
+  // One line per document. The rows are cut at a byte budget so the paging line above them and
+  // the notes below always reach the model.
+  const rows: string[] = []
+  let rowBytes = 0
+  for (const [index, info] of documents.entries()) {
+    const result = results[index]!
+    const attributes = select
+      ? attributesLine(agentQueryRowFields(info), 600, select)
+      : attributesLine(info.metadata, 300)
+    const row = `- [${result.name || result.url}](${result.url})${attributes ? ` — ${attributes}` : ''}`
+    rowBytes += Buffer.byteLength(row, 'utf8') + 1
+    if (rowBytes > AGENT_QUERY_ROWS_BYTES) break
+    rows.push(row)
+  }
+  const hidden = results.length - rows.length
+  const markdown = [
+    summary,
+    ...(nextPageToken
+      ? [
+          `Next page: call again with the same input plus pageToken "${nextPageToken}". For a total without paging, call with count: true.`,
+        ]
+      : []),
+    ...(rows.length ? ['', ...rows] : []),
+    ...(hidden > 0
+      ? [
           '',
-        ]),
-        ...(nextPageToken ? [`More results: call again with pageToken "${nextPageToken}".`] : []),
-        ...(warnings.length ? ['', ...warnings.map((warning) => `Note: ${warning}`)] : []),
-      ].join('\n')
-    : [`No documents match${q ? ` \`${q}\`` : ' the filter'}.`, ...warnings.map((warning) => `Note: ${warning}`)].join(
-        '\n',
-      )
+          `${hidden} more document${
+            hidden === 1 ? ' is' : 's are'
+          } on this page but not shown (the listing got too long). Call again with \`select\` naming the few attributes you need, or a smaller pageSize.`,
+        ]
+      : []),
+    ...(warnings.length || hints.length ? ['', ...notes(hints)] : []),
+  ].join('\n')
   return {
-    summary: results.length
-      ? `Found ${results.length}${nextPageToken ? '+' : ''} document${results.length === 1 ? '' : 's'}${
-          q ? ` for \`${q}\`` : ''
-        }.`
-      : `No documents match${q ? ` \`${q}\`` : ' the filter'}.`,
+    summary,
+    nextPageToken,
     markdown,
     q: q || undefined,
+    childrenOf: childScope?.url,
     filter,
     sort,
+    ...(warnings.length || hints.length ? {warnings: [...warnings, ...hints]} : {}),
     results,
-    nextPageToken,
-    ...(warnings.length ? {warnings} : {}),
   }
+}
+
+/**
+ * What the model keeps of a callable's result. `query` returns each document twice, as a markdown
+ * row and as a `results` record; scripts (ctx.call) read the records, the model reads the rows, so
+ * the records and the compiled filter are left out of the transcript the model pays for.
+ */
+export function modelFacingCallResult(toolName: unknown, output: Record<string, unknown>): Record<string, unknown> {
+  const name = typeof toolName === 'string' ? normalizeSeedToolName(toolName.trim()) : ''
+  if (name !== callableToolRegistry.query.name || typeof output.markdown !== 'string') return output
+  const {results: _results, filter: _filter, sort: _sort, ...rest} = output
+  return rest
 }
 
 // ── attributes: which keys exist, and their values (ListDocumentAttributeNames / Values) ────────
@@ -14565,7 +14889,12 @@ async function executeAgentServiceAttributes(
     ? [
         `Values of \`${key}\`${account ? ` in ${account}` : ''}:`,
         '',
-        ...values.map((entry) => `- ${entry.value === null ? 'null' : String(entry.value)} (${entry.kind})`),
+        ...values.map(
+          (entry) =>
+            `- ${entry.value === null ? 'null' : entry.value === '' ? '"" (an empty string)' : String(entry.value)} (${
+              entry.kind
+            })`,
+        ),
         ...(nextPageToken ? ['', `More values: call again with pageToken "${nextPageToken}".`] : []),
       ].join('\n')
     : `No values recorded for \`${key}\`.`
@@ -17254,8 +17583,8 @@ export async function executeCallVerb(
 
 function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRuntimeTool[] {
   const promoted = (context.expandedCallables ?? []).flatMap((name) => {
-    const execute = (params: unknown, toolCallId: string) =>
-      executeCallVerb(context, {tool: name, input: params}, toolCallId)
+    const execute = async (params: unknown, toolCallId: string) =>
+      modelFacingCallResult(name, await executeCallVerb(context, {tool: name, input: params}, toolCallId))
     if (context.callableTools.includes(name)) {
       const registryTool = getSeedTool(name)
       if (!registryTool) return []
@@ -17278,7 +17607,12 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
       paginateReadResult(await executeReadVerb(context, params), params),
     ),
     defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
-    defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),
+    defineSeedPiTool(seedVerbRegistry.call, async (params, toolCallId) =>
+      modelFacingCallResult(
+        isRecord(params) ? params.tool : undefined,
+        await executeCallVerb(context, params, toolCallId),
+      ),
+    ),
     defineSeedPiTool(seedVerbRegistry.delegate, (params, toolCallId) => {
       const input = isPlainRecord(params) ? params : {}
       if (typeof input.script === 'string' && input.script) {
@@ -19742,10 +20076,48 @@ function utf8Prefix(text: string, maxBytes: number): string {
  * `options.offset: nextOffset` continues. Every page fits under MAX_MODEL_TOOL_RESULT_BYTES once serialized, so a paged read is never
  * truncated. Results with no long text field are left to boundModelToolResultText.
  */
-export function paginateReadResult(result: Record<string, unknown>, rawInput: unknown): Record<string, unknown> {
-  if (hasPiContent(result)) return result
+/**
+ * A hypermedia read takes one option, {offset}. Anything else an agent passes (a limit, a filter,
+ * a sort) used to be dropped in silence, and the agent read the unchanged result as if it had been
+ * honored. Say what was ignored and where that capability lives.
+ */
+function hypermediaReadOptionNotes(
+  result: Record<string, unknown>,
+  input: Record<string, unknown>,
+  options: Record<string, unknown>,
+): string[] {
+  if (typeof result.type !== 'string' || !result.type.startsWith('hypermedia_')) return []
+  const notes: string[] = []
+  const ignored = Object.keys(options).filter((key) => key !== 'offset')
+  if (ignored.length) {
+    notes.push(
+      `Ignored option${ignored.length === 1 ? '' : 's'} ${ignored
+        .map((key) => `\`${key}\``)
+        .join(
+          ', ',
+        )}: a hypermedia read only takes {offset}. To filter, sort, limit or count documents, call the query tool.`,
+    )
+  }
+  if (input.format === 'json' && result.type === 'hypermedia_directory') {
+    notes.push('A directory listing is always markdown; `format: "json"` does not apply to it.')
+  }
+  return notes
+}
+
+export function paginateReadResult(rawResult: Record<string, unknown>, rawInput: unknown): Record<string, unknown> {
+  if (hasPiContent(rawResult)) return rawResult
   const input = isRecord(rawInput) ? rawInput : {}
   const options = isRecord(input.options) ? input.options : {}
+  let result = rawResult
+  if (result.type === 'hypermedia_directory') {
+    // A directory names every child twice: a markdown row and a `documents` record. Scripts read
+    // the records; the model reads the rows. Left in, the records alone outgrow the model's result
+    // ceiling, so the page shrinks to nothing and the paging info is cut off with it.
+    const {documents: _documents, ...rows} = result
+    result = rows
+  }
+  const notes = hypermediaReadOptionNotes(result, input, options)
+  if (notes.length) result = {...result, notes}
   const field = READ_PAGE_FIELDS.find((key) => typeof result[key] === 'string')
   if (!field) return result
   const text = result[field] as string
@@ -20753,6 +21125,11 @@ async function readDirectoryHypermedia(input: {
     path: hmIdPathToEntityQueryPath(info.path),
     name: info.metadata?.name || undefined,
     summary: info.metadata?.summary || undefined,
+    // Every attribute the listing already carries: without them an agent cannot tell which
+    // children have a field set, and has to open each document to find out.
+    attributes: isRecord(info.metadata)
+      ? (JSON.parse(safeJSONStringify(info.metadata)) as Record<string, unknown>)
+      : {},
     updateTime:
       typeof info.updateTime === 'string'
         ? info.updateTime
@@ -20765,11 +21142,22 @@ async function readDirectoryHypermedia(input: {
     `# Directory of ${parentId}`,
     '',
     ...(entries.length
-      ? entries.map((entry) => {
-          const label = entry.name || entry.path || entry.id
-          const children = typeof entry.childrenCount === 'number' ? ` (${entry.childrenCount} children)` : ''
-          return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}`
-        })
+      ? [
+          `${entries.length} child document${
+            entries.length === 1 ? '' : 's'
+          }, each with its attributes. To filter, sort or count them by attribute, call the query tool with childrenOf: "${parentId}" (for example q: "empty:Priority", or groupBy: "Status").`,
+          '',
+          ...entries.map((entry) => {
+            const label = entry.name || entry.path || entry.id
+            // Only a child that has children of its own says so; "(0 children)" on every row is noise.
+            const children = entry.childrenCount ? ` (${entry.childrenCount} children)` : ''
+            const {name: _name, summary: _summary, ...rest} = entry.attributes
+            const attributes = attributesLine(rest, 240)
+            return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}${
+              attributes ? ` — ${attributes}` : ''
+            }`
+          }),
+        ]
       : ['(no child documents)']),
   ].join('\n')
   return {
