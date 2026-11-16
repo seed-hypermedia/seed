@@ -15,7 +15,7 @@ import {resolveEditableDocument} from './document-state'
 import type {CollectedBlob} from './file-to-ipfs'
 import {hmIdPathToEntityQueryPath, packHmId, unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from './hm-types'
 import type {BlockNode} from './markdown-to-blocks'
-import {prepareDocumentUpdateBlobs} from './prepare-change'
+import {documentOperationsToChanges, prepareDocumentUpdateBlobs, withoutLeadingMovesInPlace} from './prepare-change'
 import type {AnySigner} from './signer'
 
 export const HM_APP_TYPE = 'hm://hyper.media/app'
@@ -199,7 +199,8 @@ export async function createDocumentUpdateBlobs({
     account: base.targetId.uid,
     path: hmIdPathToEntityQueryPath(base.targetId.path),
     baseVersion: base.state.version,
-    ops,
+    // Ops that re-list a level begin with moves of blocks already in place; see the function.
+    changes: withoutLeadingMovesInPlace(documentOperationsToChanges(ops), base.document.content),
     capability,
     genesis: base.state.genesis,
     currentGeneration: base.document.generationInfo?.generation,

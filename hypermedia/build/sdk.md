@@ -146,6 +146,13 @@ When every op is already true of the document, the daemon answers with a Change 
 
 `ops` are converted with `documentOperationsToChanges`, which you can also call yourself. A `MoveBlocks` has no anchor, so it places its blocks at the start of the parent in the order listed. To place a block somewhere else without listing its siblings, pass `changes` with a `moveBlock` that names the `leftSibling`. `SetAttributes` values must be strings, whole numbers, booleans or null, and block attributes must be plain JSON. Anything else throws before the request is made.
 
+Two things a prepared update must not be sent, both seen on a real daemon:
+
+- **A level re-listed from its first block.** A `MoveBlocks` naming a whole level starts with "first block at the start". The daemon treats that as a move, discards it when it writes the Change, and then anchors the next block on nothing, so a block inserted right after an unchanged first block lands before it. Pass the changes through `withoutLeadingMovesInPlace(changes, document.content)` first: it removes the moves of the leading blocks that are already where the document has them. `createDocumentUpdateBlobs` does this for you.
+- **A map cleared and set again.** A Change you build yourself can say "this key is exactly this map" as `{key: [k], value: null}` followed by every entry. Sent to the daemon, the unchanged entries are left out and the clear is kept, which removes the whole map. Send the entries, plus a `null` for each entry the document has and the new map does not.
+
+A site may also refuse a large request body with a 413 (some cap their API bodies at a few KB). `client.publish` gets around that by storing blob by blob; a prepare request has no such route, so build the Change yourself when that happens.
+
 The Ref's generation is the new Change's timestamp unless you pass `generation`. Pass `currentGeneration` so the Ref never falls below the generation the path already has, which would leave the update published and ignored.
 
 **Build the Change yourself.** `createChangeOps({ops, genesisCid, deps, depth})`, `createChange(unsignedBytes, signer)` and `createVersionRef` are still there, and `resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth for them. A Change built this way is stored exactly as written: an op that changes nothing is kept in the document's history, and a `MoveBlocks` that lists a whole level moves every block of it again. Use these for a document's first Change (which `createDocumentBlobs` does for you) or when no Seed API is in reach. For an update, prefer `prepareDocumentUpdateBlobs`.
