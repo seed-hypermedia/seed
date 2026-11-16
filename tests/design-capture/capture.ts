@@ -1464,7 +1464,12 @@ async function main(): Promise<void> {
           : []),
       ] as Array<[string, string[]]>
       for (const [surface, args] of builds) {
-        if (!options.only.has(surface) && !(surface === 'web' && options.only.has('vault'))) continue
+        if (
+          !options.only.has(surface) &&
+          !(surface === 'web' && (options.only.has('vault') || options.only.has('desktop')))
+        ) {
+          continue
+        }
         try {
           runCommand('pnpm', args)
         } catch (error) {
