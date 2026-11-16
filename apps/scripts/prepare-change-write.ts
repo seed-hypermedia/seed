@@ -17,6 +17,14 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {createSeedClient, unpackHmId} from '@seed-hypermedia/client'
 import * as blobs from '@seed-hypermedia/client/blobs'
+import {
+  createTreeFuzzer,
+  flatTree,
+  newFuzzStats,
+  recordFuzzRound,
+  treeShape,
+  type Tree,
+} from '../../tests/integration/tree-fuzz'
 import * as apisvc from '../src/api-service'
 import * as sqlite from '../src/sqlite'
 
@@ -72,8 +80,22 @@ async function readMarkdown(address: string): Promise<string> {
   return markdown.replace(/^---\n[\s\S]*?\n---\n/, '')
 }
 
-const write = (input: Record<string, unknown>) =>
-  apisvc.executeWriteVerb(context, input) as Promise<Record<string, any>>
+/**
+ * Why the service built the last Change itself instead of using the site's, when it did. The
+ * service says so in a warning; nothing in the write's result tells the two apart.
+ */
+let builtHere: string | undefined
+const warn = console.warn
+console.warn = (...args: unknown[]) => {
+  const why = (args[1] as {why?: unknown} | undefined)?.why
+  if (String(args[0]).includes('Building the document change here') && typeof why === 'string') builtHere = why
+  else warn(...args)
+}
+
+const write = (input: Record<string, unknown>) => {
+  builtHere = undefined
+  return apisvc.executeWriteVerb(context, input) as Promise<Record<string, any>>
+}
 
 let failed = false
 async function step(name: string, run: () => Promise<void>) {
@@ -345,34 +367,216 @@ await step('moving two neighbouring blocks together keeps the order', async () =
   assert.equal(moves[0]!.blocks.length, 4)
 })
 
-await step('seeded random reorders, inserts and deletes all read back as written', async () => {
-  let seed = 20261116
-  const random = (n: number) => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff
-    return seed % n
+// ── New parents ─────────────────────────────────────────────────────────────
+
+/** The document's block texts as a nested list: `['A', ['B', ['C']]]` is `A`, then `B` with child `C`. */
+const texts = (nodes: any[] | undefined): unknown[] =>
+  (nodes ?? []).map((node) => {
+    const text = node.block.text ?? `<${node.block.type}>`
+    return node.children?.length ? [text, texts(node.children)] : text
+  })
+
+await step('two new sections, a nested list with two parents and a new table arrive in one update', async () => {
+  // Every one of these is a new block with children. The site refused such an update ("desired
+  // parent block is not in the tree") when a move came before the content of a new parent.
+  const docAddress = `hm://${account}/parents`
+  const created = await write({address: docAddress, content: 'Intro\n\nOutro\n', options: {name: 'Parents'}})
+  assert.equal(created.type, 'hypermedia_write_result', JSON.stringify(created))
+  const before = await readMarkdown(docAddress)
+  const added = `${before.trimEnd()}
+
+# Section one
+
+First of one
+
+Second of one
+
+| Name | Value |
+| --- | --- |
+| alpha | 1 |
+
+# Section two
+
+- Parent A
+  - Child a1
+  - Child a2
+- Parent B
+  - Child b1
+`
+  const result = await write({address: docAddress, content: added, options: {action: 'update'}})
+  assert.equal(result.type, 'hypermedia_write_result', JSON.stringify(result))
+  assert.equal(result.unchanged, undefined)
+  assert.equal(builtHere, undefined, `the site should have prepared this: ${builtHere}`)
+  const doc = await document('/parents')
+  const tree = JSON.stringify(texts(doc.content))
+  assert.ok(tree.includes('["Section one",["First of one","Second of one",'), tree)
+  assert.ok(tree.includes(JSON.stringify(['Parent A', ['Child a1', 'Child a2']])), tree)
+  assert.ok(tree.includes(JSON.stringify(['Parent B', ['Child b1']])), tree)
+  for (const cell of ['Name', 'Value', 'alpha', '1']) assert.ok(tree.includes(JSON.stringify(cell)), tree)
+  // The two blocks that were there are not written or moved again.
+  const ops = await storedOps(result.version)
+  const touched = JSON.stringify(ops)
+  for (const node of (await document('/parents')).content!.slice(0, 2)) {
+    assert.ok(!touched.includes(`"${node.block.id}"`), `block ${node.block.id} was written again: ${touched}`)
   }
-  let fresh = 0
-  let order = ['one', 'two', 'three', 'four', 'five', 'six']
-  await createFlat('/order-random', order)
-  for (let round = 0; round < 25; round++) {
-    const next = [...order]
-    const kind = random(10)
-    if (kind < 2) {
-      next.splice(random(next.length + 1), 0, `new${++fresh}`)
-    } else if (kind < 3 && next.length > 2) {
-      next.splice(random(next.length), 1)
-    } else if (kind < 6) {
-      // A run of one to three neighbours moves.
-      const length = 1 + random(Math.min(3, next.length))
-      const run = next.splice(random(next.length - length + 1), length)
-      next.splice(random(next.length + 1), 0, ...run)
-    } else {
-      const [block] = next.splice(random(next.length), 1)
-      next.splice(random(next.length + 1), 0, block!)
+  // And what the agent reads back, written again, changes nothing.
+  const again = await write({address: docAddress, content: await readMarkdown(docAddress), options: {action: 'update'}})
+  assert.equal(
+    again.unchanged,
+    true,
+    again.unchanged ? '' : `the rewrite stored ${JSON.stringify(await storedOps(again.version))}`,
+  )
+})
+
+// ── Clocks ──────────────────────────────────────────────────────────────────
+// A Change the site prepares carries the site's clock; one the service builds carries its own.
+
+await step('with the service clock behind the site, Changes built here still follow the ones under them', async () => {
+  const docAddress = `hm://${account}/clock-behind`
+  await write({address: docAddress, content: 'One\n\nTwo\n', options: {name: 'Clock behind'}})
+  // A prepared Change first, so the head carries the site's clock.
+  const prepared = await write({address: docAddress, options: {action: 'update', metadata: {summary: 'Prepared'}}})
+  assert.equal(builtHere, undefined)
+  apisvc.setDocumentUpdateClockForTests(() => Date.now() - 5_000)
+  try {
+    // Only values the site cannot carry: one Change, built here on that head.
+    const verbatim = await write({address: docAddress, options: {action: 'update', metadata: {tags: ['a', 'b']}}})
+    assert.equal(verbatim.unchanged, undefined, JSON.stringify(verbatim))
+    const head = (await client.request('GetCID', {cid: prepared.version})) as {value: {ts: number}}
+    const built = (await client.request('GetCID', {cid: verbatim.version})) as {value: {ts: number}}
+    assert.equal(Number(built.value.ts), Number(head.value.ts) + 1)
+    assert.deepEqual((await document('/clock-behind')).metadata.tags, ['a', 'b'])
+    // A prepared part and such values together: two Changes, the second after the first.
+    const both = await write({
+      address: docAddress,
+      options: {action: 'update', metadata: {summary: 'Both', tags: ['a', 'b', 'c']}},
+    })
+    const top = (await client.request('GetCID', {cid: both.version})) as {value: {ts: number; deps: any[]}}
+    const depCid = typeof top.value.deps[0] === 'string' ? top.value.deps[0] : String(top.value.deps[0]['/'])
+    const under = (await client.request('GetCID', {cid: depCid})) as {value: {ts: number}}
+    assert.equal(Number(top.value.ts), Number(under.value.ts) + 1)
+    // Ops the site cannot be asked for (neighbours moving together), built here.
+    await createFlat('/clock-behind-order', ['alpha', 'bravo', 'charlie', 'delta'])
+    await writeOrder('/clock-behind-order', ['alpha', 'bravo', 'charlie', 'delta', 'echo'])
+    assert.equal(builtHere, undefined)
+    await writeOrder('/clock-behind-order', ['charlie', 'delta', 'echo', 'alpha', 'bravo'])
+    assert.match(builtHere ?? '', /moves together/)
+  } finally {
+    apisvc.setDocumentUpdateClockForTests(undefined)
+  }
+  // The documents still read, and take a further update the site prepares.
+  const doc = await document('/clock-behind')
+  assert.equal(doc.metadata.summary, 'Both')
+  assert.deepEqual(doc.metadata.tags, ['a', 'b', 'c'])
+  const further = await write({address: docAddress, options: {action: 'update', metadata: {summary: 'After'}}})
+  assert.equal(further.unchanged, undefined, JSON.stringify(further))
+  assert.equal(builtHere, undefined)
+  assert.equal((await document('/clock-behind')).metadata.summary, 'After')
+  await writeOrder('/clock-behind-order', ['charlie', 'delta', 'echo', 'alpha', 'bravo', 'foxtrot'])
+})
+
+await step(
+  'with the service clock ahead of the site, the next update is built here and the document still reads',
+  async () => {
+    const docAddress = `hm://${account}/clock-ahead`
+    await write({address: docAddress, content: 'One\n\nTwo\n', options: {name: 'Clock ahead'}})
+    // Twenty seconds ahead: under the forty the daemon tolerates in a Change it is given.
+    apisvc.setDocumentUpdateClockForTests(() => Date.now() + 20_000)
+    let ahead: Record<string, any>
+    try {
+      ahead = await write({address: docAddress, options: {action: 'update', metadata: {tags: ['x']}}})
+      assert.equal(ahead.unchanged, undefined, JSON.stringify(ahead))
+    } finally {
+      apisvc.setDocumentUpdateClockForTests(undefined)
     }
-    await writeOrder('/order-random', next)
-    order = next
+    // The head is now later than the site's clock, so the site cannot prepare the next Change. The
+    // service builds it, one millisecond after the head.
+    const next = await write({address: docAddress, options: {action: 'update', metadata: {summary: 'Next'}}})
+    assert.equal(next.unchanged, undefined, JSON.stringify(next))
+    assert.match(builtHere ?? '', /clock is not past the time/)
+    const head = (await client.request('GetCID', {cid: ahead.version})) as {value: {ts: number}}
+    const built = (await client.request('GetCID', {cid: next.version})) as {value: {ts: number}}
+    assert.equal(Number(built.value.ts), Number(head.value.ts) + 1)
+    const doc = await document('/clock-ahead')
+    assert.equal(doc.version, next.version)
+    assert.equal(doc.metadata.summary, 'Next')
+    assert.deepEqual(doc.metadata.tags, ['x'])
+    const further = await write({address: docAddress, content: 'One\n\nTwo\n\nThree\n', options: {action: 'update'}})
+    assert.equal(further.type, 'hypermedia_write_result', JSON.stringify(further))
+    assert.equal(((await document('/clock-ahead')).content ?? []).length, 3)
+  },
+)
+
+// ── Random edits ────────────────────────────────────────────────────────────
+
+/** The document's block ids as a nested list. */
+const idShape = (nodes: any[] | undefined): unknown[] =>
+  (nodes ?? []).map((node) => (node.children?.length ? [node.block.id, idShape(node.children)] : node.block.id))
+
+/** A tree as the markdown an agent writes: one paragraph per block, its id in a comment, children indented. */
+const treeMarkdown = (tree: Tree, indent = ''): string =>
+  tree
+    .map((node) => {
+      const own = `${indent}Text ${node.id} <!-- id:${node.id} -->`
+      return node.children.length ? `${own}\n\n${treeMarkdown(node.children, `${indent}  `)}` : own
+    })
+    .join('\n\n')
+
+await step('seeded random edits of a nested document all read back as written', async () => {
+  // One document per seed, walked through rounds of one to four edits: blocks and whole subtrees
+  // inserted, deleted and moved, indents and outdents, and parents swapped with their children.
+  const stats = newFuzzStats()
+  const failures: string[] = []
+  for (const [seed, swaps] of [
+    [20261116, true],
+    [424242, true],
+    [31337, false],
+  ] as const) {
+    const fuzzer = createTreeFuzzer(seed, {swaps})
+    const docPath = `/random-${seed}`
+    const docAddress = `hm://${account}${docPath}`
+    let tree: Tree = flatTree('a', 'b', 'c', 'd', 'e')
+    tree[1]!.children = flatTree('p', 'q', 'r')
+    const created = await write({address: docAddress, content: `${treeMarkdown(tree)}\n`, options: {name: 'Random'}})
+    assert.equal(created.type, 'hypermedia_write_result', JSON.stringify(created))
+    assert.deepEqual(idShape((await document(docPath)).content), treeShape(tree))
+    for (let round = 0; round < 30; round++) {
+      const next = fuzzer.mutate(tree)
+      const label = `seed ${seed} round ${round} (${next.edits.join(', ')}): ${JSON.stringify(
+        treeShape(tree),
+      )} -> ${JSON.stringify(treeShape(next.tree))}`
+      let result: Record<string, any>
+      try {
+        result = await write({
+          address: docAddress,
+          content: `${treeMarkdown(next.tree)}\n`,
+          options: {action: 'update'},
+        })
+      } catch (error) {
+        failures.push(`${label}: ${(error as Error).message}`)
+        break
+      }
+      if (result.type !== 'hypermedia_write_result') {
+        failures.push(`${label}: ${JSON.stringify(result)}`)
+        break
+      }
+      const got = idShape((await document(docPath)).content)
+      const right = JSON.stringify(got) === JSON.stringify(treeShape(next.tree))
+      recordFuzzRound(stats, {
+        builtBy: result.unchanged ? undefined : builtHere ? 'local' : 'server',
+        localReason: builtHere,
+        edits: next.edits,
+        right,
+      })
+      if (!right) failures.push(`${label}: read back ${JSON.stringify(got)}`)
+      tree = next.tree
+    }
   }
+  console.log(JSON.stringify({stats}))
+  assert.deepEqual(failures, [])
+  assert.equal(stats.rounds, 90)
+  assert.equal(stats.wrong, 0)
+  assert.ok(stats.server > 5, `only ${stats.server} of ${stats.rounds} changes were prepared by the site`)
 })
 
 fs.rmSync(stateDir, {recursive: true, force: true})

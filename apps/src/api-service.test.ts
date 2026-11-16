@@ -6842,6 +6842,8 @@ describe('api service', () => {
       ]
       const publishes: {blobs: {cid?: string; data: Uint8Array}[]}[] = []
       const prepares: {path?: string; baseVersion?: string; changes: {op: {case: string}}[]}[] = []
+      // When set, the site finds every requested change already true and prepares an empty Change.
+      let nothingToChange = false
       const document = (path: string, metadata: Record<string, unknown>, content: unknown[] = []) => ({
         type: 'document',
         id: unpackHmId(`hm://${signerPublicKey}${path}`),
@@ -6867,9 +6869,13 @@ describe('api service', () => {
         // The app's card list is updated through the daemon, which computes the Change.
         if (href.includes('/api/PrepareDocumentChange')) {
           prepares.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
-          return Response.json(
-            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
-          )
+          const prepared = fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))
+          const unsignedChange = nothingToChange
+            ? Uint8Array.from(
+                cbor.encode({...cbor.decode<Record<string, unknown>>(prepared), body: {ops: [], opCount: 0}}),
+              )
+            : prepared
+          return Response.json(serialize({unsignedChange}))
         }
         // The history the update helper reads before it asks the daemon to move a block.
         if (href.includes('/api/GetCID')) return Response.json(serialize({value: {body: {ops: []}}}))
@@ -7018,7 +7024,7 @@ describe('api service', () => {
         view: 'Card',
       })
 
-      // Deleting the tool removes its embed in the same publish.
+      // The tool now exists and its app lists it.
       toolExists = true
       appContent.unshift({
         block: {
@@ -7029,16 +7035,39 @@ describe('api service', () => {
         },
         children: [],
       })
+      // The same tool written again changes nothing: no new version, and the result does not say
+      // "the tool is published" beside `unchanged`. Its code folder is still stored.
+      nothingToChange = true
+      const republished = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: {...toolOptions, action: 'update'},
+      })
+      nothingToChange = false
+      expect(republished.error).toBeUndefined()
+      expect(republished).toMatchObject({unchanged: true, resourceType: 'hm://hyper.media/tool', code: created.code})
+      expect(String(republished.message)).toContain('already up to date')
+      expect(republished.instructions).toBeUndefined()
+      expect(publishes).toHaveLength(2)
+      const isChange = (data: Uint8Array) => {
+        try {
+          return cbor.decode<{type?: string}>(data)?.type === 'Change'
+        } catch {
+          return false // a file of the code folder
+        }
+      }
+      expect(publishes[1]!.blobs.some((blob) => isChange(blob.data))).toBe(false)
+
+      // Deleting the tool removes its embed in the same publish.
       const deleted = await write({
         address: `hm://${signerPublicKey}/weather/forecast`,
         options: {action: 'delete'},
       })
       expect(deleted.error).toBeUndefined()
       expect(deleted).toMatchObject({app: `hm://${signerPublicKey}/weather`, removedFromApp: true})
-      expect(publishes).toHaveLength(2)
+      expect(publishes).toHaveLength(3)
       expect(
         JSON.stringify(
-          publishes[1]!.blobs.map((blob) => {
+          publishes[2]!.blobs.map((blob) => {
             try {
               return cbor.decode(blob.data)
             } catch {

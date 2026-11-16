@@ -116,10 +116,9 @@ import {
   resolveEditableDocument,
   resolveIdWithClient,
   updateComment,
-  preparableDocumentChanges,
-  prepareDocumentUpdateBlobs,
-  SeedClientError,
-  type DocumentChanges,
+  clientBuiltDocumentUpdateBlobs,
+  documentUpdateBlobs,
+  sameDocumentVersion,
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
@@ -15033,6 +15032,9 @@ function withPageResult(
   folder: WritePageFolder | undefined,
   tool?: WriteToolFolder,
 ): Record<string, unknown> {
+  // A write that changed nothing published nothing: its message already says so, and "is
+  // published" beside it would read as a new revision.
+  const unchanged = result.unchanged === true
   if (tool && !result.error)
     return {
       ...result,
@@ -15040,8 +15042,12 @@ function withPageResult(
       code: tool.code,
       toolFiles: tool.files,
       toolBytes: tool.bytes,
-      instructions:
-        'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+      ...(unchanged
+        ? {}
+        : {
+            instructions:
+              'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+          }),
     }
   if (!folder) return result
   const id = typeof result.id === 'string' ? result.id : undefined
@@ -15054,7 +15060,7 @@ function withPageResult(
     pageBytes: folder.bytes,
     pageValidation: {...folder.validation, bundle: folder.html},
     ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
-    ...(id
+    ...(id && !(unchanged && !result.dryRun)
       ? {
           instructions:
             (result.dryRun
@@ -18397,14 +18403,11 @@ async function writeDocumentUpdate(
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
   // Content changes follow redirects and publish at the final live document. The requested address
   // remains a redirect; publishing there would revive an old path as an independent document.
-  const resolveBase = () =>
-    resolveEditableDocument(client, id).catch((error) => {
-      throw new APIError(400, error instanceof Error ? error.message : String(error))
-    })
-  let base = await resolveBase()
-  // The document and its heads come from two reads. The update is diffed against the document and
-  // prepared on the heads, so a write that landed between the two is read again, once.
-  if (!sameDocumentVersion(base.document.version, base.state.version)) base = await resolveBase()
+  // (The document and its heads come from two reads; resolveEditableDocument reads both again,
+  // once, when a write landed between them.)
+  const base = await resolveEditableDocument(client, id).catch((error) => {
+    throw new APIError(400, error instanceof Error ? error.message : String(error))
+  })
   const resource = {document: base.document}
   if (
     typeof request.input.expectedVersion === 'string' &&
@@ -18452,8 +18455,18 @@ async function writeDocumentUpdate(
     ...resource.document.metadata,
     ...metadata,
   })
+  const plan = planDocumentUpdate(base, metadata, contentOps)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
+      // Known without asking the site: the body diffs to nothing and every attribute already
+      // holds the value written. (A write that does differ here can still end unchanged, when
+      // the site finds the document already reads that way.)
+      ...(plan.differs
+        ? {}
+        : {
+            unchanged: true,
+            message: `${request.command}: dry run — the document already holds this content and metadata, so the write would publish no new version.`,
+          }),
       id: packHmId(id),
       resolvedDocumentId: packHmId(targetId),
       redirectHops: base.redirects.map((hop) => ({
@@ -18471,12 +18484,11 @@ async function writeDocumentUpdate(
     to: packHmId(hop.to),
     republish: hop.republish,
   }))
-  const update = await documentUpdateBlobs({
+  const update = await writeUpdateBlobs({
     client,
     signer: signer.signer,
     base,
-    metadata,
-    contentOps,
+    plan,
     capability,
   })
   // Blobs the document refers to (a page bundle, a code folder, uploaded files) are stored whether
@@ -18509,11 +18521,6 @@ async function writeDocumentUpdate(
   })
 }
 
-/** Whether two version strings name the same heads, in any order. */
-function sameDocumentVersion(a: string, b: string): boolean {
-  return a.split('.').sort().join('.') === b.split('.').sort().join('.')
-}
-
 type AttributeWrite = {key: string[]; value: unknown}
 
 /** The leaf writes that set `value` at `key`: a map is one write per entry, anything else is one value. */
@@ -18540,8 +18547,9 @@ function preparableAttribute({key, value}: AttributeWrite): boolean {
   )
 }
 
+/** Whether two attribute values are the same value. A null and an absent key are: a null removes the key. */
 function sameAttributeValue(a: unknown, b: unknown): boolean {
-  if (a === b) return true
+  if (a === b || ((a === undefined || a === null) && (b === undefined || b === null))) return true
   if (Array.isArray(a) || Array.isArray(b)) {
     return (
       Array.isArray(a) &&
@@ -18612,146 +18620,125 @@ type DocumentUpdateBlobs =
   | {changed: true; blobs: CollectedBlob[]; version: string}
   | {changed: false; blobs: CollectedBlob[]}
 
+/** An update of a document, split by who can write each part. */
+type DocumentUpdatePlan = {
+  /** What the site is asked to prepare: the content ops and the attribute writes its API can carry. */
+  preparedOps: DocumentOperation[]
+  /** Attribute writes the site's API cannot carry that differ from the document; stored as written. */
+  verbatimOps: DocumentOperation[]
+  /** The whole update as a Change built here stores it, for when the site's Change is not used. */
+  wholeOps: DocumentOperation[]
+  /**
+   * Whether anything in the update differs from the document as it was read: a block to write,
+   * move or delete, or an attribute that does not already hold the value. False means the write
+   * publishes nothing, known without asking the site.
+   */
+  differs: boolean
+}
+
+/** Plans an update of `base.document` to hold `metadata` and the content `contentOps` produce. */
+function planDocumentUpdate(
+  base: Awaited<ReturnType<typeof resolveEditableDocument>>,
+  metadata: HMMetadata,
+  contentOps: DocumentOperation[],
+): DocumentUpdatePlan {
+  const {document, state} = base
+  const attributes = metadataUpdateAttributes(document.metadata, metadata)
+  const current = (key: string[]) =>
+    key.reduce<unknown>((value, segment) => (isPlainRecord(value) ? value[segment] : undefined), document.metadata)
+  const changes = (write: AttributeWrite) => !sameAttributeValue(current(write.key), write.value)
+  // The site compares whole numbers strictly and writes an equal one again. When the document read
+  // here is the version the change is prepared on, an unchanged number is left out.
+  const prepared = sameDocumentVersion(document.version, state.version)
+    ? attributes.prepared.filter((write) => typeof write.value !== 'number' || changes(write))
+    : attributes.prepared
+  const attrs = (writes: AttributeWrite[]): DocumentOperation[] =>
+    writes.length ? [{type: 'SetAttributes', attrs: writes} as DocumentOperation] : []
+  return {
+    preparedOps: attrs(prepared).concat(contentOps),
+    verbatimOps: attrs(attributes.verbatim),
+    wholeOps: metadataToWriteSetAttributes(metadata).concat(contentOps),
+    differs: contentOps.length > 0 || attributes.verbatim.length > 0 || attributes.prepared.some(changes),
+  }
+}
+
+/** The clock that stamps Changes built here. Tests replace it to stand in for a machine whose clock is off. */
+let documentUpdateNow: (() => number) | undefined
+
+/** Replaces the clock used for Changes the write tool builds itself; `undefined` restores `Date.now`. */
+export function setDocumentUpdateClockForTests(now: (() => number) | undefined) {
+  documentUpdateNow = now
+}
+
 /**
  * The signed blobs for an update of an existing document: its next version, or nothing when the
  * document already reads this way.
  *
- * The site computes the Change (`PrepareDocumentChange`), so only what differs from the document is
- * stored: a block already in place is not moved again, an unchanged block is not replaced, an
- * attribute already set is not set again. Three things are still built here, each stored as written:
+ * The update goes through the client package's `documentUpdateBlobs`. The site computes the Change
+ * (`PrepareDocumentChange`), so only what differs from the document is stored: a block already in
+ * place is not moved again, an unchanged block is not replaced, an attribute already set is not set
+ * again. Two things are built here, each stored as written and stamped later than what it builds on:
  *
  * - attribute values the site's API cannot carry (lists, fractions, links, unusual keys): a second
  *   Change on top of the prepared one, holding only those writes that differ from the document;
- * - the whole update, when the site refuses the request body as too large (413). A site may cap its
- *   API bodies at a few KB, and unlike a publish there is no other endpoint to prepare a change
- *   through. The publish itself still gets through (`client.publish` stores blob by blob);
- * - the whole update, when its ops cannot be put in the request's form at all, or reorder blocks
- *   in the one way the site would misapply (neighbouring blocks moved together).
+ * - the whole update, in one Change, whenever the site's Change is not used. `documentUpdateBlobs`
+ *   lists when: the site cannot be asked for these ops, refuses or does not answer, or answers
+ *   with a Change that is not plausible for the request. The service logs the reason.
  */
-async function documentUpdateBlobs({
+async function writeUpdateBlobs({
   client,
   signer,
   base,
-  metadata,
-  contentOps,
+  plan,
   capability,
 }: {
   client: ReturnType<typeof createSeedClient>
   signer: HMSigner
   base: Awaited<ReturnType<typeof resolveEditableDocument>>
-  metadata: HMMetadata
-  contentOps: DocumentOperation[]
+  plan: DocumentUpdatePlan
   capability?: string
 }): Promise<DocumentUpdateBlobs> {
   const {state, targetId, document} = base
-  const account = targetId.uid
-  const path = hmIdPathToEntityQueryPath(targetId.path)
-  const currentGeneration = Number(document.generationInfo?.generation ?? 0) || 0
-  const toBlob = (block: {bytes: Uint8Array; cid: CID}): CollectedBlob => ({
-    cid: block.cid.toString(),
-    data: new Uint8Array(block.bytes),
-  })
-  /** A Change built here on `deps`, stored exactly as written, and the Ref that makes it the latest version. */
-  const builtHere = async (
-    ops: DocumentOperation[],
-    on: {deps: CID[]; depth: number; after?: bigint},
-  ): Promise<DocumentUpdateBlobs> => {
-    const now = BigInt(Date.now())
-    const {unsignedBytes, ts} = createChangeOps({
-      ops,
-      genesisCid: CID.parse(state.genesis),
-      deps: on.deps,
-      depth: on.depth,
-      // A Change must be later than the Changes it builds on; the one before it carries the site's clock.
-      ts: on.after !== undefined && on.after >= now ? on.after + 1n : now,
-    })
-    const change = await createChange(unsignedBytes, signer)
-    const ref = await createVersionRef(
-      {
-        space: account,
-        path,
-        genesis: state.genesis,
-        version: change.cid.toString(),
-        // Never below the generation the path holds: such a Ref is stored and then ignored.
-        generation: Math.max(Number(ts), currentGeneration),
-        capability,
-      },
-      signer,
-    )
-    return {
-      changed: true,
-      blobs: [toBlob(change), ...ref.blobs.map((blob) => ({cid: blob.cid!, data: blob.data}))],
-      version: change.cid.toString(),
-    }
+  const target = {
+    signer,
+    account: targetId.uid,
+    path: hmIdPathToEntityQueryPath(targetId.path),
+    capability,
+    // Never below the generation the path holds: such a Ref is stored and then ignored.
+    currentGeneration: Number(document.generationInfo?.generation ?? 0) || 0,
+    now: documentUpdateNow,
   }
-  const onHeads = {deps: state.heads.map((head) => CID.parse(head)), depth: state.headDepth + 1}
-  const wholeUpdateBuiltHere = async (why: string): Promise<DocumentUpdateBlobs> => {
+  const update = await documentUpdateBlobs({
+    ...target,
+    client,
+    state,
+    ops: plan.preparedOps,
+    localOps: plan.wholeOps,
+    content: document.content ?? [],
+    documentVersion: document.version,
+  })
+  if (update.changed && update.builtBy === 'local') {
+    // The whole update, the writes the site cannot carry included, is in this one Change.
     console.warn('[Agents Write] Building the document change here instead of on the site', {
       document: packHmId(targetId),
-      why,
+      why: update.localReason,
     })
-    const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
-    return ops.length ? builtHere(ops, onHeads) : {changed: false, blobs: []}
+    return update
   }
-
-  const plan = metadataUpdateAttributes(document.metadata, metadata)
-  const verbatim = plan.verbatim
-  // The site compares whole numbers strictly and writes an equal one again. When the document read
-  // here is the version the change is prepared on, an unchanged number is left out.
-  const current = (key: string[]) =>
-    key.reduce<unknown>((value, segment) => (isPlainRecord(value) ? value[segment] : undefined), document.metadata)
-  const prepared = sameDocumentVersion(document.version, state.version)
-    ? plan.prepared.filter((write) => typeof write.value !== 'number' || current(write.key) !== write.value)
-    : plan.prepared
-  const preparedOps = (prepared.length ? [{type: 'SetAttributes', attrs: prepared} as DocumentOperation] : []).concat(
-    contentOps,
-  )
-  let changes: DocumentChanges
-  try {
-    // A diff re-lists every changed level from its first block, which the site misplaces. Each
-    // level is sent as the fewest moves that produce it (see preparableDocumentChanges); a
-    // reorder that cannot be said to the site at all is built here, stored as listed.
-    const preparable = preparableDocumentChanges(preparedOps, document.content)
-    if ('unpreparable' in preparable) {
-      return wholeUpdateBuiltHere(`the site cannot place the blocks (${preparable.unpreparable})`)
-    }
-    changes = preparable.changes
-  } catch (error) {
-    return wholeUpdateBuiltHere(error instanceof Error ? error.message : String(error))
-  }
-  let update: Awaited<ReturnType<typeof prepareDocumentUpdateBlobs>>
-  try {
-    update = await prepareDocumentUpdateBlobs({
-      client,
-      signer,
-      account,
-      path,
-      baseVersion: state.version,
-      changes,
-      capability,
-      genesis: state.genesis,
-      currentGeneration,
-    })
-  } catch (error) {
-    if (error instanceof SeedClientError && error.status === 413) {
-      return wholeUpdateBuiltHere('the site refused the PrepareDocumentChange request as too large (413)')
-    }
-    throw error
-  }
-  if (!verbatim.length) return update.changed ? update : {changed: false, blobs: []}
-  const verbatimOps = [{type: 'SetAttributes', attrs: verbatim} as DocumentOperation]
-  if (!update.changed) return builtHere(verbatimOps, onHeads)
-  // The prepared Change first, then the writes it could not carry on top of it. One Ref, to the
-  // second Change, so the document moves to its new version in one step.
-  const preparedChange = update.blobs.find((blob) => blob.cid === update.version)
-  if (!preparedChange) throw new Error('The prepared change is missing from its own blobs')
-  const {depth, ts} = clientCbor.decode<{depth?: number; ts?: number | bigint}>(preparedChange.data)
-  const onTop = await builtHere(verbatimOps, {
-    deps: [CID.parse(update.version)],
-    depth: Number(depth ?? state.headDepth + 1) + 1,
-    after: BigInt(ts ?? 0),
+  if (!plan.verbatimOps.length) return update.changed ? update : {changed: false, blobs: []}
+  // The writes the site could not carry go on top of what it prepared, or on the heads when it
+  // found nothing to change. One Ref, to this Change, so the document moves to its new version in
+  // one step. The Change is stamped after the one under it, which carries the site's clock.
+  const preparedChange = update.changed ? update.blobs.find((blob) => blob.cid === update.version) : undefined
+  if (update.changed && !preparedChange) throw new Error('The prepared change is missing from its own blobs')
+  const onTop = await clientBuiltDocumentUpdateBlobs({
+    ...target,
+    state: update.changed
+      ? {genesis: state.genesis, heads: [update.version], headDepth: update.depth, headTs: update.ts}
+      : state,
+    ops: plan.verbatimOps,
   })
-  return {...onTop, blobs: [preparedChange, ...onTop.blobs]}
+  return {...onTop, blobs: preparedChange ? [preparedChange, ...onTop.blobs] : onTop.blobs}
 }
 
 /** Adds a child's missing card to its host after an update; returns the host id when it did. */

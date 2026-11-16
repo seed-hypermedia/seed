@@ -16,13 +16,14 @@ import {unpackHmId} from '@seed-hypermedia/client'
 import * as api from './api-service'
 import * as sqlite from './sqlite'
 import * as cbor from './cbor'
-import {fakePreparedChange} from './prepare-change-test-server'
+import {fakePreparedChange, type FakePrepareOptions} from './prepare-change-test-server'
 
 const VERSION = 'bafyreiccaudhs737unopajz7k2tjonmqucburxp45yjzfvvgy75bm66y5q'
 const originalFetch = globalThis.fetch
 const cleanup: (() => void)[] = []
 afterEach(() => {
   globalThis.fetch = originalFetch
+  api.setDocumentUpdateClockForTests(undefined)
   while (cleanup.length) cleanup.pop()!()
 })
 
@@ -76,6 +77,8 @@ function site(
   accountId: string,
   document: {metadata: Record<string, unknown>; content: unknown[]},
   prepare: (body: Uint8Array) => Uint8Array | Response = (body) => fakePreparedChange(body),
+  /** When the document's one Change was made (milliseconds); reported by ListChanges, as a site does. */
+  headTs?: number,
 ) {
   const id = unpackHmId(`hm://${accountId}/test`)!
   const prepared: {baseVersion: string; account: string; path: string; changes: RequestedChange[]}[] = []
@@ -95,7 +98,20 @@ function site(
       return answer instanceof Response ? answer : Response.json(serialize({unsignedChange: answer}))
     }
     if (href.includes('/api/ListChanges'))
-      return Response.json(serialize({changes: [{id: VERSION, deps: [], author: accountId}]}))
+      return Response.json(
+        serialize({
+          changes: [
+            {
+              id: VERSION,
+              deps: [],
+              author: accountId,
+              ...(headTs === undefined ? {} : {createTime: new Date(headTs).toISOString()}),
+            },
+          ],
+        }),
+      )
+    // The document's history, read before the site is asked to move a block: its one Change moves none.
+    if (href.includes('/api/GetCID')) return Response.json(serialize({value: {ts: headTs ?? 0, body: {ops: []}}}))
     if (href.includes('/api/Resource'))
       return Response.json(
         serialize({
@@ -349,16 +365,184 @@ test('a site that refuses the prepare request as too large still gets the update
   expect(warn).toHaveBeenCalledTimes(1)
 })
 
-test('any other failure to prepare is an error, and nothing is published', async () => {
+test('a refusal for lack of permission is an error, and nothing is published', async () => {
   const ctx = await context()
   const hm = site(
     ctx.accountId,
     {metadata: {name: 'Test'}, content: THREE_BLOCKS},
-    () => new Response(JSON.stringify({error: 'base version not found'}), {status: 500}),
+    () => new Response(JSON.stringify({error: '[permission_denied] not allowed to write here'}), {status: 500}),
   )
   await expect(
     api.executeWriteVerb(ctx, {address: hm.id, content: content(['Changed.']), options: {action: 'update'}}),
   ).rejects.toThrow()
+  expect(hm.published).toEqual([])
+})
+
+test('a daemon that fails to apply the changes still gets the update, built here', async () => {
+  const ctx = await context()
+  const hm = site(
+    ctx.accountId,
+    {metadata: {name: 'Test'}, content: THREE_BLOCKS},
+    () => new Response(JSON.stringify({error: '[unknown] desired parent block b9 is not in the tree'}), {status: 500}),
+  )
+  const warn = spyOn(console, 'warn').mockImplementation(() => {})
+  cleanup.push(() => warn.mockRestore())
+  const result = await api.executeWriteVerb(ctx, {
+    address: hm.id,
+    content: content(['First.', 'Second, edited.', 'Third.']),
+    options: {action: 'update'},
+  })
+  expect(hm.prepared).toHaveLength(1)
+  const [change] = hm.changes(hm.published[0]!)
+  expect(change!.value.body.ops).toEqual([
+    {type: 'ReplaceBlock', block: expect.objectContaining({id: 'b2', text: 'Second, edited.'})},
+  ])
+  expect(result).toMatchObject({version: change!.cid, message: 'document.update completed'})
+  expect(warn.mock.calls[0]![1]).toMatchObject({why: expect.stringContaining('is not in the tree')})
+})
+
+// ── Clocks ──────────────────────────────────────────────────────────────────
+// A prepared Change carries the site's clock; a Change built here carries this machine's. Each
+// must still be later than the Change it builds on, or the daemon reads the document as broken.
+
+const SITE_NOW = 1_800_000_000_000
+/** The fake site: its clock, and what it knows of the document's one Change. */
+const siteClock = (now: number, headTs: number): FakePrepareOptions => ({
+  now: () => now,
+  heads: {[VERSION]: {depth: 0, ts: headTs}},
+  checkCausality: true,
+})
+
+test('with this machine two seconds behind the site, every Change built here is still later than the one under it', async () => {
+  const ctx = await context()
+  const headTs = SITE_NOW - 10
+  api.setDocumentUpdateClockForTests(() => SITE_NOW - 2_000)
+  const warn = spyOn(console, 'warn').mockImplementation(() => {})
+  cleanup.push(() => warn.mockRestore())
+  const document = {metadata: {name: 'Test', tags: ['a']}, content: THREE_BLOCKS}
+
+  // Prepared, then the values the site cannot carry on top: the second follows the site's stamp.
+  const stacked = site(ctx.accountId, document, (body) => fakePreparedChange(body, siteClock(SITE_NOW, headTs)), headTs)
+  await api.executeWriteVerb(ctx, {
+    address: stacked.id,
+    options: {action: 'update', metadata: {summary: 'New', tags: ['a', 'b']}},
+  })
+  const [prepared, onTop] = stacked.changes(stacked.published[0]!)
+  expect(Number(prepared!.value.ts)).toBe(SITE_NOW)
+  expect(prepared!.value.depth).toBe(1)
+  expect(Number(onTop!.value.ts)).toBe(SITE_NOW + 1)
+  expect(onTop!.value.depth).toBe(2)
+  expect(stacked.refs(stacked.published[0]!)[0]!.heads.map(String)).toEqual([onTop!.cid])
+
+  // Only such values: one Change, built here on the document's head, later than it.
+  const verbatimOnly = site(ctx.accountId, document, undefined, headTs)
+  await api.executeWriteVerb(ctx, {address: verbatimOnly.id, options: {action: 'update', metadata: {tags: ['a', 'b']}}})
+  expect(verbatimOnly.prepared).toEqual([])
+  const [only] = verbatimOnly.changes(verbatimOnly.published[0]!)
+  expect(only!.value.deps.map(String)).toEqual([VERSION])
+  expect(Number(only!.value.ts)).toBe(headTs + 1)
+
+  // The site refuses the request as too large: the whole update, built here, later than the head.
+  const tooLarge = site(ctx.accountId, document, () => new Response('Too Large', {status: 413}), headTs)
+  await api.executeWriteVerb(ctx, {
+    address: tooLarge.id,
+    content: content(['First.', 'Second, edited.', 'Third.']),
+    options: {action: 'update', metadata: {tags: ['a', 'b']}},
+  })
+  const [whole] = tooLarge.changes(tooLarge.published[0]!)
+  expect(tooLarge.changes(tooLarge.published[0]!)).toHaveLength(1)
+  expect(Number(whole!.value.ts)).toBe(headTs + 1)
+
+  // Ops the site cannot be asked for (two neighbours moving together): the same.
+  const four = [...THREE_BLOCKS, paragraph('b4', 'Fourth.')]
+  const unpreparable = site(ctx.accountId, {metadata: {name: 'Test'}, content: four}, undefined, headTs)
+  await api.executeWriteVerb(ctx, {
+    address: unpreparable.id,
+    content: [
+      'Third. <!-- id:b3 -->',
+      'Fourth. <!-- id:b4 -->',
+      'First. <!-- id:b1 -->',
+      'Second. <!-- id:b2 -->',
+    ].join('\n\n'),
+    options: {action: 'update'},
+  })
+  expect(unpreparable.prepared).toEqual([])
+  const [reordered] = unpreparable.changes(unpreparable.published[0]!)
+  expect(reordered!.value.body.ops.map((op) => op.type)).toEqual(['MoveBlocks'])
+  expect(Number(reordered!.value.ts)).toBe(headTs + 1)
+})
+
+test('with the site behind the document, the update is built here, one millisecond after the head', async () => {
+  const ctx = await context()
+  // The last writer's clock ran ahead: the head is later than the site's clock, so the site cannot
+  // stamp a Change after it ("must be greater than ts of its dependency").
+  const headTs = SITE_NOW + 5_000
+  api.setDocumentUpdateClockForTests(() => SITE_NOW)
+  const warn = spyOn(console, 'warn').mockImplementation(() => {})
+  cleanup.push(() => warn.mockRestore())
+  const hm = site(
+    ctx.accountId,
+    {metadata: {name: 'Test', tags: ['a']}, content: THREE_BLOCKS},
+    (body) => {
+      try {
+        return fakePreparedChange(body, siteClock(SITE_NOW, headTs))
+      } catch (error) {
+        return new Response(JSON.stringify({error: `[unknown] ${(error as Error).message}`}), {status: 500})
+      }
+    },
+    headTs,
+  )
+  const result = await api.executeWriteVerb(ctx, {
+    address: hm.id,
+    content: content(['First.', 'Second, edited.', 'Third.']),
+    options: {action: 'update', metadata: {tags: ['a', 'b']}},
+  })
+  expect(hm.prepared).toHaveLength(1)
+  expect(hm.changes(hm.published[0]!)).toHaveLength(1)
+  const [change] = hm.changes(hm.published[0]!)
+  expect(Number(change!.value.ts)).toBe(headTs + 1)
+  expect(result).toMatchObject({version: change!.cid, message: 'document.update completed'})
+  expect(warn.mock.calls[0]![1]).toMatchObject({why: expect.stringContaining('clock is not past the time')})
+})
+
+test('a null written to a key the document does not have changes nothing', async () => {
+  const ctx = await context()
+  const hm = site(ctx.accountId, {metadata: {name: 'Test'}, content: THREE_BLOCKS})
+  // `$absent` cannot go to the site (a key starting with `$`), so it would be stored as written.
+  const result = await api.executeWriteVerb(ctx, {
+    address: hm.id,
+    options: {action: 'update', metadata: {$absent: null}},
+  })
+  expect(result).toMatchObject({unchanged: true, version: VERSION})
+  expect(hm.prepared).toEqual([])
+  expect(hm.published).toEqual([])
+  expect(api.metadataUpdateAttributes({name: 'A'}, {$absent: null, 'dotted.key': null} as never).verbatim).toEqual([])
+  // A null that does remove something is still written.
+  expect(api.metadataUpdateAttributes({$there: 1}, {$there: null} as never).verbatim).toEqual([
+    {key: ['$there'], value: null},
+  ])
+})
+
+test('a dry run of a write the document already holds says nothing would be published', async () => {
+  const ctx = await context()
+  const hm = site(ctx.accountId, {metadata: {name: 'Test', count: 3, tags: ['a']}, content: THREE_BLOCKS})
+  const same = await api.executeWriteVerb(ctx, {
+    address: hm.id,
+    content: content(['First.', 'Second.', 'Third.']),
+    dryRun: true,
+    options: {action: 'update', name: 'Test', metadata: {count: 3, tags: ['a']}},
+  })
+  expect(same).toMatchObject({dryRun: true, unchanged: true})
+  expect(same.message).toContain('would publish no new version')
+  const different = await api.executeWriteVerb(ctx, {
+    address: hm.id,
+    dryRun: true,
+    options: {action: 'update', metadata: {count: 4}},
+  })
+  expect(different).toMatchObject({dryRun: true, metadataOnly: true})
+  expect(different.unchanged).toBeUndefined()
+  // Known from the document that was read: the site is not asked.
+  expect(hm.prepared).toEqual([])
   expect(hm.published).toEqual([])
 })
 
