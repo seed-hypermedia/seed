@@ -153,6 +153,14 @@ describe('running apps', () => {
       expect(await send(stranger, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
         error: expect.stringContaining('write to the app'),
       })
+      // Asking first says the same without running anything.
+      expect(await send(stranger, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({
+        _: 'AppRunCheckResponse',
+        allowed: false,
+        reason: expect.stringContaining('write to the app'),
+        run: null,
+      })
+      expect(await send(owner, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({allowed: true, run: null})
       // Calling before it runs says so.
       expect(
         await send(stranger, {_: 'CallAppTool', appId: appUrl, toolId: toolUrl, input: {city: 'Lisbon'}}),

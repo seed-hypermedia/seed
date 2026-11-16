@@ -1716,6 +1716,13 @@ export class Service {
             appRunning.getAppRun(this.#appRunDeps(), envelope.action as api.GetAppRun),
           ),
         }
+      case 'CheckAppRun':
+        return {
+          _: 'AppRunCheckResponse',
+          ...(await this.#appRun(() =>
+            appRunning.checkAppRun(this.#appRunDeps(), verified.accountId, envelope.action as api.CheckAppRun),
+          )),
+        }
       case 'CallAppTool':
         return {
           _: 'AppToolCallResponse',

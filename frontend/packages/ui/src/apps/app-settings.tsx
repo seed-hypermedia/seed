@@ -7,8 +7,13 @@ import {
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
 import {KeyRound, Play, Server, SlidersHorizontal, Square} from 'lucide-react'
-import {useMemo, useState} from 'react'
-import {useAgentServerUrls, useLocalAgentServerUrl} from '../agents/models'
+import {useEffect, useMemo, useState} from 'react'
+import {
+  getDefaultAgentServerUrl,
+  useForgetAgentServer,
+  useKnownAgentServerUrls,
+  useLocalAgentServerUrl,
+} from '../agents/models'
 import {Button} from '../button'
 import {DialogDescription, DialogTitle} from '../components/dialog'
 import {Input} from '../components/input'
@@ -23,8 +28,18 @@ import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
 import {cn} from '../utils'
+import {AppServerSelect, type AppServerOption} from './app-server-select'
 import {setAttribute, useAppsPublisher, type AppRef} from './publish'
-import {appServerErrorMessage, structFields, structValue, useAppRun, useAppServerUrl, type StructField} from './running'
+import {
+  appServerErrorMessage,
+  structFields,
+  structValue,
+  useAppRun,
+  useAppServerCheck,
+  useAppServerUrl,
+  useSpaceAppServerUrl,
+  type StructField,
+} from './running'
 
 type ConfigKey = 'publicConfigSchema' | 'privateConfigSchema'
 type Change = {
@@ -102,6 +117,8 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
         hasPrivateConfig={privateFields.length > 0}
         onRunApp={() =>
           serverDialog.open({
+            appId: app.id.id,
+            spaceUid: app.id.uid,
             serverUrl: server.serverUrl,
             privateFields,
             onRun: async (serverUrl, privateConfig) => {
@@ -360,12 +377,18 @@ function PrivateConfigFields({
   )
 }
 
-/** Runs the app: the server that runs it, and its private config, which goes only to that server. */
+/**
+ * Runs the app: the server that runs it, and its private config, which goes only to that server.
+ * The server starts on the one the app already names, else the one its space's site advertises,
+ * and Run App waits for the chosen server to say it will run this app for the signed-in account.
+ */
 function RunAppDialog({
   input,
   onClose,
 }: {
   input: {
+    appId: string
+    spaceUid: string
     serverUrl: string
     privateFields: StructField[]
     onRun: (serverUrl: string, privateConfig: Record<string, unknown>) => Promise<void>
@@ -373,12 +396,30 @@ function RunAppDialog({
   onClose: () => void
 }) {
   const local = useLocalAgentServerUrl().data
-  const configured = useAgentServerUrls().data ?? []
-  const choices = Array.from(new Set([input.serverUrl, local, ...configured].filter((url): url is string => !!url)))
-  const [url, setUrl] = useState(input.serverUrl || local || '')
+  const space = useSpaceAppServerUrl(input.spaceUid).serverUrl
+  const known = useKnownAgentServerUrls().data
+  const forget = useForgetAgentServer()
+  const options = useMemo(() => {
+    const byUrl = new Map<string, AppServerOption>()
+    const offer = (url: string | null | undefined, extra: Omit<AppServerOption, 'url'> = {}) => {
+      if (url && !byUrl.has(url)) byUrl.set(url, {url, ...extra})
+    }
+    offer(space)
+    offer(input.serverUrl)
+    offer(local)
+    for (const url of known ?? []) offer(url, {onForget: () => forget.mutate(url)})
+    offer(getDefaultAgentServerUrl())
+    return Array.from(byUrl.values())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [space, input.serverUrl, local, known])
+  const [url, setUrl] = useState(input.serverUrl || space || local || '')
+  // The space's server and the local one arrive after the dialog opens; nothing chosen yet takes them.
+  useEffect(() => {
+    if (!url) setUrl(space || local || '')
+  }, [url, space, local])
+  const check = useAppServerCheck(url, input.appId)
   const [secrets, setSecrets] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  const custom = !choices.includes(url)
   const missing = input.privateFields.filter((field) => field.required && !secrets[field.name])
   return (
     <div className="grid gap-5">
@@ -388,25 +429,7 @@ function RunAppDialog({
       </div>
       <div className="grid gap-2">
         <Label>Server</Label>
-        {choices.map((choice) => (
-          <label key={choice} className="flex items-center gap-2 text-sm">
-            <input type="radio" name="app-server" checked={url === choice} onChange={() => setUrl(choice)} />
-            {describeHostServer(choice, local)}
-            <span className="text-muted-foreground truncate font-mono text-xs">{choice}</span>
-          </label>
-        ))}
-        <label className="flex items-center gap-2 text-sm">
-          <input type="radio" name="app-server" checked={custom} onChange={() => setUrl('')} />
-          Other
-        </label>
-        {custom ? (
-          <Input
-            aria-label="App server URL"
-            placeholder="https://example.com/hm/api/apps"
-            value={url}
-            onChange={(event) => setUrl(event.target.value.trim())}
-          />
-        ) : null}
+        <AppServerSelect appId={input.appId} value={url} onChange={setUrl} options={options} localServerUrl={local} />
       </div>
       {input.privateFields.length ? (
         <div className="grid gap-2">
@@ -425,7 +448,7 @@ function RunAppDialog({
         </Button>
         <Button
           variant="brand"
-          disabled={!/^https?:\/\//.test(url) || missing.length > 0 || busy}
+          disabled={!url || !check.data?.allowed || missing.length > 0 || busy}
           onClick={async () => {
             setBusy(true)
             try {

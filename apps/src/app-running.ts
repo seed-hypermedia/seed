@@ -275,6 +275,28 @@ export async function runApp(
   return toRunInfo(getRunRow(deps.db, appId.id)!, deps)
 }
 
+/**
+ * Whether this server would run the app for `signer`, without running it: the app exists and is an
+ * app (or agent), and the signer can write its space. Which server the app names is not checked:
+ * a client asks this before it publishes the choice.
+ */
+export async function checkAppRun(
+  deps: AppRunDeps,
+  signer: string,
+  action: {appId: string},
+): Promise<{allowed: boolean; reason?: string; run: api.AppRunInfo | null}> {
+  const appId = versionless(action.appId, 'app')
+  const run = getAppRun(deps, action)
+  try {
+    await loadDocument(deps.client, appId, isToolHostType, 'app')
+    await requireSpaceWriter(deps.client, appId, signer)
+    return {allowed: true, run}
+  } catch (error) {
+    if (error instanceof AppRunError) return {allowed: false, reason: error.message, run}
+    throw error
+  }
+}
+
 /** Stops an app and forgets its private config. The signer must be able to write the app's space. */
 export async function stopApp(deps: AppRunDeps, signer: string, action: {appId: string}): Promise<void> {
   const appId = versionless(action.appId, 'app')

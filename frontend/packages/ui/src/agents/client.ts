@@ -228,6 +228,62 @@ export async function getAgentServerHealth(serverUrl: string): Promise<AgentServ
   return res.json()
 }
 
+/** True when `serverUrl` answers as an app environment: its health endpoint returns the JSON status. */
+async function answersAsAppServer(serverUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(agentServerEndpoint(serverUrl, 'health'), {signal: AbortSignal.timeout(8_000)})
+    // A site without an app environment answers every path with its web page, so 200 is not enough.
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return false
+    const health = (await res.json()) as {status?: unknown}
+    return typeof health?.status === 'string'
+  } catch {
+    return false
+  }
+}
+
+/** A typed server as a URL: `hyper.media` means `https://hyper.media`, a local host means http. */
+function typedServerUrl(input: string): URL {
+  const text = input.trim()
+  if (!text) throw new Error('Type a server, such as hyper.media')
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(text)
+  let url: URL
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `${local ? 'http' : 'https'}://${text}`)
+  } catch {
+    throw new Error(`“${text}” is not a server name`)
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`“${text}” is not a server name`)
+  return url
+}
+
+/**
+ * Finds the app environment behind what someone typed: a host name (`hyper.media`), a site address,
+ * or a full server URL. Nobody has to know the API path: a typed URL that carries a path is tried
+ * as written, then the site's own `/hm/api/config` says where its app environment is, then the
+ * site's `/hm/api/apps`, then the bare origin (a server on its own host). Throws, in words, when
+ * nothing there answers as an app environment.
+ */
+export async function findAppServer(input: string): Promise<string> {
+  const typed = typedServerUrl(input)
+  const origin = typed.origin
+  if (typed.pathname.replace(/\/+$/, '')) {
+    const asTyped = normalizeAgentServerUrl(typed.toString())
+    if (await answersAsAppServer(asTyped)) return asTyped
+  }
+  try {
+    const res = await fetch(`${origin}/hm/api/config`, {signal: AbortSignal.timeout(8_000)})
+    if (res.ok && /json/i.test(res.headers.get('content-type') ?? '')) {
+      const config = (await res.json()) as {appEnvironmentUrl?: unknown; agentServerUrl?: unknown}
+      const advertised = config.appEnvironmentUrl || config.agentServerUrl
+      if (typeof advertised === 'string' && advertised) return normalizeAgentServerUrl(advertised)
+    }
+  } catch {}
+  for (const candidate of [`${origin}${APPS_API_PREFIX}`, origin]) {
+    if (await answersAsAppServer(candidate)) return normalizeAgentServerUrl(candidate)
+  }
+  throw new Error(`No app server answers at ${typed.host}`)
+}
+
 /** The agents service's live-update WebSocket URL. Keeps a path prefix (a server behind a reverse proxy). */
 export function getAgentWebSocketUrl(serverUrl: string): string {
   const url = new URL(agentServerEndpoint(serverUrl, 'ws'))
