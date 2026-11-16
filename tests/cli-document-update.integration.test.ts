@@ -529,7 +529,7 @@ describe('seed-cli document update', () => {
   })
 
   it('reads back every reordering as written, whoever builds the change (seeded random edits)', async () => {
-    // The daemon drops moves it should keep in some reorderings (see serverChanges). This walks
+    // The daemon drops moves it should keep in some reorderings (see preparableDocumentChanges). This walks
     // one document through many small edits and checks the tree after each: moves of one block
     // and of runs, across levels, with inserts and deletes mixed in.
     let seed = 20261116
