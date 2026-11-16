@@ -45,7 +45,7 @@ vi.mock('../site-file-browser', () => ({SiteFileBrowser: () => null}))
 let queryClient: QueryClient
 let activityOrder: string[]
 let unread: Record<string, number>
-let createSpace: ReturnType<typeof vi.fn>
+let createSpace: ReturnType<typeof vi.fn<() => void>>
 let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
@@ -56,7 +56,7 @@ beforeEach(() => {
   viewer.desktop = false
   viewer.joined = ['joined', 'joined', 'older', 'missing']
   viewer.hasSpace = true
-  createSpace = vi.fn()
+  createSpace = vi.fn<() => void>()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
