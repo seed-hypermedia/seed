@@ -6576,6 +6576,12 @@ describe('api service', () => {
           return Response.json(serialize({cids: [`published-${publishes.length}`]}))
         }
         if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities}))
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
         }
@@ -7062,6 +7068,12 @@ describe('api service', () => {
           publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
           return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
         }
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
         }
@@ -7287,6 +7299,12 @@ describe('api service', () => {
         if (href.includes('/api/PublishBlobs')) {
           publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
           return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
         }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))

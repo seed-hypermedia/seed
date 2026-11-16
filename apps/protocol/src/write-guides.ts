@@ -157,7 +157,7 @@ Omit \`options.action\` (or use \`document\`). Write markdown in \`content\`; pa
 
 ## Update
 
-Use \`options.action: "update"\` at the existing document address. Supplying \`content\` replaces the whole body, so first read the current document and preserve block/table identity comments for retained content. Omit \`content\` to change only \`name\` or \`metadata\`.
+Use \`options.action: "update"\` at the existing document address. Supplying \`content\` replaces the whole body, so first read the current document and preserve block/table identity comments for retained content. Omit \`content\` to change only \`name\` or \`metadata\`. Only what differs is stored: blocks you kept with their identity comments are not rewritten. A write that changes nothing publishes nothing and returns \`unchanged: true\` with the document's current \`version\`; that is a success, do not retry it.
 
 \`\`\`json
 {"address":"hm://TARGET_UID/notes","content":"Complete replacement body.","options":{"action":"update","name":"Renamed Notes","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
