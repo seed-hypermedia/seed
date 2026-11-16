@@ -16,6 +16,7 @@
 
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {decode as cborDecode} from '@ipld/dag-cbor'
+import {execSync} from 'child_process'
 import {mkdtempSync, rmSync} from 'fs'
 import {tmpdir} from 'os'
 import * as path from 'path'
@@ -34,8 +35,11 @@ import {
   createDocumentBlobs,
   createSeedClient,
   documentOperationsToChanges,
+  documentUpdateBlobs,
   isEmptyPreparedChange,
   prepareDocumentUpdateBlobs,
+  resolveEditableDocument,
+  SeedClientError,
   unpackHmId,
   type DocumentOperation,
   type HMBlockNode,
@@ -44,6 +48,16 @@ import {
 import {handleApiAction, handleApiRequest} from '../frontend/packages/shared/src/api-server'
 import {createGRPCClient} from '../frontend/packages/shared/src/grpc-client'
 import {spawnDaemon, type DaemonInstance} from './integration/daemon'
+import {
+  cloneTree,
+  createTreeFuzzer,
+  flatTree,
+  newFuzzStats,
+  recordFuzzRound,
+  reportStats,
+  treeShape,
+  type Tree,
+} from './integration/tree-fuzz'
 
 const HTTP_PORT = 59411
 const DAEMON_URL = `http://localhost:${HTTP_PORT}`
@@ -83,6 +97,76 @@ async function storedOps(cid: string): Promise<Array<Record<string, any>>> {
   if (!response.ok) throw new Error(`blob ${cid}: ${response.status}`)
   const change = cborDecode(new Uint8Array(await response.arrayBuffer())) as {body?: {ops?: any[]}}
   return change.body?.ops ?? []
+}
+
+/**
+ * Decodes CBOR keeping what a JSON-style decode loses: whether a number was written as an
+ * integer (`{int}`) or as a float (`{float}`). Enough of CBOR for a Change blob.
+ */
+function typedCbor(bytes: Uint8Array): unknown {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let at = 0
+  const length = (info: number): number => {
+    if (info < 24) return info
+    const size = 1 << (info - 24)
+    const value =
+      size === 8
+        ? Number(view.getBigUint64(at))
+        : size === 4
+          ? view.getUint32(at)
+          : size === 2
+            ? view.getUint16(at)
+            : view.getUint8(at)
+    at += size
+    return value
+  }
+  const read = (): unknown => {
+    const head = view.getUint8(at++)
+    const major = head >> 5
+    const info = head & 31
+    if (major === 0) return {int: length(info)}
+    if (major === 1) return {int: -1 - length(info)}
+    if (major === 2 || major === 3) {
+      const size = length(info)
+      const slice = bytes.subarray(at, at + size)
+      at += size
+      return major === 3 ? new TextDecoder().decode(slice) : `bytes:${size}`
+    }
+    if (major === 4) return Array.from({length: length(info)}, read)
+    if (major === 5) {
+      const out: Record<string, unknown> = {}
+      for (let count = length(info); count > 0; count--) out[String(read())] = read()
+      return out
+    }
+    if (major === 6) {
+      length(info)
+      return {tag: read()}
+    }
+    if (info === 20) return false
+    if (info === 21) return true
+    if (info === 22) return null
+    if (info === 27) {
+      at += 8
+      return {float: view.getFloat64(at - 8)}
+    }
+    if (info === 26) {
+      at += 4
+      return {float: view.getFloat32(at - 4)}
+    }
+    throw new Error(`typedCbor: unsupported head ${head}`)
+  }
+  return read()
+}
+
+/** The blocks a stored Change replaces, by id, decoded with {@link typedCbor}. */
+async function storedTypedBlocks(cid: string): Promise<Record<string, Record<string, unknown>>> {
+  const response = await fetch(`${DAEMON_URL}/ipfs/${cid}`)
+  const change = typedCbor(new Uint8Array(await response.arrayBuffer())) as {body?: {ops?: any[]}}
+  const byId: Record<string, Record<string, unknown>> = {}
+  for (const op of change.body?.ops ?? []) {
+    if (op.type === 'ReplaceBlock') byId[op.block.id] = op.block
+  }
+  return byId
 }
 
 async function readDocument(docPath: string) {
@@ -333,6 +417,8 @@ describe('document updates through PrepareDocumentChange', () => {
       {id: 'tr1', type: 'TableRow', isHeader: true},
       {id: 'cell1', type: 'Paragraph', text: 'Name', columnId: 'tc1', annotations: []},
       {id: 'cell2', type: 'Paragraph', text: 'Value', columnId: 'tc2', annotations: []},
+      // A null attribute beside the block's fields (an attribute cleared in place).
+      {id: 'n1', type: 'Paragraph', text: 'cleared', childrenType: null, annotations: []},
       // The older native form: attributes nested in an `attributes` map.
       {id: 'old1', type: 'Embed', link: `hm://${account.accountId}/twice`, attributes: {view: 'Content'}},
     ]
@@ -353,7 +439,7 @@ describe('document updates through PrepareDocumentChange', () => {
       {type: 'MoveBlocks', blocks: ['tc1', 'tc2', 'tr1'], parent: 't1'},
       {
         type: 'MoveBlocks',
-        blocks: ['h1', 'p1', 'p2', 'l1', 'c1', 'm1', 'i1', 'v1', 'e1', 'w1', 'q1', 't1', 'old1'],
+        blocks: ['h1', 'p1', 'p2', 'l1', 'c1', 'm1', 'i1', 'v1', 'e1', 'w1', 'q1', 't1', 'n1', 'old1'],
         parent: '',
       },
     ]
@@ -381,7 +467,7 @@ describe('document updates through PrepareDocumentChange', () => {
     expect(prepared.version).toBe(update.changed ? update.version : '')
 
     // The documents read the same: tree, text, annotations, links and attributes.
-    expect((prepared.content ?? []).length).toBe(13)
+    expect((prepared.content ?? []).length).toBe(14)
     expect(withoutRevisions(prepared.content)).toEqual(withoutRevisions(native.content))
     expect(prepared.metadata).toEqual(native.metadata)
 
@@ -405,6 +491,27 @@ describe('document updates through PrepareDocumentChange', () => {
     // No protobuf Struct shape leaked into the stored attributes.
     expect(JSON.stringify(preparedBlocks)).not.toMatch(/"fields"|"kind"|"structValue"|"numberValue"/)
 
+    // The numbers are the same kind of number in the stored bytes, which a decode to JS numbers
+    // cannot show: a whole number is a CBOR integer both ways, nested ones included (the request
+    // carries attributes as a protobuf Struct, whose numbers are all doubles), and a fraction is
+    // a float both ways.
+    const nativeTyped = await storedTypedBlocks(native.version)
+    const preparedTyped = await storedTypedBlocks(prepared.version)
+    const query = (typed: typeof nativeTyped) => (typed.q1!.attributes ?? typed.q1!) as Record<string, any>
+    for (const typed of [nativeTyped, preparedTyped]) {
+      expect(query(typed).columnCount).toEqual({int: 3})
+      expect(query(typed).query.limit).toEqual({int: 10})
+      expect(query(typed).query.ratio).toEqual({float: 0.25})
+      expect(query(typed).query.nested.deep[0]).toEqual({int: 1})
+      expect(query(typed).query.nested.deep[4].three).toEqual({int: 3})
+      expect((typed.i1!.attributes ?? typed.i1!).width).toEqual({int: 640})
+      expect((typed.v1!.attributes ?? typed.v1!).width).toEqual({float: 512.5})
+      // The null attribute is stored as a null, not dropped and not turned into something else.
+      expect('childrenType' in ((typed.n1!.attributes as object) ?? typed.n1!)).toBe(true)
+      expect(((typed.n1!.attributes as any) ?? typed.n1!).childrenType).toBeNull()
+    }
+    expect(query(preparedTyped).query).toEqual(query(nativeTyped).query)
+
     const attrs = (version: string) =>
       storedOps(version).then((stored) =>
         stored
@@ -421,9 +528,8 @@ describe('document updates through PrepareDocumentChange', () => {
   const shape = (content: HMBlockNode[] | undefined): unknown[] =>
     (content ?? []).map((n) => (n.children?.length ? [n.block.id, shape(n.children)] : n.block.id))
 
-  type Tree = Array<{id: string; children: Tree}>
-  const flat = (...ids: string[]): Tree => ids.map((id) => ({id, children: []}))
-  const toShape = (tree: Tree): unknown[] => tree.map((t) => (t.children.length ? [t.id, toShape(t.children)] : t.id))
+  const flat = flatTree
+  const toShape = treeShape
   const toNodes = (tree: Tree): HMBlockNode[] =>
     tree.map(
       (t) =>
@@ -433,23 +539,75 @@ describe('document updates through PrepareDocumentChange', () => {
         }) as unknown as HMBlockNode,
     )
 
-  /** Brings the document to `tree` through createDocumentUpdateBlobs and reads its block tree back. */
-  async function writeTree(docPath: string, tree: Tree) {
+  /** The ops that bring the document to `tree`, with the base they were computed against. */
+  async function opsFor(docPath: string, tree: Tree) {
     const id = unpackHmId(`hm://${account.accountId}${docPath}`)!
-    const before = await readDocument(docPath)
+    const base = await resolveEditableDocument(client, id)
     const ops = computeReplaceOps(
-      createBlocksMap((before.content ?? []).map(toAPIBlockNode)),
+      createBlocksMap((base.document.content ?? []).map(toAPIBlockNode)),
       toNodes(tree).map(hmBlockNodeToBlockNode),
     )
-    if (!ops.length) return {got: shape(before.content), moves: [] as string[][], published: false}
+    return {id, base, ops}
+  }
+
+  /** Brings the document to `tree` through createDocumentUpdateBlobs and reads its block tree back. */
+  async function writeTree(docPath: string, tree: Tree) {
+    const {id, base, ops} = await opsFor(docPath, tree)
+    if (!ops.length) return {got: shape(base.document.content), moves: [] as string[][], published: false}
     const update = await createDocumentUpdateBlobs({client, signer, id, ops})
     if (update.blobs.length) await client.publish({blobs: update.blobs})
     const after = await readDocument(docPath)
-    const moves = update.changed
-      ? (await storedOps(after.version)).filter((op) => op.type === 'MoveBlocks').map((op) => op.blocks as string[])
-      : []
-    return {got: shape(after.content), moves, published: update.changed}
+    const stored = update.changed ? await storedOps(after.version) : []
+    return {
+      got: shape(after.content),
+      moves: stored.filter((op) => op.type === 'MoveBlocks').map((op) => op.blocks as string[]),
+      ops: stored,
+      published: update.changed,
+      builtBy: update.builtBy,
+      localReason: update.localReason,
+      version: after.version,
+    }
   }
+
+  /** The same through documentUpdateBlobs itself, for the options createDocumentUpdateBlobs does not pass on. */
+  async function updateTree(
+    docPath: string,
+    tree: Tree,
+    options: Partial<Parameters<typeof documentUpdateBlobs>[0]> = {},
+  ) {
+    const {base, ops} = await opsFor(docPath, tree)
+    const update = await documentUpdateBlobs({
+      client,
+      signer,
+      account: account.accountId,
+      path: docPath,
+      state: base.state,
+      ops,
+      content: base.document.content ?? [],
+      documentVersion: base.document.version,
+      currentGeneration: base.document.generationInfo?.generation,
+      ...options,
+    })
+    if (update.changed) await client.publish({blobs: update.blobs})
+    const after = await readDocument(docPath)
+    return {update, got: shape(after.content), version: after.version, headTs: base.state.headTs}
+  }
+
+  /** A new document holding `tree`. */
+  async function startTree(docPath: string, tree: Tree) {
+    await createDocument(docPath, [{type: 'SetAttributes', attrs: [{key: ['name'], value: docPath}]}])
+    const written = await writeTree(docPath, tree)
+    expect(written.got).toEqual(toShape(tree))
+  }
+
+  /** The timestamp of a stored Change. */
+  async function storedTs(cid: string): Promise<number> {
+    const response = await fetch(`${DAEMON_URL}/ipfs/${cid}`)
+    return Number((cborDecode(new Uint8Array(await response.arrayBuffer())) as {ts: number | bigint}).ts)
+  }
+
+  /** The daemon's CPU use right now, in percent of one core. */
+  const daemonCpu = () => Number(execSync(`ps -o %cpu= -p ${daemon.process.pid}`).toString().trim())
 
   it('places blocks where the ops put them: after the first block, moved to the end, moved together', async () => {
     const start = async (docPath: string, ...ids: string[]) => {
@@ -479,65 +637,260 @@ describe('document updates through PrepareDocumentChange', () => {
     expect(together.moves).toEqual([['c', 'd', 'a', 'b']])
   })
 
-  it('reads back every edit as written (seeded random edits through createDocumentUpdateBlobs)', async () => {
-    let seed = 20261116
-    const random = (n: number) => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff
-      return seed % n
+  it('adds two or more new parents with their children in one update', async () => {
+    const node = (id: string, ...children: Tree): Tree[number] => ({id, children})
+    // The daemon refused these ("desired parent block is not in the tree") when a move came
+    // before the content of a new parent.
+    await startTree('/new-parents', flat('a', 'b'))
+    const sections: Tree = [
+      node('a', node('x1')),
+      node('b'),
+      node('P', node('c'), node('d')),
+      node('Q', node('e', node('f'))),
+    ]
+    const added = await writeTree('/new-parents', sections)
+    expect(added.got).toEqual(toShape(sections))
+    expect(added.builtBy).toBe('server')
+    // Each new block is placed once and stored once; `a` and `b` are not touched.
+    expect(added.moves.flat().sort()).toEqual(['P', 'Q', 'c', 'd', 'e', 'f', 'x1'])
+    expect(added.ops!.filter((op) => op.type === 'ReplaceBlock')).toHaveLength(7)
+
+    // A nested list with two new parents under an existing block, and a delete in the same update.
+    const list: Tree = [
+      node('a', node('x1'), node('L1', node('i1'), node('i2')), node('L2', node('i3'))),
+      node('P', node('c'), node('d')),
+      node('Q', node('e', node('f'))),
+    ]
+    const nested = await writeTree('/new-parents', list)
+    expect(nested.got).toEqual(toShape(list))
+    expect(nested.builtBy).toBe('server')
+  })
+
+  it('builds a parent and child swapping places here, and never sends it', async () => {
+    const before: Tree = [{id: 'a', children: [{id: 'b', children: flat('c')}]}]
+    await startTree('/swap', before)
+    const swapped: Tree = [{id: 'b', children: [{id: 'a', children: []}, ...flat('c')]}]
+    const cpu = daemonCpu()
+    const result = await writeTree('/swap', swapped)
+    expect(result.got).toEqual(toShape(swapped))
+    expect(result.builtBy).toBe('local')
+    expect(result.localReason).toContain('under a block that is, or was, inside it')
+    expect(daemonCpu()).toBeLessThan(Math.max(50, cpu + 40))
+  })
+
+  it('stores a small Change for one new leaf in a nested document with a long history of moves', async () => {
+    // Every block of the path to the leaf has been moved back and forth among its siblings, which
+    // leaves a stale entry per move in the daemon's lists. A daemon that walks those entries
+    // repeats each move of the request once per entry, multiplied down the path: a one-block
+    // insert came back as 196 MoveBlocks ops, and megabytes after more moves.
+    const node = (id: string, ...children: Tree): Tree[number] => ({id, children})
+    const build = (order: boolean): Tree => {
+      const pair = (a: Tree[number], b: Tree[number]) => (order ? [a, b] : [b, a])
+      return pair(
+        node(
+          'A',
+          ...pair(node('B', ...pair(node('C', ...pair(node('D', node('leaf')), node('d2'))), node('c2'))), node('b2')),
+        ),
+        node('a2'),
+      )
     }
-    const levels = (tree: Tree): Tree[] => [tree, ...tree.flatMap((t) => levels(t.children))]
-    const clone = (tree: Tree): Tree => tree.map((t) => ({id: t.id, children: clone(t.children)}))
-    let fresh = 0
-    const mutate = (current: Tree): Tree => {
-      const tree = clone(current)
-      const all = levels(tree)
-      const pick = () => all[random(all.length)]!
-      const steps = 1 + random(2)
-      for (let step = 0; step < steps; step++) {
-        const kind = random(10)
-        const from = pick()
-        if (kind < 2 || from.length === 0) {
-          const into = pick()
-          into.splice(random(into.length + 1), 0, {id: `x${++fresh}`, children: []})
-        } else if (kind < 3 && from.length > 1) {
-          from.splice(random(from.length), 1)
-        } else if (kind < 5) {
-          // A run of one to three neighbours moves within its level.
-          const length = 1 + random(Math.min(3, from.length))
-          const run = from.splice(random(from.length - length + 1), length)
-          from.splice(random(from.length + 1), 0, ...run)
-        } else if (kind < 8) {
-          const [block] = from.splice(random(from.length), 1)
-          from.splice(random(from.length + 1), 0, block!)
-        } else {
-          // A childless block moves to another level (so it can never land inside itself).
-          const leaves = from.filter((t) => t.children.length === 0)
-          if (!leaves.length) continue
-          const block = leaves[random(leaves.length)]!
-          from.splice(from.indexOf(block), 1)
-          const targets = levels(tree)
-          const into = targets[random(targets.length)]!
-          into.splice(random(into.length + 1), 0, block)
+    await startTree('/move-history', build(true))
+    for (let round = 0; round < 6; round++) {
+      const written = await writeTree('/move-history', build(round % 2 === 1))
+      expect(written.got).toEqual(toShape(build(round % 2 === 1)))
+    }
+    const tree = build(true)
+    const withLeaf = cloneTree(tree)
+    const parentOfLeaf = (nodes: Tree): Tree[number] =>
+      nodes.find((n) => n.id === 'D') ?? parentOfLeaf(nodes.flatMap((n) => n.children))
+    parentOfLeaf(withLeaf).children.push({id: 'leaf2', children: []})
+
+    const inserted = await writeTree('/move-history', withLeaf)
+    expect(inserted.got).toEqual(toShape(withLeaf))
+    // Minimal from the daemon (one move, one block), or built here as listed (one block, the
+    // level's two blocks): either way a handful of ops and well under a kilobyte.
+    const placed = inserted.moves.flat()
+    expect(inserted.ops!.length).toBeLessThanOrEqual(3)
+    expect(placed.length).toBeLessThanOrEqual(2)
+    expect(placed).toContain('leaf2')
+    const bytes = (await (await fetch(`${DAEMON_URL}/ipfs/${inserted.version}`)).arrayBuffer()).byteLength
+    expect(bytes).toBeLessThan(1024)
+    reportStats(
+      `MOVE-HISTORY one-leaf insert: builtBy=${inserted.builtBy} ops=${inserted.ops!.length} bytes=${bytes}` +
+        (inserted.localReason ? ` reason=${inserted.localReason}` : ''),
+    )
+  })
+
+  it('keeps every Change later than the Changes it builds on, whichever clock is behind', async () => {
+    const tooLarge: Pick<SeedClient, 'request'> = {
+      request: (async (key: string, input: never, options?: never) => {
+        if (key === 'PrepareDocumentChange') {
+          throw new SeedClientError('HTTP 413 from PrepareDocumentChange: Payload Too Large', 413, '')
         }
-      }
-      return tree
+        return client.request(key as never, input, options)
+      }) as SeedClient['request'],
+    }
+    /** The document still reads, holds `tree`, and takes a further prepared update. */
+    const stillWorks = async (docPath: string, tree: Tree) => {
+      expect(shape((await readDocument(docPath)).content)).toEqual(toShape(tree))
+      const further = [...cloneTree(tree), {id: `after-${docPath.slice(1)}`, children: []}]
+      const next = await updateTree(docPath, further)
+      expect(next.got).toEqual(toShape(further))
+      return next
     }
 
-    await createDocument('/random', [{type: 'SetAttributes', attrs: [{key: ['name'], value: 'Random'}]}])
-    let tree: Tree = flat('a', 'b', 'c', 'd', 'e')
-    tree[1]!.children = flat('p', 'q', 'r')
-    expect((await writeTree('/random', tree)).got).toEqual(toShape(tree))
-    let published = 0
-    for (let round = 0; round < 60; round++) {
-      const next = mutate(tree)
-      const result = await writeTree('/random', next)
-      if (result.published) published++
-      expect(
-        result.got,
-        `round ${round}: ${JSON.stringify(toShape(tree))} -> ${JSON.stringify(toShape(next))}`,
-      ).toEqual(toShape(next))
-      tree = next
+    // 1. This machine's clock is behind the site's. The heads carry the site's clock (a prepared
+    //    Change), and a Change built here on top must still be later than them.
+    const lagging = () => Date.now() - 5_000
+    for (const [name, route] of [
+      ['unpreparable', {}],
+      ['too-large', {client: tooLarge}],
+    ] as const) {
+      const docPath = `/lag-${name}`
+      await startTree(docPath, flat('a', 'b', 'c', 'd'))
+      const prepared = await updateTree(docPath, flat('a', 'n', 'b', 'c', 'd'))
+      expect(prepared.update.changed && prepared.update.builtBy).toBe('server')
+      // Neighbours moving together are unpreparable; the other route is refused with a 413.
+      const tree = name === 'unpreparable' ? flat('c', 'd', 'a', 'n', 'b') : flat('a', 'b', 'c', 'd')
+      const local = await updateTree(docPath, tree, {...route, now: lagging})
+      if (!local.update.changed) throw new Error('expected a change')
+      expect(local.update.builtBy).toBe('local')
+      expect(local.got).toEqual(toShape(tree))
+      const headTs = await storedTs(prepared.version)
+      // ListChanges reports the head's time exactly, to the millisecond.
+      expect(local.headTs).toBe(headTs)
+      expect(await storedTs(local.version)).toBe(headTs + 1)
+      expect(local.update.ts).toBe(headTs + 1)
+      const next = await stillWorks(docPath, tree)
+      expect(next.update.changed && next.update.builtBy).toBe('server')
     }
-    expect(published).toBeGreaterThan(30)
-  }, 300_000)
+
+    // 2. This machine's clock is ahead of the site's. A Change built here is then later than the
+    //    site's clock; the site cannot prepare the next one ("must be greater than ts of its
+    //    dependency"), so that one is built here too, one millisecond after the head.
+    // (Under the 40 seconds the daemon tolerates: a Change stamped further ahead than that is
+    // stored and then not read, which no client-side stamp can repair.)
+    const ahead = () => Date.now() + 20_000
+    for (const [name, route] of [
+      ['unpreparable', {}],
+      ['too-large', {client: tooLarge}],
+    ] as const) {
+      const docPath = `/ahead-${name}`
+      await startTree(docPath, flat('a', 'b', 'c', 'd'))
+      const tree = name === 'unpreparable' ? flat('c', 'd', 'a', 'b') : flat('a', 'n', 'b', 'c', 'd')
+      const local = await updateTree(docPath, tree, {...route, now: ahead})
+      if (!local.update.changed) throw new Error('expected a change')
+      expect(local.update.builtBy).toBe('local')
+      expect(local.update.ts).toBeGreaterThan(Date.now() + 10_000)
+      const next = await stillWorks(docPath, tree)
+      if (!next.update.changed) throw new Error('expected a change')
+      expect(next.update.builtBy).toBe('local')
+      expect(next.update.localReason).toContain("clock is not past the time of the document's latest change")
+      expect(next.update.ts).toBe(local.update.ts + 1)
+      // And once more, so the Change after a fallback is checked too.
+      const again = [...cloneTree(tree), {id: `after-${docPath.slice(1)}`, children: []}, {id: 'last', children: []}]
+      expect((await updateTree(docPath, again)).got).toEqual(toShape(again))
+    }
+  })
+
+  it('reads back every edit as written (seeded random edits through createDocumentUpdateBlobs)', async () => {
+    const stats = newFuzzStats()
+    const failures: string[] = []
+    // Four documents whose edits include parent and child swaps (after one, an unfixed daemon is
+    // not asked to move blocks in that document again), and two without.
+    for (const seed of [20261116, 7, 424242, 99991, 31337, 2718]) {
+      const fuzzer = createTreeFuzzer(seed, {swaps: seed !== 31337 && seed !== 2718})
+      const docPath = `/random-${seed}`
+      let tree: Tree = flat('a', 'b', 'c', 'd', 'e')
+      tree[1]!.children = flat('p', 'q', 'r')
+      await startTree(docPath, tree)
+      for (let round = 0; round < 40; round++) {
+        const next = fuzzer.mutate(tree)
+        const label = `seed ${seed} round ${round} (${next.edits.join(', ')}): ${JSON.stringify(
+          toShape(tree),
+        )} -> ${JSON.stringify(toShape(next.tree))}`
+        try {
+          const result = await writeTree(docPath, next.tree)
+          const right = JSON.stringify(result.got) === JSON.stringify(toShape(next.tree))
+          recordFuzzRound(stats, {...result, edits: next.edits, right})
+          if (!right) failures.push(`${label}: read back ${JSON.stringify(result.got)}`)
+        } catch (error) {
+          failures.push(`${label}: ${(error as Error).message}`)
+          break
+        }
+        tree = next.tree
+      }
+    }
+    reportStats(`FUZZ-STATS createDocumentUpdateBlobs ${JSON.stringify(stats)}`)
+    expect(failures).toEqual([])
+    expect(stats.rounds).toBe(240)
+    expect(stats.server).toBeGreaterThan(20)
+    expect(stats.wrong).toBe(0)
+  }, 600_000)
+
+  // Last: it leaves the daemon busy, and restarts it.
+  it('gives up on a daemon that never answers and builds the Change here', async () => {
+    // `q` was under `p`; then they swapped. The swap is built here and never sent (see above),
+    // but the daemon now holds both placements, and its walk over them never ends: any request
+    // that moves or deletes a block in this document makes it spin.
+    await startTree('/turned', [{id: 'p', children: flat('q')}])
+    const swapped: Tree = [{id: 'q', children: flat('p')}]
+    expect((await writeTree('/turned', swapped)).got).toEqual(toShape(swapped))
+
+    // The guard that is on by default reads the history and does not ask at all.
+    const appended: Tree = [...cloneTree(swapped), ...flat('z')]
+    const calm = daemonCpu()
+    const started = Date.now()
+    const guarded = await updateTree('/turned', appended)
+    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(guarded.got).toEqual(toShape(appended))
+    expect(guarded.update.changed && guarded.update.builtBy).toBe('local')
+    expect(guarded.update.changed && guarded.update.localReason).toContain(
+      'was once inside a block that is now inside it',
+    )
+    expect(daemonCpu()).toBeLessThan(Math.max(50, calm + 40))
+
+    // An update that moves nothing is still prepared by the daemon: only its walk over moves hangs.
+    const {base} = await opsFor('/turned', appended)
+    const text = await documentUpdateBlobs({
+      client,
+      signer,
+      account: account.accountId,
+      path: '/turned',
+      state: base.state,
+      ops: [{type: 'ReplaceBlock', block: {id: 'z', type: 'Paragraph', text: 'edited', annotations: []}}],
+      content: base.document.content ?? [],
+      documentVersion: base.document.version,
+    })
+    expect(text.changed && text.builtBy).toBe('server')
+    if (text.changed) await client.publish({blobs: text.blobs})
+
+    // With that guard off the request is sent. The daemon never answers; the helper stops
+    // waiting after its timeout and builds the Change here.
+    const more: Tree = [...cloneTree(appended), ...flat('y')]
+    const waited = Date.now()
+    const timedOut = await updateTree('/turned', more, {checkMoveHistory: false, prepareTimeoutMs: 1_500})
+    expect(Date.now() - waited).toBeLessThan(6_000)
+    expect(timedOut.got).toEqual(toShape(more))
+    expect(timedOut.update.changed && timedOut.update.builtBy).toBe('local')
+    expect(timedOut.update.changed && timedOut.update.localReason).toContain('did not answer within 1.5 s')
+
+    // The abandoned request is still running in the daemon and will not stop. Kill the daemon
+    // and start it again on the same data, so nothing is left spinning and the rest is checked
+    // against a clean process.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const busy = daemonCpu()
+    reportStats(`UNANSWERED daemon CPU after the abandoned request: ${busy}%`)
+    daemon.process.kill('SIGKILL')
+    await new Promise((resolve) => daemon.process.once('close', resolve))
+    daemon = await spawnDaemon({httpPort: HTTP_PORT, grpcPort: HTTP_PORT + 1, p2pPort: HTTP_PORT + 2, dataDir})
+    await daemon.waitForReady()
+    expect(shape((await readDocument('/turned')).content)).toEqual(toShape(more))
+    // The helper remembers the unanswered document and does not ask again for a while.
+    const after: Tree = [...cloneTree(more), ...flat('x')]
+    const remembered = await updateTree('/turned', after, {checkMoveHistory: false, prepareTimeoutMs: 1_500})
+    expect(remembered.got).toEqual(toShape(after))
+    expect(remembered.update.changed && remembered.update.localReason).toContain('did not answer an earlier request')
+    expect(daemonCpu()).toBeLessThan(50)
+  }, 60_000)
 })

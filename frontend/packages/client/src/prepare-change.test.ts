@@ -4,10 +4,13 @@ import {CID} from 'multiformats/cid'
 import {describe, expect, it, vi} from 'vitest'
 import {createDocumentUpdateBlobs} from './apps'
 import type {DocumentOperation} from './change'
+import {SeedClientError, SeedNetworkError} from './errors'
 import type {HMSigner} from './hm-types'
 import {HMPrepareDocumentChangeInputSchema, unpackHmId} from './hm-types'
 import {
   documentOperationsToChanges,
+  documentUpdateBlobs,
+  implausiblePreparedChange,
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
   clientBuiltDocumentUpdateBlobs,
@@ -197,7 +200,61 @@ describe('preparableDocumentChanges', () => {
       content('y', 'z'),
     )
     if ('unpreparable' in result) throw new Error(result.unpreparable)
-    expect(result.changes.map((change) => change.op.case)).toEqual(['setMetadata', 'replaceBlock', 'deleteBlock'])
+    expect(result.changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'setMetadata', 'deleteBlock'])
+  })
+
+  it('sends every replaceBlock before the first moveBlock or deleteBlock', () => {
+    // [a, b] to [a[x1], b, P[c]], as a diff writes it: each level's blocks, then the level's order.
+    const block = (id: string): DocumentOperation => ({type: 'ReplaceBlock', block: {id, type: 'Paragraph', text: id}})
+    const result = preparableDocumentChanges(
+      [
+        block('x1'),
+        reorder(['x1'], 'a'),
+        {type: 'DeleteBlocks', blocks: ['gone']},
+        block('c'),
+        reorder(['c'], 'P'),
+        block('P'),
+        reorder(['a', 'b', 'P']),
+      ],
+      content('a', 'gone', 'b'),
+    )
+    if ('unpreparable' in result) throw new Error(result.unpreparable)
+    const cases = result.changes.map((change) => change.op.case)
+    const lastReplace = cases.lastIndexOf('replaceBlock')
+    const firstTreeChange = cases.findIndex((name) => name === 'moveBlock' || name === 'deleteBlock')
+    expect(lastReplace).toBe(2)
+    expect(firstTreeChange).toBe(3)
+    // The moves keep the order of the ops: they are not sorted parents-first.
+    expect(moves(result)).toEqual(['x1>', 'c>', 'P>b'])
+  })
+
+  it('reports a block that is both deleted and placed as unpreparable, in either order', () => {
+    const del: DocumentOperation = {type: 'DeleteBlocks', blocks: ['b']}
+    for (const ops of [
+      [del, reorder(['a', 'b', 'c'])],
+      [reorder(['a', 'b', 'c']), del],
+    ]) {
+      const result = preparableDocumentChanges(ops, content('a', 'b', 'c'))
+      expect('unpreparable' in result && result.unpreparable).toContain('deletes block b and places it')
+    }
+  })
+
+  it('reports a block put under one of its own descendants as unpreparable', () => {
+    const nested = [{block: {id: 'a'}, children: [{block: {id: 'b'}, children: [{block: {id: 'c'}, children: []}]}]}]
+    // A parent and its child swap places: [a[b[c]]] to [b[a], ...].
+    const swap = preparableDocumentChanges([reorder(['a'], 'b'), reorder(['b'])], nested)
+    expect('unpreparable' in swap && swap.unpreparable).toContain('under a block that is, or was, inside it')
+    // The same through a grandchild, and through a new block in between.
+    const deep = preparableDocumentChanges([reorder(['c']), reorder(['a'], 'c')], nested)
+    expect('unpreparable' in deep).toBe(true)
+    const viaNew = preparableDocumentChanges([reorder(['n'], 'c'), reorder(['a'], 'n'), reorder(['b'])], nested)
+    expect('unpreparable' in viaNew).toBe(true)
+    const self = preparableDocumentChanges([reorder(['a'], 'a')], nested)
+    expect('unpreparable' in self).toBe(true)
+    // Moving out and sideways is fine: outdent c, then put b under c's old grandparent's sibling.
+    expect(moves(preparableDocumentChanges([reorder(['a', 'c'])], nested))).toEqual(['c>a'])
+    const sideways = preparableDocumentChanges([reorder(['b'], 'z')], [...nested, {block: {id: 'z'}, children: []}])
+    expect(moves(sideways)).toEqual(['b>'])
   })
 })
 
@@ -350,14 +407,18 @@ describe('prepareDocumentUpdateBlobs', () => {
     })
 
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request).toHaveBeenCalledWith('PrepareDocumentChange', {
-      account: ACCOUNT,
-      path: '/notes/first',
-      baseVersion: HEAD,
-      changes: documentOperationsToChanges(ops),
-      capability: CAPABILITY,
-      visibility: undefined,
-    })
+    expect(request).toHaveBeenCalledWith(
+      'PrepareDocumentChange',
+      {
+        account: ACCOUNT,
+        path: '/notes/first',
+        baseVersion: HEAD,
+        changes: documentOperationsToChanges(ops),
+        capability: CAPABILITY,
+        visibility: undefined,
+      },
+      {signal: undefined},
+    )
     if (!result.changed) throw new Error('expected a change')
     expect(result.blobs).toHaveLength(2)
     expect(result.blobs[0]!.cid).toBe(result.version)
@@ -489,6 +550,7 @@ describe('createDocumentUpdateBlobs', () => {
           ],
         }
       }
+      if (key === 'GetCID') return {value: {body: {ops: []}}}
       if (key === 'PrepareDocumentChange') return {unsignedChange: prepared}
       throw new Error(`unexpected request ${key}`)
     })
@@ -499,6 +561,7 @@ describe('createDocumentUpdateBlobs', () => {
     const seedClient = client(unsignedChange([{type: 'MoveBlocks', blocks: ['b1']}], 4321))
     const update = await createDocumentUpdateBlobs({client: seedClient, signer: makeSigner(), id, ops, extraBlobs})
     expect(update.changed).toBe(true)
+    expect(update.builtBy).toBe('server')
     expect(update.targetId).toEqual(id)
     expect(update.blobs).toHaveLength(3)
     expect(update.blobs[2]).toBe(extraBlobs[0])
@@ -545,6 +608,8 @@ describe('createDocumentUpdateBlobs', () => {
       extraBlobs,
     })
     expect(update.changed).toBe(true)
+    expect(update.builtBy).toBe('local')
+    expect(update.localReason).toContain('moves together with the block before it')
     expect(update.targetId).toEqual(id)
     expect(update.blobs).toHaveLength(3)
     expect(update.blobs[2]).toBe(extraBlobs[0])
@@ -598,5 +663,349 @@ describe('clientBuiltDocumentUpdateBlobs', () => {
       ops,
     })
     expect(Math.abs(unfloored.generation - Date.now())).toBeLessThan(60_000)
+  })
+
+  it('stamps the Change with the clock, or one millisecond after the latest head when the clock is not past it', async () => {
+    const ops: DocumentOperation[] = [{type: 'DeleteBlocks', blocks: ['a']}]
+    const built = async (now: number, headTs?: number) => {
+      const result = await clientBuiltDocumentUpdateBlobs({
+        signer: makeSigner(),
+        account: ACCOUNT,
+        state: {genesis: GENESIS, heads: [HEAD], headDepth: 1, headTs},
+        ops,
+        now: () => now,
+      })
+      const change = cborDecode(result.blobs[0]!.data) as Record<string, any>
+      expect(Number(change.ts)).toBe(result.ts)
+      expect(result.depth).toBe(2)
+      return result.ts
+    }
+    expect(await built(5_000, 3_000)).toBe(5_000) // the clock is ahead of the head
+    expect(await built(5_000, 5_000)).toBe(5_001) // equal is not later
+    expect(await built(5_000, 7_000)).toBe(7_001) // the clock lags the head (it carries the site's clock)
+    expect(await built(5_000)).toBe(5_000) // the head's time is not known
+  })
+})
+
+describe('implausiblePreparedChange', () => {
+  const ops: DocumentOperation[] = [
+    {type: 'ReplaceBlock', block: {id: 'x', type: 'Paragraph', text: 'x'}},
+    {type: 'ReplaceBlock', block: {id: 'y', type: 'Paragraph', text: 'y'}},
+    {type: 'MoveBlocks', blocks: ['x', 'y', 'z'], parent: 'p'},
+    {type: 'DeleteBlocks', blocks: ['d']},
+  ]
+  const changes = documentOperationsToChanges(ops)
+
+  it('accepts a subset of what was asked, however the daemon groups the moves', () => {
+    // One MoveBlocks for a run of neighbours, and another for a block placed elsewhere in the level.
+    const batched = unsignedChange([
+      {type: 'MoveBlocks', blocks: ['x', 'y'], parent: 'p', ref: [1, 2, 3]},
+      {type: 'MoveBlocks', blocks: ['z'], parent: 'p', ref: [1, 2, 4]},
+      {type: 'DeleteBlocks', blocks: ['d']},
+      {type: 'ReplaceBlock', block: {id: 'x', type: 'Paragraph', text: 'x'}},
+      {type: 'SetAttributes', attrs: [{key: ['name'], value: 'n'}]},
+    ])
+    expect(implausiblePreparedChange(batched, changes)).toBeNull()
+    expect(implausiblePreparedChange(unsignedChange([]), changes)).toBeNull()
+  })
+
+  it('refuses repeated moves, blocks the request did not name, and an oversized Change', () => {
+    const repeated = unsignedChange([
+      {type: 'MoveBlocks', blocks: ['x', 'y', 'z'], parent: 'p'},
+      {type: 'MoveBlocks', blocks: ['x'], parent: 'p'},
+    ])
+    expect(implausiblePreparedChange(repeated, changes)).toContain('places block x 2 times, the request once')
+    const stranger = unsignedChange([{type: 'MoveBlocks', blocks: ['q'], parent: 'p'}])
+    expect(implausiblePreparedChange(stranger, changes)).toContain('moves block q')
+    const deletes = unsignedChange([{type: 'DeleteBlocks', blocks: ['x']}])
+    expect(implausiblePreparedChange(deletes, changes)).toContain('deletes block x')
+    const replaces = unsignedChange([{type: 'ReplaceBlock', block: {id: 'z', type: 'Paragraph'}}])
+    expect(implausiblePreparedChange(replaces, changes)).toContain('replaces block z')
+    const twice = unsignedChange([
+      {type: 'ReplaceBlock', block: {id: 'x', type: 'Paragraph'}},
+      {type: 'ReplaceBlock', block: {id: 'x', type: 'Paragraph'}},
+      {type: 'ReplaceBlock', block: {id: 'y', type: 'Paragraph'}},
+    ])
+    expect(implausiblePreparedChange(twice, changes)).toContain('replaces blocks 3 times for 2 requested')
+    const small = unsignedChange([{type: 'MoveBlocks', blocks: ['x'], parent: 'p'}])
+    expect(implausiblePreparedChange(small, changes, 64)).toContain('bytes, over the 64')
+  })
+})
+
+describe('documentUpdateBlobs', () => {
+  const LATEST = 1_800_000_000_000
+  let documents = 0
+  /** A document of [a, b, c] with one Change after its genesis, and a fake site around it. */
+  function setup(
+    prepare: (input: any, options?: {signal?: AbortSignal}) => Promise<{unsignedChange: Uint8Array}>,
+    history: Record<string, unknown[]> = {},
+  ) {
+    const request = vi.fn(async (key: string, input: any, options?: {signal?: AbortSignal}) => {
+      if (key === 'GetCID') return {value: {ts: LATEST, body: {ops: history[input.cid] ?? []}}}
+      if (key === 'PrepareDocumentChange') return prepare(input, options)
+      throw new Error(`unexpected request ${key}`)
+    })
+    const input = {
+      client: {request} as any,
+      signer: makeSigner(),
+      account: ACCOUNT,
+      // The helper remembers a document that went unanswered: every test gets its own.
+      path: `/doc-${++documents}`,
+      state: {
+        genesis: GENESIS,
+        heads: [HEAD],
+        headDepth: 1,
+        version: HEAD,
+        headTs: LATEST,
+        changeIds: [GENESIS, HEAD],
+      },
+      content: ['a', 'b', 'c'].map((id) => ({block: {id}, children: []})),
+      documentVersion: HEAD,
+      now: () => LATEST - 2_000, // this machine's clock lags the document's latest Change
+    }
+    const asked = () => request.mock.calls.filter((call) => call[0] === 'PrepareDocumentChange').length
+    return {request, input, asked}
+  }
+  const append: DocumentOperation[] = [
+    {type: 'ReplaceBlock', block: {id: 'n', type: 'Paragraph', text: 'new'}},
+    {type: 'MoveBlocks', blocks: ['a', 'b', 'c', 'n'], parent: ''},
+  ]
+  const prepared = async () => ({
+    unsignedChange: unsignedChange(
+      [
+        {type: 'MoveBlocks', blocks: ['n'], ref: [1, 2, 3]},
+        {type: 'ReplaceBlock', block: {id: 'n', type: 'Paragraph', text: 'new'}},
+      ],
+      LATEST + 5,
+    ),
+  })
+  const failing = (status: number, message: string) => async () => {
+    throw new SeedClientError(`HTTP ${status} from PrepareDocumentChange`, status, JSON.stringify({error: message}))
+  }
+  /** The ops and timestamp of the Change in a result. */
+  const changeOf = (result: {blobs: {data: Uint8Array}[]}) => cborDecode(result.blobs[0]!.data) as Record<string, any>
+
+  it('signs the Change the daemon prepared', async () => {
+    const {input, request, asked} = setup(prepared)
+    const result = await documentUpdateBlobs({...input, ops: append})
+    if (!result.changed) throw new Error('expected a change')
+    expect(result.builtBy).toBe('server')
+    expect(result.localReason).toBeUndefined()
+    expect(result.ts).toBe(LATEST + 5)
+    expect(result.depth).toBe(2)
+    expect(changeOf(result).body.ops).toHaveLength(2)
+    expect(asked()).toBe(1)
+    const call = request.mock.calls.find((c) => c[0] === 'PrepareDocumentChange')!
+    expect(call[1]).toMatchObject({path: input.path, baseVersion: HEAD})
+    expect(call[1].changes.map((change: any) => change.op.case)).toEqual(['replaceBlock', 'moveBlock'])
+    expect(call[2]?.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('reports no change when the daemon leaves nothing, and for no ops at all', async () => {
+    const {input, asked} = setup(async () => ({unsignedChange: unsignedChange([])}))
+    expect(await documentUpdateBlobs({...input, ops: append})).toEqual({changed: false, blobs: [], version: HEAD})
+    expect(await documentUpdateBlobs({...input, ops: []})).toEqual({changed: false, blobs: [], version: HEAD})
+    expect(asked()).toBe(1)
+  })
+
+  it.each([
+    ['a request the site finds too large', 413, 'Payload Too Large', 'too large (HTTP 413)'],
+    ['a site without the API', 404, 'Unknown action key: PrepareDocumentChange', 'no PrepareDocumentChange'],
+    ['a parent the daemon lost', 500, '[unknown] desired parent block P is not in the tree', 'is not in the tree'],
+    ['a cycle the daemon refuses', 500, '[unknown] cycle detected: block a is ancestor of b', 'cycle detected'],
+    ['any other failure to apply', 500, '[internal] something else broke', 'something else broke'],
+    [
+      'a site clock behind the latest change',
+      500,
+      '[unknown] ts of change bafy1 must be greater than ts of its dependency bafy2',
+      "clock is not past the time of the document's latest change",
+    ],
+  ])('builds the Change here after %s', async (_name, status, message, reason) => {
+    const {input, asked} = setup(failing(status as number, message as string))
+    const result = await documentUpdateBlobs({...input, ops: append})
+    if (!result.changed) throw new Error('expected a change')
+    expect(result.builtBy).toBe('local')
+    expect(result.localReason).toContain(reason)
+    expect(asked()).toBe(1)
+    const change = changeOf(result)
+    expect(change.body.ops).toEqual(append) // as written
+    expect(change.deps.map(String)).toEqual([HEAD])
+    // Later than the head it builds on, though this machine's clock is two seconds behind it.
+    expect(Number(change.ts)).toBe(LATEST + 1)
+  })
+
+  it.each([
+    ['a refusal for lack of permission', 500, '[permission_denied] key z6Mk is not allowed to write to space'],
+    ['an unauthenticated caller', 500, '[unauthenticated] sign in'],
+    ['a request the daemon calls invalid', 500, '[invalid_argument] failed to decode account'],
+    ['a failed precondition', 500, '[failed_precondition] private document creation is disabled'],
+    ['a 4xx about the request', 400, 'Invalid request input'],
+    ['a 403', 403, 'Forbidden'],
+  ])('does not build the Change here after %s', async (_name, status, message) => {
+    const {input} = setup(failing(status as number, message as string))
+    await expect(documentUpdateBlobs({...input, ops: append})).rejects.toBeInstanceOf(SeedClientError)
+  })
+
+  it('does not build the Change here when the site cannot be reached', async () => {
+    const {input} = setup(async () => {
+      throw new SeedNetworkError('Network error fetching PrepareDocumentChange: ECONNREFUSED')
+    })
+    await expect(documentUpdateBlobs({...input, ops: append})).rejects.toBeInstanceOf(SeedNetworkError)
+  })
+
+  it('stops waiting for a daemon that does not answer, builds the Change here, and does not ask again', async () => {
+    let signal: AbortSignal | undefined
+    const {input, asked} = setup((_input, options) => {
+      signal = options?.signal
+      return new Promise(() => {}) // never answers, and ignores the abort
+    })
+    const started = Date.now()
+    const result = await documentUpdateBlobs({...input, ops: append, prepareTimeoutMs: 30})
+    expect(Date.now() - started).toBeLessThan(2_000)
+    if (!result.changed) throw new Error('expected a change')
+    expect(result.builtBy).toBe('local')
+    expect(result.localReason).toContain('did not answer within')
+    expect(signal?.aborted).toBe(true)
+    expect(changeOf(result).body.ops).toEqual(append)
+
+    const again = await documentUpdateBlobs({...input, ops: append, prepareTimeoutMs: 30})
+    expect(again.changed && again.localReason).toContain('did not answer an earlier request')
+    expect(asked()).toBe(1)
+  })
+
+  it('does not sign a Change that repeats moves, names other blocks, or is too large', async () => {
+    const repeated = setup(async () => ({
+      unsignedChange: unsignedChange([
+        {type: 'MoveBlocks', blocks: ['n']},
+        {type: 'MoveBlocks', blocks: ['n']},
+      ]),
+    }))
+    const first = await documentUpdateBlobs({...repeated.input, ops: append})
+    expect(first.changed && first.builtBy).toBe('local')
+    expect(first.changed && first.localReason).toContain('places block n 2 times, the request once')
+    expect(changeOf(first).body.ops).toEqual(append)
+
+    const stranger = setup(async () => ({unsignedChange: unsignedChange([{type: 'MoveBlocks', blocks: ['a', 'n']}])}))
+    const second = await documentUpdateBlobs({...stranger.input, ops: append})
+    expect(second.changed && second.localReason).toContain('moves block a, which the request does not')
+
+    const large = setup(prepared)
+    const third = await documentUpdateBlobs({...large.input, ops: append, maxPreparedChangeBytes: 32})
+    expect(third.changed && third.localReason).toContain('bytes, over the 32')
+  })
+
+  it('does not ask a daemon to move blocks in a document whose history turned a child into its parent', async () => {
+    // b was under a, and later a went under b: the daemon keeps both placements.
+    // (Changes are remembered by CID, so this history has CIDs of its own.)
+    const history = {
+      'bafy-first': [
+        {type: 'MoveBlocks', blocks: ['a']},
+        {type: 'MoveBlocks', blocks: ['b'], parent: 'a'},
+      ],
+      'bafy-second': [
+        {type: 'MoveBlocks', blocks: ['b']},
+        {type: 'MoveBlocks', blocks: ['a'], parent: 'b'},
+      ],
+    }
+    const withHistory = (input: ReturnType<typeof setup>['input']) => ({
+      ...input,
+      state: {...input.state, changeIds: Object.keys(history)},
+    })
+    const turned = setup(prepared, history)
+    const result = await documentUpdateBlobs({...withHistory(turned.input), ops: append})
+    expect(result.changed && result.builtBy).toBe('local')
+    expect(result.changed && result.localReason).toContain('was once inside a block that is now inside it')
+    expect(turned.asked()).toBe(0)
+
+    // An update that moves and deletes nothing is safe to ask for, and the history is not read.
+    const text: DocumentOperation[] = [{type: 'ReplaceBlock', block: {id: 'a', type: 'Paragraph', text: 'edited'}}]
+    const quiet = setup(async () => ({unsignedChange: unsignedChange(text)}), history)
+    const edited = await documentUpdateBlobs({...withHistory(quiet.input), ops: text})
+    expect(edited.changed && edited.builtBy).toBe('server')
+    expect(quiet.request.mock.calls.some((call) => call[0] === 'GetCID')).toBe(false)
+
+    // The check can be turned off for a daemon known to be fixed.
+    const trusted = setup(prepared, history)
+    const asked = await documentUpdateBlobs({...withHistory(trusted.input), ops: append, checkMoveHistory: false})
+    expect(asked.changed && asked.builtBy).toBe('server')
+  })
+
+  it('builds the Change here when the history cannot be checked', async () => {
+    const unreadable = setup(prepared)
+    unreadable.request.mockImplementation(async (key: string) => {
+      if (key === 'GetCID') throw new SeedClientError('HTTP 500 from GetCID', 500)
+      throw new Error(`unexpected request ${key}`)
+    })
+    const first = await documentUpdateBlobs({
+      ...unreadable.input,
+      // Changes this process has not read yet.
+      state: {...unreadable.input.state, changeIds: [CAPABILITY]},
+      ops: append,
+    })
+    expect(first.changed && first.localReason).toContain('history could not be read')
+
+    const long = setup(prepared)
+    const second = await documentUpdateBlobs({
+      ...long.input,
+      state: {...long.input.state, changeIds: ['bafy-unread-1', 'bafy-unread-2', 'bafy-unread-3']},
+      ops: append,
+      maxMoveHistoryChanges: 2,
+    })
+    expect(second.changed && second.localReason).toContain('too long to check')
+
+    const unknown = setup(prepared)
+    const third = await documentUpdateBlobs({
+      ...unknown.input,
+      state: {...unknown.input.state, changeIds: undefined},
+      ops: append,
+    })
+    expect(third.changed && third.localReason).toContain('history is not known')
+    expect(unreadable.asked() + long.asked() + unknown.asked()).toBe(0)
+  })
+
+  it('builds the Change here, without asking, for content that is not the content at the heads', async () => {
+    const {input, asked} = setup(prepared)
+    const result = await documentUpdateBlobs({...input, ops: append, documentVersion: GENESIS})
+    expect(result.changed && result.localReason).toBe('the document changed while it was being read')
+    expect(asked()).toBe(0)
+  })
+
+  it('builds the Change here for ops the request cannot carry, storing localOps when given', async () => {
+    const {input, asked} = setup(prepared)
+    const fraction: DocumentOperation[] = [{type: 'SetAttributes', attrs: [{key: ['rating'], value: 4.5}]}]
+    const result = await documentUpdateBlobs({...input, ops: fraction})
+    expect(result.changed && result.localReason).toContain('must be a whole number')
+    expect(changeOf(result).body.ops).toEqual(fraction)
+
+    const replaced: DocumentOperation[] = [
+      {type: 'DeleteBlocks', blocks: ['a']},
+      {type: 'MoveBlocks', blocks: ['a', 'b', 'c'], parent: ''},
+    ]
+    const whole: DocumentOperation[] = [...fraction, ...replaced]
+    const withLocal = await documentUpdateBlobs({...input, ops: replaced, localOps: whole})
+    expect(withLocal.changed && withLocal.localReason).toContain('deletes block a and places it')
+    expect(changeOf(withLocal).body.ops).toEqual(whole)
+    expect(asked()).toBe(0)
+  })
+
+  it('stores a level after the level of its parent, so a parent and child that swap places do swap', async () => {
+    const {input} = setup(prepared)
+    const nested = [{block: {id: 'a'}, children: [{block: {id: 'b'}, children: [{block: {id: 'c'}, children: []}]}]}]
+    // [a[b[c]]] to [b[a, c]] as a diff lists it: the inner level first.
+    const swap: DocumentOperation[] = [
+      {type: 'ReplaceBlock', block: {id: 'c', type: 'Paragraph', text: 'edited'}},
+      {type: 'MoveBlocks', blocks: ['a', 'c'], parent: 'b'},
+      {type: 'DeleteBlocks', blocks: ['gone']},
+      {type: 'MoveBlocks', blocks: ['b'], parent: ''},
+    ]
+    const result = await documentUpdateBlobs({...input, content: nested, ops: swap})
+    expect(result.changed && result.localReason).toContain('under a block that is, or was, inside it')
+    expect(changeOf(result).body.ops).toEqual([swap[0], swap[3], swap[2], swap[1]])
+  })
+
+  it('reads the head Changes for their time when the state does not carry it', async () => {
+    const {input} = setup(failing(413, 'Payload Too Large'))
+    const result = await documentUpdateBlobs({...input, state: {...input.state, headTs: undefined}, ops: append})
+    expect(Number(changeOf(result).ts)).toBe(LATEST + 1)
   })
 })

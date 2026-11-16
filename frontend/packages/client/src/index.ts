@@ -126,7 +126,12 @@ export {
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
   clientBuiltDocumentUpdateBlobs,
+  DEFAULT_MAX_MOVE_HISTORY_CHANGES,
+  DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+  DEFAULT_PREPARE_TIMEOUT_MS,
   documentOperationsToChanges,
+  documentUpdateBlobs,
+  implausiblePreparedChange,
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
   preparableDocumentChanges,
@@ -138,6 +143,8 @@ export type {
   DocumentContent,
   DocumentChangeInput,
   DocumentChanges,
+  DocumentUpdateBlobsInput,
+  DocumentUpdateBlobsResult,
   PrepareDocumentUpdateInput,
   PrepareDocumentUpdateResult,
   ProtoAnnotationJson,
@@ -149,6 +156,7 @@ export {
   followToDocument,
   resolveDocumentState,
   resolveEditableDocument,
+  sameDocumentVersion,
 } from './document-state'
 export type {
   DocumentState,

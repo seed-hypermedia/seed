@@ -6865,6 +6865,8 @@ describe('api service', () => {
             serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
           )
         }
+        // The history the update helper reads before it asks the daemon to move a block.
+        if (href.includes('/api/GetCID')) return Response.json(serialize({value: {body: {ops: []}}}))
         if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
         if (href.includes('/api/ListChanges'))
           return Response.json(

@@ -3,6 +3,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {describe, expect, it, vi} from 'vitest'
 import {autoLinkChildToParent, createAutoLinkOps, documentHasSelfQuery, shouldAutoLinkParent} from './auto-link'
+import {SeedClientError} from './errors'
 import {unpackHmId} from './hm-types'
 
 const documentId = unpackHmId('hm://alice/notes')!
@@ -45,22 +46,20 @@ function paragraph(id: string) {
 }
 
 describe('createAutoLinkOps', () => {
-  it('adds the card and places it once, after the last root block', () => {
+  it('adds the card and lists every root block with it, so the level reads in order however it is stored', () => {
     const parent = {content: [paragraph('a'), {...paragraph('b'), children: [paragraph('b1')]}, paragraph('c')]} as any
     expect(createAutoLinkOps(parent, 'hm://alice/notes/n1', 'new')).toEqual([
       {
-        op: {
-          case: 'replaceBlock',
-          value: {id: 'new', type: 'Embed', link: 'hm://alice/notes/n1', attributes: {view: 'Card'}},
-        },
+        type: 'ReplaceBlock',
+        block: {id: 'new', type: 'Embed', link: 'hm://alice/notes/n1', attributes: {view: 'Card'}},
       },
-      {op: {case: 'moveBlock', value: {blockId: 'new', parent: '', leftSibling: 'c'}}},
+      {type: 'MoveBlocks', blocks: ['a', 'b', 'c', 'new'], parent: ''},
     ])
   })
 
-  it('places the card first in an empty parent', () => {
-    const changes = createAutoLinkOps({content: []} as any, 'hm://alice/notes/n1', 'new')
-    expect(changes[1]).toEqual({op: {case: 'moveBlock', value: {blockId: 'new', parent: '', leftSibling: ''}}})
+  it('places the card alone in an empty parent', () => {
+    const ops = createAutoLinkOps({content: []} as any, 'hm://alice/notes/n1', 'new')
+    expect(ops[1]).toEqual({type: 'MoveBlocks', blocks: ['new'], parent: ''})
   })
 })
 
@@ -73,10 +72,20 @@ describe('autoLinkChildToParent', () => {
     sign: async () => new Uint8Array(64).fill(7),
   }
 
-  function client(parent: unknown, ops: unknown[]) {
+  function client(parent: unknown, ops: unknown[], prepareError?: Error) {
     const request = vi.fn(async (key: string, _input: any) => {
       if (key === 'Resource') return parent
+      if (key === 'ListChanges') {
+        return {
+          changes: [
+            {id: genesis, deps: [], createTime: '2026-01-01T00:00:00Z'},
+            {id: head, deps: [genesis], createTime: '2026-01-01T00:00:01.5Z'},
+          ],
+        }
+      }
+      if (key === 'GetCID') return {value: {body: {ops: []}}}
       if (key === 'PrepareDocumentChange') {
+        if (prepareError) throw prepareError
         return {
           unsignedChange: cborEncode({
             type: 'Change',
@@ -113,8 +122,9 @@ describe('autoLinkChildToParent', () => {
     expect(await autoLinkChildToParent({client: seedClient, ...options})).toBe(true)
 
     const keys = seedClient.request.mock.calls.map((call: unknown[]) => call[0])
-    expect(keys).toEqual(['Resource', 'PrepareDocumentChange']) // no ListChanges walk
-    const prepare = seedClient.request.mock.calls[1][1]
+    // The parent, its heads, its history (checked before a request that moves a block), the change.
+    expect(keys).toEqual(['Resource', 'ListChanges', 'GetCID', 'GetCID', 'PrepareDocumentChange'])
+    const prepare = seedClient.request.mock.calls[4][1]
     expect(prepare).toMatchObject({account, path: '/notes', baseVersion: head})
     expect(prepare.changes).toHaveLength(2)
     expect(prepare.changes[0].op.value).toMatchObject({type: 'Embed', link: options.childHmUrl})
@@ -130,6 +140,17 @@ describe('autoLinkChildToParent', () => {
     expect(ref.path).toBe('/notes')
     expect(String(ref.heads[0])).toBe(blobs[0].cid)
     expect(String(ref.genesisBlob)).toBe(genesis)
+  })
+
+  it('builds the card here, on the heads and later than them, when the daemon refuses the request', async () => {
+    const refusal = new SeedClientError('HTTP 500 from PrepareDocumentChange', 500, '{"error":"[unknown] boom"}')
+    const seedClient = client(parentDocument, [], refusal)
+    expect(await autoLinkChildToParent({client: seedClient, ...options})).toBe(true)
+    const blobs = seedClient.publish.mock.calls[0][0].blobs
+    const change = cborDecode(blobs[0].data) as Record<string, any>
+    expect(change.body.ops[1]).toMatchObject({type: 'MoveBlocks', blocks: ['a', 'b', expect.any(String)]})
+    expect(change.deps.map(String)).toEqual([head])
+    expect(Number(change.ts)).toBeGreaterThan(Date.parse('2026-01-01T00:00:01.5Z'))
   })
 
   it('publishes nothing when the daemon finds nothing to change', async () => {
