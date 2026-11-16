@@ -48,7 +48,7 @@ export function ConnectSuccessView() {
           </button>
         </p>
         <Button
-          className="w-full bg-green-700 text-white shadow-xs hover:bg-green-800"
+          className="w-full bg-brand text-white shadow-xs hover:bg-brand-hover active:bg-brand-active"
           onClick={() => {
             // The desktop app registers the hm:// scheme and hm://open
             // brings it to the front.
