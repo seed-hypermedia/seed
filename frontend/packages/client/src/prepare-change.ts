@@ -111,6 +111,67 @@ export function documentOperationsToChanges(ops: DocumentOperation[]): DocumentC
   return changes
 }
 
+/**
+ * Leaves out the `moveBlock` changes that only re-place the leading blocks of a level where the
+ * document already has them.
+ *
+ * Ops that re-list a whole level (`MoveBlocks` with every block of it, as a diff of two trees
+ * produces) start with "first block at the start", which is usually already true. The daemon drops
+ * most moves that change nothing, but not that one cleanly: it treats a first block moved to the
+ * start as moved, discards the move only when it writes the Change, and then anchors the block
+ * that follows on nothing. A block inserted or moved to right after an unchanged first block
+ * lands BEFORE it (seen on a real daemon, 2026-11-16: `[A, B]` plus a new block after `A` read
+ * back as `[new, A, B]`). Sites run the daemon they run, so the request must not contain that move.
+ *
+ * `content` is the document the changes were computed against. For each parent, the moves that
+ * form an unbroken chain from the start (`leftSibling: ''`, then each block after the one before)
+ * and match the document's own order are removed; the chain ends at the first move that differs,
+ * and everything from there on is kept, anchored on a block this request does not move. A parent
+ * that an earlier kept move already placed something under is left alone.
+ */
+export function withoutLeadingMovesInPlace(
+  changes: DocumentChanges,
+  content: Array<{block: {id: string}; children?: unknown}> | undefined | null,
+): DocumentChanges {
+  const placed = new Map<string, {parent: string; left: string}>()
+  const walk = (nodes: unknown, parent: string) => {
+    if (!Array.isArray(nodes)) return
+    let left = ''
+    for (const node of nodes as Array<{block?: {id?: unknown}; children?: unknown}>) {
+      const id = node?.block?.id
+      if (typeof id !== 'string' || !id) continue
+      placed.set(id, {parent, left})
+      left = id
+      walk(node.children, id)
+    }
+  }
+  walk(content, '')
+  if (!placed.size) return changes
+
+  const out: DocumentChanges = []
+  /** Parents a kept move has placed a block under: nothing more is removed there. */
+  const touched = new Set<string>()
+  /** The chain of removed moves being followed: its parent and the last block removed. */
+  let chain: {parent: string; last: string} | null = null
+  for (const change of changes) {
+    if (change.op.case !== 'moveBlock') {
+      out.push(change)
+      continue
+    }
+    const {blockId, parent = '', leftSibling = ''} = change.op.value
+    const continues = leftSibling === '' || (chain !== null && chain.parent === parent && chain.last === leftSibling)
+    const was = placed.get(blockId)
+    if (continues && !touched.has(parent) && was && was.parent === parent && was.left === leftSibling) {
+      chain = {parent, last: blockId}
+      continue
+    }
+    chain = null
+    touched.add(parent)
+    out.push(change)
+  }
+  return out
+}
+
 function attributeChange(key: string[], value: unknown): DocumentChangeInput {
   const name = Array.isArray(key) ? key.join('.') : String(key)
   if (!Array.isArray(key) || key.length === 0) throw new Error('SetAttributes: an attribute needs a key')

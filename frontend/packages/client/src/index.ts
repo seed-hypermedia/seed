@@ -129,6 +129,7 @@ export {
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
   prepareDocumentUpdateBlobs,
+  withoutLeadingMovesInPlace,
 } from './prepare-change'
 export type {
   DocumentChangeInput,

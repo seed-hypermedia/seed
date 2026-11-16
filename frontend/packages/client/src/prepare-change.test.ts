@@ -11,6 +11,7 @@ import {
   isEmptyPreparedChange,
   nativeBlockToProtoBlock,
   prepareDocumentUpdateBlobs,
+  withoutLeadingMovesInPlace,
 } from './prepare-change'
 
 const ACCOUNT = 'z6MksV3sM8YJxFqv8kV4m4wQdD4sP2wJvB8c2kHh9Qx7LmNo'
@@ -115,6 +116,59 @@ describe('documentOperationsToChanges', () => {
 
   it('refuses an op it does not know', () => {
     expect(() => documentOperationsToChanges([{type: 'SetKey'} as unknown as DocumentOperation])).toThrow(/SetKey/)
+  })
+})
+
+describe('withoutLeadingMovesInPlace', () => {
+  const node = (id: string, children: unknown[] = []) => ({block: {id}, children})
+  const content = [node('a'), node('b', [node('b1'), node('b2')]), node('c')]
+  const move = (blockId: string, parent: string, leftSibling: string) => ({
+    op: {case: 'moveBlock' as const, value: {blockId, parent, leftSibling}},
+  })
+  const moves = (blocks: string[], parent = '') => documentOperationsToChanges([{type: 'MoveBlocks', blocks, parent}])
+
+  it('removes the moves of the leading blocks that are where the document has them', () => {
+    // A block inserted after the first one: the first block is not re-placed, and the new block
+    // is anchored on it.
+    expect(withoutLeadingMovesInPlace(moves(['a', 'new', 'b', 'c']), content)).toEqual([
+      move('new', '', 'a'),
+      move('b', '', 'new'),
+      move('c', '', 'b'),
+    ])
+    // A block appended: only its own move is left.
+    expect(withoutLeadingMovesInPlace(moves(['a', 'b', 'c', 'new']), content)).toEqual([move('new', '', 'c')])
+    // A level re-listed unchanged leaves nothing.
+    expect(withoutLeadingMovesInPlace(moves(['b1', 'b2'], 'b'), content)).toEqual([])
+  })
+
+  it('keeps every move from the first one that differs', () => {
+    // `c` is where it was relative to `b`, but `b` is not: nothing after the break is removed.
+    expect(withoutLeadingMovesInPlace(moves(['b', 'a', 'c']), content)).toEqual(moves(['b', 'a', 'c']))
+    expect(withoutLeadingMovesInPlace(moves(['a', 'c', 'b']), content)).toEqual([
+      move('c', '', 'a'),
+      move('b', '', 'c'),
+    ])
+    // A block that changes parent is a move, even to the same left sibling.
+    expect(withoutLeadingMovesInPlace(moves(['b1'], ''), content)).toEqual([move('b1', '', '')])
+  })
+
+  it('leaves a move alone when it does not start a chain or its parent was already written to', () => {
+    // An anchored move with no chain before it says where the block goes; it is kept as written.
+    expect(withoutLeadingMovesInPlace([move('b', '', 'a')], content)).toEqual([move('b', '', 'a')])
+    // Something was placed at the start of the level first, so "a at the start" is now a real move.
+    const changes = [move('new', '', ''), move('a', '', '')]
+    expect(withoutLeadingMovesInPlace(changes, content)).toEqual(changes)
+  })
+
+  it('keeps other changes in place and needs a document to compare with', () => {
+    const changes = [
+      {op: {case: 'replaceBlock' as const, value: {id: 'a', type: 'Paragraph', text: 'A'}}},
+      ...moves(['a', 'b', 'c']),
+      {op: {case: 'deleteBlock' as const, value: 'b1'}},
+    ]
+    expect(withoutLeadingMovesInPlace(changes, content)).toEqual([changes[0], changes[4]])
+    expect(withoutLeadingMovesInPlace(changes, undefined)).toEqual(changes)
+    expect(withoutLeadingMovesInPlace(changes, [])).toEqual(changes)
   })
 })
 
