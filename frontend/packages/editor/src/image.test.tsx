@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {createRoot, type Root} from 'react-dom/client'
+import {renderToStaticMarkup} from 'react-dom/server'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
@@ -33,11 +34,12 @@ vi.mock('./blocknote/react', () => ({
 
 vi.mock('./media-render', () => ({
   MediaRender: () => null,
+  FALLBACK_EDITOR_WIDTH: 640,
 }))
 
 vi.mock('./media-container', () => ({
   MediaContainer: ({children, width, onHoverIn}: any) => (
-    <div data-testid="media-container" data-width={width}>
+    <div data-testid="media-container" data-width={width} style={{width}}>
       <button data-testid="show-resize-handles" onClick={onHoverIn} />
       {children}
     </div>
@@ -92,6 +94,36 @@ afterEach(() => {
 })
 
 describe('ImageDisplay responsive sizing', () => {
+  it.each([
+    ['', '100%'],
+    ['70.36%', '70.36%'],
+    ['36.23%', '36.23%'],
+    ['320', '320px'],
+  ])('renders saved width %s before layout and preserves it on later renders', (savedWidth, cssWidth) => {
+    const editor = makeEditor(0)
+    const block = makeBlock(savedWidth)
+    const assign = vi.fn()
+    const html = renderToStaticMarkup(<ImageDisplay editor={editor} block={block} assign={assign} />)
+    const serverContainer = document.createElement('div')
+    serverContainer.innerHTML = html
+    expect((serverContainer.querySelector('[data-testid="media-container"]') as HTMLElement).style.width).toBe(cssWidth)
+
+    act(() => root.render(<ImageDisplay editor={editor} block={block} assign={assign} />))
+    const mediaContainer = container.querySelector('[data-testid="media-container"]') as HTMLElement
+    expect(mediaContainer.style.width).toBe(cssWidth)
+
+    // Node views can mount before the editor is attached. Hovering an image
+    // while scrolling triggers a render after the real layout is available.
+    editor.domElement.firstElementChild.clientWidth = 668
+    act(() => (container.querySelector('[data-testid="show-resize-handles"]') as HTMLElement).click())
+    expect(mediaContainer.style.width).toBe(cssWidth)
+
+    editor.domElement.firstElementChild.clientWidth = 390
+    act(() => root.render(<ImageDisplay editor={editor} block={block} assign={assign} />))
+    expect(mediaContainer.style.width).toBe(cssWidth)
+    expect(assign).not.toHaveBeenCalled()
+  })
+
   it('keeps default images full-width and uses the 600px height cap as a CSS hint only', () => {
     const assign = vi.fn()
 
@@ -115,13 +147,17 @@ describe('ImageDisplay responsive sizing', () => {
     expect(assign).not.toHaveBeenCalled()
   })
 
-  it('persists explicit resize as a percentage of the editor width', () => {
+  it('persists explicit resize as a percentage of the available width', () => {
     const assign = vi.fn()
     const editor = makeEditor(390)
 
     act(() => {
       root.render(<ImageDisplay editor={editor} block={makeBlock()} assign={assign} />)
     })
+
+    const media = container.querySelector('[data-testid="media-container"]') as HTMLElement
+    vi.spyOn(media, 'getBoundingClientRect').mockReturnValue({width: 390} as DOMRect)
+    Object.defineProperty(media.parentElement, 'clientWidth', {value: 390, configurable: true})
 
     const showHandles = container.querySelector('[data-testid="show-resize-handles"]') as HTMLElement
     act(() => {
