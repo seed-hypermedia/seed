@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"seed/backend/blob"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
@@ -219,6 +220,54 @@ func TestSetAttribute_PendingWrites(t *testing.T) {
 			want:    map[string]any{"source": map[string]any{"k": "3", "x": map[string]any{"y": "1"}}},
 			wantOps: 1,
 		},
+		"reported: nested clear, then set, inside of a cleared map": {
+			initial: []attrWrite{
+				set("1", "source", "x"),
+				set("2", "source", "y"),
+				set("1", "source", "config", "a"),
+			},
+			request: []attrWrite{
+				set(nil, "source"),
+				set(nil, "source", "config"),
+				set("1", "source", "config", "a"),
+			},
+			want:    map[string]any{"source": map[string]any{"config": map[string]any{"a": "1"}}},
+			wantOps: 2,
+		},
+		"nested clear, then set, inside of a cleared map, three levels down": {
+			initial: []attrWrite{
+				set("1", "source", "x"),
+				set("2", "source", "y"),
+				set("1", "source", "config", "deep", "a"),
+				set("2", "source", "config", "deep", "b"),
+			},
+			request: []attrWrite{
+				set(nil, "source"),
+				set(nil, "source", "config"),
+				set(nil, "source", "config", "deep"),
+				set("1", "source", "config", "deep", "a"),
+				set("2", "source", "config", "deep", "b"),
+			},
+			want: map[string]any{"source": map[string]any{"config": map[string]any{"deep": map[string]any{"a": "1", "b": "2"}}}},
+			// Clearing x and y one by one would be smaller, but only one level of "clear, then set"
+			// is reduced: with writes nested deeper, the clear and the entries are stored as they are.
+			wantOps: 3,
+		},
+		"nested clear, then set, inside of a map that is replaced": {
+			initial: []attrWrite{
+				set("1", "source", "x"),
+				set("1", "source", "config", "a"),
+			},
+			request: []attrWrite{
+				set(nil, "source"),
+				set("9", "source", "x"),
+				set("3", "source", "z"),
+				set(nil, "source", "config"),
+				set("1", "source", "config", "a"),
+			},
+			want:    map[string]any{"source": map[string]any{"x": "9", "z": "3", "config": map[string]any{"a": "1"}}},
+			wantOps: 2,
+		},
 		"clear a map that doesn't exist, then set entries": {
 			initial: []attrWrite{set("Hello", "title")},
 			request: []attrWrite{
@@ -284,95 +333,131 @@ func TestSetAttribute_PendingWrites(t *testing.T) {
 	}
 }
 
-// TestSetAttribute_Random applies random requests and compares what is read back
-// with a trivial model: writes apply one by one, in the request order,
-// each of them removing whatever is above and below its key.
-func TestSetAttribute_Random(t *testing.T) {
-	alice := coretest.NewTester("alice").Account
+// attrModel is the simplest possible implementation of the document attributes:
+// writes apply one by one, in the request order, each of them removing whatever is above and below its key.
+type attrModel map[string]any
+
+func newAttrModel(doc *Document) attrModel {
+	m := attrModel{}
+
+	for k, reg := range doc.crdt.stateMetadata.Items() {
+		if v, ok := reg.GetLatestOK(); ok {
+			m[strings.Join(k, ".")] = v.Value
+		}
+	}
+
+	return m
+}
+
+func (m attrModel) write(key []string, value any) {
+	joined := strings.Join(key, ".")
+	for k := range m {
+		if strings.HasPrefix(k, joined+".") || strings.HasPrefix(joined, k+".") {
+			delete(m, k)
+		}
+	}
+
+	m[joined] = value
+}
+
+func (m attrModel) want() map[string]any {
+	out := map[string]any{}
+
+	for k, v := range m {
+		if v == nil {
+			continue
+		}
+
+		cur := out
+		path := strings.Split(k, ".")
+
+		for _, p := range path[:len(path)-1] {
+			next, ok := cur[p].(map[string]any)
+			if !ok {
+				next = map[string]any{}
+				cur[p] = next
+			}
+
+			cur = next
+		}
+
+		cur[path[len(path)-1]] = v
+	}
+
+	return out
+}
+
+// randomAttrRound applies a random request on top of the given changes, and checks what is read back.
+func randomAttrRound(t *testing.T, rng *rand.Rand, kp *core.KeyPair, info string, changes []blob.Encoded[*blob.Change]) blob.Encoded[*blob.Change] {
+	t.Helper()
 
 	names := []string{"a", "b", "c"}
 	values := []any{nil, nil, "1", "2", true, int64(7)}
 
-	for seed := range 2000 {
+	var request []attrWrite
+
+	for range 1 + rng.Intn(8) {
+		key := make([]string, 1+rng.Intn(5))
+		for i := range key {
+			key[i] = names[rng.Intn(len(names))]
+		}
+
+		request = append(request, set(values[rng.Intn(len(values))], key...))
+	}
+
+	doc := loadFromBytes(t, changes...)
+	model := newAttrModel(doc)
+	info = fmt.Sprintf("%s before=%v request=%v", info, doc.crdt.GetMetadata(), request)
+
+	for _, w := range request {
+		must.Do(doc.SetAttribute("", w.Key, w.Value))
+		model.write(w.Key, w.Value)
+	}
+
+	ch := must.Do2(doc.SignChange(kp))
+	changes = append(slices.Clone(changes), ch)
+
+	stored := storedAttrs(t, ch)
+	require.Equal(t, normalizeInts(model.want()), normalizeInts(loadFromBytes(t, changes...).crdt.GetMetadata()), "%s stored=%v", info, stored)
+	require.LessOrEqual(t, len(stored), len(request), "%s stored=%v", info, stored)
+	require.True(t, slices.IsSortedFunc(stored, func(a, b blob.KeyValue) int { return slices.Compare(a.Key, b.Key) }), "%s stored=%v", info, stored)
+
+	// The same request on top of its own result must not store anything.
+	doc = loadFromBytes(t, changes...)
+	for _, w := range request {
+		must.Do(doc.SetAttribute("", w.Key, w.Value))
+	}
+
+	again := must.Do2(doc.SignChange(kp))
+	require.Empty(t, again.Decoded.Body.Ops, "%s stored=%v: repeating the request must produce no ops", info, stored)
+
+	return ch
+}
+
+// TestSetAttribute_Random applies random requests, with keys up to 5 levels deep, and compares
+// what is read back from the encoded bytes with the model. Every seed makes a few changes in a row,
+// then two concurrent ones, then a few more on top of both. DOCMODEL_FUZZ_SEEDS scales it up.
+func TestSetAttribute_Random(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+
+	for seed := range fuzzInt(t, "DOCMODEL_FUZZ_SEEDS", 1000) {
 		rng := rand.New(rand.NewSource(int64(seed))) //nolint:gosec // Deterministic test input.
-
-		model := map[string]any{}
-		write := func(key []string, value any) {
-			joined := strings.Join(key, ".")
-			for k := range model {
-				if strings.HasPrefix(k, joined+".") || strings.HasPrefix(joined, k+".") {
-					delete(model, k)
-				}
-			}
-
-			model[joined] = value
-		}
-		want := func() map[string]any {
-			out := map[string]any{}
-			for k, v := range model {
-				if v == nil {
-					continue
-				}
-
-				cur := out
-				path := strings.Split(k, ".")
-				for _, p := range path[:len(path)-1] {
-					next, ok := cur[p].(map[string]any)
-					if !ok {
-						next = map[string]any{}
-						cur[p] = next
-					}
-
-					cur = next
-				}
-
-				cur[path[len(path)-1]] = v
-			}
-
-			return out
-		}
 
 		doc := must.Do2(New("mydoc", cclock.New()))
 		must.Do(doc.SetAttribute("", []string{"seed"}, "1"))
-		write([]string{"seed"}, "1")
 		changes := []blob.Encoded[*blob.Change]{must.Do2(doc.SignChange(alice))}
 
-		for round := range 4 {
-			var request []attrWrite
+		for round := range 3 {
+			changes = append(changes, randomAttrRound(t, rng, alice, fmt.Sprintf("seed=%d linear round=%d", seed, round), changes))
+		}
 
-			for range 1 + rng.Intn(6) {
-				key := make([]string, 1+rng.Intn(3))
-				for i := range key {
-					key[i] = names[rng.Intn(len(names))]
-				}
+		a := randomAttrRound(t, rng, alice, fmt.Sprintf("seed=%d branch A", seed), changes)
+		b := randomAttrRound(t, rng, bob, fmt.Sprintf("seed=%d branch B", seed), changes)
+		changes = append(changes, a, b)
 
-				request = append(request, set(values[rng.Intn(len(values))], key...))
-			}
-
-			info := fmt.Sprintf("seed=%d round=%d before=%v request=%v", seed, round, loadFromBytes(t, changes...).crdt.GetMetadata(), request)
-
-			doc := loadFromBytes(t, changes...)
-			for _, w := range request {
-				must.Do(doc.SetAttribute("", w.Key, w.Value))
-				write(w.Key, w.Value)
-			}
-
-			ch := must.Do2(doc.SignChange(alice))
-			changes = append(changes, ch)
-
-			stored := storedAttrs(t, ch)
-			require.Equal(t, want(), normalizeInts(loadFromBytes(t, changes...).crdt.GetMetadata()), "%s stored=%v", info, stored)
-			require.LessOrEqual(t, len(stored), len(request), "%s stored=%v", info, stored)
-			require.True(t, slices.IsSortedFunc(stored, func(a, b blob.KeyValue) int { return slices.Compare(a.Key, b.Key) }), "%s stored=%v", info, stored)
-
-			// The same request on top of its own result must not store anything.
-			doc = loadFromBytes(t, changes...)
-			for _, w := range request {
-				must.Do(doc.SetAttribute("", w.Key, w.Value))
-			}
-
-			again := must.Do2(doc.SignChange(alice))
-			require.Empty(t, again.Decoded.Body.Ops, "%s: repeating the request must produce no ops", info)
+		for round := range 3 {
+			changes = append(changes, randomAttrRound(t, rng, alice, fmt.Sprintf("seed=%d merged round=%d", seed, round), changes))
 		}
 	}
 }

@@ -436,7 +436,7 @@ func TestMoves(t *testing.T) {
 func TestMoves_Random(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 
-	for seed := range 500 {
+	for seed := range fuzzInt(t, "DOCMODEL_FUZZ_SEEDS", 500) {
 		rng := rand.New(rand.NewSource(int64(seed))) //nolint:gosec // Deterministic test input.
 
 		model := newTreeModel()
@@ -498,7 +498,7 @@ func TestMoves_Random(t *testing.T) {
 func TestMoves_RandomRelist(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 
-	for seed := range 500 {
+	for seed := range fuzzInt(t, "DOCMODEL_FUZZ_SEEDS", 500) {
 		rng := rand.New(rand.NewSource(int64(seed))) //nolint:gosec // Deterministic test input.
 
 		var n int

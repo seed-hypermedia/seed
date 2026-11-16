@@ -314,6 +314,17 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 			continue
 		}
 
+		// A stored write above the parent removes everything the committed state has below it.
+		// So there's nothing left for the parent write to remove, and the writes below it
+		// repeat nothing: they all stay, and only the parent write goes.
+		// Writes above the parent were already looked at, so those still pending are stored.
+		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, parent) }) {
+			pending = slices.Delete(pending, i, i+1)
+			i--
+
+			continue
+		}
+
 		// Writes below the parent that only repeat what's committed are not needed if the parent write is gone.
 		// Only those directly exposed to the committed state count:
 		// writes having other pending writes above or below them are left as is.
@@ -440,6 +451,12 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	if _, ok := dm.crdt.tree.sublists.Get(blk.ID()); !ok {
 		dm.crdt.tree.sublists.Set(blk.ID(), newRGAList[string]())
 		dm.crdt.tree.detachedBlocks.Set(blk.ID(), blockLatestMove{detached: true})
+	}
+
+	// The ongoing tree mutation works on its own copy of the tree, taken at the first move.
+	// A block written after that has to be known there too, to be a valid parent for the next moves.
+	if dm.mut != nil {
+		dm.mut.registerBlock(blk.ID())
 	}
 
 	return nil

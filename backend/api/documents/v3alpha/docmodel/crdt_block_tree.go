@@ -328,6 +328,22 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	return me, nil
 }
 
+// registerBlock makes sure a block that has no position in the tree can be used as a parent.
+// Blocks get known to the tree when they are moved, or when their content is written
+// (see [Document.ReplaceBlock]), which may happen after the mutation has started.
+func (mut *blockTreeMutation) registerBlock(block string) {
+	if mut.done {
+		panic("BUG: nil mutation")
+	}
+
+	if _, ok := mut.dirty.opSet.sublists.Get(block); ok {
+		return
+	}
+
+	mut.dirty.opSet.sublists.Set(block, newRGAList[string]())
+	mut.dirty.opSet.detachedBlocks.Set(block, blockLatestMove{detached: true})
+}
+
 // Commit returns the moves that turn the initial state into the mutated one.
 //
 // The moves are derived from the resulting order of each sublist, not from the moves the mutation was asked
@@ -481,6 +497,13 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 				continue
 			}
 
+			// A block that was deleted and then restored by earlier changes still has its old position
+			// in the trash. It's not deleted anymore: its children are reached through wherever it is now,
+			// and processing them here would commit their moves before those of the blocks above them.
+			if _, ok := mut.dirty.invisibleMoves.Get(block.ID); ok {
+				continue
+			}
+
 			// Deleted blocks may still have children moved by our mutation.
 			enqueue(block.Value)
 
@@ -519,7 +542,20 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 
 		processQueue()
 
-		// Whatever is left are sublists not reachable from the visible tree.
+		// Whatever is left are sublists not reachable from the document, the trash, or the detached blocks:
+		// children of blocks that never got a visible position, e.g. because all their moves made a cycle.
+		// These still have to be processed top down, so we start from those that have no position,
+		// which are the roots of whatever is left.
+		for blk := range mut.dirty.opSet.sublists.Items() {
+			if _, ok := mut.dirty.blocks[blk]; !ok {
+				enqueue(blk)
+			}
+		}
+
+		processQueue()
+
+		// Every block that has a position is a child of a block processed above.
+		// This is only here to never lose a move if that ever turns out to be wrong.
 		for blk := range mut.dirty.opSet.sublists.Items() {
 			enqueue(blk)
 		}
