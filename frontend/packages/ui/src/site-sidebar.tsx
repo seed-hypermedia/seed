@@ -5,7 +5,7 @@ import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useAccount, useAccounts, useDirectory, useSelectedAccountId} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
-import {ChevronsUpDown, Search} from 'lucide-react'
+import {ChevronsUpDown, Plus, Search} from 'lucide-react'
 import {useState, type ReactNode} from 'react'
 import {Button} from './button'
 import {
@@ -16,6 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from './components/dropdown-menu'
+import {CreateSpaceCallToAction, useOpenCreateSpace, useOwnSpaceMissing} from './create-space-context'
 import {focusExploreSearch} from './explore-search-focus'
 import {HMIcon} from './hm-icon'
 import {SiteFileBrowser, type SiteFileBrowserProps} from './site-file-browser'
@@ -77,7 +78,11 @@ export function SiteSidebar({
     (a, b) =>
       (activityRanks.get(a.uid) ?? Number.MAX_SAFE_INTEGER) - (activityRanks.get(b.uid) ?? Number.MAX_SAFE_INTEGER),
   )
-  const ownSite = sites.find((site) => site.uid === accountUid)
+  // An account without a home document has no space yet: offer to create one instead of listing it.
+  const openCreateSpace = useOpenCreateSpace()
+  const ownSpaceMissing = useOwnSpaceMissing()
+  const showingMissingOwnSpace = ownSpaceMissing && siteId.uid === accountUid
+  const ownSite = ownSpaceMissing ? undefined : sites.find((site) => site.uid === accountUid)
   const joinedSites = sites.filter((site) => site.uid !== accountUid)
   const renderSiteItem = ({uid, metadata}: (typeof sites)[number], isOwn: boolean) => {
     const unreadCount = accountUid ? unreadNotificationsBySite[uid] ?? 0 : 0
@@ -150,12 +155,14 @@ export function SiteSidebar({
                   aria-label="Select site"
                   className="bg-card border-border hover:bg-card/80 text-card-foreground h-15 w-full justify-start gap-3 rounded-xl px-3 py-2 shadow-xs"
                 >
-                  <HMIcon id={siteId} name={current?.metadata?.name} icon={current?.metadata?.icon} size={36} />
+                  {showingMissingOwnSpace ? null : (
+                    <HMIcon id={siteId} name={current?.metadata?.name} icon={current?.metadata?.icon} size={36} />
+                  )}
                   <span className="flex min-w-0 flex-1 flex-col items-start text-left">
                     <span className="w-full truncate text-sm font-semibold">
-                      {current?.metadata?.name || 'Current site'}
+                      {showingMissingOwnSpace ? 'Select a space' : current?.metadata?.name || 'Current site'}
                     </span>
-                    {directory.data && (
+                    {directory.data && !showingMissingOwnSpace && (
                       <span className="text-icon text-xs font-normal">
                         {directory.data.length} {directory.data.length === 1 ? 'document' : 'documents'}
                       </span>
@@ -176,8 +183,25 @@ export function SiteSidebar({
                     {renderSiteItem(ownSite, true)}
                   </DropdownMenuGroup>
                 )}
+                {ownSpaceMissing && openCreateSpace && (
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-semibold">
+                      My Space
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      className="gap-3 rounded-lg px-2 py-2 font-semibold"
+                      onSelect={() => {
+                        openCreateSpace()
+                        onAfterNavigate?.()
+                      }}
+                    >
+                      <Plus className="size-4" />
+                      Create my space
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                )}
                 {joinedSites.length > 0 && (
-                  <DropdownMenuGroup className={ownSite ? 'mt-3' : undefined}>
+                  <DropdownMenuGroup className={ownSite || (ownSpaceMissing && openCreateSpace) ? 'mt-3' : undefined}>
                     <DropdownMenuLabel className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-semibold">
                       Joined Spaces
                     </DropdownMenuLabel>
@@ -189,7 +213,13 @@ export function SiteSidebar({
           </div>
         )}
       </div>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="min-h-0 flex-1">
+        {showingMissingOwnSpace && openCreateSpace ? (
+          <CreateSpaceCallToAction className="px-2" onCreate={openCreateSpace} />
+        ) : (
+          children
+        )}
+      </div>
     </aside>
   )
 }

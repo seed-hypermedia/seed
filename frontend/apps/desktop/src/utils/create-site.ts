@@ -1,11 +1,9 @@
 import {grpcClient} from '@/grpc-client'
 import {fetchResource} from '@/models/entities'
-import {client} from '@/trpc'
 import {DiscoveryTaskState} from '@shm/shared'
 import {discoveryUrl} from '@shm/shared/discovery'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {nanoid} from 'nanoid'
 
 const remoteSignInHomeDiscoveryTasks = new Map<string, Promise<void>>()
 const remoteSignInHomeDiscoveryCompleted = new Set<string>()
@@ -42,26 +40,17 @@ export function syncRemoteSignInSiteHomes(accountUids: string[]) {
   ).then(() => {})
 }
 
-/** Returns the account home document id, creating a home draft immediately except right after remote sign-in discovery. */
-export async function getOrCreateSiteHome(accountUid: string) {
+/**
+ * Returns the account's existing home document id, or null when the account has no space yet.
+ * Only checks right after remote sign-in discovery, when an existing space may have just synced.
+ */
+export async function findExistingSiteHome(accountUid: string) {
+  if (!remoteSignInHomeDiscoveryCompleted.has(accountUid)) return null
   const homeId = hmId(accountUid, {path: []})
-  if (remoteSignInHomeDiscoveryCompleted.has(accountUid)) {
-    const homeResource = await fetchResource(homeId)
-    if (homeResource.type === 'document' || homeResource.type === 'redirect') return homeId
-    if (homeResource.type !== 'not-found' && homeResource.type !== 'tombstone') {
-      throw new Error(`Unexpected home document status: ${homeResource.type}`)
-    }
+  const homeResource = await fetchResource(homeId)
+  if (homeResource.type === 'document' || homeResource.type === 'redirect') return homeId
+  if (homeResource.type !== 'not-found' && homeResource.type !== 'tombstone') {
+    throw new Error(`Unexpected home document status: ${homeResource.type}`)
   }
-
-  const draftId = nanoid(10)
-  await client.drafts.write.mutate({
-    id: draftId,
-    editUid: accountUid,
-    editPath: [],
-    metadata: {},
-    content: [],
-    deps: [],
-    visibility: 'PUBLIC',
-  })
-  return homeId
+  return null
 }

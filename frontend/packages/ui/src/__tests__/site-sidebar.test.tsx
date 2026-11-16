@@ -6,9 +6,15 @@ import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {CreateSpaceProvider} from '../create-space-context'
 import {SiteSidebar} from '../site-sidebar'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
-const viewer = vi.hoisted(() => ({uid: 'own', desktop: false, joined: ['joined', 'joined', 'older', 'missing']}))
+const viewer = vi.hoisted(() => ({
+  uid: 'own',
+  desktop: false,
+  joined: ['joined', 'joined', 'older', 'missing'],
+  hasSpace: true,
+}))
 vi.mock('@shm/shared/constants', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   get IS_DESKTOP() {
@@ -18,6 +24,10 @@ vi.mock('@shm/shared/constants', async (importOriginal) => ({
 vi.mock('@shm/shared/models/entity', () => ({
   useDirectory: () => ({data: undefined}),
   useSelectedAccountId: () => viewer.uid || null,
+  useResource: (id?: {uid: string}) => ({
+    data: id ? {type: id.uid === viewer.uid && !viewer.hasSpace ? 'not-found' : 'document'} : undefined,
+    isFetching: false,
+  }),
   useAccount: (uid: string) => ({data: {metadata: {name: uid}}}),
   useAccounts: (uids: string[]) => uids.map((uid) => ({data: {metadata: {name: uid}}})),
 }))
@@ -35,6 +45,7 @@ vi.mock('../site-file-browser', () => ({SiteFileBrowser: () => null}))
 let queryClient: QueryClient
 let activityOrder: string[]
 let unread: Record<string, number>
+let createSpace: ReturnType<typeof vi.fn<() => void>>
 let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
@@ -44,6 +55,8 @@ beforeEach(() => {
   viewer.uid = 'own'
   viewer.desktop = false
   viewer.joined = ['joined', 'joined', 'older', 'missing']
+  viewer.hasSpace = true
+  createSpace = vi.fn<() => void>()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -55,8 +68,8 @@ afterEach(() => {
   queryClient.clear()
 })
 
-function Page({isGateway = true}: {isGateway?: boolean}) {
-  const [site, setSite] = useState('current')
+function Page({isGateway = true, initialSite = 'current'}: {isGateway?: boolean; initialSite?: string}) {
+  const [site, setSite] = useState(initialSite)
   return (
     <QueryClientProvider client={queryClient}>
       <UniversalAppProvider
@@ -72,9 +85,11 @@ function Page({isGateway = true}: {isGateway?: boolean}) {
           } as any
         }
       >
-        <SiteSidebar siteId={hmId(site)} unreadNotificationsBySite={unread} onNavigate={(id) => setSite(id.uid)}>
-          <main>{site} home</main>
-        </SiteSidebar>
+        <CreateSpaceProvider open={createSpace}>
+          <SiteSidebar siteId={hmId(site)} unreadNotificationsBySite={unread} onNavigate={(id) => setSite(id.uid)}>
+            <main>{site} home</main>
+          </SiteSidebar>
+        </CreateSpaceProvider>
       </UniversalAppProvider>
     </QueryClientProvider>
   )
@@ -89,6 +104,26 @@ function openSelector() {
 }
 
 describe('site selector', () => {
+  it('offers to create a space instead of listing one the account does not have', () => {
+    viewer.hasSpace = false
+    openSelector()
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    expect(options.map((option) => option.textContent)).toEqual(['Create my space', 'joined', 'older', 'missing'])
+    act(() => options[0]!.click())
+    expect(createSpace).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('main')?.textContent).toBe('current home')
+  })
+
+  it('replaces the missing own space with a call to action', () => {
+    viewer.hasSpace = false
+    act(() => root.render(<Page initialSite="own" />))
+    expect(container.querySelector('main')).toBeNull()
+    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toContain('Select a space')
+    const button = Array.from(container.querySelectorAll('button')).find((el) => el.textContent === 'Create my space')
+    act(() => button!.click())
+    expect(createSpace).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['own', ''])('hides site switching on personal domains for viewer %s', (uid) => {
     viewer.uid = uid
     act(() => root.render(<Page isGateway={false} />))

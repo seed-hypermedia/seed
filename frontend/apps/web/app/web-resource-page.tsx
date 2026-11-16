@@ -74,6 +74,7 @@ import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {openWebDomainSettings} from './models/domain-publishing'
 import {useCanOpenSpaceSettings} from './components/web-space-settings-menu'
+import {CreateSpaceProvider} from '@shm/ui/create-space-context'
 import {useCreateSpaceDialog, useHasExistingSpace, usePublishSpaceDraft} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
@@ -827,61 +828,63 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             >
               <QuerySearchInputProvider value={WebQuerySearchInput}>
                 <WebDraftBreadcrumbProvider>
-                  <HomeDraftProvider value={homeDraftOverride}>
-                    <WebDocumentPrefetch originHomeId={originHomeId}>
-                      {(onPrefetchDocument) => (
-                        <AgentDocumentViewContext.Provider value={WebAgentDocument}>
-                          <ResourcePage
-                            docId={docId}
-                            resourceId={useLocalDraftShell ? null : docId}
-                            CommentEditor={CommentEditor}
-                            pageFooter={<PageFooter id={docId} />}
-                            onEditProfile={onEditProfile}
-                            profileHeaderButtons={profileHeaderButtons}
-                            onFollowClick={onFollowClick}
-                            rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                            optionsMenuItems={optionsMenuItems}
-                            fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
-                            fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
-                            fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-                            inlineInsert={inlineInsert}
-                            DocumentContentComponent={DocumentContentComponent}
-                            ssrContentHTML={ssrContentHTML}
-                            perspectiveAccountUid={ownAccountUid}
-                            linkExtensionOptions={linkExtensionOptions}
-                            canEdit={effectiveCanEdit}
-                            machine={machine}
-                            machineExtras={
-                              <>
-                                <WebDraftExternalModificationListener />
-                                <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
-                              </>
-                            }
-                            signingAccountId={signingAccountId ?? undefined}
-                            publishAccountUid={signingAccountId ?? undefined}
-                            onEditorReady={onEditorReady}
-                            existingDraft={existingDraft}
-                            reservedDraftId={reservedDraftId}
-                            existingDraftVisibility={draftData?.visibility}
-                            existingDraftContent={existingDraftContent}
-                            existingDraftCursorPosition={existingDraftCursorPosition}
-                            existingDraftPublishPath={existingDraftPublishPath}
-                            existingDraftSchemaDraft={existingDraftSchemaDraft}
-                            existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
-                            existingDraftDeps={draftData?.deps}
-                            existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
-                            existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
-                            existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
-                            existingDraftMineTouchedIds={draftData?.mineTouchedIds}
-                            draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                            editingFloatingActions={editingFloatingActions}
-                            fileUpload={fileUpload}
-                            onPrefetchDocument={onPrefetchDocument}
-                          />
-                        </AgentDocumentViewContext.Provider>
-                      )}
-                    </WebDocumentPrefetch>
-                  </HomeDraftProvider>
+                  <CreateSpaceProvider open={openCreateSpaceDialog}>
+                    <HomeDraftProvider value={homeDraftOverride}>
+                      <WebDocumentPrefetch originHomeId={originHomeId}>
+                        {(onPrefetchDocument) => (
+                          <AgentDocumentViewContext.Provider value={WebAgentDocument}>
+                            <ResourcePage
+                              docId={docId}
+                              resourceId={useLocalDraftShell ? null : docId}
+                              CommentEditor={CommentEditor}
+                              pageFooter={<PageFooter id={docId} />}
+                              onEditProfile={onEditProfile}
+                              profileHeaderButtons={profileHeaderButtons}
+                              onFollowClick={onFollowClick}
+                              rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                              optionsMenuItems={optionsMenuItems}
+                              fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+                              fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+                              fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+                              inlineInsert={inlineInsert}
+                              DocumentContentComponent={DocumentContentComponent}
+                              ssrContentHTML={ssrContentHTML}
+                              perspectiveAccountUid={ownAccountUid}
+                              linkExtensionOptions={linkExtensionOptions}
+                              canEdit={effectiveCanEdit}
+                              machine={machine}
+                              machineExtras={
+                                <>
+                                  <WebDraftExternalModificationListener />
+                                  <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
+                                </>
+                              }
+                              signingAccountId={signingAccountId ?? undefined}
+                              publishAccountUid={signingAccountId ?? undefined}
+                              onEditorReady={onEditorReady}
+                              existingDraft={existingDraft}
+                              reservedDraftId={reservedDraftId}
+                              existingDraftVisibility={draftData?.visibility}
+                              existingDraftContent={existingDraftContent}
+                              existingDraftCursorPosition={existingDraftCursorPosition}
+                              existingDraftPublishPath={existingDraftPublishPath}
+                              existingDraftSchemaDraft={existingDraftSchemaDraft}
+                              existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
+                              existingDraftDeps={draftData?.deps}
+                              existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
+                              existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
+                              existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                              existingDraftMineTouchedIds={draftData?.mineTouchedIds}
+                              draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                              editingFloatingActions={editingFloatingActions}
+                              fileUpload={fileUpload}
+                              onPrefetchDocument={onPrefetchDocument}
+                            />
+                          </AgentDocumentViewContext.Provider>
+                        )}
+                      </WebDocumentPrefetch>
+                    </HomeDraftProvider>
+                  </CreateSpaceProvider>
                 </WebDraftBreadcrumbProvider>
               </QuerySearchInputProvider>
             </QueryBlockDraftsProvider>

@@ -215,6 +215,7 @@ import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHea
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
+import {PageNotFoundOrCreateSpace} from './create-space-context'
 import {PanelLayout} from './panel-layout'
 import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
@@ -1365,7 +1366,7 @@ function ResourcePageContent({
         onPrefetchDocument={onPrefetchDocument}
         fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
-        <PageNotFound />
+        <PageNotFoundOrCreateSpace docId={docId} />
         {pageFooter}
       </PageWrapper>
     )
@@ -1543,7 +1544,7 @@ function ResourcePageContent({
         onPrefetchDocument={onPrefetchDocument}
         fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
-        <PageNotFound />
+        <PageNotFoundOrCreateSpace docId={docId} />
         {pageFooter}
       </PageWrapper>
     )

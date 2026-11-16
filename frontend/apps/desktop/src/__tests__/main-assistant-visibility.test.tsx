@@ -248,6 +248,14 @@ vi.mock('../components/hypermedia-highlight', async () => {
   }
 })
 
+vi.mock('../components/create-space-dialog', () => ({
+  useCreateSpaceDialog: () => ({open: () => {}, close: () => {}, content: null}),
+}))
+
+vi.mock('../components/desktop-draft-breadcrumb-provider', () => ({
+  DesktopDraftBreadcrumbProvider: ({children}: {children: React.ReactNode}) => children,
+}))
+
 vi.mock('../components/sidebar', async () => {
   const React = await import('react')
 
