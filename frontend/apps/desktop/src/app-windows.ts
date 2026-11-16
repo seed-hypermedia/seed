@@ -1,6 +1,6 @@
 import appError from '@/errors'
 import {getPageWebContents, setupWebBrowser} from './app-web-browser'
-import {createBrowserArchiveDraft} from './app-drafts'
+import {createBrowserArchiveDraft, getListedDraft} from './app-drafts'
 import {isWebBrowserEnabled} from './app-experiments'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
@@ -8,6 +8,7 @@ import {API_HTTP_URL, DAEMON_FILE_URL, DAEMON_HTTP_URL, DEFAULT_DESKTOP_AGENTS_U
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
 import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen} from 'electron'
+import isEqual from 'lodash/isEqual'
 import path from 'node:path'
 import {z} from 'zod'
 import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
@@ -25,6 +26,7 @@ import {
   resolveSelectedIdentityForWindow,
   type WindowNavState,
 } from './utils/account-selection'
+import {getRouteWindowResourceKeys} from './utils/route-window-identity'
 
 /** Resolve the app's exact origin after its local server has started. */
 export function getAppWindowPolicy(): AppWindowPolicy {
@@ -98,24 +100,24 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
   return BrowserWindow.getFocusedWindow()
 }
 
-// Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'api-inspector'])
-
-// Check if a route key should prevent duplicate windows
-function shouldPreventDuplicateWindow(routeKey: string): boolean {
-  return SINGLE_INSTANCE_ROUTES.has(routeKey)
-}
-
-// Find an existing window that has the specified route as its currently active route
-function findWindowWithActiveRoute(routeKey: string): BrowserWindow | null {
+// Find an existing window (other than `excludeWindowId`) whose active route
+// already shows the requested route's resource.
+function findWindowForRoute(
+  route: NavRoute,
+  excludeWindowId?: string,
+): {windowId: string; window: BrowserWindow} | null {
+  const keys = getRouteWindowResourceKeys(route, getListedDraft)
+  if (!keys) return null
   const windowEntries = Array.from(allWindows.entries())
   for (const [windowId, browserWindow] of windowEntries) {
+    if (windowId === excludeWindowId) continue
     const navState = windowNavState[windowId]
 
     if (navState && navState.routes.length > 0) {
       const activeRoute = navState.routes[navState.routeIndex]
-      if (activeRoute && activeRoute.key === routeKey) {
-        return browserWindow
+      const activeKeys = activeRoute && getRouteWindowResourceKeys(activeRoute, getListedDraft)
+      if (activeKeys && Array.from(keys).some((key) => activeKeys.has(key))) {
+        return {windowId, window: browserWindow}
       }
     }
   }
@@ -131,10 +133,29 @@ function focusExistingWindow(browserWindow: BrowserWindow): void {
   browserWindow.show()
 }
 
-// Focus an existing single-instance window and route it to the requested location.
-function openRouteInExistingWindow(browserWindow: BrowserWindow, route: NavRoute): void {
+// Focus an existing window and route it to the requested location. When the
+// window already shows the exact route it is only focused, so reopening a
+// document does not pile duplicate entries onto its history.
+function openRouteInExistingWindow(windowId: string, browserWindow: BrowserWindow, route: NavRoute): void {
   focusExistingWindow(browserWindow)
-  browserWindow.webContents.send('open_route', route)
+  const navState = windowNavState[windowId]
+  const activeRoute = navState?.routes?.[navState.routeIndex]
+  if (!activeRoute || !isEqual(activeRoute, route)) {
+    browserWindow.webContents.send('open_route', route)
+  }
+}
+
+/**
+ * Focus the window already showing `route`'s resource and navigate it to the
+ * requested route. Used when a window tries to open a document another window
+ * has open, so the document stays in one window. Returns false when no window
+ * shows the resource and the caller should navigate normally.
+ */
+export function focusWindowForRoute(route: NavRoute, excludeWindowId?: string): boolean {
+  const found = findWindowForRoute(route, excludeWindowId)
+  if (!found) return false
+  openRouteInExistingWindow(found.windowId, found.window, route)
+  return true
 }
 
 export function closeAppWindow(windowId: string) {
@@ -426,11 +447,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const initRouteIndex = input?.routeIndex || 0
   const targetRoute = initRoutes[initRouteIndex]
 
-  if (targetRoute && shouldPreventDuplicateWindow(targetRoute.key)) {
-    const existingWindow = findWindowWithActiveRoute(targetRoute.key)
+  if (targetRoute) {
+    const existingWindow = findWindowForRoute(targetRoute)
     if (existingWindow) {
-      openRouteInExistingWindow(existingWindow, targetRoute)
-      return existingWindow
+      openRouteInExistingWindow(existingWindow.windowId, existingWindow.window, targetRoute)
+      return existingWindow.window
     }
   }
 

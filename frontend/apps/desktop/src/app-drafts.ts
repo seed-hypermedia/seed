@@ -526,6 +526,11 @@ export function createBrowserArchiveDraft(
   )
 }
 
+/** The index entry for a draft, used to resolve bare draft routes to their publish target. */
+export function getListedDraft(draftId: string): HMListedDraft | undefined {
+  return draftIndex?.find((draft) => draft.id === draftId)
+}
+
 async function getDraft(draftId: string): Promise<HMDraft | null> {
   const entry = draftIndex?.find((draft) => draft.id === draftId)
   if (!entry) return null

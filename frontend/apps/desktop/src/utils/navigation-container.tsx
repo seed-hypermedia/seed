@@ -25,6 +25,7 @@ import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
 import {ReactNode, useRef} from 'react'
 import {useAppContext} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
+import {routeUsesWindowDedupe} from './route-window-identity'
 import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
@@ -47,19 +48,47 @@ export function resolveBrowserRoute(url: string, route: NavRoute) {
 // Developer-only React Query devtools panel. Toggled from the DEVELOPERS section of the account dropdown.
 export const [setQueryDevtoolsOpen, queryDevtoolsOpen] = writeableStateStream<boolean>(false)
 
+function applyNavAction(action: NavAction) {
+  if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
+    reportRouteLinkClick(action.route)
+  }
+  const prevState = navState.get()
+  const newState = navStateReducer(prevState, action)
+  if (prevState !== newState) {
+    updateNavState(newState)
+  } else if (action.type === 'closeBack') {
+    // @ts-expect-error
+    client.closeAppWindow.mutate(window.windowId)
+  }
+}
+
+// Serializes the "is this route already open in another window?" checks so
+// queued pushes apply in dispatch order.
+let windowDedupeQueue: Promise<unknown> = Promise.resolve()
+
 const navigation = {
   dispatch(action: NavAction) {
-    if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
-      reportRouteLinkClick(action.route)
+    if (action.type === 'push' && routeUsesWindowDedupe(action.route)) {
+      windowDedupeQueue = windowDedupeQueue
+        .then(async () => {
+          let handled = false
+          try {
+            handled = await client.focusWindowForRoute.mutate({
+              windowId: window.windowId || '',
+              route: action.route,
+            })
+          } catch {
+            // The main process could not answer; navigate in this window below.
+          }
+          if (!handled) applyNavAction(action)
+        })
+        .catch((error) => {
+          // Keep the queue usable for later dispatches even if one fails.
+          console.error('Failed to dispatch navigation', error)
+        })
+      return
     }
-    const prevState = navState.get()
-    const newState = navStateReducer(prevState, action)
-    if (prevState !== newState) {
-      updateNavState(newState)
-    } else if (action.type === 'closeBack') {
-      // @ts-expect-error
-      client.closeAppWindow.mutate(window.windowId)
-    }
+    applyNavAction(action)
   },
   state: navState,
   selectedIdentity: streamSelector<NavState, string | null>(navState, (state) => state.selectedIdentity || null),
