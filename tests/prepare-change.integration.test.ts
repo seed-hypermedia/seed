@@ -8,7 +8,9 @@
  *  - an auto-link card appended to a parent stores the new block and one move, not a re-move of
  *    every root block;
  *  - applying the same ops a second time is not a change at all;
- *  - block content survives the trip native op → proto JSON → stored block unchanged.
+ *  - block content survives the trip native op → proto JSON → stored block unchanged;
+ *  - the agents service's write tool, editing one block of a document, stores that one block, and
+ *    writing the same document again stores nothing (apps/scripts/prepare-change-write.ts).
  *
  * The Seed API is served in process (the same handlers the web and desktop apps mount) on top of
  * the daemon's gRPC, so no web server is needed.
@@ -16,8 +18,9 @@
 
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {execSync} from 'child_process'
+import {execSync, spawn} from 'child_process'
 import {mkdtempSync, rmSync} from 'fs'
+import {createServer, type Server} from 'http'
 import {tmpdir} from 'os'
 import * as path from 'path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -89,6 +92,38 @@ function inProcessSeedApi(): typeof globalThis.fetch {
         : await handleApiRequest(url, grpcClient, queryDaemon)
     return new Response(result.body, {status: result.status, headers: result.headers})
   }) as typeof globalThis.fetch
+}
+
+/**
+ * The same Seed API on a real port, for a process that is not this one (the agents service runs
+ * under Bun). `/ipfs/` goes to the daemon, as it does on a site.
+ */
+async function serveSeedApi(port: number): Promise<Server> {
+  const api = inProcessSeedApi()
+  const server = createServer(async (req, res) => {
+    try {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(chunk as Buffer)
+      const body = Buffer.concat(chunks)
+      const isApi = req.url?.startsWith('/api/')
+      const init: RequestInit = {
+        method: req.method,
+        ...(req.method === 'POST' ? {body: new Uint8Array(body).buffer} : {}),
+      }
+      const response = isApi
+        ? await api(`http://localhost:${port}${req.url}`, init)
+        : req.url?.startsWith('/ipfs/')
+          ? await fetch(`${DAEMON_URL}${req.url}`, init)
+          : new Response('Not found', {status: 404})
+      res.writeHead(response.status, Object.fromEntries(response.headers))
+      res.end(Buffer.from(await response.arrayBuffer()))
+    } catch (error) {
+      res.writeHead(500, {'Content-Type': 'application/json'})
+      res.end(JSON.stringify({error: (error as Error).message}))
+    }
+  })
+  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve))
+  return server
 }
 
 /** The ops of a stored Change blob, read back from the daemon's blob store. */
@@ -833,6 +868,57 @@ describe('document updates through PrepareDocumentChange', () => {
     expect(stats.edits.swap).toBe(6)
     // No round waited for a daemon that was never going to answer.
     expect(Object.keys(stats.reasons).filter((reason) => reason.includes('did not answer'))).toEqual([])
+  }, 600_000)
+
+  // The agents service is Bun-only, so its write tool runs in apps/scripts/prepare-change-write.ts
+  // against this daemon, through the Seed API on a real port, and reports one JSON line per step.
+  it('the agent write tool stores only what an edit changes, and survives what the daemon cannot prepare', async () => {
+    const port = HTTP_PORT + 10
+    const server = await serveSeedApi(port)
+    try {
+      const output = await new Promise<{code: number | null; stdout: string; stderr: string}>((resolve, reject) => {
+        const proc = spawn('bun', ['scripts/prepare-change-write.ts', '--hm-server', `http://127.0.0.1:${port}`], {
+          cwd: path.resolve(__dirname, '../apps'),
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+        let stdout = ''
+        let stderr = ''
+        proc.stdout.on('data', (chunk) => (stdout += chunk))
+        proc.stderr.on('data', (chunk) => (stderr += chunk))
+        proc.on('error', reject)
+        proc.on('close', (code) => resolve({code, stdout, stderr}))
+      })
+      const lines = output.stdout.split('\n')
+      const steps = lines
+        .filter((line) => line.startsWith('{"step"'))
+        .map((line) => JSON.parse(line) as {step: string; status: string; detail?: string})
+      const stats = lines.find((line) => line.startsWith('{"stats"'))
+      if (stats) reportStats(`FUZZ-STATS agents-write-tool ${JSON.stringify(JSON.parse(stats).stats)}`)
+      const all = `${output.stdout}\n${output.stderr}`
+      expect(
+        steps.map((step) => step.step),
+        all,
+      ).toEqual([
+        'an agent creates a multi-block document',
+        'changing one block stores a change with only that block',
+        'writing the same document again stores nothing',
+        'adding a block at the end stores the block and one move',
+        'removing a section deletes its blocks and moves nothing',
+        'inserting a block after the first block of a level keeps the order',
+        'a metadata map keeps its unchanged entries and loses the removed one',
+        'a list and a fraction in metadata are stored, once, beside what the site prepared',
+        'moving a block to the end, past blocks that stay, keeps the order',
+        'moving two neighbouring blocks together keeps the order',
+        'two new sections, a nested list with two parents and a new table arrive in one update',
+        'with the service clock behind the site, Changes built here still follow the ones under them',
+        'with the service clock ahead of the site, the next update is built here and the document still reads',
+        'seeded random edits of a nested document all read back as written',
+      ])
+      for (const step of steps) expect(step.status, `${step.step}: ${step.detail}`).toBe('pass')
+      expect(output.code, all).toBe(0)
+    } finally {
+      await new Promise((resolve) => server.close(resolve))
+    }
   }, 600_000)
 
   // Last: against a daemon without Seed PR #1375 it leaves the daemon busy, and restarts it.
