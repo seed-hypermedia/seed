@@ -33,6 +33,7 @@ import {
   createRedirectRef,
   createTombstoneRef,
   createVersionRef,
+  documentUpdateBlobs,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
   parseMarkdown,
@@ -56,7 +57,6 @@ import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
-import {buildDocumentUpdate} from './document-update'
 import {resolveFileLinks} from './file-links'
 
 /** Run `fn` over `items` with at most `limit` in flight; results in input order. */
@@ -1172,20 +1172,24 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     result.updated.push(file)
     if (opts.dryRun) return
 
-    // The server computes the Change from the document's real state (see buildDocumentUpdate),
-    // so only what differs is stored. A document that has just moved here already holds a Ref
-    // with a current-time generation at this path, which the new Ref must not go below.
+    // The server computes the Change from the document's real state, so only what differs is
+    // stored; a request it refuses, does not answer or answers implausibly is built here instead
+    // (documentUpdateBlobs), so one file's refusal never stops the import. A document that has
+    // just moved here already holds a Ref with a current-time generation at this path, which the
+    // new Ref must not go below.
     const attached = [...schemaBlobs, ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid}))]
-    const update = await buildDocumentUpdate({
+    const update = await documentUpdateBlobs({
       client: opts.client,
       signer: opts.signer,
       account: opts.account,
       path,
       state: (await getBase()).state,
       ops,
-      content: oldDoc.content,
+      content: oldDoc.content ?? [],
+      // The diff was made against the document read first; the heads are read now.
+      documentVersion: oldDoc.version,
       capability: opts.capability,
-      minGeneration:
+      currentGeneration:
         movedFrom !== null
           ? Date.now()
           : (oldDoc as {generationInfo?: {generation?: number | bigint | string}}).generationInfo?.generation,
@@ -1198,7 +1202,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
       if (attached.length) await opts.client.publish({blobs: attached})
       return
     }
-    if (update.builtBy === 'local') log(`        ${label}: change built locally, ${update.localReason}`)
+    if (update.builtBy === 'local') log(`        ${label}: change built locally because ${update.localReason}`)
     await opts.client.publish({blobs: [...update.blobs, ...attached]})
   }
   await mapPool(files, CONCURRENCY, processFile)

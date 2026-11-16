@@ -42,9 +42,8 @@ import {
   violations,
 } from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
-import {buildDocumentUpdate} from '../utils/document-update'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
-import {assertValidMermaid} from '@seed-hypermedia/client'
+import {assertValidMermaid, documentUpdateBlobs} from '@seed-hypermedia/client'
 import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {
@@ -706,19 +705,21 @@ export function registerDocumentCommands(program: Command) {
         const capability = await resolveCapability(client, docAccount, key.accountId, docPath)
 
         // The server computes the Change from the document's real state, so only what differs is
-        // written. For a redirected address it is given THIS path and the target's heads: it
-        // builds on the target's history (loadDocumentForChange), and the Ref signed here, at a
-        // generation no lower than now, outranks the redirect Ref.
-        const update = await buildDocumentUpdate({
+        // written; when it cannot be asked, or does not give a usable answer, the Change is built
+        // here as written (documentUpdateBlobs). For a redirected address the server is given THIS
+        // path and the target's heads: it builds on the target's history (loadDocumentForChange),
+        // and the Ref signed here, at a generation no lower than now, outranks the redirect Ref.
+        const update = await documentUpdateBlobs({
           client,
           signer,
           account: docAccount,
           path: docPath,
           state: base.state,
           ops,
-          content: existingDoc.content,
+          content: existingDoc.content ?? [],
+          documentVersion: existingDoc.version,
           capability,
-          minGeneration: base.redirect ? Date.now() : existingDoc.generationInfo?.generation,
+          currentGeneration: base.redirect ? Date.now() : existingDoc.generationInfo?.generation,
         })
 
         // Files and the schema are published either way: they are named by their content, so
@@ -757,7 +758,7 @@ export function registerDocumentCommands(program: Command) {
             )
           }
           if (update.builtBy === 'local') {
-            printInfo(`Building this change locally, as written: ${update.localReason}.`)
+            printInfo(`This change was built locally, as written, because ${update.localReason}.`)
           }
         }
 

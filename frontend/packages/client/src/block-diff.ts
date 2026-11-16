@@ -334,7 +334,7 @@ function rebindTable(oldTable: APIBlockNode | undefined, newTable: BlockNode): B
  * anchor: it places its blocks at the start of the parent's children, in the
  * order listed. So a level whose order changed in any way (a block added,
  * removed or moved) is listed whole, the blocks already in place included.
- * An update sent through `PrepareDocumentChange` (prepareDocumentUpdateBlobs)
+ * An update sent through `PrepareDocumentChange` (documentUpdateBlobs)
  * drops the moves that change nothing, so the stored Change is minimal there;
  * a Change built from these ops directly (createChangeOps) stores them all.
  * Skipping unchanged blocks here still matters on the daemon path: it writes

@@ -16,15 +16,7 @@ import {tmpdir} from 'os'
 import * as path from 'path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {generateTestAccount, type TestAccount} from '../frontend/apps/cli/src/test/account-helpers'
-import {buildDocumentUpdate} from '../frontend/apps/cli/src/utils/document-update'
 import {createSignerFromKey} from '../frontend/apps/cli/src/utils/signer'
-import {
-  computeReplaceOps,
-  createBlocksMap,
-  hmBlockNodeToBlockNode,
-  toAPIBlockNode,
-} from '../frontend/packages/client/src/block-diff'
-import {resolveEditableDocument} from '../frontend/packages/client/src/document-state'
 import {
   createDocumentBlobs,
   createSeedClient,
@@ -35,6 +27,15 @@ import {
 import {handleApiAction, handleApiRequest} from '../frontend/packages/shared/src/api-server'
 import {createGRPCClient} from '../frontend/packages/shared/src/grpc-client'
 import {spawnDaemon, type DaemonInstance} from './integration/daemon'
+import {
+  createTreeFuzzer,
+  flatTree,
+  newFuzzStats,
+  recordFuzzRound,
+  reportStats,
+  treeShape,
+  type Tree,
+} from './integration/tree-fuzz'
 
 const HTTP_PORT = 59431
 const API_PORT = 59435
@@ -53,6 +54,11 @@ let account: TestAccount
 let apiBodyLimit: number | null = null
 /** Keys of the API actions requested, in order. */
 let apiActions: string[] = []
+/**
+ * When set, decides for each `PrepareDocumentChange` request (by its document path) whether the
+ * daemon "fails" it: the message returned is answered as an HTTP 500, as a site relays a daemon error.
+ */
+let prepareFailure: ((docPath: string) => string | null) | null = null
 
 /** The Seed API over HTTP: `/api/*` through the shared handlers, `/ipfs/*` passed to the daemon. */
 function startSeedApi(): Promise<Server> {
@@ -85,6 +91,14 @@ function startSeedApi(): Promise<Server> {
           res.writeHead(413)
           res.end('Payload Too Large')
           return
+        }
+        if (key === 'PrepareDocumentChange' && prepareFailure) {
+          const failure = prepareFailure((cborDecode(new Uint8Array(body)) as {path?: string}).path ?? '')
+          if (failure) {
+            res.writeHead(500)
+            res.end(JSON.stringify({error: failure}))
+            return
+          }
         }
         const result = await handleApiAction(key, new Uint8Array(body), grpcClient, queryDaemon)
         res.writeHead(result.status, result.headers)
@@ -383,7 +397,7 @@ describe('seed-cli document update', () => {
       '--metadata',
       JSON.stringify({rating: 4.5}),
     )
-    expect(result.stderr).toContain('Building this change locally')
+    expect(result.stderr).toContain('built locally, as written, because')
     expect(result.stderr).toContain('"rating"')
     expect(apiActions).not.toContain('PrepareDocumentChange')
 
@@ -411,7 +425,7 @@ describe('seed-cli document update', () => {
         '-f',
         file('large.md', `${markdown.trimEnd()}\n\n${big}\n`),
       )
-      expect(result.stderr).toContain('Building this change locally')
+      expect(result.stderr).toContain('built locally, as written, because')
       expect(result.stderr).toContain('413')
       expect(result.stderr).toContain('Document updated')
     } finally {
@@ -528,104 +542,138 @@ describe('seed-cli document update', () => {
     ).toEqual(['n0', 'n1', ['f2', ['c1', 'c3', 'c4', ['c2', ['g1']]]], 'n2', 'f3', 'n9', 'f1'])
   })
 
-  it('reads back every reordering as written, whoever builds the change (seeded random edits)', async () => {
-    // The daemon drops moves it should keep in some reorderings (see preparableDocumentChanges). This walks
-    // one document through many small edits and checks the tree after each: moves of one block
-    // and of runs, across levels, with inserts and deletes mixed in.
-    let seed = 20261116
-    const random = (n: number) => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff
-      return seed % n
-    }
-    type Tree = Array<{id: string; children: Tree}>
-    const toNodes = (tree: Tree): unknown[] => tree.map((t) => node(t.id, toNodes(t.children)))
-    const toShape = (tree: Tree): unknown[] => tree.map((t) => (t.children.length ? [t.id, toShape(t.children)] : t.id))
-    /** Every list of siblings in the tree, the root first. */
-    const levels = (tree: Tree): Tree[] => [tree, ...tree.flatMap((t) => levels(t.children))]
-    const clone = (tree: Tree): Tree => tree.map((t) => ({id: t.id, children: clone(t.children)}))
-    let fresh = 0
-    const mutate = (current: Tree): Tree => {
-      const tree = clone(current)
-      const all = levels(tree)
-      const pick = () => all[random(all.length)]!
-      const steps = 1 + random(2)
-      for (let step = 0; step < steps; step++) {
-        const kind = random(10)
-        const from = pick()
-        if (kind < 2 || from.length === 0) {
-          // Insert a new block anywhere.
-          const into = pick()
-          into.splice(random(into.length + 1), 0, {id: `x${++fresh}`, children: []})
-        } else if (kind < 3 && from.length > 1) {
-          from.splice(random(from.length), 1)
-        } else if (kind < 5) {
-          // A run of one to three neighbours moves within its level.
-          const length = 1 + random(Math.min(3, from.length))
-          const run = from.splice(random(from.length - length + 1), length)
-          from.splice(random(from.length + 1), 0, ...run)
-        } else if (kind < 8) {
-          // One block moves within its level.
-          const [block] = from.splice(random(from.length), 1)
-          from.splice(random(from.length + 1), 0, block!)
-        } else {
-          // A childless block moves to another level (so it can never land inside itself).
-          const leaves = from.filter((t) => t.children.length === 0)
-          if (!leaves.length) continue
-          const block = leaves[random(leaves.length)]!
-          from.splice(from.indexOf(block), 1)
-          const targets = levels(tree)
-          const into = targets[random(targets.length)]!
-          into.splice(random(into.length + 1), 0, block)
-        }
-      }
-      return tree
+  /** The document's block texts as a nested list: `['A', ['B', ['C']]]` is `A`, then `B` with child `C`. */
+  const texts = (content: HMBlockNode[] | undefined): unknown[] =>
+    (content ?? []).map((n) => {
+      const text = (n.block as {text?: string}).text ?? `<${n.block.type}>`
+      return n.children?.length ? [text, texts(n.children)] : text
+    })
+  /** Who built the Change of a `document update` run, read from what the CLI printed. */
+  const builtBy = (stderr: string): {builtBy?: 'server' | 'local'; localReason?: string} => {
+    const local = /built locally, as written, because (.*)\.\n/.exec(stderr)
+    if (local) return {builtBy: 'local', localReason: local[1]}
+    return stderr.includes('Document updated') ? {builtBy: 'server'} : {}
+  }
+
+  it('adds new parents with their children in one update: sections, a nested list, a table', async () => {
+    // Each of these made the daemon refuse the request ("desired parent block is not in the
+    // tree") when the content of a new parent was sent after a move.
+    const update = async (docPath: string, markdown: string) => {
+      const result = await cliOk('document', 'update', hm(docPath), '-f', file('parents.md', markdown))
+      expect(result.stderr).toContain('Document updated')
+      // The server built it: nothing was refused and nothing had to be built here.
+      expect(result.stderr).not.toContain('built locally')
+      return readDocument(docPath)
     }
 
-    let tree: Tree = ['a', 'b', 'c', 'd', 'e'].map((id) => ({id, children: []}))
-    tree[1]!.children = ['p', 'q', 'r'].map((id) => ({id, children: []}))
-    await cliOk(
-      'document',
-      'create',
-      '-f',
-      file('random-0.json', JSON.stringify(toNodes(tree))),
-      '-p',
-      '/random',
-      '--name',
-      'Random',
+    // Two new sections, each a heading with paragraphs under it.
+    const sections = await createParagraphs('/sections', 'Sections', ['Intro', 'Outro'])
+    const withSections = await update(
+      '/sections',
+      `${sections.trimEnd()}\n\n# Section one\n\nFirst of one\n\nSecond of one\n\n# Section two\n\nFirst of two\n`,
     )
-    const id = unpackHmId(hm('/random'))!
-    const signer = createSignerFromKey(account.keyPair)
-    const builtBy = {server: 0, local: 0, unchanged: 0}
-    for (let round = 0; round < 60; round++) {
-      const next = mutate(tree)
-      const base = await resolveEditableDocument(client, id)
-      const ops = computeReplaceOps(
-        createBlocksMap((base.document.content ?? []).map(toAPIBlockNode)),
-        (toNodes(next) as HMBlockNode[]).map(hmBlockNodeToBlockNode),
+    expect(texts(withSections.content)).toEqual([
+      'Intro',
+      'Outro',
+      ['Section one', ['First of one', 'Second of one']],
+      ['Section two', ['First of two']],
+    ])
+    // Only the new blocks are stored: five replaced, five placed, the two old ones untouched.
+    const sectionOps = await latestOps('/sections')
+    expect(sectionOps.filter((op) => op.type === 'ReplaceBlock')).toHaveLength(5)
+    expect(sectionOps.filter((op) => op.type === 'MoveBlocks').flatMap((op) => op.blocks)).toHaveLength(5)
+
+    // A nested list with two parents.
+    const list = await createParagraphs('/list', 'List', ['Before'])
+    const withList = await update(
+      '/list',
+      `${list.trimEnd()}\n\n- Parent A\n  - Child a1\n  - Child a2\n- Parent B\n  - Child b1\n`,
+    )
+    const flatTexts = JSON.stringify(texts(withList.content))
+    for (const text of ['Parent A', 'Child a1', 'Child a2', 'Parent B', 'Child b1']) expect(flatTexts).toContain(text)
+    expect(flatTexts).toContain(JSON.stringify(['Parent A', ['Child a1', 'Child a2']]))
+    expect(flatTexts).toContain(JSON.stringify(['Parent B', ['Child b1']]))
+
+    // A brand-new table: the table, its columns, its rows and their cells are all new parents.
+    const table = await createParagraphs('/table', 'Table', ['Above'])
+    const withTable = await update(
+      '/table',
+      `${table.trimEnd()}\n\n| Name | Value |\n| --- | --- |\n| alpha | 1 |\n| beta | 2 |\n`,
+    )
+    const tableNode = (withTable.content ?? []).find((n) => n.block.type === 'Table')!
+    expect(tableNode).toBeDefined()
+    const rows = (tableNode.children ?? []).filter((n) => n.block.type === 'TableRow')
+    expect(rows.map((row) => (row.children ?? []).map((cell) => (cell.block as {text?: string}).text))).toEqual([
+      ['Name', 'Value'],
+      ['alpha', '1'],
+      ['beta', '2'],
+    ])
+    // And the file as the CLI prints it back is a no-op.
+    const again = await cliOk(
+      'document',
+      'update',
+      hm('/table'),
+      '-f',
+      file('table-again.md', await getMarkdown('/table')),
+    )
+    expect(again.stderr).toContain('already up to date')
+  })
+
+  it('reads back every edit as written, whoever builds the change (seeded random edits through the CLI)', async () => {
+    // One document per seed, walked through rounds of one to four edits each: blocks and whole
+    // subtrees inserted, deleted and moved, indents and outdents, and parents swapped with their
+    // children. Every round runs the real `document update -f blocks.json` and reads the tree back.
+    const toNodes = (tree: Tree): unknown[] => tree.map((t) => node(t.id, toNodes(t.children)))
+    const stats = newFuzzStats()
+    const failures: string[] = []
+    for (const [seed, swaps] of [
+      [20261116, true],
+      [424242, true],
+      [31337, false],
+    ] as const) {
+      const fuzzer = createTreeFuzzer(seed, {swaps})
+      const docPath = `/random-${seed}`
+      let tree: Tree = flatTree('a', 'b', 'c', 'd', 'e')
+      tree[1]!.children = flatTree('p', 'q', 'r')
+      await cliOk(
+        'document',
+        'create',
+        '-f',
+        file('random-0.json', JSON.stringify(toNodes(tree))),
+        '-p',
+        docPath,
+        '--name',
+        'Random',
       )
-      const update = await buildDocumentUpdate({
-        client,
-        signer,
-        account: account.accountId,
-        path: '/random',
-        state: base.state,
-        ops,
-        content: base.document.content,
-        minGeneration: base.document.generationInfo?.generation,
-      })
-      if (update.changed) {
-        builtBy[update.builtBy]++
-        await client.publish({blobs: update.blobs})
-      } else builtBy.unchanged++
-      const got = shape((await readDocument('/random')).content)
-      expect(got, `round ${round}: ${JSON.stringify(toShape(tree))} -> ${JSON.stringify(toShape(next))}`).toEqual(
-        toShape(next),
-      )
-      tree = next
+      for (let round = 0; round < 25; round++) {
+        const next = fuzzer.mutate(tree)
+        const label = `seed ${seed} round ${round} (${next.edits.join(', ')}): ${JSON.stringify(
+          treeShape(tree),
+        )} -> ${JSON.stringify(treeShape(next.tree))}`
+        const result = await cli(
+          'document',
+          'update',
+          hm(docPath),
+          '-f',
+          file('random.json', JSON.stringify(toNodes(next.tree))),
+        )
+        if (result.exitCode !== 0) {
+          failures.push(`${label}: exit ${result.exitCode}: ${result.stderr.trim()}`)
+          break
+        }
+        const got = shape((await readDocument(docPath)).content)
+        const right = JSON.stringify(got) === JSON.stringify(treeShape(next.tree))
+        recordFuzzRound(stats, {...builtBy(result.stderr), edits: next.edits, right})
+        if (!right) failures.push(`${label}: read back ${JSON.stringify(got)}`)
+        tree = next.tree
+      }
     }
-    // Most edits are ones the server can take.
-    expect(builtBy.server).toBeGreaterThan(builtBy.local)
-  }, 300_000)
+    reportStats(`FUZZ-STATS cli-document-update ${JSON.stringify(stats)}`)
+    expect(failures).toEqual([])
+    expect(stats.rounds).toBe(75)
+    expect(stats.wrong).toBe(0)
+    expect(stats.server).toBeGreaterThan(5)
+  }, 600_000)
 
   it('rewrites a metadata map entry by entry: one removed, one kept, one added', async () => {
     await createParagraphs('/map', 'Map', ['Body'])
@@ -744,6 +792,52 @@ describe('seed-cli document update', () => {
     const plainAgain = (await readDocument('/one')).metadata as Record<string, any>
     expect(plainAgain.kind).toBe('plain again')
     expect(plainAgain.labels).toEqual({green: 'g', blue: 'b'})
+
+    // New parents with their children in one file: two sections and a nested list.
+    await cliOk('space', 'export', 'self', '-d', dir)
+    writeFileSync(
+      oneFile,
+      `${readFileSync(
+        oneFile,
+        'utf-8',
+      ).trimEnd()}\n\n# Part one\n\nIn part one\n\n# Part two\n\n- Item A\n  - Sub a1\n- Item B\n  - Sub b1\n`,
+    )
+    const parents = await cliOk('space', 'import', 'self', '-d', dir)
+    expect(parents.stderr).toContain('1 updated')
+    expect(parents.stderr).not.toContain('built locally')
+    const withParents = JSON.stringify(texts((await readDocument('/one')).content))
+    expect(withParents).toContain(JSON.stringify(['Part one', ['In part one']]))
+    for (const text of ['Part two', 'Item A', 'Sub a1', 'Item B', 'Sub b1']) expect(withParents).toContain(text)
+
+    // The server refuses to prepare one file's update. That file is built here; the import goes
+    // on and the other file is prepared as usual.
+    await cliOk('space', 'export', 'self', '-d', dir)
+    const secondFile = path.join(dir, 'second.md')
+    writeFileSync(oneFile, readFileSync(oneFile, 'utf-8').replace('In part one', 'In part one, edited'))
+    writeFileSync(secondFile, readFileSync(secondFile, 'utf-8').replace('Delta', 'Delta, edited'))
+    apiActions = []
+    prepareFailure = (docPath) => (docPath === '/one' ? '[unknown] desired parent block X is not in the tree' : null)
+    try {
+      const refused = await cliOk('space', 'import', 'self', '-d', dir)
+      expect(refused.stderr).toContain('2 updated')
+      expect(refused.stderr).toContain('change built locally because the server could not prepare it')
+      expect(refused.stderr).toContain('is not in the tree')
+    } finally {
+      prepareFailure = null
+    }
+    expect(apiActions.filter((key) => key === 'PrepareDocumentChange')).toHaveLength(2)
+    expect(JSON.stringify(texts((await readDocument('/one')).content))).toContain('In part one, edited')
+    expect(rootTexts((await readDocument('/second')).content)).toEqual(['Delta, edited', 'Echo, moved'])
+    expect(await latestOps('/second')).toHaveLength(1)
+
+    // A dry run says what a real run would do and asks the server for nothing.
+    writeFileSync(secondFile, readFileSync(secondFile, 'utf-8').replace('Delta, edited', 'Delta, twice'))
+    apiActions = []
+    const dry = await cliOk('space', 'import', 'self', '-d', dir, '--dry-run')
+    expect(dry.stderr).toContain('1 updated')
+    expect(apiActions).not.toContain('PrepareDocumentChange')
+    expect(rootTexts((await readDocument('/second')).content)).toEqual(['Delta, edited', 'Echo, moved'])
+    await cliOk('space', 'import', 'self', '-d', dir)
 
     // And the space is settled again.
     const settled = await cliOk('space', 'import', 'self', '-d', dir)
