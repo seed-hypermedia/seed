@@ -184,7 +184,7 @@ await step('adding a block at the end stores the block and one move', async () =
   assert.match(markdown, /Prepared by the finance team\./)
 })
 
-await step('removing a section deletes its blocks and re-places only the block after it', async () => {
+await step('removing a section deletes its blocks and moves nothing', async () => {
   const start = markdown.indexOf('## Regions')
   const end = markdown.indexOf('## Outlook')
   assert.ok(start > 0 && end > start, markdown)
@@ -192,11 +192,14 @@ await step('removing a section deletes its blocks and re-places only the block a
   const result = await write({address, content: without, options: {action: 'update'}})
   assert.equal(result.unchanged, undefined, JSON.stringify(result))
   const ops = await storedOps(result.version)
-  // The section's blocks are deleted, and the block that followed it is placed after the block
-  // that now precedes it. No block is rewritten, and no other block is moved.
-  assert.deepEqual(ops.map((op) => op.type).sort(), ['DeleteBlocks', 'MoveBlocks'], `stored ${JSON.stringify(ops)}`)
-  assert.equal(ops.find((op) => op.type === 'MoveBlocks')!.blocks.length, 1)
-  assert.equal(ops.find((op) => op.type === 'DeleteBlocks')!.blocks.length, 4)
+  // The section's blocks are deleted. The blocks around it stay in the order they had, so no
+  // block is moved and none is rewritten.
+  assert.deepEqual(
+    ops.map((op) => op.type),
+    ['DeleteBlocks'],
+    `stored ${JSON.stringify(ops)}`,
+  )
+  assert.equal(ops[0]!.blocks.length, 4)
   // What is read back is exactly what was written: nothing lost, and nothing out of order.
   const now = await readMarkdown(address)
   assert.equal(now, without)
@@ -280,6 +283,96 @@ await step('a list and a fraction in metadata are stored, once, beside what the 
   })
   assert.equal(again.unchanged, true, JSON.stringify(again))
   assert.equal(again.version, doc.version)
+})
+
+// ── Reordering ──────────────────────────────────────────────────────────────
+// A flat document of one-line paragraphs, rewritten in a new order with the block ids the read
+// gave. What matters is the order read back: the site drops moves it should keep when a level is
+// sent as a diff lists it, so the service sends the fewest moves, or builds the change itself.
+
+/** The paragraphs of a flat document as the agent reads them: markdown chunks carrying block ids. */
+async function readChunks(docAddress: string): Promise<Map<string, string>> {
+  const chunks = new Map<string, string>()
+  for (const chunk of (await readMarkdown(docAddress)).split(/\n{2,}/)) {
+    const text = chunk.replace(/<!--[\s\S]*?-->/g, '').trim()
+    if (text) chunks.set(text, chunk.trim())
+  }
+  return chunks
+}
+
+async function rootTexts(docPath: string): Promise<string[]> {
+  return ((await document(docPath)).content ?? []).map((node) => (node.block as {text?: string}).text ?? '')
+}
+
+/** Rewrites the document as `texts`, in that order: known paragraphs keep their ids, others are new. */
+async function writeOrder(docPath: string, texts: string[]) {
+  const docAddress = `hm://${account}${docPath}`
+  const chunks = await readChunks(docAddress)
+  const content = texts.map((text) => chunks.get(text) ?? text).join('\n\n') + '\n'
+  const result = await write({address: docAddress, content, options: {action: 'update'}})
+  assert.equal(result.type, 'hypermedia_write_result', JSON.stringify(result))
+  const got = await rootTexts(docPath)
+  assert.deepEqual(got, texts, `wrote ${JSON.stringify(texts)}, read back ${JSON.stringify(got)}`)
+  return result
+}
+
+async function createFlat(docPath: string, texts: string[]) {
+  const result = await write({
+    address: `hm://${account}${docPath}`,
+    content: texts.join('\n\n') + '\n',
+    options: {name: docPath.slice(1)},
+  })
+  assert.equal(result.type, 'hypermedia_write_result', JSON.stringify(result))
+  assert.deepEqual(await rootTexts(docPath), texts)
+}
+
+await step('moving a block to the end, past blocks that stay, keeps the order', async () => {
+  await createFlat('/order-end', ['alpha', 'bravo', 'charlie', 'delta'])
+  const result = await writeOrder('/order-end', ['alpha', 'charlie', 'delta', 'bravo'])
+  // One block moved, and the site stored exactly that.
+  const ops = await storedOps(result.version)
+  assert.equal(ops.length, 1, `stored ${JSON.stringify(ops)}`)
+  assert.equal(ops[0]!.type, 'MoveBlocks')
+  assert.equal(ops[0]!.blocks.length, 1)
+})
+
+await step('moving two neighbouring blocks together keeps the order', async () => {
+  await createFlat('/order-together', ['alpha', 'bravo', 'charlie', 'delta'])
+  // The site cannot be asked for this one; the service builds the change, stored as listed.
+  const result = await writeOrder('/order-together', ['charlie', 'delta', 'alpha', 'bravo'])
+  const moves = (await storedOps(result.version)).filter((op) => op.type === 'MoveBlocks')
+  assert.equal(moves.length, 1, `stored ${JSON.stringify(moves)}`)
+  assert.equal(moves[0]!.blocks.length, 4)
+})
+
+await step('seeded random reorders, inserts and deletes all read back as written', async () => {
+  let seed = 20261116
+  const random = (n: number) => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed % n
+  }
+  let fresh = 0
+  let order = ['one', 'two', 'three', 'four', 'five', 'six']
+  await createFlat('/order-random', order)
+  for (let round = 0; round < 25; round++) {
+    const next = [...order]
+    const kind = random(10)
+    if (kind < 2) {
+      next.splice(random(next.length + 1), 0, `new${++fresh}`)
+    } else if (kind < 3 && next.length > 2) {
+      next.splice(random(next.length), 1)
+    } else if (kind < 6) {
+      // A run of one to three neighbours moves.
+      const length = 1 + random(Math.min(3, next.length))
+      const run = next.splice(random(next.length - length + 1), length)
+      next.splice(random(next.length + 1), 0, ...run)
+    } else {
+      const [block] = next.splice(random(next.length), 1)
+      next.splice(random(next.length + 1), 0, block!)
+    }
+    await writeOrder('/order-random', next)
+    order = next
+  }
 })
 
 fs.rmSync(stateDir, {recursive: true, force: true})

@@ -122,10 +122,10 @@ import {
   resolveEditableDocument,
   resolveIdWithClient,
   updateComment,
-  documentOperationsToChanges,
+  preparableDocumentChanges,
   prepareDocumentUpdateBlobs,
-  withoutLeadingMovesInPlace,
   SeedClientError,
+  type DocumentChanges,
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
@@ -18778,7 +18778,8 @@ type DocumentUpdateBlobs =
  * - the whole update, when the site refuses the request body as too large (413). A site may cap its
  *   API bodies at a few KB, and unlike a publish there is no other endpoint to prepare a change
  *   through. The publish itself still gets through (`client.publish` stores blob by blob);
- * - the whole update, when its ops cannot be put in the request's form at all.
+ * - the whole update, when its ops cannot be put in the request's form at all, or reorder blocks
+ *   in the one way the site would misapply (neighbouring blocks moved together).
  */
 async function documentUpdateBlobs({
   client,
@@ -18858,11 +18859,16 @@ async function documentUpdateBlobs({
   const preparedOps = (prepared.length ? [{type: 'SetAttributes', attrs: prepared} as DocumentOperation] : []).concat(
     contentOps,
   )
-  let changes: ReturnType<typeof documentOperationsToChanges>
+  let changes: DocumentChanges
   try {
-    // A diff re-lists every changed level from its first block; the leading blocks that have not
-    // moved must not be sent (see withoutLeadingMovesInPlace: the site would misplace what follows).
-    changes = withoutLeadingMovesInPlace(documentOperationsToChanges(preparedOps), document.content)
+    // A diff re-lists every changed level from its first block, which the site misplaces. Each
+    // level is sent as the fewest moves that produce it (see preparableDocumentChanges); a
+    // reorder that cannot be said to the site at all is built here, stored as listed.
+    const preparable = preparableDocumentChanges(preparedOps, document.content)
+    if ('unpreparable' in preparable) {
+      return wholeUpdateBuiltHere(`the site cannot place the blocks (${preparable.unpreparable})`)
+    }
+    changes = preparable.changes
   } catch (error) {
     return wholeUpdateBuiltHere(error instanceof Error ? error.message : String(error))
   }
