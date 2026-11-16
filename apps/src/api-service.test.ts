@@ -23,6 +23,7 @@ import {
 import {createAPIRoutes} from '@/main'
 import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
+import {fakePreparedChange} from '@/prepare-change-test-server'
 
 /**
  * An event payload with its provenance stamp dropped.
@@ -6839,6 +6840,7 @@ describe('api service', () => {
         {block: {id: 'note', type: 'Paragraph', text: 'Weather tools.', annotations: [], attributes: {}}, children: []},
       ]
       const publishes: {blobs: {cid?: string; data: Uint8Array}[]}[] = []
+      const prepares: {path?: string; baseVersion?: string; changes: {op: {case: string}}[]}[] = []
       const document = (path: string, metadata: Record<string, unknown>, content: unknown[] = []) => ({
         type: 'document',
         id: unpackHmId(`hm://${signerPublicKey}${path}`),
@@ -6860,6 +6862,13 @@ describe('api service', () => {
         if (href.includes('/api/PublishBlobs')) {
           publishes.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
           return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        // The app's card list is updated through the daemon, which computes the Change.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          prepares.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
         }
         if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
         if (href.includes('/api/ListChanges'))
@@ -6973,6 +6982,13 @@ describe('api service', () => {
       expect(created.code).toMatch(/^ipfs:\/\/bafy/)
       // One publish carries the tool, its code folder and the app's new card embed.
       expect(publishes).toHaveLength(1)
+      // The app's embed went through PrepareDocumentChange, on the app's current version.
+      expect(prepares).toHaveLength(1)
+      expect(prepares[0]).toMatchObject({
+        path: '/weather',
+        baseVersion: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+      })
+      expect(prepares[0]!.changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'moveBlock', 'moveBlock'])
       const changes = publishes[0]!.blobs
         .map((blob) => {
           try {

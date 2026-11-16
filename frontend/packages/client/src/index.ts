@@ -125,6 +125,20 @@ export {
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
+  documentOperationsToChanges,
+  isEmptyPreparedChange,
+  nativeBlockToProtoBlock,
+  prepareDocumentUpdateBlobs,
+} from './prepare-change'
+export type {
+  DocumentChangeInput,
+  DocumentChanges,
+  PrepareDocumentUpdateInput,
+  PrepareDocumentUpdateResult,
+  ProtoAnnotationJson,
+  ProtoBlockJson,
+} from './prepare-change'
+export {
   describeRedirect,
   followRedirects,
   followToDocument,
