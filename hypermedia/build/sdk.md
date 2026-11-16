@@ -134,27 +134,34 @@ await client.publish({blobs})
 
 **The genesis rule.** A document's identity is its genesis Change. For the home document (path `''`) the genesis is deterministic: the signer's key and a zero timestamp. Every device of an account, and the daemon itself, derive the same one. Every other document has no genesis blob of its own. Its first content Change is its genesis, with no `genesis` or `deps` fields, and the Ref points its `genesis` and its head at that same Change. Creating an ordinary document on the home genesis merges it with the home document as far as the daemon is concerned: comments, activity and moves all collapse into one. So `createDocumentBlobs` decides this for you, and `createGenesisChange` is deprecated in favour of the explicit `createHomeGenesisChange`. Only the owner can create a home. The builder refuses any other signer for path `''`. <!-- id:2HwrtkSZ -->
 
-**Update a document.** Fetch the current state, build a Change on the heads, and publish it with a fresh Ref: <!-- id:7sbzYzez -->
+**Update a document.** Read the document, hand your ops and the version you read to `prepareDocumentUpdateBlobs`, and publish what it returns: <!-- id:7sbzYzez -->
 
 ```ts <!-- id:zrESMCQd -->
-const state = await resolveDocumentState(client, 'hm://' + myUid + '/notes/first')
-const {unsignedBytes, ts} = createChangeOps({
-  ops,
-  genesisCid: CID.parse(state.genesis),
-  deps: state.heads.map((h) => CID.parse(h)),
-  depth: state.headDepth + 1,
-})
-const change = await createChange(unsignedBytes, signer)
-const ref = await createVersionRef(
-  {space: myUid, path: '/notes/first', genesis: state.genesis, version: change.cid.toString(), generation: Number(ts)},
+const resource = await client.request('Resource', unpackHmId('hm://' + myUid + '/notes/first')!)
+if (resource.type !== 'document') throw new Error('not a document')
+const update = await prepareDocumentUpdateBlobs({
+  client,
   signer,
-)
-await client.publish({blobs: [{data: change.bytes, cid: change.cid.toString()}, ...ref.blobs]})
+  account: myUid,
+  path: '/notes/first',
+  baseVersion: resource.document.version,
+  ops,
+  currentGeneration: resource.document.generationInfo?.generation,
+})
+if (update.changed) await client.publish({blobs: update.blobs})
 ```
 
-`resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth (depth is not in the read API, so it is recomputed). `createChangeOps` builds the unsigned CBOR. `createChange` signs it and returns `{bytes, cid, genesis, ts}`. Concurrent heads merge by listing several `deps`. <!-- id:3p3tUyJA -->
+`prepareDocumentUpdateBlobs({client, signer, account, path?, baseVersion, ops | changes, capability?, genesis?, generation?, currentGeneration?, visibility?})` sends the ops to the site's `PrepareDocumentChange`, where the [daemon](../apps/daemon.md) applies them to the document's real state and writes a Change holding only what differs. A block already in place is not moved, a block that already has that content is not replaced, an attribute that already has that value is not set. It then signs that Change and its Version Ref with your signer and returns `{changed: true, blobs, version, genesis, generation}`. It does not publish, so you can send the blobs together with file blobs or another document's blobs in one `client.publish`. The key never leaves your process. <!-- id:3p3tUyJA -->
 
-**Let the server build the ops.** `client.publishDocument({account, path?, changes, baseVersion?, genesis?, generation?, capability?, visibility?}, signer)` takes proto-style changes (the shape the app's editor produces), asks the site's `PrepareDocumentChange` to compute the [CRDT](../protocol/documents.md) ops, signs the result with `signDocumentChange` and publishes. It also bootstraps a brand-new home document client-side. The Seed web app uses this path. Scripts that already have block-level ops can stay with the builders above. <!-- id:52j70u2p -->
+When every op is already true of the document, the daemon answers with a Change that has no operations. The helper then returns `{changed: false, blobs: []}` and signs nothing. Do not publish in that case: there is no new version.
+
+`ops` are converted with `documentOperationsToChanges`, which you can also call yourself. A `MoveBlocks` has no anchor, so it places its blocks at the start of the parent in the order listed. To place a block somewhere else without listing its siblings, pass `changes` with a `moveBlock` that names the `leftSibling`. `SetAttributes` values must be strings, whole numbers, booleans or null, and block attributes must be plain JSON. Anything else throws before the request is made.
+
+The Ref's generation is the new Change's timestamp unless you pass `generation`. Pass `currentGeneration` so the Ref never falls below the generation the path already has, which would leave the update published and ignored.
+
+**Build the Change yourself.** `createChangeOps({ops, genesisCid, deps, depth})`, `createChange(unsignedBytes, signer)` and `createVersionRef` are still there, and `resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth for them. A Change built this way is stored exactly as written: an op that changes nothing is kept in the document's history, and a `MoveBlocks` that lists a whole level moves every block of it again. Use these for a document's first Change (which `createDocumentBlobs` does for you) or when no Seed API is in reach. For an update, prefer `prepareDocumentUpdateBlobs`.
+
+**Proto-style changes.** `client.publishDocument({account, path?, changes, baseVersion?, genesis?, generation?, capability?, visibility?}, signer)` takes proto-style changes (the shape the app's editor produces), asks the site's `PrepareDocumentChange` to compute the [CRDT](../protocol/documents.md) ops, signs the result with `signDocumentChange` and publishes. It also bootstraps a brand-new home document client-side. The Seed web app uses this path. <!-- id:52j70u2p -->
 
 **Refs.** `createVersionRef` points a path at a [version](../protocol/documents.md) (this is also a fork: a new path on an existing genesis). `createTombstoneRef({space, path, genesis, generation, capability?})` deletes. `createRedirectRef({space, path, genesis, generation, targetSpace?, targetPath, republish?})` moves a path elsewhere, and with `republish: true` shows the target's content in place. A Ref with a higher [`generation`](../protocol/documents.md) supersedes the one at the path, so a takeover mints `Date.now()`. <!-- id:jhjnuaot -->
 

@@ -6,19 +6,15 @@
  * This module provides:
  *
  * - Pure decision logic: should a link be added?
- * - Operation builder: what DocumentOperations to emit
- * - Full I/O convenience: fetch parent, check, build ops, sign, publish
+ * - Change builder: what to ask the daemon to change in the parent
+ * - Full I/O convenience: fetch parent, check, prepare the change, sign, publish
  */
 
 import type {HMBlockNode, HMDocument, UnpackedHypermediaId} from './hm-types'
 import type {AnySigner} from './signer'
 import {entityQueryPathToHmIdPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
-import type {DocumentOperation} from './change'
-import {createChangeOps, createChange} from './change'
-import {createVersionRef} from './ref'
-import {resolveDocumentState} from './document-state'
-import {CID} from 'multiformats/cid'
+import {prepareDocumentUpdateBlobs, type DocumentChanges} from './prepare-change'
 
 // ── Layer 1: Pure decision logic (no I/O) ────────────────────────────────────
 
@@ -119,33 +115,29 @@ export function shouldAutoLinkParent(
   return true
 }
 
-// ── Layer 2: Operation builder (no I/O) ──────────────────────────────────────
+// ── Layer 2: Change builder (no I/O) ─────────────────────────────────────────
 
 /**
- * Generate the DocumentOperations to append an Embed Card block to a parent document.
+ * The changes that append an Embed Card block for `childHmUrl` to a parent document: the new
+ * block's content, and one placement of it after the parent's last root block (or first, in an
+ * empty parent).
  *
- * The returned operations include a ReplaceBlock for the new embed block and a
- * MoveBlocks that lists ALL root-level block IDs (existing + new) to ensure
- * correct ordering. The CBOR MoveBlocks format with no `ref` positions blocks
- * from the start, so we must re-specify the full ordering.
+ * These are `PrepareDocumentChange` changes, not native ops, because only a `moveBlock` can name
+ * the block to its left; a native `MoveBlocks` places from the start of the level and would have
+ * to list (and so re-move) every root block. No existing block is touched.
  */
-export function createAutoLinkOps(
-  parentDocument: HMDocument,
-  childHmUrl: string,
-  newBlockId: string,
-): DocumentOperation[] {
-  const existingRootBlockIds = (parentDocument.content || []).map((node) => node.block.id).filter(Boolean)
-
-  const embedBlock = {
-    id: newBlockId,
-    type: 'Embed',
-    link: childHmUrl,
-    attributes: {view: 'Card'},
-  }
+export function createAutoLinkOps(parentDocument: HMDocument, childHmUrl: string, newBlockId: string): DocumentChanges {
+  const rootBlockIds = (parentDocument.content || []).map((node) => node.block.id).filter(Boolean)
+  const lastRootBlockId = rootBlockIds[rootBlockIds.length - 1] ?? ''
 
   return [
-    {type: 'ReplaceBlock', block: embedBlock},
-    {type: 'MoveBlocks', blocks: [...existingRootBlockIds, newBlockId], parent: ''},
+    {
+      op: {
+        case: 'replaceBlock',
+        value: {id: newBlockId, type: 'Embed', link: childHmUrl, attributes: {view: 'Card'}},
+      },
+    },
+    {op: {case: 'moveBlock', value: {blockId: newBlockId, parent: '', leftSibling: lastRootBlockId}}},
   ]
 }
 
@@ -163,6 +155,8 @@ export type AutoLinkChildToParentOptions = {
   childHmUrl: string
   /** Signer for the parent document change. */
   signer: AnySigner
+  /** Writer capability CID, when the signer writes into another account's space. */
+  capability?: string
 }
 
 /**
@@ -170,12 +164,14 @@ export type AutoLinkChildToParentOptions = {
  *
  * Computes the parent path, fetches the parent document, decides whether a link
  * is needed (using `shouldAutoLinkParent`), and if so publishes an Embed Card
- * block to the parent document.
+ * block to the parent document. The parent's Change is computed by the daemon
+ * (`PrepareDocumentChange`) on top of the version that was read, and holds only
+ * the new block and its placement.
  *
  * Returns true if a link was added, false otherwise. Throws on network errors.
  */
 export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions): Promise<boolean> {
-  const {client, account, path, childHmUrl, signer} = opts
+  const {client, account, path, childHmUrl, signer, capability} = opts
 
   // Compute parent path — skip if the document is at root level
   const segments = path.replace(/^\//, '').split('/')
@@ -214,37 +210,21 @@ export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions):
   // Generate a block ID for the embed
   const newBlockId = generateBlockId()
 
-  // Build the operations
-  const ops = createAutoLinkOps(parentDocument, childHmUrl, newBlockId)
-
-  // Resolve document state (genesis, heads, depth)
-  const hmUrl = `hm://${account}${parentPath}`
-  const state = await resolveDocumentState(client, hmUrl)
-  const genesisCid = CID.parse(state.genesis)
-  const depCids = state.heads.map((h: string) => CID.parse(h))
-  const newDepth = state.headDepth + 1
-
-  // Create and sign the change
-  const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
-  const changeBlock = await createChange(unsignedBytes, signer)
-  const generation = Number(ts)
-
-  // Create version ref
-  const refInput = await createVersionRef(
-    {
-      space: account,
-      path: parentPath,
-      genesis: state.genesis,
-      version: changeBlock.cid.toString(),
-      generation,
-    },
+  // Build the changes, and let the daemon compute the Change on top of the version just read.
+  const update = await prepareDocumentUpdateBlobs({
+    client,
     signer,
-  )
-
-  // Publish
-  await client.publish({
-    blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
+    account,
+    path: parentPath,
+    baseVersion: parentDocument.version,
+    changes: createAutoLinkOps(parentDocument, childHmUrl, newBlockId),
+    capability,
+    genesis: parentDocument.genesis,
+    currentGeneration: parentDocument.generationInfo?.generation,
   })
+  if (!update.changed) return false
+
+  await client.publish({blobs: update.blobs})
 
   return true
 }
