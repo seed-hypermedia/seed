@@ -9,13 +9,12 @@ import {useNavigate} from '@shm/shared/utils/navigation'
 import {useStream} from '@shm/shared/use-stream'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {ChevronRight, Play} from 'lucide-react'
-import {useState, type ReactNode} from 'react'
+import {useMemo, useState, type ReactNode} from 'react'
 import {sendAgentAction} from '../agents/client'
 import {Button} from '../button'
 import {HMIcon} from '../hm-icon'
-import {Input} from '../components/input'
-import {Label} from '../components/label'
-import type {HypermediaSchema} from '../schema/engine'
+import {SchemaDataEditor, seedValue} from '../schema/data-editor'
+import {validate, type HypermediaSchema} from '../schema/engine'
 import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
@@ -39,7 +38,7 @@ export function structFields(schema: HypermediaSchema | undefined): StructField[
 }
 
 /** Turns form text into the value a field's kind expects (numbers and booleans parse; JSON for the rest). */
-/** Field kinds typed as plain text, and what each one's box suggests. */
+/** Field kinds typed as plain text. */
 const TEXT_KINDS: Record<string, string | undefined> = {
   string: undefined,
   url: 'https://…',
@@ -47,21 +46,6 @@ const TEXT_KINDS: Record<string, string | undefined> = {
   'ipfs-url': 'ipfs://…',
   date: 'YYYY-MM-DD',
   'date-time': 'YYYY-MM-DDTHH:MM',
-}
-
-/** How a field's type reads to its owner, beside its name. */
-function kindLabel(kind: string): string {
-  if (kind === 'float' || kind === 'integer') return kind === 'float' ? 'number' : 'whole number'
-  if (kind === 'list') return 'list, written as JSON'
-  if (kind === 'struct' || kind === 'map') return 'object, written as JSON'
-  return kind
-}
-
-/** An example for a field typed as JSON. */
-function jsonPlaceholder(kind: string): string {
-  if (kind === 'list') return '["first", "second"]'
-  if (kind === 'struct' || kind === 'map') return '{"name": "value"}'
-  return 'JSON'
 }
 
 function fieldValue(field: StructField, text: string): unknown {
@@ -370,7 +354,13 @@ export function ToolRunSection({
   const {status} = useAppRun(server.serverUrl, appId.id)
   const schema = useResolvedSchema(inputSchemaRef)
   const fields = structFields(schema.schema)
-  const [values, setValues] = useState<Record<string, string>>({})
+  // The form is the tool's whole input schema, drawn field by field (lists and objects included).
+  const [edited, setEdited] = useState<unknown>(undefined)
+  const seeded = useMemo(
+    () => (schema.schema ? seedValue(schema.schema, schema.registry) : {}),
+    [schema.schema, schema.registry],
+  )
+  const value = edited ?? seeded
   const [latest, setLatest] = useState<AppToolCallInfo | null>(null)
   const calls = useQuery({
     queryKey: ['app-tool-calls', server.serverUrl, toolId.id],
@@ -402,8 +392,14 @@ export function ToolRunSection({
   })
   const running = !!status.data
   const checking = server.isLoading || status.isInitialLoading
-  const missing = fields.filter((field) => field.required && !values[field.name])
-  const canRun = !call.isLoading && missing.length === 0
+  const entered = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+  const missing = fields.filter((field) => field.required && (entered[field.name] ?? '') === '')
+  // Problems are named only for what has been filled in; an empty required field just holds Run back.
+  const errors =
+    schema.schema && fields.length && !missing.length
+      ? validate(schema.schema, value, 'input', {}, schema.registry)
+      : []
+  const canRun = !call.isLoading && missing.length === 0 && errors.length === 0
   const openCall = (callId: string) => navigate({key: 'document', id: toolId, toolCallId: callId})
 
   // shrink-0 throughout: this sits in a scrolling flex column (the desktop's fixed-height page),
@@ -418,26 +414,25 @@ export function ToolRunSection({
           className="flex shrink-0 flex-col gap-4 rounded-lg border p-4"
           onSubmit={(event) => {
             event.preventDefault()
-            if (canRun) call.mutate(structValue(fields, values))
+            if (canRun) call.mutate(fields.length ? entered : {})
           }}
         >
           {fields.length ? (
-            <div className="grid grid-cols-[minmax(6rem,auto)_1fr] items-center gap-x-4 gap-y-3">
-              {fields.map((field) => (
-                <InputField
-                  key={field.name}
-                  field={field}
-                  value={values[field.name] ?? ''}
-                  disabled={call.isLoading}
-                  onChange={(text) => setValues({...values, [field.name]: text})}
-                />
-              ))}
-            </div>
+            <fieldset disabled={call.isLoading} className="min-w-0" data-testid="tool-input">
+              <SchemaDataEditor schema={schema.schema!} registry={schema.registry} value={value} onValue={setEdited} />
+            </fieldset>
           ) : (
             <SizableText size="sm" color="muted">
               This tool takes no input.
             </SizableText>
           )}
+          {errors.length ? (
+            <ul role="alert" className="text-destructive list-disc pl-4 text-xs">
+              {errors.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          ) : null}
           <div className="flex justify-end">
             <Button type="submit" variant="default" disabled={!canRun}>
               <Play className="size-4" /> {call.isLoading ? 'Running…' : 'Run'}
@@ -472,66 +467,6 @@ export function ToolRunSection({
         </div>
       ) : null}
     </section>
-  )
-}
-
-/** One input of the tool's form: its name (and type) on the left, the value on the right. */
-function InputField({
-  field,
-  value,
-  disabled,
-  onChange,
-}: {
-  field: StructField
-  value: string
-  disabled: boolean
-  onChange: (text: string) => void
-}) {
-  const id = `tool-input-${field.name}`
-  return (
-    <>
-      <Label htmlFor={id} className="flex flex-col items-start gap-0">
-        <span className="font-mono text-sm">
-          {field.name}
-          {field.required ? <span className="text-muted-foreground"> *</span> : null}
-        </span>
-        {field.description || (field.kind && field.kind !== field.name) ? (
-          <span className="text-muted-foreground text-xs font-normal">
-            {field.description ?? kindLabel(field.kind)}
-          </span>
-        ) : null}
-      </Label>
-      {field.kind === 'boolean' ? (
-        <select
-          id={id}
-          className="border-border bg-background h-9 rounded-md border px-2 text-sm"
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="">—</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
-      ) : (
-        <Input
-          id={id}
-          type={field.kind === 'integer' || field.kind === 'float' || field.kind === 'number' ? 'number' : 'text'}
-          autoComplete="off"
-          className="bg-background"
-          placeholder={
-            field.kind in TEXT_KINDS
-              ? TEXT_KINDS[field.kind]
-              : ['integer', 'float', 'number'].includes(field.kind)
-                ? undefined
-                : jsonPlaceholder(field.kind)
-          }
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
-    </>
   )
 }
 
