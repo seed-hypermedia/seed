@@ -125,7 +125,7 @@ import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {DocumentPageView, documentPageCid} from './document-page'
-import {usePublishError} from './editing-toolbar'
+import {DraftHiddenActions, usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
@@ -1945,6 +1945,23 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
   )
 }
 
+/**
+ * The metadata to render for the current route: draft overrides apply only
+ * while the draft overlay is allowed — a hidden draft previews the published
+ * metadata untouched.
+ */
+function useRenderedMetadata(document: HMDocument | null | undefined): HMMetadata {
+  const ctx = useDocumentSelector(selectContext)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  return useMemo(
+    () =>
+      draftOverlayAllowed
+        ? {...(ctx.document?.metadata || document?.metadata || {}), ...ctx.metadata}
+        : ctx.document?.metadata || document?.metadata || {},
+    [draftOverlayAllowed, ctx.document?.metadata, ctx.metadata, document?.metadata],
+  )
+}
+
 /** Distance the document must scroll before its back-to-top control appears. */
 export const BACK_TO_TOP_SCROLL_OFFSET = 200
 
@@ -3073,7 +3090,7 @@ function DocumentBody({
       </AlertDialogContent>
     </AlertDialog>
   )
-  const documentContentAction = getDocumentContentAction({
+  const baseDocumentContentAction = getDocumentContentAction({
     activeView,
     isEditing,
     hasDraft: draftOverlayAllowed && ctx.draftId !== null,
@@ -3082,11 +3099,24 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // While the draft is hidden the draft chrome is suppressed, so the action slot falls back
+  // to the plain options menu; pair it with the "Show changes" restore controls then.
+  const documentContentAction =
+    baseDocumentContentAction === actionButtons ? (
+      <>
+        <DraftHiddenActions />
+        {actionButtons}
+      </>
+    ) : (
+      baseDocumentContentAction
+    )
   // A document that DEFINES a type (carries a `schemaDefinition`) gets header
   // actions: New Document / New Collection typed by it (or Create, for a signed type).
   // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
-  // (same source the Attributes tab reads).
-  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // (same source the Attributes tab reads); a hidden draft previews published metadata.
+  const headerMetadata = draftOverlayAllowed
+    ? {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+    : ctx.document?.metadata || document.metadata || {}
   const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
     <SchemaDocumentHeaderActions
       metadata={headerMetadata}
@@ -3936,8 +3966,9 @@ function HomeDocumentMetadataControls({
  */
 function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
   const ctx = useDocumentSelector(selectContext)
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const hasDraft = !!ctx.schemaDraft && canEdit
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const metadata = useRenderedMetadata(document)
+  const hasDraft = draftOverlayAllowed && !!ctx.schemaDraft && canEdit
   if (!hasDraft && !schemaDefinitionCid(metadata)) return null
   return (
     <section className="border-border/60 bg-muted/20 mb-6 rounded-lg border p-4" data-testid="document-schema-section">
@@ -3974,11 +4005,12 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const navigate = useNavigate()
   const openUrl = useOpenUrl()
   // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const draftSchema = ctx.schemaDraft
+  const metadata = useRenderedMetadata(document)
+  const draftSchema = draftOverlayAllowed ? ctx.schemaDraft : null
   const cid = schemaDefinitionCid(metadata)
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   // Write access to the document is write access to its schema: the published schema seeds the
@@ -4081,12 +4113,13 @@ function BindingSchemaSection({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const route = useNavRoute()
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const raw = (metadata as Record<string, unknown>)[bindingKey]
   const ref = typeof raw === 'string' && raw ? raw : null
-  const draft = ctx.bindingSchemaDrafts?.[bindingKey] ?? null
+  const draft = draftOverlayAllowed ? ctx.bindingSchemaDrafts?.[bindingKey] ?? null : null
   const cls = classifyRef(ref)
   const owned = cls.kind === 'cid'
   const {schema: published, isLoading} = useResolvedSchema(draft ? null : ref)
@@ -4291,10 +4324,11 @@ function SchemaDefinitionSection({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const cid = schemaDefinitionCid(metadata)
-  const draft = ctx.schemaDraft ?? null
+  const draft = draftOverlayAllowed ? ctx.schemaDraft ?? null : null
   const {schema: published, isLoading} = useResolvedSchema(draft || !cid ? null : `ipfs://${cid}`)
   const edit = useCallback(
     (next: Record<string, any>) => {
@@ -4390,10 +4424,11 @@ function DocumentMetadataPage({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   // The schema this document conforms to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives required-field rows + advisory validation. While the
   // document's own attributes schema is being drafted below, the draft is the schema: every edit
@@ -4402,7 +4437,7 @@ function DocumentMetadataPage({
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     docId,
     metadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4417,7 +4452,7 @@ function DocumentMetadataPage({
   // for a field the draft has already changed — the draft would win on publish.
   const navigate = useNavigate()
   const isPublished = !!(ctx.document?.version || document.version)
-  const draftPatch = ctx.metadata || {}
+  const draftPatch = draftOverlayAllowed ? ctx.metadata || {} : {}
   const directEdit = useMemo(
     () =>
       isPublished && canEditCurrentRoute
@@ -5142,23 +5177,22 @@ function ContentViewWithOutline({
   fileUpload?: (file: File) => Promise<string>
 }) {
   const ctx = useDocumentSelector(selectContext)
-  const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const rootChildrenType =
+    ((draftOverlayAllowed ? ctx.metadata?.childrenType : undefined) ?? document.metadata?.childrenType) || 'Group'
   // Required custom attributes (from the doc's schema) render above the body.
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
-  const requiredAttrMetadata = useMemo(
-    () => ({...document.metadata, ...ctx.metadata}),
-    [document.metadata, ctx.metadata],
-  )
+  const requiredAttrMetadata = useRenderedMetadata(document)
   // The schema this document must conform to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives the always-visible required attributes. A drafted own
   // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     resourceId,
     requiredAttrMetadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.

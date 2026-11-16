@@ -130,8 +130,12 @@ type QueryInclude = {
 }
 
 /** Whether draft data may overlay published content for the current route version. */
-export function shouldAllowDraftOverlay(isLatest: boolean, routeVersion: string | null | undefined) {
-  return isLatest || !routeVersion
+export function shouldAllowDraftOverlay(
+  isLatest: boolean,
+  routeVersion: string | null | undefined,
+  draftHidden = false,
+) {
+  return !draftHidden && (isLatest || !routeVersion)
 }
 
 function includeTargetsDocument(include: QueryInclude, documentId: UnpackedHypermediaId) {
@@ -385,6 +389,11 @@ export type DocumentMachineContext = {
   /** True after this old-version visit has already warned about blocked edit attempts. */
   oldVersionEditNoticeShown: boolean
   /**
+   * True while the user previews the published version with their draft hidden.
+   * Suppresses the draft overlay (and editing) without touching the draft itself.
+   */
+  draftHidden: boolean
+  /**
    * Durable path the user picked for a not-yet-published draft via the rename
    * affordance. Hydrated from the draft on load, persisted via `writeDraft`, and
    * honored at publish time in place of the title-derived slug.
@@ -418,7 +427,8 @@ function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | u
 
 /** Returns the machine's authoritative editor content for collection rendering and repair. */
 export function getCollectionEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
-  const useDraft = shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
+  const useDraft =
+    shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) && context.draftContent
   return contentToEditorBlocks(useDraft || context.document?.content)
 }
 
@@ -498,6 +508,7 @@ export type DocumentMachineEvent =
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
   | {type: 'version.changed'; isLatest: boolean; routeVersion?: string | null}
+  | {type: 'draftHidden.set'; hidden: boolean}
   | {type: 'draft.existing'; draftId: string}
   | {
       type: 'draft.resolved'
@@ -753,7 +764,8 @@ export const documentMachine = setup({
       documentType: ({context, event}) => {
         if (event.type !== 'document.loaded' && event.type !== 'document.remoteUpdate') return context.documentType
         const content =
-          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) &&
+          context.draftContent
             ? context.draftContent
             : event.document.content
         return deriveDocumentType(content, context.documentId)
@@ -894,7 +906,32 @@ export const documentMachine = setup({
       oldVersionEditNoticeShown: ({context, event}) => {
         if (event.type !== 'version.changed') return context.oldVersionEditNoticeShown
         const routeVersion = event.routeVersion !== undefined ? event.routeVersion : context.routeVersion
-        return shouldAllowDraftOverlay(event.isLatest, routeVersion) ? false : context.oldVersionEditNoticeShown
+        return shouldAllowDraftOverlay(event.isLatest, routeVersion, context.draftHidden)
+          ? false
+          : context.oldVersionEditNoticeShown
+      },
+    }),
+    setDraftHidden: assign({
+      draftHidden: ({context, event}) => {
+        if (event.type !== 'draftHidden.set') return context.draftHidden
+        // Without a published version there is nothing to preview.
+        return event.hidden && !!context.publishedVersion
+      },
+      shouldAutoEdit: ({context, event}) => {
+        if (event.type !== 'draftHidden.set') return context.shouldAutoEdit
+        // Un-hiding returns to the draft — the editable view, like a freshly
+        // resolved existing draft. Only a real un-hide transition counts.
+        if (!event.hidden && context.draftHidden && context.draftId) return true
+        return context.shouldAutoEdit
+      },
+      documentType: ({context, event}) => {
+        if (event.type !== 'draftHidden.set') return context.documentType
+        const hidden = event.hidden && !!context.publishedVersion
+        const content =
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, hidden) && context.draftContent
+            ? context.draftContent
+            : context.document?.content
+        return deriveDocumentType(content, context.documentId)
       },
     }),
     clearDraftState: assign({
@@ -923,6 +960,7 @@ export const documentMachine = setup({
       bindingSchemaDrafts: null,
       renameError: null,
       renameTargetPath: null,
+      draftHidden: false,
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -1161,7 +1199,7 @@ export const documentMachine = setup({
       documentType: ({context, event}) => {
         if (event.type !== 'draft.resolved') return context.documentType
         const content =
-          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && event.content
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) && event.content
             ? event.content
             : context.document?.content
         return deriveDocumentType(content, context.documentId)
@@ -1260,6 +1298,9 @@ export const documentMachine = setup({
       // Provided via .provide() in the React layer (editor handlers ref)
     },
     pushPublishedContentToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
+    pushExitContentToEditor: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
     updatePublishedVersion: assign({
@@ -1372,7 +1413,7 @@ export const documentMachine = setup({
     canTransitionToEditing: ({context}) => {
       const result =
         context.canEdit &&
-        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) &&
         (context.isLatestVersion || !!context.draftId)
       // console.log('[DocMachine] guard canTransitionToEditing', {
       //   canEdit: context.canEdit,
@@ -1384,12 +1425,13 @@ export const documentMachine = setup({
     },
     shouldNotifyOldVersionEditBlocked: ({context}) =>
       context.canEdit &&
+      !context.draftHidden &&
       !context.oldVersionEditNoticeShown &&
-      !shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion),
+      !shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden),
     canOpenExistingDraft: ({context, event}) => {
       return (
         context.canEdit &&
-        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) &&
         (context.isLatestVersion || (event.type === 'draft.existing' && !!event.draftId))
       )
     },
@@ -1405,9 +1447,10 @@ export const documentMachine = setup({
     hasPendingPublish: ({context}) => context.pendingPublish,
     hasPendingExitEditingAfterSave: ({context}) => context.pendingExitEditingAfterSave,
     noRebaseConflict: ({context}) => context.pendingRebase?.kind !== 'conflict',
-    routeDisallowsDraftOverlay: ({context, event}) =>
-      event.type === 'version.changed' &&
-      !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion),
+    draftOverlayBecomesDisallowed: ({context, event}) =>
+      (event.type === 'version.changed' &&
+        !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion, context.draftHidden)) ||
+      (event.type === 'draftHidden.set' && event.hidden && !!context.publishedVersion),
     isPublished: ({context}) => !!context.publishedVersion,
   },
   actors: {
@@ -1511,6 +1554,7 @@ export const documentMachine = setup({
     error: null,
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
+    draftHidden: false,
     publishPath: null,
     schemaDraft: null,
     bindingSchemaDrafts: null,
@@ -1549,6 +1593,9 @@ export const documentMachine = setup({
         },
         'version.changed': {
           actions: ['setRouteVersionState'],
+        },
+        'draftHidden.set': {
+          actions: ['setDraftHidden'],
         },
       },
       always: [{target: 'loaded', guard: 'bothSourcesReady'}],
@@ -1596,6 +1643,9 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setRouteVersionState'],
         },
+        'draftHidden.set': {
+          actions: ['setDraftHidden'],
+        },
         'collection.query.change': {
           target: 'editing',
           guard: 'canTransitionToEditing',
@@ -1628,7 +1678,7 @@ export const documentMachine = setup({
           guard: ({context}) =>
             context.shouldAutoEdit &&
             context.canEdit &&
-            shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+            shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion, context.draftHidden) &&
             (context.isLatestVersion || !!context.draftId),
           actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
         },
@@ -1709,6 +1759,9 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setRouteVersionState'],
         },
+        'draftHidden.set': {
+          actions: ['setDraftHidden'],
+        },
         'rebase.blockTouched': {
           actions: ['appendMineTouched'],
         },
@@ -1756,7 +1809,7 @@ export const documentMachine = setup({
                 'version.changed': [
                   {
                     target: '#DocumentLifecycle.loaded',
-                    guard: 'routeDisallowsDraftOverlay',
+                    guard: 'draftOverlayBecomesDisallowed',
                     actions: [
                       'setRouteVersionState',
                       'promotePendingRemoteDocument',
@@ -1766,6 +1819,16 @@ export const documentMachine = setup({
                   },
                   {
                     actions: ['setRouteVersionState'],
+                  },
+                ],
+                'draftHidden.set': [
+                  {
+                    target: '#DocumentLifecycle.loaded',
+                    guard: 'draftOverlayBecomesDisallowed',
+                    actions: ['setDraftHidden', 'clearEditingState', 'pushPublishedContentToEditor'],
+                  },
+                  {
+                    actions: ['setDraftHidden'],
                   },
                 ],
                 // A `publish.start` queued during a previous saving/creating
@@ -1820,16 +1883,41 @@ export const documentMachine = setup({
                       context.draftId !== null &&
                       context.draftCreated &&
                       event.type === 'version.changed' &&
-                      !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion),
+                      !shouldAllowDraftOverlay(
+                        event.isLatest,
+                        event.routeVersion ?? context.routeVersion,
+                        context.draftHidden,
+                      ),
                     actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
                   },
                   {
                     target: 'creating',
-                    guard: 'routeDisallowsDraftOverlay',
+                    guard: 'draftOverlayBecomesDisallowed',
                     actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
                   },
                   {
                     actions: ['setRouteVersionState'],
+                  },
+                ],
+                'draftHidden.set': [
+                  {
+                    // Flush the pending autosave first, then exit via pendingExitEditingAfterSave.
+                    target: 'saving',
+                    guard: ({context, event}) =>
+                      context.draftId !== null &&
+                      context.draftCreated &&
+                      event.type === 'draftHidden.set' &&
+                      event.hidden &&
+                      !!context.publishedVersion,
+                    actions: ['setDraftHidden', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    target: 'creating',
+                    guard: 'draftOverlayBecomesDisallowed',
+                    actions: ['setDraftHidden', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setDraftHidden'],
                   },
                 ],
               },
@@ -1868,11 +1956,20 @@ export const documentMachine = setup({
                 },
                 'version.changed': [
                   {
-                    guard: 'routeDisallowsDraftOverlay',
+                    guard: 'draftOverlayBecomesDisallowed',
                     actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
                   },
                   {
                     actions: ['setRouteVersionState'],
+                  },
+                ],
+                'draftHidden.set': [
+                  {
+                    guard: 'draftOverlayBecomesDisallowed',
+                    actions: ['setDraftHidden', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setDraftHidden'],
                   },
                 ],
               },
@@ -1936,7 +2033,7 @@ export const documentMachine = setup({
                       'logSaveCompleted',
                       'promotePendingRemoteDocument',
                       'clearEditingState',
-                      'pushContentToEditor',
+                      'pushExitContentToEditor',
                       raise({type: '_save.completed'}),
                     ],
                   },
@@ -1997,11 +2094,20 @@ export const documentMachine = setup({
                 },
                 'version.changed': [
                   {
-                    guard: 'routeDisallowsDraftOverlay',
+                    guard: 'draftOverlayBecomesDisallowed',
                     actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
                   },
                   {
                     actions: ['setRouteVersionState'],
+                  },
+                ],
+                'draftHidden.set': [
+                  {
+                    guard: 'draftOverlayBecomesDisallowed',
+                    actions: ['setDraftHidden', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setDraftHidden'],
                   },
                 ],
               },
@@ -2054,7 +2160,7 @@ export const documentMachine = setup({
                       'logSaveCompleted',
                       'promotePendingRemoteDocument',
                       'clearEditingState',
-                      'pushContentToEditor',
+                      'pushExitContentToEditor',
                       raise({type: '_save.completed'}),
                     ],
                   },
@@ -2335,6 +2441,9 @@ export const documentMachine = setup({
         },
         'version.changed': {
           actions: ['setRouteVersionState'],
+        },
+        'draftHidden.set': {
+          actions: ['setDraftHidden'],
         },
       },
     },
