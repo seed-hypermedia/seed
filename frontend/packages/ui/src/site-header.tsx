@@ -124,18 +124,22 @@ export function SiteHeader({
   const homeDoc = isHomeView
     ? {document, id: docId} // On home page — document IS the home doc
     : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
+  // Mobile-only menu trigger, rendered after the right actions so it sits at the far right.
+  const mobileMenuButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn('md:hidden')}
+      aria-label="Open menu"
+      onClick={() => {
+        setIsMobileMenuOpen(true)
+      }}
+    >
+      <Menu size={20} />
+    </Button>
+  )
   const headerSearch = (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn('md:hidden')}
-        onClick={() => {
-          setIsMobileMenuOpen(true)
-        }}
-      >
-        <Menu size={20} />
-      </Button>
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-4 md:flex">
           <div className="flex items-center gap-1">
@@ -205,6 +209,7 @@ export function SiteHeader({
           <div className="flex items-center gap-2 md:absolute md:right-0">
             {!IS_DESKTOP && headerSearch}
             {rightActions}
+            {!IS_DESKTOP && mobileMenuButton}
           </div>
         ) : null}
       </div>
@@ -227,6 +232,7 @@ export function SiteHeader({
       <div className="flex items-center gap-2">
         {!isCenterLayout && headerSearch}
         {!isCenterLayout && rightActions}
+        {!isCenterLayout && mobileMenuButton}
       </div>
       <MobileMenu
         open={isMobileMenuOpen}
