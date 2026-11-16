@@ -98,8 +98,6 @@ import {
   selectCanEditCurrentRoute,
   selectCollectionQueryBlock,
   selectContext,
-  selectDraftHidden,
-  selectDraftId,
   selectDraftOverlayAllowed,
   selectIsCollection,
   selectIsEditing,
