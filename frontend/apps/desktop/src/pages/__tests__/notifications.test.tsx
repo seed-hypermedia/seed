@@ -338,6 +338,7 @@ describe('notifications page helpers', () => {
 
   it('words each notification as an action between the author and the document', () => {
     expect(notificationAction(createMentionPayload())).toBe('mentioned you in')
+    expect(notificationAction(createMentionPayload({reason: 'assignment'}))).toBe('assigned you to')
     expect(notificationAction(createReplyPayload())).toBe('replied to your comment in')
     expect(notificationAction(createReplyPayload({reason: 'discussion'}))).toBe('started a discussion on')
   })

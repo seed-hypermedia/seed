@@ -10,6 +10,7 @@ type DiscussionCapableSubscription = {
 
 const deliveryKindByReason: Record<NotifReason, NotificationDeliveryKind | null> = {
   mention: 'immediate',
+  assignment: 'immediate',
   reply: 'immediate',
   discussion: 'immediate',
   'site-doc-update': 'batch',

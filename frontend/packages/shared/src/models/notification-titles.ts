@@ -25,3 +25,15 @@ export function getMentionNotificationTitle(input: {
   const documentName = input.documentName.trim() || 'Untitled Document'
   return `${actorName} mentioned ${subjectName} in ${documentName}`
 }
+
+/** Title for an owner assignment, e.g. "Bea assigned you to Roadmap". */
+export function getAssignmentNotificationTitle(input: {
+  actorName: string
+  subjectName?: string | null
+  documentName: string
+}): string {
+  const actorName = input.actorName.trim() || 'Someone'
+  const subjectName = input.subjectName?.trim() || 'you'
+  const documentName = input.documentName.trim() || 'Untitled Document'
+  return `${actorName} assigned ${subjectName} to ${documentName}`
+}

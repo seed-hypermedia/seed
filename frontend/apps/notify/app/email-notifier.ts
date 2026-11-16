@@ -4,6 +4,7 @@ import {decode as cborDecode} from '@ipld/dag-cbor'
 import {
   createCommentEmail,
   createDiscussionEmail,
+  createAssignmentEmail,
   createMentionEmail,
   createNotificationsEmail,
   createReplyEmail,
@@ -34,6 +35,7 @@ import {
   classifyCommentNotificationForAccount,
   extractMentionedAccountUidsFromComment,
   getMentionedAccountUid,
+  isAssignmentMetadataKey,
   getCitationMentionKind,
 } from '@shm/shared/models/notification-event-classifier'
 import {CID} from 'multiformats'
@@ -665,6 +667,7 @@ async function collectNotificationsForEvents({
 function withImmediateActionUrl(notification: QueuedNotification): QueuedNotification {
   if (
     notification.notif.reason !== 'mention' &&
+    notification.notif.reason !== 'assignment' &&
     notification.notif.reason !== 'reply' &&
     notification.notif.reason !== 'discussion'
   ) {
@@ -716,6 +719,7 @@ function withImmediateActionUrl(notification: QueuedNotification): QueuedNotific
 function withActionUrlLogContext(notification: QueuedNotification) {
   if (
     notification.notif.reason !== 'mention' &&
+    notification.notif.reason !== 'assignment' &&
     notification.notif.reason !== 'reply' &&
     notification.notif.reason !== 'discussion'
   ) {
@@ -755,6 +759,17 @@ async function buildImmediateNotificationEmail(
       unsubscribeUrl,
       siteUrl,
       resolvedNames: notif.resolvedNames,
+    })
+  }
+
+  if (notif.reason === 'assignment') {
+    return createAssignmentEmail({
+      authorName,
+      subjectName: notification.accountMeta?.name || 'you',
+      documentName,
+      actionUrl: notif.actionUrl || notif.url,
+      unsubscribeUrl,
+      siteUrl,
     })
   }
 
@@ -1432,6 +1447,8 @@ async function evaluateMentionEventForNotifications(
 
   const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
   const isCommentMention = sourceType.startsWith('comment/')
+  // A metadata/Link citation is anchored at the attribute key; the owner key assigns the account.
+  const isAssignment = sourceType === 'metadata/link' && isAssignmentMetadataKey(mentionEvent.sourceContext)
   const sourceHref = isCommentMention && mentionEvent.sourceDocument ? mentionEvent.sourceDocument : mentionEvent.source
   const sourceId = unpackHmId(sourceHref)
   if (!sourceId) {
@@ -1534,6 +1551,27 @@ async function evaluateMentionEventForNotifications(
     if (!sub.notifyAllMentions || sub.id !== targetAccountUid) continue
     const subjectAccountResult = await requestAPI('Account', sub.id)
     const subjectAccountMeta = subjectAccountResult.type === 'account' ? subjectAccountResult.metadata : null
+    if (isAssignment) {
+      await appendNotification(sub, {
+        reason: 'assignment',
+        authorAccountId,
+        authorMeta,
+        targetMeta,
+        subjectAccountId: sub.id,
+        subjectAccountMeta,
+        targetId: sourceDocId,
+        url: mentionUrl,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
+      })
+      logNotifDebug('assignment notification queued', {
+        eventId: eventMeta.eventId,
+        subscriptionAccountId: sub.id,
+        subscriptionEmail: sub.email,
+        mentionUrl,
+      })
+      continue
+    }
     await appendNotification(sub, {
       reason: 'mention',
       source: isCommentMention ? 'comment' : 'document',

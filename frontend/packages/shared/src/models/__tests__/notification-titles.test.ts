@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'vitest'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getMentionNotificationTitle, getNotificationDocumentName} from '../notification-titles'
+import {
+  getAssignmentNotificationTitle,
+  getMentionNotificationTitle,
+  getNotificationDocumentName,
+} from '../notification-titles'
 
 function targetPath(path: string[] | null): Pick<UnpackedHypermediaId, 'path'> {
   return {path}
@@ -42,5 +46,11 @@ describe('notification titles helpers', () => {
       documentName: 'Roadmap',
     })
     expect(title).toBe('Alice mentioned you in Roadmap')
+  })
+
+  it('words an owner assignment as assigning the subject to the document', () => {
+    expect(getAssignmentNotificationTitle({actorName: 'Bea', documentName: 'Roadmap'})).toBe(
+      'Bea assigned you to Roadmap',
+    )
   })
 })

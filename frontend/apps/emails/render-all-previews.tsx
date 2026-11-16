@@ -12,6 +12,7 @@ import {
   createCommentEmail,
   createDiscussionEmail,
   createDocUpdateEmail,
+  createAssignmentEmail,
   createMentionEmail,
   createNotificationVerificationEmail,
   createReplyEmail,
@@ -51,9 +52,7 @@ const mentionBlocks: HMBlockNode[] = [
       type: 'Paragraph',
       attributes: {},
       text: '@Bea — I think this approach solves the accessibility issue.',
-      annotations: [
-        {type: 'Embed', starts: [0], ends: [4], link: 'hm://bea-account-id'},
-      ],
+      annotations: [{type: 'Embed', starts: [0], ends: [4], link: 'hm://bea-account-id'}],
     },
     children: [],
   },
@@ -116,6 +115,17 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
       unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
       siteUrl: 'https://seedteamtalks.hyper.media',
       resolvedNames: {'hm://bea-account-id': 'Bea'},
+    }),
+  },
+  {
+    name: 'assignment',
+    result: await createAssignmentEmail({
+      authorName: 'Bea',
+      subjectName: 'you',
+      documentName: 'Selecting images works so so',
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
+      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
     }),
   },
   {

@@ -11,7 +11,11 @@ import {
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {HMBlockNode, HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
+import {
+  getAssignmentNotificationTitle,
+  getMentionNotificationTitle,
+  getNotificationDocumentName,
+} from '@shm/shared/models/notification-titles'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
@@ -103,6 +107,60 @@ Manage notifications: ${input.unsubscribeUrl}`
         ) : null}
 
         <EmailButtonSection href={input.actionUrl}>{inDocument ? 'See document' : 'See comment'}</EmailButtonSection>
+
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
+    </Mjml>,
+  )
+
+  return {subject, text, html}
+}
+
+export type CreateAssignmentEmailInput = {
+  authorName: string
+  subjectName: string
+  documentName: string
+  actionUrl: string
+  unsubscribeUrl: string
+  siteUrl?: string
+}
+
+/** Build an individual "assigned you" email, sent when someone sets the subject as a document's owner. */
+export async function createAssignmentEmail(input: CreateAssignmentEmailInput) {
+  const subject = getAssignmentNotificationTitle({
+    actorName: input.authorName,
+    subjectName: input.subjectName,
+    documentName: input.documentName,
+  })
+
+  const text = `${subject}
+
+View document: ${input.actionUrl}
+
+Manage notifications: ${input.unsubscribeUrl}`
+
+  const {html} = await renderReactToMjml(
+    <Mjml>
+      <EmailHeadDefaults>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{subject}</MjmlPreview>
+      </EmailHeadDefaults>
+      <EmailBody>
+        <EmailHeader />
+
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
+          <MjmlColumn>
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
+              {input.authorName} assigned {input.subjectName} to <em>{input.documentName}</em>
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        <EmailButtonSection href={input.actionUrl}>See document</EmailButtonSection>
 
         <EmailFooter
           siteUrl={input.siteUrl}
@@ -440,7 +498,10 @@ Go to ${input.siteName}: ${input.siteUrl}`
 
 function getNotificationActionUrl(notification: Notification) {
   if (
-    (notification.reason === 'mention' || notification.reason === 'reply' || notification.reason === 'discussion') &&
+    (notification.reason === 'mention' ||
+      notification.reason === 'assignment' ||
+      notification.reason === 'reply' ||
+      notification.reason === 'discussion') &&
     notification.actionUrl
   ) {
     return notification.actionUrl
@@ -514,6 +575,7 @@ export async function createNotificationsEmail(
     'site-doc-update': {},
     'site-new-discussion': {},
     mention: {},
+    assignment: {},
     reply: {},
     discussion: {},
     'user-comment': {},
@@ -585,6 +647,12 @@ ${docNotifs
           } on ${getNotificationActionUrl(notif)}`
         }
 
+        if (notif.reason === 'assignment') {
+          return `${notif.authorMeta?.name || notif.authorAccountId} assigned ${
+            notification.accountMeta?.name || 'an account you are subscribed to'
+          } on ${getNotificationActionUrl(notif)}`
+        }
+
         if (notif.reason === 'reply') {
           return `${notif.authorMeta?.name || notif.comment.author} replied to ${
             notification.accountMeta?.name || 'an account you are subscribed to'
@@ -621,54 +689,58 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
       <EmailBody>
         <EmailHeader />
 
-        {(['site-doc-update', 'site-new-discussion', 'discussion', 'mention', 'reply'] as const).map((reason) => {
-          const docs = grouped[reason]
-          const docEntries = Object.entries(docs)
+        {(['site-doc-update', 'site-new-discussion', 'discussion', 'mention', 'assignment', 'reply'] as const).map(
+          (reason) => {
+            const docs = grouped[reason]
+            const docEntries = Object.entries(docs)
 
-          if (!docEntries.length) return null
+            if (!docEntries.length) return null
 
-          return (
-            <React.Fragment key={reason}>
-              {docEntries.map(([docId, docNotifs]) => {
-                const targetName = docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
-                const docUrl = getNotificationActionUrl(docNotifs?.[0]?.notif!)
+            return (
+              <React.Fragment key={reason}>
+                {docEntries.map(([docId, docNotifs]) => {
+                  const targetName = docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
+                  const docUrl = getNotificationActionUrl(docNotifs?.[0]?.notif!)
 
-                return (
-                  <React.Fragment key={docId}>
-                    <MjmlSection padding={`24px ${emailTheme.gutter} 8px`}>
-                      <MjmlColumn>
-                        <MjmlText
-                          fontSize="24px"
-                          fontWeight="bold"
-                          lineHeight="1.25"
-                          color={emailTheme.heading}
-                          padding="0"
-                        >
-                          {getDigestTitle(reason, docNotifs)} <em>{targetName}</em>
-                        </MjmlText>
-                      </MjmlColumn>
-                    </MjmlSection>
+                  return (
+                    <React.Fragment key={docId}>
+                      <MjmlSection padding={`24px ${emailTheme.gutter} 8px`}>
+                        <MjmlColumn>
+                          <MjmlText
+                            fontSize="24px"
+                            fontWeight="bold"
+                            lineHeight="1.25"
+                            color={emailTheme.heading}
+                            padding="0"
+                          >
+                            {getDigestTitle(reason, docNotifs)} <em>{targetName}</em>
+                          </MjmlText>
+                        </MjmlColumn>
+                      </MjmlSection>
 
-                    {docNotifs.map(({notif}) => {
-                      const key = 'comment' in notif && notif.comment ? notif.comment.id : Math.random()
-                      return <EmailContent key={key} notification={notif} />
-                    })}
+                      {docNotifs.map(({notif}) => {
+                        const key = 'comment' in notif && notif.comment ? notif.comment.id : Math.random()
+                        return <EmailContent key={key} notification={notif} />
+                      })}
 
-                    <EmailButtonSection href={docUrl}>
-                      {reason === 'site-new-discussion' || reason === 'discussion'
-                        ? 'See discussion'
-                        : reason === 'mention'
-                          ? 'See mention'
-                          : reason === 'reply'
-                            ? 'See reply'
-                            : 'See changes'}
-                    </EmailButtonSection>
-                  </React.Fragment>
-                )
-              })}
-            </React.Fragment>
-          )
-        })}
+                      <EmailButtonSection href={docUrl}>
+                        {reason === 'site-new-discussion' || reason === 'discussion'
+                          ? 'See discussion'
+                          : reason === 'mention'
+                            ? 'See mention'
+                            : reason === 'assignment'
+                              ? 'See document'
+                              : reason === 'reply'
+                                ? 'See reply'
+                                : 'See changes'}
+                      </EmailButtonSection>
+                    </React.Fragment>
+                  )
+                })}
+              </React.Fragment>
+            )
+          },
+        )}
 
         <EmailFooter
           siteUrl={batchSiteUrl}
@@ -682,7 +754,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
   return {email, subject, text, html: emailHtml, subscriberNames}
 }
 
-type ImmediateReason = 'mention' | 'reply' | 'discussion'
+type ImmediateReason = 'mention' | 'assignment' | 'reply' | 'discussion'
 type ImmediateNotification = FullNotification & {
   notif: Extract<Notification, {reason: ImmediateReason}>
 }
@@ -695,6 +767,7 @@ export async function createDesktopNotificationsEmail(
   const immediate = notifications.filter(
     (notification): notification is ImmediateNotification =>
       notification.notif.reason === 'mention' ||
+      notification.notif.reason === 'assignment' ||
       notification.notif.reason === 'reply' ||
       notification.notif.reason === 'discussion',
   )
@@ -753,12 +826,14 @@ Manage notification emails: ${notifSettingsUrl}`
           const actionLabel =
             notification.notif.reason === 'mention'
               ? 'See mention'
-              : notification.notif.reason === 'discussion'
-                ? 'See discussion'
-                : 'See reply'
+              : notification.notif.reason === 'assignment'
+                ? 'See document'
+                : notification.notif.reason === 'discussion'
+                  ? 'See discussion'
+                  : 'See reply'
           const timeLabel = formatDesktopNotificationTime(notification.notif.eventAtMs)
           const key =
-            notification.notif.reason === 'mention'
+            notification.notif.reason === 'mention' || notification.notif.reason === 'assignment'
               ? `${notification.accountId}:${notification.notif.eventId || notification.notif.url}`
               : `${notification.accountId}:${notification.notif.comment?.id || notification.notif.url}`
 
@@ -828,6 +903,20 @@ export type Notification =
       source: 'comment' | 'document'
       comment?: HMComment
       resolvedNames?: Record<string, string>
+    }
+  | {
+      /** The subject account was set as the document's owner. */
+      reason: 'assignment'
+      authorAccountId: string
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      subjectAccountId: string
+      subjectAccountMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      actionUrl?: string
+      eventId?: string
+      eventAtMs?: number
     }
   | {
       reason: 'reply'
@@ -902,6 +991,14 @@ function getDesktopNotificationText(notification: ImmediateNotification) {
     })
   }
 
+  if (notif.reason === 'assignment') {
+    return getAssignmentNotificationTitle({
+      actorName: actor,
+      subjectName: subject,
+      documentName: getNotificationDocumentName({targetMeta: notif.targetMeta, targetId: notif.targetId}),
+    })
+  }
+
   if (notif.reason === 'discussion') {
     const targetName = notif.targetMeta?.name
     return `${actor} started a discussion${targetName ? ` on ${targetName}` : ''}`
@@ -930,6 +1027,8 @@ function getDigestTitle(reason: Notification['reason'], docNotifs: FullNotificat
       return `${who} started ${count === 1 ? 'a discussion' : `${count} discussions`} on`
     case 'mention':
       return `${who} mentioned ${first.accountMeta?.name || 'you'} in`
+    case 'assignment':
+      return `${who} assigned ${first.accountMeta?.name || 'you'} to`
     case 'reply':
       return `${who} replied to ${count === 1 ? 'your comment' : 'your comments'} in`
     case 'user-comment':
@@ -973,6 +1072,11 @@ function getNotificationSummary(notification: Notification, accountMeta: HMMetad
         accountMeta?.name || 'an account you are subscribed to'
       } in ${notification.targetMeta?.name || 'a document'}.`
     }
+  }
+  if (notification.reason === 'assignment') {
+    return `${notification.authorMeta?.name || 'Someone'} assigned ${
+      accountMeta?.name || 'an account you are subscribed to'
+    } to ${notification.targetMeta?.name || 'a document'}.`
   }
   if (notification.reason === 'reply') {
     return `${notification.authorMeta?.name || 'Someone'} replied to ${
