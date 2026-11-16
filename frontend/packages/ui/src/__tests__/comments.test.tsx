@@ -220,6 +220,38 @@ describe('CommentDiscussions', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
   })
 
+  it('scrolls only the panel when bringing the selected root to the top', () => {
+    const scrollIntoView = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    useDocumentCommentsMock.mockReturnValue({data: {comments: [focusedComment], authors: {}}, isLoading: false})
+    // The panel's scroll area sits at 100-600px and the root comment 40px below its top.
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const isViewport = this.dataset.slot === 'scroll-area-viewport'
+      return (isViewport ? {top: 100, bottom: 600} : {top: 140, bottom: 240}) as DOMRect
+    })
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    act(() => {
+      root!.render(
+        <TooltipProvider>
+          <div data-slot="scroll-area-viewport">
+            <CommentDiscussions targetId={hmId('alice', {path: ['doc']})} commentId="alice/comment" />
+          </div>
+        </TooltipProvider>,
+      )
+    })
+    const viewport = container.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!
+    rectSpy.mockRestore()
+
+    // scrollIntoView would also have scrolled the containers around the panel.
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(viewport.scrollTop).toBe(40)
+  })
+
   it('scrolls to the exact reply again after repeated panel navigation', () => {
     const reply = {
       ...focusedComment,

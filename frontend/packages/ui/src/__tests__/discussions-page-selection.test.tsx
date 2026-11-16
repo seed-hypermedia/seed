@@ -100,8 +100,36 @@ let container: HTMLDivElement
 let references: ReturnType<typeof useCommentDraftReferences>
 let editorProps: CommentEditorProps
 let updateDraft: (text: string) => void
-let scrolled: HTMLElement[]
+let pageScrolledTo: HTMLElement | undefined
 const resizeCallbacks = new Set<() => void>()
+
+// jsdom has no layout. In the panel, lay each comment out 100px tall at these offsets in a scroll area that shows
+// 500px, so the panel's scroll position tells which comment it scrolled to.
+const PANEL_HEIGHT = 500
+const COMMENT_HEIGHT = 100
+const commentOffsets: Record<string, number> = {'Root message': 1000, 'Selected reply': 2000}
+
+function layOutPanel(this: HTMLElement) {
+  const panel = this.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
+  if (this === panel) return {top: 0, bottom: PANEL_HEIGHT} as DOMRect
+  const texts = Object.keys(commentOffsets).filter((text) => this.textContent?.includes(text))
+  const top = panel && texts.length === 1 ? commentOffsets[texts[0]!]! - panel.scrollTop : 0
+  return {top, bottom: top + COMMENT_HEIGHT} as DOMRect
+}
+
+function getPanel() {
+  return container.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+}
+
+/** Text of the comment scrolled into view: fully inside the panel, or passed to scrollIntoView outside one. */
+function shownComment() {
+  const panel = getPanel()
+  if (!panel) return Object.keys(commentOffsets).find((text) => pageScrolledTo?.textContent?.includes(text))
+  return Object.keys(commentOffsets).find((text) => {
+    const top = commentOffsets[text]! - panel.scrollTop
+    return top >= 0 && top + COMMENT_HEIGHT <= PANEL_HEIGHT
+  })
+}
 
 function DraftEditor(props: CommentEditorProps) {
   editorProps = props
@@ -151,15 +179,17 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  scrolled = []
+  pageScrolledTo = undefined
   HTMLElement.prototype.scrollIntoView = function () {
-    scrolled.push(this)
+    pageScrolledTo = this
   }
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(layOutPanel)
 })
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockRestore()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
@@ -168,8 +198,8 @@ for (const isPanel of [true, false]) {
   describe(isPanel ? 'Panel reply selection' : 'Expanded reply selection', () => {
     it('scrolls to the highlighted reply on entry and keeps the root reply editor visible', () => {
       render(isPanel, reply.id)
-      expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
-      expect(scrolled.at(-1)?.contains(container.querySelector('.bg-highlight')!)).toBe(true)
+      expect(shownComment()).toBe('Selected reply')
+      expect(container.querySelector('.bg-highlight')?.textContent).toContain('Selected reply')
       expect(container.querySelector('textarea')).not.toBeNull()
       expect(editorProps.commentId).toBe(rootComment.id)
     })
@@ -177,15 +207,15 @@ for (const isPanel of [true, false]) {
     if (isPanel)
       it('keeps the reply visible as the editor grows, until the user scrolls', () => {
         render(isPanel, reply.id)
-        scrolled = []
+        const panel = getPanel()!
+        // The growing editor shrinks the panel, which pushes the reply out of view.
+        panel.scrollTop = 0
         act(() => resizeCallbacks.forEach((callback) => callback()))
-        expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
-        container
-          .querySelector('[data-slot="scroll-area-viewport"]')!
-          .dispatchEvent(new WheelEvent('wheel', {bubbles: true}))
-        scrolled = []
+        expect(shownComment()).toBe('Selected reply')
+        panel.dispatchEvent(new WheelEvent('wheel', {bubbles: true}))
+        panel.scrollTop = 0
         act(() => resizeCallbacks.forEach((callback) => callback()))
-        expect(scrolled).toEqual([])
+        expect(shownComment()).toBeUndefined()
       })
 
     it('queues the selected reply once without changing the root draft or submission target', () => {
@@ -218,7 +248,7 @@ for (const isPanel of [true, false]) {
       expect(references!.references).toHaveLength(1)
       expect(references!.references[0]?.commentId).toBe(rootComment.id)
       expect(container.querySelector('textarea')?.value).toBe('Draft while reply loads')
-      expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+      expect(shownComment()).toBe('Selected reply')
     })
 
     it('does not quote the reply just submitted when navigation selects it', () => {
@@ -239,11 +269,11 @@ for (const isPanel of [true, false]) {
     it('moves focus from root to reply and keeps only the selected comment highlighted', () => {
       vi.useFakeTimers()
       render(isPanel)
-      expect(scrolled.at(-1)?.textContent).toContain('Root message')
+      expect(shownComment()).toBe('Root message')
       expect(container.querySelectorAll('.bg-highlight')).toHaveLength(1)
       expect(container.querySelector('.bg-highlight')?.textContent).toContain('Root message')
       render(isPanel, reply.id)
-      expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+      expect(shownComment()).toBe('Selected reply')
       act(() => vi.advanceTimersByTime(10000))
       expect(container.querySelectorAll('.bg-highlight')).toHaveLength(1)
       expect(container.querySelector('.bg-highlight')?.textContent).toContain('Selected reply')

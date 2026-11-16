@@ -22,7 +22,13 @@ type SelectionContext = {
   node: (depth: number) => {type: {name: string}; attrs: {listType: string}}
 }
 
-function makeEditor(selectionContext: SelectionContext) {
+const emptyParagraph: SelectionContext = {
+  depth: 1,
+  parent: {isTextblock: true, childCount: 0, type: {name: 'paragraph', spec: {}}},
+  node: () => ({type: {name: 'blockChildren'}, attrs: {listType: 'Group'}}),
+}
+
+function makeEditor(selectionContext: SelectionContext, cursorTop = 20) {
   const listeners = new Map<string, Set<() => void>>()
   return {
     isEditable: true,
@@ -35,7 +41,7 @@ function makeEditor(selectionContext: SelectionContext) {
             resolve: () => selectionContext,
           },
         },
-        coordsAtPos: () => ({top: 20, bottom: 28, left: 64}),
+        coordsAtPos: () => ({top: cursorTop, bottom: cursorTop + 8, left: 64}),
         focus: vi.fn(),
         dispatch: vi.fn(),
       },
@@ -80,6 +86,32 @@ describe('InlineAddBlockButton', () => {
     })
 
     expect(document.body.querySelector('[aria-label="Insert block"]')).not.toBeNull()
+  })
+
+  it('stays fixed to the window, so it never makes the page scrollable', () => {
+    act(() => {
+      root.render(<InlineAddBlockButton editor={makeEditor(emptyParagraph)} />)
+    })
+
+    const button = document.body.querySelector<HTMLElement>('[aria-label="Insert block"]')!
+    expect(button.parentElement!.style.position).toBe('fixed')
+    expect(button.parentElement!.style.top).toBe('24px')
+  })
+
+  it('hides while its block is scrolled out of the editor pane', () => {
+    // The editor scrolls inside a pane that shows window y 0-300; the empty block sits at y 500.
+    const editor = makeEditor(emptyParagraph, 500)
+    const pane = document.createElement('div')
+    pane.style.overflowY = 'auto'
+    pane.getBoundingClientRect = () => ({top: 0, bottom: 300}) as DOMRect
+    pane.appendChild(editor._tiptapEditor.view.dom)
+    document.body.appendChild(pane)
+
+    act(() => {
+      root.render(<InlineAddBlockButton editor={editor} />)
+    })
+
+    expect(document.body.querySelector('[aria-label="Insert block"]')).toBeNull()
   })
 
   it('does not render inside an image caption', () => {

@@ -8,6 +8,21 @@ import type {HyperMediaEditor} from './types'
 
 type Position = {top: number; left: number}
 
+/** Whether window coordinate `y` falls inside the window and every scrolling or clipping ancestor of `element`. */
+function isWithinVisibleHeight(element: HTMLElement, y: number) {
+  if (y < 0 || y > window.innerHeight) return false
+  for (
+    let ancestor = element.parentElement;
+    ancestor && ancestor !== document.body;
+    ancestor = ancestor.parentElement
+  ) {
+    if (getComputedStyle(ancestor).overflowY === 'visible') continue
+    const rect = ancestor.getBoundingClientRect()
+    if (y < rect.top || y > rect.bottom) return false
+  }
+  return true
+}
+
 function AddBlockButton({
   onClick,
   className,
@@ -80,10 +95,10 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       }
       try {
         const coords = view.coordsAtPos(anchor)
-        return {
-          top: (coords.top + coords.bottom) / 2 + window.scrollY,
-          left: coords.left + window.scrollX - (inList ? 56 : 32),
-        }
+        const middle = (coords.top + coords.bottom) / 2
+        // The button is outside the editor's scroll pane, so nothing clips it there.
+        if (!isWithinVisibleHeight(view.dom, middle)) return null
+        return {top: middle, left: coords.left - (inList ? 56 : 32)}
       } catch {
         return null
       }
@@ -158,7 +173,7 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
   return createPortal(
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         top: pos.top,
         left: pos.left,
         zIndex: 10,

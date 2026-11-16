@@ -64,6 +64,24 @@ export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Rea
   return commentToText({comment: {content}, resolvedNames, lineBreaks: false}).replace(/\s+/g, ' ').trim().slice(0, 50)
 }
 
+/**
+ * Scrolls `viewport` so that `element` sits at its top or is just fully visible, like `scrollIntoView`,
+ * but without scrolling anything outside `viewport`. `scrollIntoView` scrolls every ancestor that
+ * can scroll, the page itself included, and a scrolled page shifts the whole app up.
+ */
+function scrollWithinViewport(element: HTMLElement, viewport: HTMLElement, block: 'start' | 'nearest') {
+  const elementRect = element.getBoundingClientRect()
+  const viewportRect = viewport.getBoundingClientRect()
+  const aboveBy = viewportRect.top - elementRect.top
+  const belowBy = elementRect.bottom - viewportRect.bottom
+  if (block === 'start' || aboveBy > 0) {
+    viewport.scrollTop -= aboveBy
+  } else if (belowBy > 0) {
+    // Like scrollIntoView, keep the top in view when the element is taller than the viewport.
+    viewport.scrollTop += Math.min(belowBy, -aboveBy)
+  }
+}
+
 /** Shows a focused thread in the shared main-page and panel comments layout. */
 export function CommentDiscussions({
   targetId,
@@ -144,16 +162,18 @@ export function CommentDiscussions({
   useLayoutEffect(() => {
     const focusedElement = focusedCommentRef.current
     if (!focusedElement) return
-    const scrollToComment = () =>
-      focusedElement.scrollIntoView({
-        behavior: 'instant',
-        block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
-      })
+    const block = highlightedCommentId === thread?.root.id ? 'start' : 'nearest'
+    const viewport = focusedElement.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) {
+      focusedElement.scrollIntoView({behavior: 'instant', block})
+      return
+    }
+    // When the thread was too short to bring the comment to the top, scrollIntoView
+    // scrolled the page itself the rest of the way, shifting the whole app up.
+    const scrollToComment = () => scrollWithinViewport(focusedElement, viewport, block)
     scrollToComment()
 
     // The reply editor can grow after entry, reducing the thread's visible height.
-    const viewport = focusedElement.closest('[data-slot="scroll-area-viewport"]')
-    if (!viewport) return
     const observer = new ResizeObserver(scrollToComment)
     observer.observe(viewport)
     const stopFollowing = () => observer.disconnect()
