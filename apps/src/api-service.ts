@@ -120,7 +120,7 @@ import {
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
-import {appEmbedBlobs, findListingApp, resolveAppParent} from '@/app-children'
+import {appEmbedBlobs, findListingApp, missingCardBlobs, resolveAppParent, withHostLock} from '@/app-children'
 import * as appRunning from '@/app-running'
 import * as triggerDocuments from '@/trigger-documents'
 import {collectToolCodeFiles, validateToolCode} from '@/tool-code'
@@ -131,6 +131,8 @@ import {
   parentDocumentId,
   replaceContentOps,
   triggerDocumentOps,
+  triggerSourceFromMetadata,
+  triggerSourceToMetadata,
 } from '@seed-hypermedia/client/apps'
 import {withTimeout} from '@/poll-loop'
 import {loadMermaidParser} from './mermaid-parser'
@@ -451,6 +453,8 @@ type RunningSession = {
   completeAfterTools?: boolean
   /** Set by `continue_session`: the turn ends after this tool batch and the successor answers. */
   continuation?: SessionContinuationOutcome
+  /** Set when the model sent nothing for too long and the turn was ended (see MODEL_STALL_MS). */
+  stalled?: boolean
 }
 
 /** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
@@ -972,6 +976,8 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #publicUrl: string | undefined
+  /** How long a turn's model may send nothing (with no tool running) before the turn is ended. */
+  readonly #modelStallMs: number
   /** This server's stable identity, reported in /health so an app's server URL can be recognized as this one. */
   readonly #serverId: string
   readonly #ipfsServerUrl: string
@@ -1037,12 +1043,18 @@ export class Service {
    */
   /** The last good read of each mounted agent's document prompt, keyed by agent id (see #agentDocumentPrompt). */
   readonly #agentDocumentPromptCache = new Map<string, AgentDocumentPrompt>()
+  /** Each account's time zone, as its device last reported it with a message (see MessageSession). */
+  readonly #accountTimezones = new Map<string, string>()
   /** Trigger documents already read, by id; an entry is reused while its version is unchanged. */
   readonly #triggerDocumentCache = new Map<string, triggerDocuments.TriggerDocument>()
   /** When each stored trigger may next be tried as a document (never, for one with no document form). */
   readonly #triggerMigrationRetryAt = new Map<string, number>()
   /** Why listed trigger documents could not be used, by host id then document id. */
   readonly #triggerDocumentErrors = new Map<string, Map<string, string>>()
+  /** The last firing of each trigger still running a session: the next firing waits for it. */
+  readonly #triggerLanes = new Map<string, Promise<void>>()
+  /** How many firings of each trigger are waiting in its lane. */
+  readonly #triggerLaneDepth = new Map<string, number>()
   /** Where each mounted agent's keys may write, by agent id: refreshed at most once a minute. */
   readonly #agentWriteScopeCache = new Map<string, {scope: AgentWriteScope; expiresAt: number}>()
   readonly #resolvedSystemPromptCache = new Map<
@@ -1071,6 +1083,8 @@ export class Service {
       hmServerUrl?: string
       /** The URL clients reach this server's API at (`https://hyper.media/hm/api/apps`); see config.ts. */
       publicUrl?: string
+      /** See {@link Service.#modelStallMs}; defaults to 8 minutes (long enough for a model reasoning hard without streaming). */
+      modelStallMs?: number
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
       ipfsServerUrl?: string
       /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
@@ -1129,6 +1143,7 @@ export class Service {
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#publicUrl = options.publicUrl || undefined
+    this.#modelStallMs = options.modelStallMs ?? 8 * 60_000
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
@@ -1715,6 +1730,8 @@ export class Service {
             appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall),
           ),
         }
+      case 'RunTriggerNow':
+        return this.#runTriggerNow(verified.accountId, (envelope.action as api.RunTriggerNow).triggerId)
       case 'ListHostTriggers':
         return this.#listHostTriggers(verified.accountId, (envelope.action as api.ListHostTriggers).hostId)
       case 'ListAppToolCalls':
@@ -1852,6 +1869,7 @@ export class Service {
           envelope.action.continueAgent,
         )
       case 'MessageSession':
+        this.#rememberTimezone(accountId, envelope.action.timezone)
         return this.#messageSession(
           accountId,
           envelope.action.sessionId,
@@ -2490,20 +2508,23 @@ export class Service {
    * never blocks agent creation.
    */
   #createDefaultMentionTrigger(accountId: string, agentId: string, definition: api.AgentDefinition): void {
-    const signingKey = definition.signingKey ?? definition.signingKeys?.[0]
-    if (!signingKey) return
-    const mentionAccountId = this.#signingIdentityAccountId(accountId, signingKey)
-    if (!mentionAccountId) return
+    // An agent with no account of its own cannot be mentioned.
+    if (!agentSigningAccountUids(this.#db, accountId, definition).length) return
     try {
       this.#createAgentTriggerOnce(accountId, agentId, {
         name: `Mentions, replies, and comments for ${definition.name}`,
         enabled: true,
         source: {
           type: 'activity',
+          // `self` is whichever accounts the agent signs as when an event arrives, so this keeps
+          // working when its primary account changes or it gains another.
           conditions: [
-            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: [mentionAccountId]}},
-            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [mentionAccountId]}},
-            {id: 'document-comment', source: {type: 'document-author-comment', documentAuthors: [mentionAccountId]}},
+            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: [activityTriggers.SELF_ACCOUNT]}},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [activityTriggers.SELF_ACCOUNT]}},
+            {
+              id: 'document-comment',
+              source: {type: 'document-author-comment', documentAuthors: [activityTriggers.SELF_ACCOUNT]},
+            },
           ],
         },
         prompt: 'Respond to the mention, reply, or comment on your document, performing any action requested.',
@@ -3544,6 +3565,41 @@ export class Service {
     ]
   }
 
+  /** Syncs the host of a trigger document just written here, so its trigger row reflects the write. */
+  async #syncWrittenTriggerDocument(documentId: string, isTrigger: boolean): Promise<string | undefined> {
+    const known = stmt<{id: string}, [string]>(
+      this.#db,
+      `SELECT id FROM agent_triggers WHERE document_id = ? LIMIT 1`,
+    ).get(documentId)
+    if (!isTrigger && !known) return
+    const id = unpackHmId(documentId)
+    const host = id ? parentDocumentId(id) : null
+    if (!host) return
+    // The write is already published; a failed sync only delays the row until the next pass.
+    this.#triggerDocumentCache.delete(documentId)
+    await this.syncTriggerDocuments({hostIds: [host.id]}).catch(() => 0)
+    // Why the trigger cannot fire, if it cannot: the writer hears it with the write.
+    return this.#triggerDocumentErrors.get(host.id)?.get(documentId)
+  }
+
+  /** A deleted trigger document's trigger stops at once, wherever it was projected. */
+  #forgetTriggerDocument(documentId: string): void {
+    const rows = stmt<{id: string; account_id: string; agent_id: string | null}, [string]>(
+      this.#db,
+      `SELECT id, account_id, agent_id FROM agent_triggers WHERE document_id = ?`,
+    ).all(documentId)
+    for (const row of rows) {
+      deleteAgentTriggerRows(this.#db, row.account_id, row.id)
+      invalidateSpaceIndex(row.account_id)
+      this.#emit({
+        type: 'account-change',
+        accountId: row.account_id,
+        reason: 'trigger-updated',
+        ...(row.agent_id ? {agentId: row.agent_id} : {}),
+      })
+    }
+  }
+
   /** Brings one host's trigger rows in line with its trigger documents. True when anything changed. */
   async #syncHostTriggers(host: TriggerHost): Promise<boolean> {
     const hostId = unpackHmId(host.id)
@@ -3555,11 +3611,19 @@ export class Service {
     )
     if (!read.found) return false
     const errors = new Map(read.errors.map((entry) => [entry.documentId, entry.error]))
-    const hostColumn = host.kind === 'agent' ? 'agent_id' : 'app_id'
-    const existing = stmt<AgentTriggerRow, [string, string]>(
-      this.#db,
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE account_id = ? AND ${hostColumn} = ? AND document_id IS NOT NULL`,
-    ).all(host.accountId, host.id)
+    // An agent's rows are its own (not those it runs for apps); an app's are found by app, since a
+    // trigger an agent runs for it lives under the agent's owner.
+    const existing =
+      host.kind === 'agent'
+        ? stmt<AgentTriggerRow, [string, string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+               WHERE account_id = ? AND agent_id = ? AND app_id IS NULL AND document_id IS NOT NULL`,
+          ).all(host.accountId, host.id)
+        : stmt<AgentTriggerRow, [string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE app_id = ? AND document_id IS NOT NULL`,
+          ).all(host.id)
     const byDocument = new Map(existing.map((row) => [row.document_id!, row]))
     let changed = false
     const listed = new Set<string>()
@@ -3567,11 +3631,16 @@ export class Service {
       listed.add(trigger.documentId)
       const row = byDocument.get(trigger.documentId)
       if (row && row.document_version === trigger.version) continue
-      let projected: {source: api.AgentTriggerSource; continuation?: api.TriggerContinuation; prompt: string}
+      let projected: ReturnType<typeof projectTriggerDocument>
       try {
         projected = projectTriggerDocument(host, trigger)
       } catch (error) {
         errors.set(trigger.documentId, errorMessage(error))
+        // An edit that made the trigger invalid stops it, rather than leaving the old version firing.
+        if (row) {
+          deleteAgentTriggerRows(this.#db, row.account_id, row.id)
+          changed = true
+        }
         continue
       }
       const now = Date.now()
@@ -3583,9 +3652,11 @@ export class Service {
         if (row) {
           stmt(
             this.#db,
-            `UPDATE agent_triggers SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?,
-               document_version = ?, author = ?, updated_at = ?, last_error = NULL WHERE id = ?`,
+            `UPDATE agent_triggers SET account_id = ?, agent_id = ?, name = ?, enabled = ?, source_cbor = ?, prompt = ?,
+               continuation_cbor = ?, document_version = ?, author = ?, updated_at = ?, last_error = NULL WHERE id = ?`,
           ).run([
+            host.accountId,
+            projected.agentId,
             trigger.name,
             trigger.enabled ? 1 : 0,
             cbor.encode(projected.source),
@@ -3605,7 +3676,7 @@ export class Service {
           ).run([
             id,
             host.accountId,
-            host.kind === 'agent' ? host.id : null,
+            projected.agentId,
             host.kind === 'app' ? host.id : null,
             trigger.documentId,
             trigger.version,
@@ -3668,11 +3739,17 @@ export class Service {
     const host = this.#triggerHosts().find((entry) => entry.id === hostId.id)
     if (!host) return {_: 'ListHostTriggersResponse', hostId: hostId.id, active: false, triggers: [], errors: []}
     await this.#syncHostTriggers(host)
-    const rows = stmt<AgentTriggerRow, [string, string]>(
-      this.#db,
-      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
-         WHERE account_id = ? AND ${host.kind === 'agent' ? 'agent_id' : 'app_id'} = ? AND document_id IS NOT NULL`,
-    ).all(host.accountId, host.id)
+    const rows =
+      host.kind === 'agent'
+        ? stmt<AgentTriggerRow, [string, string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+               WHERE account_id = ? AND agent_id = ? AND app_id IS NULL AND document_id IS NOT NULL`,
+          ).all(host.accountId, host.id)
+        : stmt<AgentTriggerRow, [string]>(
+            this.#db,
+            `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE app_id = ? AND document_id IS NOT NULL`,
+          ).all(host.id)
     // Webhook secrets are for writers of the host's space only.
     const canSeeSecrets = viewer
       ? await appRunning.isSpaceWriter(createSeedClient(this.#hmServerUrl), hostId, viewer)
@@ -3730,6 +3807,61 @@ export class Service {
     return {_: 'ListHostTriggersResponse', hostId: host.id, active: true, triggers, errors}
   }
 
+  /** Fires a schedule trigger once now (see RunTriggerNow), for a writer of its host. */
+  async #runTriggerNow(viewer: string, triggerId: string): Promise<api.RunTriggerNowResponse> {
+    const owner = stmt<{account_id: string}, [string]>(
+      this.#db,
+      `SELECT account_id FROM agent_triggers WHERE id = ?`,
+    ).get(triggerId)
+    const trigger = owner ? this.#getAgentTriggerInfo(owner.account_id, triggerId) : null
+    if (!trigger) throw new APIError(404, 'Trigger not found')
+    if (trigger.source.type !== 'schedule') throw new APIError(400, 'Only a schedule trigger can be run now')
+    if (trigger.continuation?.kind === 'wake') throw new APIError(400, 'A trigger that wakes a run cannot be run now')
+    // Writers of the trigger's document (or of its agent, for a trigger stored here) may run it.
+    const documentId = trigger.documentId ? unpackHmId(trigger.documentId) : null
+    if (documentId) {
+      if (!(await appRunning.isSpaceWriter(createSeedClient(this.#hmServerUrl), documentId, viewer)))
+        throw new APIError(403, 'Only someone who can edit this trigger can run it')
+    } else this.#requireAgentAccess(viewer, trigger.agentId, 'writer')
+    const now = Date.now()
+    const schedule = trigger.source.schedule
+    const activity = {
+      type: 'schedule' as const,
+      scheduleKind: schedule.kind,
+      scheduledAt: now,
+      firedAt: now,
+      manual: true,
+      ...('timezone' in schedule && schedule.timezone ? {timezone: schedule.timezone} : {}),
+    } as unknown as activityTriggers.ActivityFeedEvent
+    const firingId = crypto.randomUUID()
+    stmt(
+      this.#db,
+      `INSERT INTO trigger_firings (id, account_id, agent_id, app_id, trigger_id, activity_key, activity_cbor, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run([
+      firingId,
+      trigger.account,
+      trigger.agentId || null,
+      trigger.appId ?? null,
+      trigger.id,
+      `manual:${trigger.id}:${now}`,
+      cbor.encode(activity),
+      'created',
+      now,
+    ])
+    const runId = this.#startTriggerContinuationRun(trigger.account, trigger, firingId, activity)
+    if (runId) return {_: 'RunTriggerNowResponse', firing: {id: firingId, runId}}
+    const session = this.#createSessionOnce(trigger.account, trigger.agentId, `${trigger.name} — run now`)
+    stmt(this.#db, `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`).run([
+      session.sessionId,
+      trigger.account,
+      firingId,
+    ])
+    this.#forgetSessionDerived(trigger.account, session.sessionId)
+    this.#dispatchTriggerSession(trigger.account, trigger, firingId, session.sessionId, activity)
+    return {_: 'RunTriggerNowResponse', firing: {id: firingId, sessionId: session.sessionId}}
+  }
+
   /**
    * Fires an app's trigger: calls the tool it names with the resolved input, recorded as a call by
    * the trigger's author. Runs in the background; the firing row tracks the outcome.
@@ -3744,7 +3876,7 @@ export class Service {
         firingId,
       ])
     if (continuation?.kind !== 'tool' || !trigger.appId) {
-      setStatus('failed', 'An app’s trigger must call one of its tools', null)
+      setStatus('failed', 'An app’s trigger must call one of its tools or name an agent', null)
       return
     }
     setStatus('running', null, null)
@@ -3784,8 +3916,10 @@ export class Service {
         // One with no document form is not tried again until a restart brings new code.
         else this.#triggerMigrationRetryAt.set(row.id, Number.POSITIVE_INFINITY)
       } catch (error) {
-        // No write access yet, or the network: try again in a while.
-        this.#triggerMigrationRetryAt.set(row.id, Date.now() + TRIGGER_MIGRATION_RETRY_MS)
+        // No write access yet, or the network: try again in a while. A new agent's write access is
+        // granted just after it is created, so its first triggers are retried soon.
+        const fresh = row.created_at > Date.now() - TRIGGER_MIGRATION_RETRY_MS
+        this.#triggerMigrationRetryAt.set(row.id, Date.now() + (fresh ? 30_000 : TRIGGER_MIGRATION_RETRY_MS))
         console.warn('[Agents Triggers] Trigger stays stored on the server', {
           triggerId: row.id,
           agentId: row.agent_id,
@@ -3844,8 +3978,11 @@ export class Service {
     }
     const childId = unpackHmId(`hm://${space}${path}`)!
     const capability = await resolveCapability(client, space, publicKey, path)
+    // Accounts that are the agent's own become `self`, so the document keeps working when the
+    // agent's primary account changes (its stored row named the account it had then).
+    const own = definition ? agentSigningAccountUids(this.#db, trigger.account, definition) : []
     const fields = await triggerDocumentOps({
-      source: trigger.source,
+      source: activityTriggers.ownAccountsAsSelf(trigger.source, own),
       ...(toolCall ? {tool: toolCall.tool, ...(toolCall.input !== undefined ? {input: toolCall.input} : {})} : {}),
       ...(trigger.enabled ? {} : {enabled: false}),
     })
@@ -3908,6 +4045,17 @@ export class Service {
         }
       },
     }
+  }
+
+  /** Keeps the time zone a person's device reports, when it is a real IANA zone. */
+  #rememberTimezone(accountId: string, timezone: unknown) {
+    if (typeof timezone !== 'string' || !timezone || timezone.length > 64) return
+    try {
+      new Intl.DateTimeFormat('en-US', {timeZone: timezone})
+    } catch {
+      return
+    }
+    this.#accountTimezones.set(accountId, timezone)
   }
 
   async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
@@ -5807,6 +5955,8 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
@@ -7698,6 +7848,8 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
         invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
@@ -8534,6 +8686,8 @@ export class Service {
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
+      onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
+      onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
@@ -8726,6 +8880,7 @@ export class Service {
         canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
         privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
         `<current_time>${new Date().toISOString()}</current_time>`,
+        userTimeBlock(this.#accountTimezones.get(accountId)),
       ]
       const timestamp = Date.now()
       return blocks.flatMap((content) => (content ? [{role: 'user' as const, content, timestamp}] : []))
@@ -8934,7 +9089,18 @@ export class Service {
       resolveSettled = resolve
     })
     let turnSubmission: durable.Submission | undefined
+    // When the turn last moved, and how many tools are running: a watchdog ends a turn whose model
+    // has gone silent (a provider connection that hangs instead of failing).
+    let lastProgressAt = Date.now()
+    let toolsRunning = 0
+    // A snapshot replaces the steps it summarizes, so the tool count is unknown from then on and the
+    // watchdog stands down for the turn rather than cut off a long tool.
+    let toolCountKnown = true
     const onHarnessEvent = (event: durable.AgentEvent): void => {
+      lastProgressAt = Date.now()
+      if (event.type === 'snapshot') toolCountKnown = false
+      if (event.type === 'tool_execution_start') toolsRunning += 1
+      if (event.type === 'tool_execution_end') toolsRunning = Math.max(0, toolsRunning - 1)
       if (event.type === 'snapshot') {
         // The stream fell too far behind and was handed the current state instead of every step.
         for (const entry of event.entries) projectEntry(entry, turnLive)
@@ -9421,7 +9587,24 @@ export class Service {
             })
           })
         if (live.stopped) await live.abort()
-        settled = await submission.wait(durableSession.CONTEXT)
+        const stallMs = this.#modelStallMs
+        // The turn starts now: preparing it (provider setup, replaying the log) is not silence.
+        lastProgressAt = Date.now()
+        const watchdog = setInterval(
+          () => {
+            if (!toolCountKnown || toolsRunning > 0 || live.stopped || live.stalled) return
+            if (Date.now() - lastProgressAt < stallMs) return
+            live.stalled = true
+            logRunError('the model sent nothing for too long; ending the turn', {sessionId, stallMs})
+            void live.abort?.()
+          },
+          Math.min(15_000, stallMs),
+        )
+        try {
+          settled = await submission.wait(durableSession.CONTEXT)
+        } finally {
+          clearInterval(watchdog)
+        }
         // Every entry of the turn is committed; wait for the stream to hand the last of them over.
         await Promise.race([settledSeen, stream.closed])
       }
@@ -9468,6 +9651,13 @@ export class Service {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
     }
+    if (live.stalled && !live.stopped)
+      throw new APIError(
+        504,
+        `The model sent nothing for ${Math.round(
+          this.#modelStallMs / 60_000,
+        )} minutes, so this turn was ended. Send the message again to retry.`,
+      )
     if (live.stopped) {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
@@ -10663,7 +10853,7 @@ export class Service {
     const row = stmt<SessionTriggerRow, [string, string]>(
       this.#db,
       `SELECT f.id AS firing_id, f.trigger_id, f.activity_key, f.activity_cbor, f.context_cbor, f.status, f.error,
-                f.created_at AS fired_at, t.name AS trigger_name, t.source_cbor, t.prompt
+                f.created_at AS fired_at, t.name AS trigger_name, t.document_id, t.source_cbor, t.prompt
          FROM trigger_firings f
          JOIN agent_triggers t ON t.id = f.trigger_id
          WHERE f.account_id = ? AND f.session_id = ?
@@ -10677,6 +10867,7 @@ export class Service {
     return {
       triggerId: row.trigger_id,
       triggerName: row.trigger_name,
+      ...(row.document_id ? {documentId: row.document_id} : {}),
       firingId: row.firing_id,
       activityKey: row.activity_key,
       activitySummary: activityTriggers.activitySummary(activity),
@@ -11023,9 +11214,8 @@ export class Service {
     for (const trigger of triggers) {
       checked += 1
       const conditions = protocol.activityConditions(trigger.source, trigger.id)
-      const matchContext: activityTriggers.TriggerMatchContext = conditions.some(
-        ({source}) => source.type === 'site-update',
-      )
+      // The agent's own accounts: site-update skips its own activity, and `self` names them.
+      const matchContext: activityTriggers.TriggerMatchContext = trigger.agentId
         ? {ownAccounts: ownAccountsOf(trigger.agentId)}
         : {}
       const matchedConditions = conditions.filter(({source}) =>
@@ -11166,8 +11356,9 @@ export class Service {
     firingId: string,
     activity: activityTriggers.ActivityFeedEvent,
   ): string | null {
-    if (trigger.appId) {
-      // An app has no runs or sessions of its own: its trigger calls the app's tool directly.
+    if (trigger.appId && trigger.continuation?.kind === 'tool') {
+      // An app has no runs of its own: its tool trigger calls the app's tool directly. An app's
+      // trigger that names an agent starts that agent's session like the agent's own triggers.
       void this.#fireAppTrigger(trigger, firingId, activity)
       return `app-${firingId}`
     }
@@ -11442,7 +11633,8 @@ export class Service {
     activity: activityTriggers.ActivityFeedEvent,
     failure?: TriggerAutomationFailure,
   ): void {
-    const dispatch = (async () => {
+    const runId = failure ? `firing-${firingId}-escalation` : `firing-${firingId}`
+    const start = async () => {
       try {
         const content = await triggerPromptMessage(
           trigger,
@@ -11456,7 +11648,7 @@ export class Service {
         await this.#messageSessionOnce(accountId, sessionId, content, {
           origin: 'trigger',
           background: true,
-          runId: failure ? `firing-${firingId}-escalation` : `firing-${firingId}`,
+          runId,
           triggerFiringId: firingId,
           ...(trigger.continuation?.kind === 'newThread'
             ? {
@@ -11495,9 +11687,47 @@ export class Service {
           error: message,
         })
       }
-    })()
+    }
+    // One firing of a trigger at a time: the next starts when this one's run has ended, so two
+    // firings close together cannot both act on the same state (two agents each seeing "no
+    // congratulation yet" and both posting one).
+    // The queue is short: beyond a few waiting firings, a new one starts at once rather than wait
+    // behind a backlog (a restart loses waiting firings until recoverWaitingFirings runs again).
+    const previous = this.#triggerLanes.get(trigger.id)
+    const waiting = this.#triggerLaneDepth.get(trigger.id) ?? 0
+    const queued = previous && waiting < TRIGGER_LANE_MAX_WAITING
+    if (queued) this.#triggerLaneDepth.set(trigger.id, waiting + 1)
+    const dispatch = queued
+      ? previous.then(() => {
+          this.#triggerLaneDepth.set(trigger.id, Math.max(0, (this.#triggerLaneDepth.get(trigger.id) ?? 1) - 1))
+          return start()
+        })
+      : start()
+    const lane = dispatch.then(() => this.#waitForRunEnd(runId, TRIGGER_LANE_MAX_WAIT_MS))
+    this.#triggerLanes.set(trigger.id, lane)
+    void lane.finally(() => {
+      if (this.#triggerLanes.get(trigger.id) === lane) {
+        this.#triggerLanes.delete(trigger.id)
+        this.#triggerLaneDepth.delete(trigger.id)
+      }
+    })
     this.#pendingTriggerSessions.add(dispatch)
     void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
+  }
+
+  /** Resolves when the run has ended (or parked, or is not there), or after `maxWaitMs`. */
+  async #waitForRunEnd(runId: string, maxWaitMs: number): Promise<void> {
+    const deadline = Date.now() + maxWaitMs
+    while (Date.now() < deadline) {
+      let status: string | undefined
+      try {
+        status = stmt<{status: string}, [string]>(this.#db, `SELECT status FROM runs WHERE id = ?`).get(runId)?.status
+      } catch {
+        return // The service is shutting down.
+      }
+      if (!status || !['queued', 'claimed', 'running'].includes(status)) return
+      await Bun.sleep(1000)
+    }
   }
 
   /**
@@ -11508,6 +11738,38 @@ export class Service {
   async drainTriggerSessions(): Promise<void> {
     await Promise.allSettled([...this.#pendingTriggerSessions])
     await this.#runQueue.awaitIdle()
+  }
+
+  /**
+   * Starts the sessions of recent firings that never got a run: they were waiting in a trigger's
+   * lane (or between creating the session and enqueueing its run) when the server stopped.
+   * Returns how many were started. Run once at startup.
+   */
+  recoverWaitingFirings(now = Date.now()): number {
+    const rows = stmt<
+      {id: string; account_id: string; trigger_id: string; session_id: string; activity_cbor: Uint8Array},
+      [number]
+    >(
+      this.#db,
+      `SELECT f.id, f.account_id, f.trigger_id, f.session_id, f.activity_cbor FROM trigger_firings f
+         WHERE f.session_id IS NOT NULL AND f.status = 'created' AND f.created_at > ?
+           AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.id = 'firing-' || f.id OR r.trigger_firing_id = f.id)
+         ORDER BY f.created_at ASC`,
+    ).all(now - 24 * 60 * 60_000)
+    let started = 0
+    for (const row of rows) {
+      const trigger = this.#getAgentTriggerInfo(row.account_id, row.trigger_id)
+      if (!trigger?.agentId) continue
+      this.#dispatchTriggerSession(
+        row.account_id,
+        trigger,
+        row.id,
+        row.session_id,
+        cbor.decode<activityTriggers.ActivityFeedEvent>(row.activity_cbor),
+      )
+      started += 1
+    }
+    return started
   }
 
   /** Alias for {@link drainTriggerSessions} under the name the runs feature documents. */
@@ -11606,6 +11868,7 @@ type SessionTriggerRow = {
   error: string | null
   fired_at: number
   trigger_name: string
+  document_id: string | null
   source_cbor: Uint8Array
   prompt: string
 }
@@ -12382,6 +12645,7 @@ export async function triggerPromptMessage(
         safeJSONStringify(
           {
             triggerId: trigger.id,
+            ...(trigger.documentId ? {triggerDocument: trigger.documentId} : {}),
             firingId,
             activityKey: activityTriggers.activityEventKey(event),
             activitySummary: activityTriggers.activitySummary(event),
@@ -13006,8 +13270,49 @@ function triggerContinuationSummaryLine(continuation: api.TriggerContinuation | 
   return `runs a script headlessly${onFailure}`
 }
 
-function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
+/** A "M H * * D" cron line as a weekly schedule (days 0-6 from Sunday; * is every day), or null. */
+export function weeklyFromCron(expression: string): {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string} | null {
+  const parts = expression.trim().split(/\s+/)
+  if (parts.length !== 5) return null
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [string, string, string, string, string]
+  if (dayOfMonth !== '*' || month !== '*' || !/^\d{1,2}$/.test(minute) || !/^\d{1,2}$/.test(hour)) return null
+  if (Number(minute) > 59 || Number(hour) > 23) return null
+  const days = new Set<number>()
+  if (dayOfWeek === '*') for (let day = 0; day < 7; day++) days.add(day)
+  else
+    for (const part of dayOfWeek.split(',')) {
+      const range = /^(\d)(?:-(\d))?$/.exec(part)
+      if (!range) return null
+      const start = Number(range[1])
+      const end = range[2] === undefined ? start : Number(range[2])
+      for (let day = start; day <= end; day++) days.add(day % 7)
+    }
+  return {
+    kind: 'weekly',
+    daysOfWeek: [...days].sort(),
+    timeOfDay: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+  }
+}
+
+export function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger schedule is required')
+  // A daily or weekly cron line ("M H * * D") is read as the weekly schedule it means.
+  const cron =
+    (raw as {kind?: unknown; expression?: unknown; cron?: unknown; timezone?: unknown}).kind === 'cron'
+      ? (raw as {expression?: unknown; cron?: unknown})
+      : null
+  if (cron) {
+    const weekly = weeklyFromCron(String(cron.expression ?? cron.cron ?? ''))
+    if (!weekly)
+      throw new APIError(
+        400,
+        'Only daily or weekly cron lines ("M H * * D") are understood; use {kind: "interval", every, unit}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} or {kind: "once", runAt}',
+      )
+    return normalizeScheduleTrigger({
+      ...weekly,
+      timezone: (raw as {timezone?: string}).timezone,
+    } as api.AgentScheduleTrigger)
+  }
   if (raw.kind === 'interval') {
     const every = normalizeOptionalPositiveInteger(raw.every, 'Schedule interval')
     if (raw.unit !== 'minutes' && raw.unit !== 'hours') throw new APIError(400, 'Schedule interval unit is unsupported')
@@ -13023,19 +13328,28 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
       }
       return day
     })
-    const timeOfDay = normalizeBoundedString(raw.timeOfDay, 'Schedule time of day', 5)
-    if (!/^\d{2}:\d{2}$/.test(timeOfDay)) throw new APIError(400, 'Schedule time of day is invalid')
-    const [hour, minute] = timeOfDay.split(':').map(Number)
-    if (hour === undefined || minute === undefined || hour > 23 || minute > 59) {
-      throw new APIError(400, 'Schedule time of day is invalid')
-    }
+    // One time (timeOfDay) or several (timesOfDay: ["08:00", "12:00", ...]) on each of those days.
+    const rawTimes = Array.isArray(raw.timesOfDay) && raw.timesOfDay.length ? raw.timesOfDay : [raw.timeOfDay]
+    if (rawTimes.length > 48) throw new APIError(400, 'A schedule fires at most 48 times a day')
+    const times = Array.from(
+      new Set(
+        rawTimes.map((value: unknown) => {
+          const time = normalizeBoundedString(value, 'Schedule time of day', 5)
+          const [hour, minute] = time.split(':').map(Number)
+          if (!/^\d{2}:\d{2}$/.test(time) || hour === undefined || minute === undefined || hour > 23 || minute > 59)
+            throw new APIError(400, 'Schedule time of day is invalid: use "HH:MM"')
+          return time
+        }),
+      ),
+    ).sort()
+    const timeOfDay = times[0]!
     const timezone = normalizeBoundedString(raw.timezone, 'Schedule timezone', MAX_NAME_BYTES)
     try {
       new Intl.DateTimeFormat('en-US', {timeZone: timezone}).format(new Date())
     } catch {
       throw new APIError(400, 'Schedule timezone is invalid')
     }
-    return {kind: 'weekly', daysOfWeek, timeOfDay, timezone}
+    return {kind: 'weekly', daysOfWeek, timeOfDay, ...(times.length > 1 ? {timesOfDay: times} : {}), timezone}
   }
   if (raw.kind === 'once') {
     if (typeof raw.runAt !== 'number' || !Number.isSafeInteger(raw.runAt) || raw.runAt <= 0) {
@@ -13050,7 +13364,10 @@ function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentSched
     }
     return {kind: 'once', runAt: raw.runAt, timezone}
   }
-  throw new APIError(400, 'Schedule kind is unsupported')
+  throw new APIError(
+    400,
+    'Schedule kind is unsupported: use {kind: "interval", every, unit: "minutes"|"hours"}, {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} or {kind: "once", runAt: epochMs}',
+  )
 }
 
 function normalizeBoolean(value: unknown, label: string): boolean {
@@ -13739,6 +14056,13 @@ export type AgentServicePiToolContext = WriteToolContext & {
    * tool or trigger can read them, as on its page.
    */
   appHistory?: AppHistory
+  /**
+   * Called after a write deletes a document, so a trigger document stops firing at once instead
+   * of after the grace period a newly published (not yet listed) trigger gets.
+   */
+  onDocumentDeleted?: (id: string) => void
+  /** Called after a write creates or updates a document; a trigger document's host is synced. */
+  onDocumentWritten?: (id: string, isTrigger: boolean) => Promise<string | undefined>
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
@@ -14300,8 +14624,8 @@ async function resolveWritePageFolder(
 }
 
 /**
- * Turns `options.trigger` ({source, tool?, input?, enabled?}) into a trigger document's metadata and
- * the DAG-CBOR blobs it references. The source is validated like any trigger's.
+ * Turns `options.trigger` ({source, tool?, input?, enabled?}) into a trigger document's metadata.
+ * The source is validated like any trigger's.
  */
 export async function resolveWriteTrigger(
   raw: unknown,
@@ -14311,22 +14635,23 @@ export async function resolveWriteTrigger(
     throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/triggers')
   // An update changes only what it names: {enabled: false} alone turns a trigger off.
   const source =
-    raw.source === undefined && isUpdate ? undefined : normalizeAgentTriggerSource(raw.source as api.AgentTriggerSource)
+    raw.source === undefined && isUpdate
+      ? undefined
+      : // Either form: the one stored in the document (sets as maps, as a read shows it) or lists.
+        normalizeAgentTriggerSource(triggerSourceFromMetadata(raw.source) as api.AgentTriggerSource)
   if (raw.tool !== undefined && raw.tool !== null && (typeof raw.tool !== 'string' || !raw.tool.startsWith('hm://')))
     throw new APIError(400, 'options.trigger.tool is the hm:// URL of a tool of the same app or agent')
   if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean')
     throw new APIError(400, 'options.trigger.enabled is true or false')
-  const {ops, blobs} = await triggerDocumentOps({
-    ...(source ? {source} : {}),
-    ...(typeof raw.tool === 'string' ? {tool: raw.tool} : raw.tool === null ? {tool: null} : {}),
-    ...(raw.input !== undefined ? {input: raw.input} : {}),
-    ...(raw.enabled !== undefined ? {enabled: raw.enabled as boolean} : {}),
-  })
+  // Written into the document's metadata: the source's sets as maps (one key per entry), and a
+  // null clears an attribute (tool: null makes an agent's trigger start a session again).
   const metadata: Record<string, unknown> = {type: HM_TRIGGER_TYPE}
-  // A null clears an attribute: tool: null makes an agent's trigger start a session again.
-  for (const op of ops)
-    if (op.type === 'SetAttributes') for (const attr of op.attrs) metadata[attr.key[0]!] = attr.value
-  return {metadata, blobs}
+  if (source) metadata.source = triggerSourceToMetadata(source)
+  if (typeof raw.tool === 'string') metadata.tool = raw.tool
+  else if (raw.tool === null) metadata.tool = null
+  if (raw.input !== undefined) metadata.input = raw.input
+  if (raw.enabled !== undefined) metadata.enabled = raw.enabled
+  return {metadata, blobs: []}
 }
 
 /** A tool's code folder resolved from `options.tool`, ready to publish beside the document change. */
@@ -14722,9 +15047,14 @@ function combineAgentTriggers(
 
 /** Deletes one trigger and its firing rows, detaching run history first. Shared by the signed action and the write verb. */
 /** Why a trigger defined by a document cannot be changed through the server: the document is the trigger. */
+/** How an agent changes a trigger that is a document: through the document, never ~/triggers. */
+function triggerDocumentEditHint(documentId: string): string {
+  return `It is the document ${documentId}: change it by writing that address with options.action "update" and options.trigger (only what changes, e.g. {"enabled": false} to pause it, or {"source": …} to reschedule), and its content for the message; delete it with options.action "delete".`
+}
+
 function triggerIsDocumentMessage(documentId: string, verb: 'edit' | 'delete'): string {
   return verb === 'edit'
-    ? `This trigger is the document ${documentId}: edit and publish that document to change it.`
+    ? `This trigger is a document, so ~/triggers cannot change it. ${triggerDocumentEditHint(documentId)}`
     : `This trigger is the document ${documentId}: delete it, or remove its card from its app or agent, to delete the trigger.`
 }
 
@@ -14733,6 +15063,10 @@ const TRIGGER_MIGRATION_RETRY_MS = 10 * 60_000
 
 /** How long a trigger row linked to a document survives its host not listing it (propagation lag). */
 const TRIGGER_DOCUMENT_GRACE_MS = 10 * 60_000
+/** How long a firing waits for the trigger's previous firing to finish before starting anyway. */
+const TRIGGER_LANE_MAX_WAIT_MS = 10 * 60_000
+/** Firings of one trigger that may wait for the previous one; more start at once. */
+const TRIGGER_LANE_MAX_WAITING = 3
 
 /** The signing key an agent is: `signingKey` while it is enabled, else its first enabled key. */
 function primarySigningKeyOf(definition: api.AgentDefinition): string | undefined {
@@ -14756,6 +15090,25 @@ type AppHistory = {
   } | null>
 }
 
+/**
+ * The person's local time and zone, so "every morning at 8" means their 8 o'clock: a schedule you
+ * write takes this zone unless they name another.
+ */
+export function userTimeBlock(timezone: string | undefined, now = new Date()): string | undefined {
+  if (!timezone) return undefined
+  const local = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now)
+  return `<user_time zone="${timezone}">${local}</user_time>\nTimes your user names (8:00, tonight, every Monday) are in ${timezone} unless they say otherwise; use this zone for schedules you set for them.`
+}
+
 /** An app or a mounted agent whose trigger documents this server fires. */
 type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
 
@@ -14764,10 +15117,15 @@ type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
  * with `input` as the template) or, for an agent, a new session whose first message is the
  * document's body.
  */
+const APP_RESOURCE_TYPES = new Set(['hm://hyper.media/app', HM_TOOL_TYPE, 'hm://hyper.media/page', HM_TRIGGER_TYPE])
+
+const APP_TRIGGER_NEEDS_TOOL =
+  "An app's trigger calls one of the app's tools (options.trigger.tool). Work an agent does on an app's data (a digest, a shopping list) is the agent's own trigger, under its document, with the instructions as its content: read ~/tools/write/triggers."
+
 function projectTriggerDocument(
   host: TriggerHost,
   trigger: triggerDocuments.TriggerDocument,
-): {source: api.AgentTriggerSource; continuation?: api.TriggerContinuation; prompt: string} {
+): {source: api.AgentTriggerSource; continuation?: api.TriggerContinuation; prompt: string; agentId: string | null} {
   const source = normalizeAgentTriggerSource(trigger.source as api.AgentTriggerSource)
   if (trigger.tool) {
     return {
@@ -14775,12 +15133,19 @@ function projectTriggerDocument(
       continuation: {kind: 'tool', tool: trigger.tool, ...(trigger.input !== undefined ? {input: trigger.input} : {})},
       // A tool trigger has no message; an empty block list keeps the stored shape.
       prompt: JSON.stringify({type: 'seed-prompt-blocks', blocks: []}),
+      agentId: host.kind === 'agent' ? host.id : null,
     }
   }
-  if (host.kind === 'app') throw new Error('An app’s trigger must call one of its tools: set its tool')
+  // Without a tool, a firing starts a session with the agent the trigger lives under.
+  if (host.kind === 'app') throw new Error(APP_TRIGGER_NEEDS_TOOL)
+  const agentId = host.id
   if (!trigger.content.length)
     throw new Error('This trigger starts a session but has no message: write it in the trigger')
-  return {source, prompt: serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[])}
+  return {
+    source,
+    prompt: serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[]),
+    agentId,
+  }
 }
 
 function deleteAgentTriggerRows(db: Database, accountId: string, triggerId: string): void {
@@ -14819,6 +15184,11 @@ function triggerRowsByAddressName(db: Database, accountId: string, agentId: stri
 }
 
 /** One human line describing when a trigger fires, for listings and the Space index. */
+/** Accounts as a trigger summary names them: `self` is the agent itself. */
+function accountsLabel(accounts: readonly string[]): string {
+  return accounts.map((account) => (account === activityTriggers.SELF_ACCOUNT ? 'this agent' : account)).join(', ')
+}
+
 function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
   if (source.type === 'activity')
     return source.conditions.map(({source}) => triggerSourceSummaryLine(source)).join(' OR ')
@@ -14827,18 +15197,18 @@ function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
     if (schedule.kind === 'interval') return `every ${schedule.every} ${schedule.unit}`
     if (schedule.kind === 'weekly') {
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-      return `weekly on ${schedule.daysOfWeek.map((day) => days[day] ?? String(day)).join(', ')} at ${
-        schedule.timeOfDay
-      } (${schedule.timezone})`
+      return `weekly on ${schedule.daysOfWeek.map((day) => days[day] ?? String(day)).join(', ')} at ${(
+        schedule.timesOfDay ?? [schedule.timeOfDay]
+      ).join(', ')} (${schedule.timezone})`
     }
     return `once at ${new Date(schedule.runAt).toISOString()}`
   }
   if (source.type === 'webhook') return 'inbound webhook deliveries'
   if (source.type === 'document-comment') return `new comments on ${source.resource}`
-  if (source.type === 'user-mention') return `mentions of ${source.mentionedAccounts.join(', ')}`
-  if (source.type === 'comment-reply') return `replies to ${source.repliedToAccounts.join(', ')}`
+  if (source.type === 'user-mention') return `mentions of ${accountsLabel(source.mentionedAccounts)}`
+  if (source.type === 'comment-reply') return `replies to ${accountsLabel(source.repliedToAccounts)}`
   if (source.type === 'document-author-comment') {
-    return `comments on documents by ${source.documentAuthors.join(', ')}`
+    return `comments on documents by ${accountsLabel(source.documentAuthors)}`
   }
   if (source.type === 'site-update') return `activity under ${source.resourcePrefix}`
   if (source.type === 'run-completed') {
@@ -14883,7 +15253,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
   return {
     summary: `${rows.length} trigger${
       rows.length === 1 ? '' : 's'
-    }. Read ~/triggers/<name> for one; write ~/triggers/<name> to create or edit one.`,
+    }. Read ~/triggers/<name> for one. A trigger with a document (most are) is changed through that document: write its address with options.action "update" and options.trigger; read ~/tools/write/triggers. Write ~/triggers/<name> only for what a document cannot express (a workflow script, a wake).`,
     triggers: rows.map(triggerListingEntry),
     contract: [
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
@@ -14893,9 +15263,9 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       '  someone comments on any document an account authored, wherever it lives → {type: "document-author-comment", documentAuthors: [uid], resourcePrefix?} (never fires on the author\'s own comments)',
       '  any new comment on a document or everything under it → {type: "document-comment", resource, author?}',
       '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact (never fires on what this agent itself wrote or commented, unless includeOwnActivity: true)',
-      '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}}',
+      '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM" (or timesOfDay: ["HH:MM", ...] for several a day), timezone} | {kind: "once", runAt: epochMs}}',
       '  another run finishing → {type: "run-completed", agentId?, status?, titleMatch?} · an HTTP request → {type: "webhook"}',
-      'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids.',
+      'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids, or "self" for whichever accounts this agent signs as (it follows a new primary account).',
       'Several activity sources can share ONE action: {type: "activity", conditions: [{id: "stable-id", source: <user-mention, comment-reply, document-author-comment, document-comment or site-update source>}, ...]}. Any condition matches; one event fires once even when it matches several. Preserve condition IDs when editing. Schedules, webhooks and run-completed stay standalone.',
       'Read existing triggers first: agents already have a default trigger for mentions of their account, replies to their comments, and comments on documents they authored. Extend its conditions when the same instructions should handle another event.',
       'If no source expresses what the user asked for, say so and propose the closest option. Do not approximate with a broad filter plus code or prompt instructions that discard most firings: every firing costs a run.',
@@ -14929,6 +15299,8 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
     )
   }
   const row = rows[0]!
+  // The full webhook address, when this agent names the server it runs on.
+  const serverUrl = await agentServerUrlOf(context)
   const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
   const continuation = row.continuation_cbor ? cbor.decode<api.TriggerContinuation>(row.continuation_cbor) : undefined
   const webhookSecret = source.type === 'webhook' ? readWebhookTriggerSecret(context.db, row.id) : undefined
@@ -14950,7 +15322,11 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
   return {
     summary: `Trigger "${row.name}" is ${
       row.merged_into ? 'combined' : row.enabled ? 'active' : 'disabled'
-    }: ${triggerSourceSummaryLine(source)} → ${triggerContinuationSummaryLine(continuation)}.`,
+    }: ${triggerSourceSummaryLine(source)} → ${triggerContinuationSummaryLine(continuation)}.${
+      row.document_id ? ` ${triggerDocumentEditHint(row.document_id)}` : ''
+    }`,
+    ...(row.document_id ? {document: row.document_id} : {}),
+    ...(row.app_id ? {app: row.app_id} : {}),
     id: row.id,
     name: row.name,
     enabled: row.enabled !== 0,
@@ -14966,6 +15342,9 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
       ? {
           webhook: webhookSecret
             ? {
+                ...(serverUrl
+                  ? {endpoint: new URL(`/hm/api/agents/webhooks/${row.id}/${webhookSecret}`, serverUrl).href}
+                  : {}),
                 endpointPath: `/hm/api/agents/webhooks/${row.id}/${webhookSecret}`,
                 secret: webhookSecret,
                 alternative: `POST to /hm/api/agents/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
@@ -15131,6 +15510,7 @@ async function writeTriggerAddress(
   content: string | undefined,
   options: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const serverUrl = await agentServerUrlOf(context)
   if (!name || name.includes('/')) throw new APIError(400, 'write ~/triggers/<name> needs a single trigger name')
   const existing = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
   if (existing.length > 1) {
@@ -15197,6 +15577,28 @@ async function writeTriggerAddress(
   const trigger = normalizeAgentTriggerInput({...parsed, name} as api.AgentTriggerInput)
   assertTriggerContinuationCallable(context.db, context.accountId, context.agentId, trigger.continuation)
   assertAgentTriggerWriteIntent(trigger, row, options)
+  // A mounted agent's new trigger is a document, in the app it works for or under the agent, so its
+  // user sees and edits it there. ~/triggers keeps what a document cannot express, and serves an
+  // agent that cannot publish documents (it has none yet, e.g. no write access to its document).
+  const continuation = trigger.continuation
+  const documentForm =
+    !continuation ||
+    (continuation.kind === 'tool' && continuation.tool.startsWith('hm://')) ||
+    (continuation.kind === 'newThread' &&
+      !continuation.systemPrompt &&
+      continuation.includeAgentSystemPrompt !== false &&
+      !continuation.tools)
+  const publishesDocuments =
+    context.agentId.startsWith('hm://') &&
+    !!stmt<{id: string}, [string, string]>(
+      context.db,
+      `SELECT id FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND document_id IS NOT NULL LIMIT 1`,
+    ).get(context.accountId, context.agentId)
+  if (!row && documentForm && publishesDocuments)
+    throw new APIError(
+      400,
+      `Create this trigger as a document, where your user sees it: write hm://… with the message as content and options.trigger {source, …}. Put it under your document: ${context.agentId}/<name> (an app's own triggers call its tools). Read ~/tools/write/triggers. ~/triggers/<name> is only for what a document cannot express (a workflow script, a wake).`,
+    )
   if (options.dryRun === true) return dryRunTriggerWrite(context, trigger, row)
   if (row) {
     if (row.merged_into) throw new APIError(409, 'This trigger was combined into another trigger and cannot be edited')
@@ -15278,6 +15680,7 @@ async function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
+            ...(serverUrl ? {endpoint: new URL(`/hm/api/agents/webhooks/${id}/${webhookSecret}`, serverUrl).href} : {}),
             endpointPath: `/hm/api/agents/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
             alternative: `Senders that cannot use the secret URL may POST to /hm/api/agents/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
@@ -15362,7 +15765,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
             )}) to delegate — cheaper models with reasoning off for simple subtasks, stronger ones thinking harder for hard reasoning. Omit both to inherit your model and level.`,
           ]
         : []),
-      'Prefer trigger documents: publish a trigger under your agent document (or an app) with write and options.trigger (read ~/tools/write/triggers); it is listed in your document and your user sees it there. Triggers written to ~/triggers/<name> are published as documents for you when you can write your document. Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
+      'Automations are trigger documents: publish one with write and options.trigger (read ~/tools/write/triggers) under your document (an app’s own triggers call its tools), and your user sees it there. Change, pause or delete one by writing its document (options.action "update" or "delete"). ~/triggers/ lists every trigger you run with its firings; write ~/triggers/<name> only for what a document cannot express (a workflow script with continuation {kind: "script"}, a wake). A trigger can start a session with you, or call a tool with no model at all.',
       'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
       "Delegation is budgeted: `delegation` shows your thoroughness preset and its maximum depth and children per run; a session may override the preset. Each turn's system prompt tells you your current depth and how much room your children have; a leaf worker gets no delegate verb at all.",
       'Your definition (name, model, system prompt, grants, signing keys, thoroughness) is edited by the user in the desktop; you cannot change it yourself.',
@@ -15647,6 +16050,15 @@ export async function executeReadVerb(
   }
 
   if (address === '~/tools' || address === '~/tools/') return toolsListing(context)
+  // An app's or agent's tool is a document with an address of its own; ~/tools holds the verbs and
+  // built-in tools only.
+  if (address.startsWith('~/tools/hm://'))
+    throw new APIError(
+      400,
+      `${address.slice(
+        '~/tools/'.length,
+      )} is a tool document: read that hm:// address itself for its input, output and code.`,
+    )
   if (address.startsWith('~/tools/')) {
     const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
     const [root, guideName, ...extra] = name.split('/')
@@ -15768,7 +16180,8 @@ export async function executeReadVerb(
       history?.[2] as 'calls' | 'firings' | undefined,
       oneCall?.[2],
     )
-  if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
+  if (address.startsWith('hm://'))
+    return withAppRunStatus(context, await readHypermedia({id: address, format, server: context.hmServerUrl}))
   // A bare comment id (`<authorUid>/<tsid>`, the shape of replyTo/replyParent/threadRoot fields)
   // is a hypermedia read too: agents paste these straight out of trigger context.
   if (BARE_COMMENT_ID_PATTERN.test(address))
@@ -15832,8 +16245,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -15869,6 +16282,23 @@ function readOrCreateServerId(dataDir: string): string {
     fs.writeFileSync(file, `${id}\n`)
   } catch {}
   return id
+}
+
+/** An app read here says whether it runs on this server, so "is it running?" needs no other lookup. */
+function withAppRunStatus(context: AgentServicePiToolContext, result: Record<string, unknown>) {
+  const metadata = result.metadata as Record<string, unknown> | undefined
+  if (metadata?.type !== 'hm://hyper.media/app' || typeof result.id !== 'string') return result
+  const appId = unpackHmId(result.id)
+  if (!appId) return result
+  const run = stmt<{started_by: string}, [string]>(context.db, `SELECT started_by FROM app_runs WHERE app_id = ?`).get(
+    packHmId({...appId, version: null, latest: true}),
+  )
+  return {
+    ...result,
+    runsHere: run
+      ? {running: true, startedBy: run.started_by, stop: 'write the app address with options.action "stop"'}
+      : {running: false, start: 'write the app address with options.action "run"'},
+  }
 }
 
 /** A mounted agent's document, read as its prompt (see Service#agentDocumentPrompt). */
@@ -16287,9 +16717,8 @@ export async function executeWriteVerb(
     const toolFolder = await resolveWriteToolFolder(context, options.tool)
     if (toolFolder && pageFolder) throw new APIError(400, 'A document is either a page or a tool, not both.')
     // A trigger: options.trigger holds when it fires (source) and what it does (a host tool and its
-    // input template, or for an agent nothing: the document's body starts a session). The source
-    // and input are published as DAG-CBOR blobs beside the change. A trigger lives under an app or
-    // an agent, like a tool.
+    // input template, or for an agent nothing: the document's body starts a session). Both are
+    // stored in the document's metadata. A trigger lives under an app or an agent, like a tool.
     const triggerFields =
       options.trigger === undefined ? null : await resolveWriteTrigger(options.trigger, action === 'update')
     if (triggerFields && (pageFolder || toolFolder))
@@ -16345,6 +16774,19 @@ export async function executeWriteVerb(
         ...commandInput,
       },
     })
+    // A trigger document just written is synced at once, so reading it back (or ~/triggers) shows
+    // the change instead of the state before it.
+    const afterTriggerWrite = async (result: Record<string, unknown>) => {
+      if (!dryRun) {
+        const written = unpackHmId(address)
+        const problem = written
+          ? await context.onDocumentWritten?.(packHmId({...written, version: null, latest: true}), !!triggerFields)
+          : undefined
+        if (problem)
+          return {...result, triggerProblem: problem, summary: `Published, but this trigger cannot fire: ${problem}`}
+      }
+      return result
+    }
     switch (action) {
       case 'run':
       case 'stop': {
@@ -16382,37 +16824,41 @@ export async function executeWriteVerb(
         }
       }
       case 'document':
-        return withPageResult(
-          await writeHypermedia(
-            context,
-            envelope('document.create', {
-              account: hm.account,
-              path: hm.path,
-              ...(typeof options.name === 'string' ? {name: options.name} : {}),
-              ...(metadata ? {metadata} : {}),
-              ...(content !== undefined ? {content, format: 'markdown'} : {}),
-            }),
-            pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+        return afterTriggerWrite(
+          withPageResult(
+            await writeHypermedia(
+              context,
+              envelope('document.create', {
+                account: hm.account,
+                path: hm.path,
+                ...(typeof options.name === 'string' ? {name: options.name} : {}),
+                ...(metadata ? {metadata} : {}),
+                ...(content !== undefined ? {content, format: 'markdown'} : {}),
+              }),
+              pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+            ),
+            pageFolder,
+            toolFolder,
           ),
-          pageFolder,
-          toolFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return withPageResult(
-          await writeHypermedia(
-            context,
-            envelope('document.update', {
-              edit: address,
-              ...(typeof options.name === 'string' ? {name: options.name} : {}),
-              ...(metadata ? {metadata} : {}),
-              ...(content !== undefined ? {content, format: 'markdown'} : {}),
-            }),
-            pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+        return afterTriggerWrite(
+          withPageResult(
+            await writeHypermedia(
+              context,
+              envelope('document.update', {
+                edit: address,
+                ...(typeof options.name === 'string' ? {name: options.name} : {}),
+                ...(metadata ? {metadata} : {}),
+                ...(content !== undefined ? {content, format: 'markdown'} : {}),
+              }),
+              pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
+            ),
+            pageFolder,
+            toolFolder,
           ),
-          pageFolder,
-          toolFolder,
         )
       case 'comment':
         return writeHypermedia(
@@ -16441,9 +16887,15 @@ export async function executeWriteVerb(
             ...(typeof options.toUrl === 'string' ? {to: options.toUrl} : {}),
           }),
         )
-      case 'delete':
+      case 'delete': {
         // The command handler reads `id`, not account/path — the address is the document to delete.
-        return writeHypermedia(context, envelope('document.delete', {id: address}))
+        const result = await writeHypermedia(context, envelope('document.delete', {id: address}))
+        if (!dryRun) {
+          const deleted = unpackHmId(address)
+          if (deleted) context.onDocumentDeleted?.(packHmId({...deleted, version: null, latest: true}))
+        }
+        return result
+      }
       case 'fork':
         // The address is where the fork lands; the handler reads it from `destination`.
         return writeHypermedia(
@@ -16958,7 +17410,7 @@ async function writeHypermedia(
     case 'comment.delete':
       return writeCommentDelete(client, signer, request)
     case 'document.create':
-      return writeDocumentCreate(client, signer, request, extraBlobs)
+      return writeDocumentCreate(client, signer, request, extraBlobs, context.agentId)
     case 'document.update':
       return writeDocumentUpdate(client, signer, request, extraBlobs)
     case 'document.delete':
@@ -17139,6 +17591,12 @@ async function writeCapabilityCreate(
     'Capability delegate',
     MAX_NAME_BYTES,
   )
+  // A space's owner can already write all of it.
+  if (delegateUid === (target || signer.publicKey))
+    throw new APIError(
+      400,
+      `${delegateUid} owns this space and can already write everything in it: no grant is needed. A page they open saves with that access.`,
+    )
   const role = normalizeBoundedString(request.input.role, 'Capability role', MAX_NAME_BYTES).toUpperCase()
   if (role !== 'WRITER' && role !== 'AGENT') throw new APIError(400, 'Capability role must be WRITER or AGENT')
   const path = normalizeOptionalBoundedString(request.input.path, 'Capability path', 2048)
@@ -17427,6 +17885,8 @@ async function writeDocumentCreate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
   extraBlobs: CollectedBlob[] = [],
+  /** The writing agent's id: an hm:// document id when it is mounted. */
+  agentId?: string,
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
   await assertPublishableMermaid(parsed.blocks)
@@ -17444,12 +17904,33 @@ async function writeDocumentCreate(
   const account =
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
+  // A mounted agent's apps belong with its document, where its user finds them: a signing
+  // identity's own space is not browsed by anyone.
+  const agentDocument = agentId?.startsWith('hm://') ? unpackHmId(agentId) : null
+  if (
+    agentDocument &&
+    account === signer.publicKey &&
+    account !== agentDocument.uid &&
+    APP_RESOURCE_TYPES.has(String(metadata.type))
+  )
+    throw new APIError(
+      400,
+      `Make apps, tools, pages and triggers under your document ${agentId} (for example ${agentId}/<name>), not in your signing identity's own space hm://${account}: nobody browses it.`,
+    )
   await ensureParentDocumentExists(client, account, path)
   // A tool or page written under an app joins the app: its card embed is added to the app in the
   // same publish. A tool anywhere else is refused.
   const childId = unpackHmId(`hm://${account}${path}`)
   const {app, refusal} = childId ? await resolveAppParent(client, childId, metadata.type) : {app: null}
   if (refusal) throw new APIError(400, refusal)
+  // A trigger under an app calls one of the app's tools: nothing there could start a session.
+  if (
+    app &&
+    metadata.type === HM_TRIGGER_TYPE &&
+    app.document.metadata?.type === 'hm://hyper.media/app' &&
+    !metadata.tool
+  )
+    throw new APIError(400, APP_TRIGGER_NEEDS_TOOL)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
@@ -17475,13 +17956,22 @@ async function writeDocumentCreate(
   // content Change is the genesis. Every document created here used to share the home genesis
   // (sixty papers, one comment thread, 2026-09-15).
   const created = await createDocumentBlobs(signer.signer, {space: account, path, ops, capability})
-  const appBlobs =
-    app && childId
-      ? await appEmbedBlobs({client, signer: signer.signer, app, childId, change: 'add', capability: appCapability})
-      : null
-  const published = await client.publish({
-    blobs: [...created.blobs, ...extraBlobs, ...(appBlobs ?? [])],
-  })
+  // The child and its card on the app publish together; the card is computed from the app as it is
+  // inside the app's lock, so parallel writes under one app each keep their card.
+  const publishWithCard = async () => {
+    const appBlobs =
+      app && childId
+        ? await missingCardBlobs({
+            client,
+            signer: signer.signer,
+            childId,
+            type: metadata.type,
+            capability: appCapability,
+          })
+        : null
+    return client.publish({blobs: [...created.blobs, ...extraBlobs, ...(appBlobs ?? [])]})
+  }
+  const published = app ? await withHostLock(app.id.id, publishWithCard) : await publishWithCard()
   return writeToolResult(request.command, signer, {
     id: `hm://${account}${path}`,
     version: created.version,
@@ -17650,9 +18140,13 @@ async function writeDocumentUpdate(
       ...extraBlobs,
     ],
   })
+  // A tool, page or trigger its app or agent does not list (a card lost to a race, or never added)
+  // is listed again when it is updated.
+  const relisted = await relistInHost(client, signer, targetId, {...resource.document.metadata, ...metadata}.type)
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
     resolvedDocumentId: packHmId(targetId),
+    ...(relisted ? {listedInApp: true, app: relisted} : {}),
     redirectHops: base.redirects.map((hop) => ({
       from: packHmId(hop.from),
       to: packHmId(hop.to),
@@ -17663,6 +18157,34 @@ async function writeDocumentUpdate(
     ...typed,
     ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
   })
+}
+
+/** Adds a child's missing card to its host after an update; returns the host id when it did. */
+async function relistInHost(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  childId: UnpackedHypermediaId,
+  type: unknown,
+): Promise<string | null> {
+  const host = await findListingApp(client, childId).catch(() => null)
+  if (!host) return null
+  try {
+    return await withHostLock(host.id.id, async () => {
+      const capability = await resolveCapability(
+        client,
+        host.id.uid,
+        signer.publicKey,
+        hmIdPathToEntityQueryPath(host.id.path),
+      )
+      const blobs = await missingCardBlobs({client, signer: signer.signer, childId, type, capability})
+      if (!blobs) return null
+      await client.publish({blobs})
+      return host.id.id
+    })
+  } catch {
+    // Listing is a repair: the update itself has already published.
+    return null
+  }
 }
 
 async function writeDocumentDelete(
@@ -18351,7 +18873,7 @@ function collapseMemoryPath(rawPath: string): string | undefined {
  * so the model reaches for it as a normal move and not as an emergency.
  */
 const SESSION_CONTINUATION_PROMPT = [
-  'Conversations are never compacted or summarized behind your back: this transcript is the complete record and stays that way. When it stops being the right working context, you continue the conversation in a fresh session with the `continue_session` verb — the user changed subject, a phase of the work ended and a new one begins, they want to get back to or focus on one thread of a long conversation, they asked for a fresh start, or your context is getting full. A continuation is a normal, visible move, not a failure: the user is carried to the new session automatically and experiences one continuous interaction, this session stays readable and linked, and the new session starts from the handoff you write plus the exact text of the message being answered. Calling it ends your turn here; the successor session answers the user, so call it instead of replying, not after.',
+  'Conversations are never compacted or summarized behind your back: this transcript is the complete record and stays that way. When it stops being the right working context, you continue the conversation in a fresh session with the `continue_session` verb — the user changed subject, a phase of the work ended and a new one begins, they want to get back to or focus on one thread of a long conversation, they asked for a fresh start, or your context is getting full. Carrying out one request is one phase: reading guides, planning, building and checking the thing the user asked for all belong in the session they asked in. Do not continue in the middle of a request (after your research, before building) unless your context is genuinely filling; the user is watching this session and a mid-task jump to another one is confusing. A continuation is a normal, visible move, not a failure: the user is carried to the new session automatically and experiences one continuous interaction, this session stays readable and linked, and the new session starts from the handoff you write plus the exact text of the message being answered. Calling it ends your turn here; the successor session answers the user, so call it instead of replying, not after.',
   'Each turn may begin with a <context_usage> block measuring how full your context is. Treat it as one input to a semantic decision: continue at a natural boundary well before the context fills (around 70% is the time to look for one), and prefer a continuation to letting earlier facts fall off the edge. A successor can always recall exact earlier material with `read thread:<id>` (options {fromSeq, toSeq}), so a continuation reduces what is loaded, never what is reachable.',
 ].join(' ')
 
@@ -19010,10 +19532,24 @@ function mergeWriteMetadata(
   return metadata
 }
 
-function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
-  const attrs = Object.entries(metadata)
-    .filter((entry) => entry[1] !== undefined)
-    .map(([key, value]) => ({key: [key], value}))
+/**
+ * Document attributes merge key by key: every key path is its own last-writer-wins value, a null
+ * removes one, and a list is a single value replaced whole. A nested map is stored one entry per key
+ * (each entry can then be edited, and searched, on its own). What the write tool writes for a key
+ * becomes exactly that value: a map is cleared, then set entry by entry, so entries dropped from it
+ * do not linger.
+ */
+export function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
+  const attrs: {key: string[]; value: unknown}[] = []
+  const leaves = (key: string[], value: unknown) => {
+    if (isPlainMap(value)) for (const [child, childValue] of Object.entries(value)) leaves([...key, child], childValue)
+    else if (value !== undefined) attrs.push({key, value})
+  }
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value === undefined) continue
+    if (isPlainMap(value)) attrs.push({key: [key], value: null})
+    leaves([key], value)
+  }
   return attrs.length ? ([{type: 'SetAttributes', attrs}] as DocumentOperation[]) : []
 }
 

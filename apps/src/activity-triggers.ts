@@ -136,9 +136,9 @@ export function activityMatchesTriggerSource(
     return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event, context))
   }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
-  if (source.type === 'user-mention') return matchesUserMention(source, event)
-  if (source.type === 'comment-reply') return matchesCommentReply(source, event)
-  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event)
+  if (source.type === 'user-mention') return matchesUserMention(source, event, context)
+  if (source.type === 'comment-reply') return matchesCommentReply(source, event, context)
+  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event, context)
   if (source.type === 'site-update') return matchesSiteUpdate(source, event, context)
   return false
 }
@@ -216,6 +216,8 @@ export function activitySummary(event: ActivityFeedEvent): string {
     return `${title} ${status}`
   }
   if (type === 'schedule') {
+    // A Run now firing says so, and who ran it, rather than claiming its schedule fired.
+    if ((event as {manual?: unknown}).manual === true) return 'Run now'
     const scheduledAt = numberField(event, 'scheduledAt')
     const kind = stringField(event, 'scheduleKind') || 'schedule'
     return scheduledAt ? `Scheduled ${kind} at ${new Date(scheduledAt).toISOString()}` : 'Scheduled run'
@@ -310,11 +312,59 @@ export function mentionedAccountsOf(source: Extract<api.AgentTriggerSource, {typ
   return accounts.filter((account) => !!account)
 }
 
+/**
+ * The account a trigger names as `self`: whichever accounts its agent signs as now, so a trigger
+ * about "me" keeps working when the agent's primary account changes or it gains another one.
+ */
+export const SELF_ACCOUNT = 'self'
+
+/** `source` with the agent's own accounts named as `self` in mention, reply and author conditions. */
+export function ownAccountsAsSelf(source: api.AgentTriggerSource, own: readonly string[]): api.AgentTriggerSource {
+  if (!own.length) return source
+  const asSelf = (accounts: readonly string[]) => [
+    ...new Set(accounts.map((account) => (own.includes(account) ? SELF_ACCOUNT : account))),
+  ]
+  if (source.type === 'activity')
+    return {
+      ...source,
+      conditions: source.conditions.map((condition) => ({
+        ...condition,
+        source: ownAccountsAsSelf(condition.source as api.AgentTriggerSource, own) as typeof condition.source,
+      })),
+    }
+  if (source.type === 'user-mention') return {...source, mentionedAccounts: asSelf(mentionedAccountsOf(source))}
+  if (source.type === 'comment-reply') return {...source, repliedToAccounts: asSelf(source.repliedToAccounts)}
+  if (source.type === 'document-author-comment') return {...source, documentAuthors: asSelf(source.documentAuthors)}
+  return source
+}
+
+/** `accounts` with `self` replaced by the agent's own accounts. */
+export function resolveSelfAccounts(accounts: readonly string[], context: TriggerMatchContext): string[] {
+  if (!accounts.includes(SELF_ACCOUNT)) return [...accounts]
+  return [...new Set(accounts.flatMap((account) => (account === SELF_ACCOUNT ? context.ownAccounts ?? [] : [account])))]
+}
+
 function matchesUserMention(
   source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
-  return mentionedAccountsOf(source).some((mentionedAccount) => matchesSingleMention(mentionedAccount, source, event))
+  // The agent mentioning itself (from any of its accounts) is not someone summoning it.
+  if (mentionedAccountsOf(source).includes(SELF_ACCOUNT) && context.ownAccounts?.length) {
+    const authorRecord = recordField(event, 'author')
+    const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+    const comment = recordField(event, 'comment')
+    const mention = activityEventMention(event)
+    const sourceBlob = mention ? recordField(mention, 'sourceBlob') : null
+    const author =
+      (authorId && stringField(authorId, 'uid')) ||
+      (comment && stringField(comment, 'author')) ||
+      (sourceBlob && stringField(sourceBlob, 'author'))
+    if (author && context.ownAccounts.includes(author)) return false
+  }
+  return resolveSelfAccounts(mentionedAccountsOf(source), context).some((mentionedAccount) =>
+    matchesSingleMention(mentionedAccount, source, event),
+  )
 }
 
 /**
@@ -382,7 +432,9 @@ function matchesSingleMention(
 function matchesCommentReply(
   source: Extract<api.AgentTriggerSource, {type: 'comment-reply'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
+  const repliedToAccounts = resolveSelfAccounts(source.repliedToAccounts, context)
   if (stringField(event, 'type') !== 'comment') return false
   const comment = recordField(event, 'comment')
   const parentAuthorRecord = recordField(event, 'replyParentAuthor')
@@ -391,11 +443,13 @@ function matchesCommentReply(
   const parentAuthor =
     (parentAuthorId && stringField(parentAuthorId, 'uid')) ||
     (replyingComment && stringField(replyingComment, 'author'))
-  if (!parentAuthor || !source.repliedToAccounts.includes(parentAuthor)) return false
+  if (!parentAuthor || !repliedToAccounts.includes(parentAuthor)) return false
   const authorRecord = recordField(event, 'author')
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
   if (author === parentAuthor) return false
+  // A trigger about the agent itself never fires on the agent's own activity, from any of its accounts.
+  if (author && source.repliedToAccounts.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 
@@ -407,17 +461,20 @@ function matchesCommentReply(
 function matchesDocumentAuthorComment(
   source: Extract<api.AgentTriggerSource, {type: 'document-author-comment'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
+  const documentAuthors = resolveSelfAccounts(source.documentAuthors, context)
   if (stringField(event, 'type') !== 'comment') return false
   const targetAuthors = Array.isArray(event.targetAuthorUids)
     ? event.targetAuthorUids.filter((uid): uid is string => typeof uid === 'string')
     : []
-  if (!source.documentAuthors.some((account) => targetAuthors.includes(account))) return false
+  if (!documentAuthors.some((account) => targetAuthors.includes(account))) return false
   const comment = recordField(event, 'comment')
   const authorRecord = recordField(event, 'author')
   const authorId = authorRecord ? recordField(authorRecord, 'id') : null
   const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
-  if (author && source.documentAuthors.includes(author)) return false
+  if (author && documentAuthors.includes(author)) return false
+  if (author && source.documentAuthors.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
   return mentionMatchesResourcePrefix(event, source.resourcePrefix)
 }
 

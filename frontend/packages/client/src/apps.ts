@@ -18,7 +18,6 @@ import type {BlockNode} from './markdown-to-blocks'
 import {createVersionRef} from './ref'
 import type {AnySigner} from './signer'
 import {CID} from 'multiformats/cid'
-import {encodeDagCbor} from './signed-blob'
 
 export const HM_APP_TYPE = 'hm://hyper.media/app'
 export const HM_TOOL_TYPE = 'hm://hyper.media/tool'
@@ -237,77 +236,136 @@ function newBlockId(): string {
 
 /**
  * A trigger document (`type: hm://hyper.media/trigger`) is a child of an app or an agent, listed in
- * it as a card embed like a tool. Its metadata says when it fires and what it does:
+ * it as a card embed like a tool. Its metadata holds the whole trigger, readable and editable in
+ * place:
  *
- * - `source`: `ipfs://<cid>` of a DAG-CBOR trigger source (activity conditions, a schedule, a
- *   webhook, or run-completed), the same shape agents' triggers have always used.
+ * - `source`: when it fires (activity conditions, a schedule, a webhook, or a run finishing).
  * - `tool`: optionally the hm:// URL of one of its host's tools to call when it fires.
- * - `input`: optionally `ipfs://<cid>` of a DAG-CBOR input template for that tool; string values
- *   `"$event"` and `"$event.<path>"` are replaced from the event.
+ * - `input`: optionally the tool's input template; string values `"$event"` and `"$event.<path>"`
+ *   are replaced from the event.
  * - `enabled`: `false` turns it off; any other value (or none) leaves it on.
  *
  * With no `tool`, a trigger under an agent starts a session with the agent and the trigger's body
- * (its content) is the first message. A trigger under an app must name a tool.
+ * (its content) is the first message. A trigger under an app calls one of the app's tools.
+ *
+ * Document attributes merge key by key, and a list is one value that can only be replaced whole, so
+ * the source stores its sets as maps (see {@link triggerSourceToMetadata}): `daysOfWeek: {mon: true}`,
+ * `timesOfDay: {"08:00": true}`, account lists as `{<account>: true}`, `eventTypes: {comment: true}`,
+ * and `conditions` keyed by their ids. Each entry is then its own key, edited without touching the
+ * others.
  */
 export type TriggerDocumentFields = {
-  /** The trigger source; published as a DAG-CBOR blob. */
+  /** The trigger source, in the engine's shape (lists); stored as maps. */
   source: unknown
   /** hm:// URL of the host's tool to call, or null to start an agent session. */
   tool?: string | null
-  /** Input template for the tool; published as a DAG-CBOR blob. */
+  /** Input template for the tool. */
   input?: unknown
   enabled?: boolean
 }
 
-/** A trigger document's metadata as stored: references to its source and input blobs. */
-export type TriggerDocumentRefs = {
-  sourceCid: string | null
+const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+/** Source fields that are sets: stored as `{<item>: true}` maps. */
+const SET_FIELDS = ['timesOfDay', 'mentionedAccounts', 'repliedToAccounts', 'documentAuthors', 'eventTypes']
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** A trigger source as document metadata: its lists as maps, so each entry is its own key. */
+export function triggerSourceToMetadata(source: unknown): unknown {
+  if (!isPlainRecord(source)) return source
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(source)) {
+    if (key === 'daysOfWeek' && Array.isArray(value))
+      out[key] = Object.fromEntries(value.map((day) => [DAY_NAMES[Number(day)] ?? String(day), true]))
+    else if (SET_FIELDS.includes(key) && Array.isArray(value))
+      out[key] = Object.fromEntries(value.map((item) => [String(item), true]))
+    else if (key === 'conditions' && Array.isArray(value))
+      out[key] = Object.fromEntries(
+        value.map((condition, index) => {
+          const {id, source: conditionSource} = (condition ?? {}) as {id?: unknown; source?: unknown}
+          return [
+            typeof id === 'string' && id ? id : `condition-${index + 1}`,
+            triggerSourceToMetadata(conditionSource),
+          ]
+        }),
+      )
+    else out[key] = isPlainRecord(value) ? triggerSourceToMetadata(value) : value
+  }
+  return out
+}
+
+/** A trigger source read from document metadata, in the engine's shape. */
+export function triggerSourceFromMetadata(metadata: unknown): unknown {
+  if (!isPlainRecord(metadata)) return metadata
+  const members = (value: unknown) =>
+    isPlainRecord(value)
+      ? Object.entries(value)
+          .filter(([, on]) => on === true || on === 'true')
+          .map(([item]) => item)
+      : Array.isArray(value)
+        ? value
+        : []
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(metadata)) {
+    if (key === 'daysOfWeek')
+      out[key] = members(value)
+        .map((day) => (typeof day === 'number' ? day : DAY_NAMES.indexOf(String(day).toLowerCase())))
+        .filter((day) => day >= 0)
+        .sort((a, b) => a - b)
+    else if (SET_FIELDS.includes(key)) out[key] = key === 'timesOfDay' ? members(value).sort() : members(value)
+    else if (key === 'conditions' && isPlainRecord(value))
+      out[key] = Object.entries(value).map(([id, condition]) => ({id, source: triggerSourceFromMetadata(condition)}))
+    else out[key] = isPlainRecord(value) ? triggerSourceFromMetadata(value) : value
+  }
+  return out
+}
+
+/** A trigger document's fields, read from its metadata. */
+export function triggerDocumentFields(metadata: Record<string, unknown> | undefined): {
+  source: unknown
   tool: string | null
-  inputCid: string | null
+  input: unknown
   enabled: boolean
-}
-
-/** The CID inside an `ipfs://<cid>` reference (or a bare CID), or null. */
-export function ipfsRefCid(value: unknown): string | null {
-  if (typeof value !== 'string' || !value) return null
-  const cid = value.replace(/^ipfs:\/\//i, '').split('/')[0] ?? ''
-  return cid || null
-}
-
-/** Reads a trigger document's metadata references. */
-export function triggerDocumentRefs(metadata: Record<string, unknown> | undefined): TriggerDocumentRefs {
+} {
   return {
-    sourceCid: ipfsRefCid(metadata?.source),
+    source: isPlainRecord(metadata?.source) ? triggerSourceFromMetadata(metadata.source) : undefined,
     tool: typeof metadata?.tool === 'string' && metadata.tool ? metadata.tool : null,
-    inputCid: ipfsRefCid(metadata?.input),
+    input: metadata?.input ?? undefined,
     enabled: metadata?.enabled !== false && metadata?.enabled !== 'false',
   }
 }
 
 /**
- * The `SetAttributes` op that writes a trigger's fields, with the DAG-CBOR blobs it references
- * (publish them with the change). Fields left `undefined` are not touched; `tool: null` and
- * `input: null` clear them.
+ * Attribute writes that set `value` at `key` one entry at a time (lists stay whole values), after
+ * clearing `key`, so the result is exactly `value` with no entries left from what was there.
+ */
+function leafAttributes(key: string[], value: unknown): {key: string[]; value: unknown}[] {
+  if (!isPlainRecord(value)) return [{key, value}]
+  const leaves = Object.entries(value).flatMap(([child, childValue]) => leafAttributes([...key, child], childValue))
+  return leaves
+}
+
+/**
+ * The `SetAttributes` op that writes a trigger's fields into its document. Fields left `undefined`
+ * are not touched; `tool: null` and `input: null` clear them. A field that is written replaces what
+ * was there: it is cleared first, then set entry by entry.
  */
 export async function triggerDocumentOps(
   fields: Partial<TriggerDocumentFields>,
 ): Promise<{ops: DocumentOperation[]; blobs: CollectedBlob[]}> {
-  const attrs: {key: string[]; value: string | boolean | null}[] = []
-  const blobs: CollectedBlob[] = []
-  if (fields.source !== undefined) {
-    const encoded = await encodeDagCbor(fields.source)
-    blobs.push({cid: encoded.cid, data: encoded.data})
-    attrs.push({key: ['source'], value: `ipfs://${encoded.cid}`})
+  const attrs: {key: string[]; value: unknown}[] = []
+  const replace = (key: string, value: unknown) => {
+    attrs.push({key: [key], value: null})
+    if (value !== null) attrs.push(...leafAttributes([key], value))
   }
+  if (fields.source !== undefined) replace('source', triggerSourceToMetadata(fields.source))
   if (fields.tool !== undefined) attrs.push({key: ['tool'], value: fields.tool || null})
-  if (fields.input !== undefined) {
-    if (fields.input === null) attrs.push({key: ['input'], value: null})
-    else {
-      const encoded = await encodeDagCbor(fields.input)
-      blobs.push({cid: encoded.cid, data: encoded.data})
-      attrs.push({key: ['input'], value: `ipfs://${encoded.cid}`})
-    }
-  }
+  if (fields.input !== undefined) replace('input', fields.input)
   if (fields.enabled !== undefined) attrs.push({key: ['enabled'], value: fields.enabled})
-  return {ops: attrs.length ? [{type: 'SetAttributes', attrs}] : [], blobs}
+  return {
+    ops: attrs.length ? [{type: 'SetAttributes', attrs: attrs as {key: string[]; value: string}[]}] : [],
+    blobs: [],
+  }
 }

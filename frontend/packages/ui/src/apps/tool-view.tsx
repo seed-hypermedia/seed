@@ -4,6 +4,7 @@ import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {useResource} from '@shm/shared/models/entity'
 import {useQuery} from '@tanstack/react-query'
+import {ChevronDown, ChevronRight} from 'lucide-react'
 import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {Button} from '../button'
@@ -42,6 +43,8 @@ export function ToolDocumentView({
   const client = useUniversalClient()
   const navigate = useNavigate()
   const draft = useResourceDraft(document)
+  const [showDefinition, setShowDefinition] = useState(false)
+  const definitionOpen = showDefinition || draft.hasDraft
   const saved = draft.metadata
   const source = useToolSource(typeof saved.code === 'string' ? saved.code : undefined)
   // Schema and code edits show at once; the draft takes them (as published blobs) after a pause.
@@ -96,6 +99,7 @@ export function ToolDocumentView({
       <AgentSubpageHeader
         title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Tool name"
+        subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent' : 'Back to app tools'}
         onBack={() =>
@@ -124,45 +128,71 @@ export function ToolDocumentView({
             onOpenSettings={() => navigate({key: 'document', id: appId, appView: 'settings'})}
           />
         ) : null}
-        <Section title="Input">
-          <SchemaField
-            label="Input"
-            schemaRef={input === null ? undefined : inputSchemaRef}
-            value={input ?? null}
-            onChange={(schema) => changeSchema('inputSchema', schema)}
-            canEdit={canEdit}
-          />
-        </Section>
-        <Section title="Output">
-          <SchemaField
-            label="Output"
-            schemaRef={output === null ? undefined : outputSchemaRef}
-            value={output ?? null}
-            onChange={(schema) => changeSchema('outputSchema', schema)}
-            canEdit={canEdit}
-            optional
-          />
-        </Section>
-        <Section title={TOOL_ENTRY_FILE}>
-          {source.isError && code === null ? (
-            <SizableText size="sm" className="text-destructive" role="alert">
-              {source.error instanceof Error ? source.error.message : 'Could not load the code'}
-            </SizableText>
+        {/* Using the tool ends here; below is what defines it, edited in a draft and published. It
+            starts folded, so the page reads as a tool to run, and opens itself while a draft is pending. */}
+        <button
+          type="button"
+          className="border-border flex items-start gap-2 border-t pt-6 text-left"
+          onClick={() => setShowDefinition((open) => !open)}
+          aria-expanded={definitionOpen}
+        >
+          {definitionOpen ? (
+            <ChevronDown className="text-muted-foreground mt-0.5 size-4 shrink-0" />
           ) : (
-            <CodeTextArea
-              aria-label={`${name || 'Tool'} ${TOOL_ENTRY_FILE}`}
-              className="min-h-80"
-              value={code ?? (source.isLoading ? '' : source.data ?? '')}
-              placeholder={source.isLoading ? 'Loading…' : undefined}
-              readOnly={!canEdit}
-              onChange={(event) => changeCode(event.currentTarget.value)}
-            />
+            <ChevronRight className="text-muted-foreground mt-0.5 size-4 shrink-0" />
           )}
-          <SizableText size="xs" color="muted">
-            The tool's code: <code>export default async function (input, ctx): Promise&lt;output&gt;</code>, where{' '}
-            <code>ctx</code> holds the app's <code>publicConfig</code> and <code>privateConfig</code>.
-          </SizableText>
-        </Section>
+          <span className="flex flex-col gap-1">
+            <SizableText weight="bold">Definition</SizableText>
+            <SizableText size="sm" color="muted">
+              {canEdit
+                ? 'What the tool takes, what it returns, and its code. Changes stay in a draft until you publish them from the top bar.'
+                : 'What the tool takes, what it returns, and its code.'}
+            </SizableText>
+          </span>
+        </button>
+        {definitionOpen ? (
+          <>
+            <Section title="Input">
+              <SchemaField
+                label="Input"
+                schemaRef={input === null ? undefined : inputSchemaRef}
+                value={input ?? null}
+                onChange={(schema) => changeSchema('inputSchema', schema)}
+                canEdit={canEdit}
+              />
+            </Section>
+            <Section title="Output">
+              <SchemaField
+                label="Output"
+                schemaRef={output === null ? undefined : outputSchemaRef}
+                value={output ?? null}
+                onChange={(schema) => changeSchema('outputSchema', schema)}
+                canEdit={canEdit}
+                optional
+              />
+            </Section>
+            <Section title={TOOL_ENTRY_FILE}>
+              {source.isError && code === null ? (
+                <SizableText size="sm" className="text-destructive" role="alert">
+                  {source.error instanceof Error ? source.error.message : 'Could not load the code'}
+                </SizableText>
+              ) : (
+                <CodeTextArea
+                  aria-label={`${name || 'Tool'} ${TOOL_ENTRY_FILE}`}
+                  className="min-h-80"
+                  value={code ?? (source.isLoading ? '' : source.data ?? '')}
+                  placeholder={source.isLoading ? 'Loading…' : undefined}
+                  readOnly={!canEdit}
+                  onChange={(event) => changeCode(event.currentTarget.value)}
+                />
+              )}
+              <SizableText size="xs" color="muted">
+                The tool's code: <code>export default async function (input, ctx): Promise&lt;output&gt;</code>, where{' '}
+                <code>ctx</code> holds the app's <code>publicConfig</code> and <code>privateConfig</code>.
+              </SizableText>
+            </Section>
+          </>
+        ) : null}
       </section>
     </div>
   )

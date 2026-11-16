@@ -3,7 +3,9 @@ import {
   addAppChildOps,
   HM_TRIGGER_TYPE,
   triggerDocumentOps,
-  triggerDocumentRefs,
+  triggerDocumentFields,
+  triggerSourceFromMetadata,
+  triggerSourceToMetadata,
   appChildKind,
   appEmbeddedChildren,
   isAppChildId,
@@ -79,20 +81,85 @@ describe('trigger documents', () => {
   it('are app children', () => {
     expect(appChildKind(HM_TRIGGER_TYPE)).toBe('trigger')
   })
-  it('write their source and input as DAG-CBOR blobs and read them back as references', async () => {
+  it('keep their source in the document, with sets as maps so each entry is its own key', async () => {
+    const source = {
+      type: 'activity',
+      conditions: [
+        {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['self', 'z6Mkother']}},
+        {id: 'site', source: {type: 'site-update', resourcePrefix: 'hm://z6Mkspace/notes', eventTypes: ['comment']}},
+      ],
+    }
+    expect(triggerSourceToMetadata(source)).toEqual({
+      type: 'activity',
+      conditions: {
+        mention: {type: 'user-mention', mentionedAccounts: {self: true, z6Mkother: true}},
+        site: {type: 'site-update', resourcePrefix: 'hm://z6Mkspace/notes', eventTypes: {comment: true}},
+      },
+    })
+    expect(triggerSourceFromMetadata(triggerSourceToMetadata(source))).toEqual(source)
+    const weekly = {
+      type: 'schedule',
+      schedule: {
+        kind: 'weekly',
+        daysOfWeek: [1, 3, 5],
+        timeOfDay: '08:00',
+        timesOfDay: ['08:00', '17:00'],
+        timezone: 'UTC',
+      },
+    }
+    expect(triggerSourceToMetadata(weekly)).toEqual({
+      type: 'schedule',
+      schedule: {
+        kind: 'weekly',
+        daysOfWeek: {mon: true, wed: true, fri: true},
+        timeOfDay: '08:00',
+        timesOfDay: {'08:00': true, '17:00': true},
+        timezone: 'UTC',
+      },
+    })
+    expect(triggerSourceFromMetadata(triggerSourceToMetadata(weekly))).toEqual(weekly)
+    // An entry switched off (or removed) is not a member.
+    expect(
+      triggerSourceFromMetadata({type: 'schedule', schedule: {kind: 'weekly', daysOfWeek: {mon: true, tue: false}}}),
+    ).toEqual({type: 'schedule', schedule: {kind: 'weekly', daysOfWeek: [1]}})
+  })
+  it('write a field by clearing it, then setting each entry', async () => {
     const {ops, blobs} = await triggerDocumentOps({
-      source: {type: 'schedule', schedule: {cron: '0 9 * * *'}},
+      source: {type: 'schedule', schedule: {kind: 'weekly', daysOfWeek: [1], timeOfDay: '09:00', timezone: 'UTC'}},
       tool: 'hm://z6Mkspace/app/send',
-      input: {text: '$event.payload'},
+      input: {text: '$event.payload', to: {channel: 'general'}},
       enabled: false,
     })
-    expect(blobs).toHaveLength(2)
+    expect(blobs).toEqual([])
     const op = ops[0] as {type: 'SetAttributes'; attrs: {key: string[]; value: unknown}[]}
-    const metadata = Object.fromEntries(op.attrs.map((attr) => [attr.key[0], attr.value]))
-    expect(triggerDocumentRefs(metadata)).toEqual({
-      sourceCid: blobs[0]!.cid,
+    expect(op.attrs).toEqual([
+      {key: ['source'], value: null},
+      {key: ['source', 'type'], value: 'schedule'},
+      {key: ['source', 'schedule', 'kind'], value: 'weekly'},
+      {key: ['source', 'schedule', 'daysOfWeek', 'mon'], value: true},
+      {key: ['source', 'schedule', 'timeOfDay'], value: '09:00'},
+      {key: ['source', 'schedule', 'timezone'], value: 'UTC'},
+      {key: ['tool'], value: 'hm://z6Mkspace/app/send'},
+      {key: ['input'], value: null},
+      {key: ['input', 'text'], value: '$event.payload'},
+      {key: ['input', 'to', 'channel'], value: 'general'},
+      {key: ['enabled'], value: false},
+    ])
+    // Read back from the document's metadata.
+    expect(
+      triggerDocumentFields({
+        source: {
+          type: 'schedule',
+          schedule: {kind: 'weekly', daysOfWeek: {mon: true}, timeOfDay: '09:00', timezone: 'UTC'},
+        },
+        tool: 'hm://z6Mkspace/app/send',
+        input: {text: '$event.payload'},
+        enabled: false,
+      }),
+    ).toEqual({
+      source: {type: 'schedule', schedule: {kind: 'weekly', daysOfWeek: [1], timeOfDay: '09:00', timezone: 'UTC'}},
       tool: 'hm://z6Mkspace/app/send',
-      inputCid: blobs[1]!.cid,
+      input: {text: '$event.payload'},
       enabled: false,
     })
   })
@@ -108,6 +175,6 @@ describe('trigger documents', () => {
         ],
       },
     ])
-    expect(triggerDocumentRefs({}).enabled).toBe(true)
+    expect(triggerDocumentFields({}).enabled).toBe(true)
   })
 })

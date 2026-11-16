@@ -14,7 +14,7 @@ import {appEmbeddedChildren, HM_TOOL_TYPE, isToolHostType, TOOL_ENTRY_FILE} from
 import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {createSeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
+import {structFields, validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
 import {APP_PRIVATE_CONFIG_ENV, buildAppToolProgram, parseLambdaResult, type CodeExecutor} from '@/code-exec'
@@ -215,6 +215,19 @@ function getRunRow(db: Database, appId: string): AppRunRow | null {
 }
 
 /** Checks a value against an HM schema reference; returns readable violations, or none without a schema. */
+/** A struct schema's fields as a caller reads them: `{owner?: string, perPage: integer}`, or null. */
+async function expectedFields(client: SeedClient, ref: unknown): Promise<string | null> {
+  if (typeof ref !== 'string' || !ref) return null
+  const loaded = await loadSchemaRef(client, ref).catch(() => null)
+  const fields = loaded ? structFields(loaded.schema) : []
+  if (!fields.length) return null
+  const kind = (schema: unknown) => {
+    const type = (schema as {type?: unknown})?.type
+    return typeof type === 'string' ? type.replace('hm://hyper.media/', '') : 'value'
+  }
+  return `{${fields.map((field) => `${field.name}${field.required ? '' : '?'}: ${kind(field.schema)}`).join(', ')}}`
+}
+
 async function schemaViolations(client: SeedClient, ref: unknown, value: unknown): Promise<string[]> {
   if (typeof ref !== 'string' || !ref) return []
   const loaded = await loadSchemaRef(client, ref).catch(() => null)
@@ -323,8 +336,14 @@ export async function callAppTool(
   let error: string | undefined
   try {
     const inputViolations = await schemaViolations(deps.client, tool.metadata.inputSchema, action.input)
-    if (inputViolations.length)
-      throw new AppRunError(400, `Input does not match the tool: ${inputViolations.join('; ')}`)
+    if (inputViolations.length) {
+      // Say what the tool does take, so the caller can fix the call without looking it up.
+      const expected = await expectedFields(deps.client, tool.metadata.inputSchema)
+      throw new AppRunError(
+        400,
+        `Input does not match the tool: ${inputViolations.join('; ')}${expected ? `. It takes ${expected}.` : ''}`,
+      )
+    }
     const privateViolations = await schemaViolations(
       deps.client,
       app.metadata.privateConfigSchema,
@@ -352,7 +371,7 @@ export async function callAppTool(
     })
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {
-      const detail = (execution.stderr.trim() || parsed.logs || '').split('\n').slice(-8).join('\n')
+      const detail = readableToolError(execution.stderr.trim() || parsed.logs || '')
       throw new AppRunError(400, `The tool failed (exit ${execution.exitCode})${detail ? `:\n${detail}` : ''}`)
     }
     if (!parsed.hasResult) throw new AppRunError(400, 'The tool finished without returning a value')
@@ -458,4 +477,22 @@ export async function describeRunningApp(
     ...(app.metadata.summary ? {summary: app.metadata.summary} : {}),
     tools: tools.filter((tool) => tool !== null) as RunningAppTool[],
   }
+}
+
+/**
+ * A failed tool's output as its reader should see it: the last lines, with the tool's code (loaded
+ * from a base64 data URL) named index.ts instead of printed as base64 in every stack frame.
+ */
+export function readableToolError(output: string): string {
+  const lines = output
+    .replace(/data:text\/typescript;base64,[A-Za-z0-9+/=_-]+/g, 'index.ts')
+    .replace(/[A-Za-z0-9+/=_-]{120,}/g, 'index.ts')
+    // Bun names the tool's default export after a slice of its base64 module URL.
+    .replace(/\b[A-Za-z0-9+/=]{16,}_default\b/g, 'default')
+    .split('\n')
+  // Bun prints the failing source lines before the error itself: lead with what went wrong.
+  const message = lines.findIndex((line) => /^(error|[A-Z]\w*Error): /.test(line.trim()))
+  if (message < 0) return lines.slice(-8).join('\n')
+  const frame = lines.slice(Math.max(0, message - 6), message).filter((line) => line.trim())
+  return [lines[message]!.trim(), ...lines.slice(message + 1, message + 3), ...frame].join('\n').trim()
 }

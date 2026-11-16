@@ -1,4 +1,6 @@
 import type {CollectedBlob} from '@seed-hypermedia/client/file-to-ipfs'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '@shm/shared'
 import {getEffectiveDocumentMetadata} from '@shm/shared/models/document-machine'
@@ -24,7 +26,11 @@ export function useResourceDraft(published: HMDocument) {
     // A cleared attribute is drafted as null: read it as absent.
     return Object.fromEntries(Object.entries(merged).filter(([, value]) => value !== null)) as HMMetadata
   }, [context, published.metadata])
-  const content: HMBlockNode[] = context?.draftContent ?? published.content ?? []
+  // A saved draft keeps its body in the editor's block format; read it as Hypermedia blocks.
+  const content = useMemo(
+    () => draftBody(context?.draftContent as unknown[] | null | undefined, published.content),
+    [context?.draftContent, published.content],
+  )
 
   /** Stages a metadata patch (null clears an attribute) and, for a trigger, a new body. */
   const change = useCallback(
@@ -43,5 +49,20 @@ export function useResourceDraft(published: HMDocument) {
     [client],
   )
 
-  return {metadata, content, change, storeBlobs, canEdit}
+  // Whether this document holds edits that are not published yet.
+  const hasDraft = !!context?.draftId
+
+  return {metadata, content, change, storeBlobs, canEdit, hasDraft}
+}
+
+/** A draft's body as Hypermedia blocks: a saved draft keeps it in the editor's block format. */
+export function draftBody(
+  draftContent: unknown[] | null | undefined,
+  published: HMBlockNode[] | undefined,
+): HMBlockNode[] {
+  if (!draftContent) return published ?? []
+  const first = draftContent[0] as Record<string, unknown> | undefined
+  return first && !('block' in first)
+    ? editorBlocksToHMBlockNodes(draftContent as EditorBlock[])
+    : (draftContent as HMBlockNode[])
 }

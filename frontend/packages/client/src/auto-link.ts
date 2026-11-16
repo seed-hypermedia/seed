@@ -109,6 +109,11 @@ export function shouldAutoLinkParent(
     if (documentHasSelfQuery(parentDocument, parentId)) {
       return false
     }
+    // A typed collection (its children follow a schema) lists its records itself; linking each
+    // record into its body would bury it.
+    if (parentDocument.metadata?.childAttributesSchema) {
+      return false
+    }
   }
 
   return true

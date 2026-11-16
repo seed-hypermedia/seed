@@ -10,10 +10,12 @@ Its metadata says when it fires and what it does:
 | --- | --- |
 | `name` | the trigger's name |
 | `summary` | what it is for |
-| `source` | `ipfs://<cid>` of a DAG-CBOR trigger source: activity conditions, a schedule, a webhook, or a run finishing. See [triggers](../app-environment/triggers.md) for the shapes |
+| `source` | when it fires: activity conditions, a schedule, a webhook, or a run finishing, stored as nested attributes. See [triggers](../app-environment/triggers.md) for the shapes and the stored form below |
 | `tool` | optionally the hm:// URL of one of its host's tools to call |
-| `input` | optionally `ipfs://<cid>` of a DAG-CBOR input template for that tool |
+| `input` | optionally the input template for that tool, as nested attributes |
 | `enabled` | `false` turns it off |
+
+Document attributes merge key by key and a list is one value replaced whole (see [how concurrent edits resolve](../protocol/documents.md)), so the source keeps its sets as maps, one key per entry: `daysOfWeek: {mon: true, fri: true}`, `timesOfDay: {"08:00": true}`, `mentionedAccounts`, `repliedToAccounts` and `documentAuthors` as `{<account or self>: true}`, `eventTypes: {comment: true}`, and `conditions` keyed by each condition's id. Turning one day off is then a change to one key, and two people editing different entries both keep theirs. The trigger engine works with lists; `triggerSourceToMetadata` / `triggerSourceFromMetadata` in `@seed-hypermedia/client/apps` convert at the document boundary. Writing a whole `source` or `input` clears it first, then sets each entry, so nothing from the old shape remains.
 
 When it fires it does one of two things:
 
@@ -34,7 +36,7 @@ Agents had triggers before triggers were documents, stored only on their server.
 
 # In the desktop app
 
-Apps get a **Triggers** tab beside Tools and Pages, and agents list their trigger documents on their Triggers tab. **New → Trigger** in an app's toolbar (or the create-trigger button on an agent) asks for a name and summary, like a new tool, then creates the trigger (an hourly schedule, on) and opens it. It does nothing until it says what to do: a tool to call, or for an agent a session message. A trigger opens inside its host: when it fires (the same source editor as before), what it does (call a tool, with its input as JSON, or for an agent start a session with a message), an on/off switch with whether it is active on its server, the webhook URL for a webhook, and its firings. A firing opens the tool call or the session it started. **Save** publishes every change as one new version.
+Apps get a **Triggers** tab beside Tools and Pages, and agents list their trigger documents on their Triggers tab. **New → Trigger** in an app's toolbar (or the create-trigger button on an agent) asks for a name and summary, like a new tool, then creates the trigger (an hourly schedule, on) and opens it. It does nothing until it says what to do: a tool to call, or for an agent a session message. A trigger opens inside its host: when it fires (the same source editor as before), what it does (call a tool, with its input as JSON, or for an agent start a session with a message), an on/off switch with whether it is active on its server, **Run now** for a schedule trigger (it fires once, as its schedule would, for writers; `RunTriggerNow`), the webhook URL for a webhook, and its firings. A firing opens the tool call or the session it started. **Save** publishes every change as one new version.
 
 # For agents
 

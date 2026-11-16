@@ -1,9 +1,10 @@
+import {ErrorBoundary} from 'react-error-boundary'
 import {ActivityPanelPortal} from './activity-panel-layout'
 import {AppDocumentView} from './apps/app-view'
-import {appResourceKind, appResourceTabs} from './apps/tabs'
+import {appResourceKind, agentResourceTabs, appResourceTabs} from './apps/tabs'
 import {parentDocumentId} from '@seed-hypermedia/client/apps'
 import {AgentHomeComposer} from './agents/home-composer'
-import {AgentPromptMigration} from './agents/prompt-migration'
+import {AgentHomeIntro, AgentPromptMigration} from './agents/prompt-migration'
 import {ToolCallView} from './apps/tool-call-view'
 import {ToolDocumentView} from './apps/tool-view'
 import {TriggerDocumentView} from './apps/trigger-view'
@@ -2293,15 +2294,29 @@ function DocumentBody({
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
   // Apps and tools are typed resources with their own tabs in place of the document body, like agents.
   const appKind = appResourceKind(document.metadata.type)
+  // A tool or trigger stays inside its host, with the host's tabs: an app's, or an agent's.
+  // An app's page opened on its own keeps the app's tabs too, with Pages selected.
+  const isPage = document.metadata.type === 'hm://hyper.media/page'
+  const hostId = appKind === 'tool' || appKind === 'trigger' || isPage ? parentDocumentId(docId) : null
+  const hostResource = useResource(hostId)
+  const hostType = hostResource.data?.type === 'document' ? hostResource.data.document.metadata.type : undefined
+  const hostIsAgent = hostType === 'hm://hyper.media/agent'
   const appTabs = useMemo(
     () =>
-      route.key !== 'document' || !appKind
+      route.key !== 'document'
         ? undefined
-        : appKind === 'app'
-          ? appResourceTabs(docId, route.appView, panelRoute)
-          : // A tool or trigger stays inside its app: the app's tabs, its kind selected.
-            appResourceTabs(parentDocumentId(docId) ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
-    [appKind, route, docId, panelRoute],
+        : isPage
+          ? hostId && hostType === 'hm://hyper.media/app'
+            ? appResourceTabs(hostId, 'pages')
+            : undefined
+          : !appKind
+            ? undefined
+            : appKind === 'app'
+              ? appResourceTabs(docId, route.appView, panelRoute)
+              : hostIsAgent && hostId
+                ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
+                : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
+    [appKind, route, docId, panelRoute, hostIsAgent, hostId, isPage, hostType],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
@@ -3114,23 +3129,30 @@ function DocumentBody({
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = documentPage ? (
-    <div data-document-page-main className="min-h-0 flex-1">
+    <div data-document-page-main className="flex min-h-0 flex-1 flex-col">
       {documentConversionDialog}
-      <DocumentPageView
-        docId={docId}
-        document={document}
-        cid={documentPage}
-        inputParams={route.key === 'document' ? route.id.pageParams : undefined}
-        onInputNavigate={(pageParams, mode) => {
-          const next = {...route, id: {...docId, pageParams}} as NavRoute
-          if (mode === 'replace') replaceRoute(next)
-          else navigate(next)
-        }}
-        perspectiveAccountUid={perspectiveAccountUid}
-        onAccountAccessChange={onPageAccessChange}
-        onParametersChange={onPageParametersChange}
-        fill
-      />
+      {isPage && appTabs ? (
+        <div className="shrink-0 px-5 py-1">
+          <DocumentTools id={docId} resourceTabs={appTabs} currentRoute={route} />
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <DocumentPageView
+          docId={docId}
+          document={document}
+          cid={documentPage}
+          inputParams={route.key === 'document' ? route.id.pageParams : undefined}
+          onInputNavigate={(pageParams, mode) => {
+            const next = {...route, id: {...docId, pageParams}} as NavRoute
+            if (mode === 'replace') replaceRoute(next)
+            else navigate(next)
+          }}
+          perspectiveAccountUid={perspectiveAccountUid}
+          onAccountAccessChange={onPageAccessChange}
+          onParametersChange={onPageParametersChange}
+          fill
+        />
+      </div>
     </div>
   ) : (
     <div
@@ -3333,17 +3355,26 @@ function DocumentBody({
             onPageParametersChange={onPageParametersChange}
           />
         ) : route.key === 'document' && appKind === 'tool' && route.toolCallId ? (
-          <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
+          <ResourceViewBoundary resetKey={docId.id}>
+            <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
+          </ResourceViewBoundary>
         ) : route.key === 'document' && appKind === 'tool' ? (
-          <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          <ResourceViewBoundary resetKey={docId.id}>
+            <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          </ResourceViewBoundary>
         ) : route.key === 'document' && appKind === 'trigger' ? (
-          <TriggerDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          <ResourceViewBoundary resetKey={docId.id}>
+            <TriggerDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          </ResourceViewBoundary>
         ) : route.key === 'document' && route.agentView ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (
           <>
             {isAgentDocument && activeView === 'content' ? (
-              <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+              <>
+                <AgentHomeIntro document={document} canEdit={!!canEditCurrentRoute} />
+                <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+              </>
             ) : null}
             <DocumentViewContent
               activeView={activeView}
@@ -5302,5 +5333,46 @@ function SiteProfileContent({
       <PageNotFound entityType="profile" />
       {pageFooter}
     </>
+  )
+}
+
+/**
+ * Keeps a tool's or trigger's page from stranding its reader: if it cannot render, they can try
+ * again, or drop their unpublished changes (the usual cause) and see the published version.
+ */
+function ResourceViewBoundary({resetKey, children}: {resetKey: string; children: ReactNode}) {
+  const send = useDocumentSend()
+  return (
+    <ErrorBoundary
+      resetKeys={[resetKey]}
+      fallbackRender={({error, resetErrorBoundary}) => (
+        <div className="border-border mx-auto my-10 flex w-full max-w-lg flex-col gap-3 rounded-lg border p-4">
+          <SizableText weight="bold">This page could not be shown</SizableText>
+          <SizableText size="sm" color="muted">
+            {error instanceof Error ? error.message : String(error)}
+          </SizableText>
+          <SizableText size="sm" color="muted">
+            If you were editing it, discarding your unpublished changes usually fixes this.
+          </SizableText>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={resetErrorBoundary}>
+              Try again
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                send({type: 'edit.discard'})
+                resetErrorBoundary()
+              }}
+            >
+              Discard changes
+            </Button>
+          </div>
+        </div>
+      )}
+    >
+      {children}
+    </ErrorBoundary>
   )
 }

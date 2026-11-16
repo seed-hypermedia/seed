@@ -87,3 +87,47 @@ export async function findListingApp(
   if (parent?.type !== 'document' || !isToolHostType(parent.document.metadata?.type)) return null
   return {id: parentId, document: parent.document}
 }
+
+const hostLocks = new Map<string, Promise<void>>()
+
+/**
+ * Runs `fn` with this server's exclusive use of one host's card list. Two children written under
+ * the same app (or agent) at once would each list themselves on the same old content, and one card
+ * would overwrite the other; inside the lock each write reads the host fresh.
+ */
+export async function withHostLock<T>(hostId: string, fn: () => Promise<T>): Promise<T> {
+  const previous = hostLocks.get(hostId) ?? Promise.resolve()
+  let release!: () => void
+  const mine = new Promise<void>((resolve) => (release = resolve))
+  const tail = previous.then(() => mine)
+  hostLocks.set(hostId, tail)
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+    if (hostLocks.get(hostId) === tail) hostLocks.delete(hostId)
+  }
+}
+
+/**
+ * The card a child needs on its host, from the host as it is now: null when the child has no host
+ * that lists children of its type, or the host already lists it. Use inside {@link withHostLock}.
+ */
+export async function missingCardBlobs({
+  client,
+  signer,
+  childId,
+  type,
+  capability,
+}: {
+  client: Pick<SeedClient, 'request'>
+  signer: AnySigner
+  childId: UnpackedHypermediaId
+  type: unknown
+  capability?: string
+}): Promise<CollectedBlob[] | null> {
+  const {app} = await resolveAppParent(client, childId, type)
+  if (!app) return null
+  return appEmbedBlobs({client, signer, app, childId, change: 'add', capability})
+}

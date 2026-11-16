@@ -448,7 +448,9 @@ function RunCardBody({
         </span>
         <RunElapsed run={run} serverUrl={serverUrl} />
         {!compact && usageTotal > 0 ? (
-          <span className="text-muted-foreground ml-auto text-[10px]">{formatTokenCount(usageTotal)} tokens</span>
+          <span className="text-muted-foreground ml-auto text-[10px]">
+            {formatTokenCount(usageTotal)} tokens processed
+          </span>
         ) : null}
       </div>
     </>

@@ -152,6 +152,72 @@ describe('activity trigger matching', () => {
     ).toBe(false)
   })
 
+  test('self names whichever accounts the agent signs as when the event arrives', () => {
+    const mention = {newMention: {source: 'hm://z6Mksite/doc', target: 'hm://z6Mkprimary'}}
+    const source = {type: 'user-mention' as const, mentionedAccounts: ['self']}
+    // Without the agent's accounts, self names nobody.
+    expect(triggers.activityMatchesTriggerSource(source, mention)).toBe(false)
+    expect(triggers.activityMatchesTriggerSource(source, mention, {ownAccounts: ['z6Mkold']})).toBe(false)
+    // A new primary account (or a second one) is matched without editing the trigger.
+    expect(triggers.activityMatchesTriggerSource(source, mention, {ownAccounts: ['z6Mkold', 'z6Mkprimary']})).toBe(true)
+    const authored = {
+      type: 'comment',
+      author: {id: {uid: 'z6Mkuser', id: 'hm://z6Mkuser', path: []}},
+      comment: {author: 'z6Mkuser', targetAccount: 'z6Mksite', targetPath: '/notes', content: []},
+      targetAuthorUids: ['z6Mkprimary'],
+    }
+    const ownDocuments = {type: 'document-author-comment' as const, documentAuthors: ['self']}
+    expect(triggers.activityMatchesTriggerSource(ownDocuments, authored, {ownAccounts: ['z6Mkprimary']})).toBe(true)
+    expect(
+      triggers.ownAccountsAsSelf(
+        {
+          type: 'activity',
+          conditions: [
+            {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['z6Mkagent', 'z6Mkother']}},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['z6Mkagent']}},
+          ],
+        },
+        ['z6Mkagent'],
+      ),
+    ).toEqual({
+      type: 'activity',
+      conditions: [
+        {id: 'mention', source: {type: 'user-mention', mentionedAccounts: ['self', 'z6Mkother']}},
+        {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: ['self']}},
+      ],
+    })
+    // The agent's own activity, from any of its accounts, never fires a trigger about itself.
+    const ownReply = {
+      type: 'comment',
+      author: {id: {uid: 'z6Mksecond', id: 'hm://z6Mksecond', path: []}},
+      comment: {author: 'z6Mksecond', targetAccount: 'z6Mksite', targetPath: '/notes', content: []},
+      replyParentAuthor: {id: {uid: 'z6Mkprimary', id: 'hm://z6Mkprimary', path: []}},
+    }
+    const ownAccounts = {ownAccounts: ['z6Mkprimary', 'z6Mksecond']}
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'comment-reply', repliedToAccounts: ['self']},
+        ownReply,
+        ownAccounts,
+      ),
+    ).toBe(false)
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'comment-reply', repliedToAccounts: ['self']},
+        {
+          ...ownReply,
+          author: {id: {uid: 'z6Mkuser', id: 'hm://z6Mkuser', path: []}},
+          comment: {...ownReply.comment, author: 'z6Mkuser'},
+        },
+        ownAccounts,
+      ),
+    ).toBe(true)
+    expect(triggers.resolveSelfAccounts(['self', 'z6Mkx'], {ownAccounts: ['z6Mka', 'z6Mkx']})).toEqual([
+      'z6Mka',
+      'z6Mkx',
+    ])
+  })
+
   test('matches direct replies to an account without matching its own replies', () => {
     const source = {type: 'comment-reply' as const, repliedToAccounts: ['z6Mkagent']}
     const reply = (author: string, parentAuthor: string | null, extra: Record<string, unknown> = {}) => ({

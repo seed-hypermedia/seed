@@ -4,27 +4,25 @@ import {
   appEmbeddedChildren,
   HM_AGENT_TYPE,
   HM_TOOL_TYPE,
-  ipfsRefCid,
   parentDocumentId,
-  triggerDocumentOps,
-  triggerDocumentRefs,
+  triggerDocumentFields,
+  triggerSourceToMetadata,
 } from '@seed-hypermedia/client/apps'
-import type {DocumentOperation} from '@seed-hypermedia/client/change'
 import {
   unpackHmId,
   type HMBlockNode,
   type HMDocument,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useUniversalClient} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {useQuery} from '@tanstack/react-query'
 import {Copy} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
-import {TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
+import {useLocalAgentServerUrl} from '../agents/models'
+import {describeHostServer} from '../server-host-card'
+import {TriggerRunsAgentContext, TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
 import {Switch} from '../components/switch'
@@ -33,7 +31,7 @@ import {copyTextToClipboard} from '../copy-to-clipboard'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useResourceDraft} from './resource-draft'
-import {appServerErrorMessage, useAppServerUrl, useHostTriggers} from './running'
+import {appServerErrorMessage, useAppServerUrl, useHostTriggers, useRunTriggerNow} from './running'
 
 /** A new trigger's source: an hourly schedule, edited before it matters (it does nothing until it names an action). */
 export const DEFAULT_TRIGGER_SOURCE: AgentTriggerSource = {
@@ -58,7 +56,6 @@ export function TriggerDocumentView({
   document: HMDocument
   canEdit: boolean
 }) {
-  const client = useUniversalClient()
   const navigate = useNavigate()
   const draft = useResourceDraft(document)
   const hostId = parentDocumentId(docId)
@@ -67,15 +64,9 @@ export function TriggerDocumentView({
   const hostIsAgent = host?.metadata.type === HM_AGENT_TYPE
   const server = useAppServerUrl(hostId ?? docId, host ?? ({metadata: {}} as HMDocument))
   const hostTriggers = useHostTriggers(server.serverUrl, hostId?.id ?? '')
-  const refs = triggerDocumentRefs(draft.metadata as Record<string, unknown>)
-  const stored = useQuery({
-    queryKey: ['trigger-document-blobs', refs.sourceCid, refs.inputCid],
-    queryFn: async () => {
-      const read = async (cid: string | null) =>
-        cid ? ((await client.request('GetCID', {cid})).value as unknown) : undefined
-      return {source: (await read(refs.sourceCid)) as AgentTriggerSource | undefined, input: await read(refs.inputCid)}
-    },
-  })
+  const runNow = useRunTriggerNow(server.serverUrl)
+  // The whole trigger is in the document's metadata (its sets stored as maps).
+  const refs = useMemo(() => triggerDocumentFields(draft.metadata as Record<string, unknown>), [draft.metadata])
   const tools = useHostTools(hostId, host)
 
   // The source editor and the two text fields hold what is typed; the draft follows them.
@@ -84,32 +75,32 @@ export function TriggerDocumentView({
   const [inputError, setInputError] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [chosenAction, setChosenAction] = useState<'tool' | 'session' | null>(null)
-  const written = useRef<{inputCid: string | null; content: HMBlockNode[] | null}>({inputCid: null, content: null})
+  const written = useRef<{input: string | null; content: HMBlockNode[] | null}>({input: null, content: null})
+  // An agent's trigger starts a session with it unless it calls a tool; an app's always calls a tool.
   const action: 'tool' | 'session' = !hostIsAgent ? 'tool' : chosenAction ?? (refs.tool ? 'tool' : 'session')
+  const sessionAgentId = hostIsAgent ? hostId?.id ?? null : null
 
   // What the draft says (a new version, a discarded draft) replaces what the fields hold, unless the
   // fields wrote it themselves.
   useEffect(() => {
-    if (!stored.data) return
-    setSource(stored.data.source ?? null)
-    if (refs.inputCid !== written.current.inputCid) {
-      setInput(stored.data.input === undefined ? '' : JSON.stringify(stored.data.input, null, 2))
+    setSource((refs.source as AgentTriggerSource | undefined) ?? null)
+    const text = refs.input === undefined ? '' : JSON.stringify(refs.input, null, 2)
+    if (text !== written.current.input) {
+      setInput(text)
       setInputError(null)
-      written.current.inputCid = refs.inputCid
+      written.current.input = text
     }
-  }, [stored.data])
+  }, [refs])
   useEffect(() => {
     if (draft.content === written.current.content) return
-    setMessage(draft.content.length ? blocksToMarkdown({metadata: {}, content: draft.content} as HMDocument) : '')
+    setMessage(draft.content.length ? messageMarkdown(draft.content) : '')
     written.current.content = draft.content
   }, [draft.content])
   useEffect(() => setChosenAction(null), [document.version])
 
   async function changeSource(next: AgentTriggerSource) {
     setSource(next)
-    const fields = await triggerDocumentOps({source: next})
-    await draft.storeBlobs(fields.blobs)
-    draft.change(attributesOf(fields.ops))
+    draft.change({source: triggerSourceToMetadata(next)})
   }
 
   // Typing in the input or the message stages a new draft after a pause.
@@ -120,7 +111,7 @@ export function TriggerDocumentView({
     inputTimer.current = setTimeout(async () => {
       if (!text.trim()) {
         setInputError(null)
-        written.current.inputCid = null
+        written.current.input = ''
         draft.change({input: null})
         return
       }
@@ -131,12 +122,14 @@ export function TriggerDocumentView({
         setInputError('Not valid JSON yet: the draft keeps the last valid input.')
         return
       }
+      // Document attributes keep each entry of a map as its own key; a list cannot be edited here.
+      if (containsList(value)) {
+        setInputError('Lists are not supported in the input here: use a map, like {"a": true, "b": true}.')
+        return
+      }
       setInputError(null)
-      const fields = await triggerDocumentOps({input: value})
-      await draft.storeBlobs(fields.blobs)
-      const attrs = attributesOf(fields.ops)
-      written.current.inputCid = ipfsRefCid(attrs.input)
-      draft.change(attrs)
+      written.current.input = JSON.stringify(value, null, 2)
+      draft.change({input: value})
     }, 400)
   }
   const messageTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -178,6 +171,7 @@ export function TriggerDocumentView({
       <AgentSubpageHeader
         title={name || (canEdit ? '' : docId.path?.at(-1) || '')}
         placeholder="Trigger name"
+        subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
         backLabel={hostIsAgent ? 'Back to agent triggers' : 'Back to app triggers'}
         onBack={() => backRoute && navigate(backRoute)}
@@ -204,6 +198,21 @@ export function TriggerDocumentView({
             enabled={refs.enabled}
             canEdit={canEdit}
             onEnabledChange={(enabled) => draft.change({enabled})}
+            onRunNow={
+              canEdit && state && state.trigger.source.type === 'schedule'
+                ? () =>
+                    runNow.mutate(state.trigger.id, {
+                      onSuccess: () =>
+                        toast.success(
+                          action === 'session'
+                            ? 'Started: its session appears under Firings'
+                            : 'Started: its tool call appears under Firings',
+                        ),
+                      onError: (error) => toast.error(appServerErrorMessage(error)),
+                    })
+                : undefined
+            }
+            running={runNow.isLoading}
             onOpenSettings={() =>
               hostId && !hostIsAgent && navigate({key: 'document', id: hostId, appView: 'settings'})
             }
@@ -213,13 +222,15 @@ export function TriggerDocumentView({
             <SizableText weight="bold">When</SizableText>
             {source ? (
               canEdit ? (
-                <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
+                <TriggerRunsAgentContext.Provider value={hostIsAgent}>
+                  <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
+                </TriggerRunsAgentContext.Provider>
               ) : (
                 <SizableText size="sm">
                   <TriggerSourceSummary source={source} />
                 </SizableText>
               )
-            ) : stored.isLoading ? null : canEdit ? (
+            ) : canEdit ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -290,8 +301,11 @@ export function TriggerDocumentView({
                   ) : null}
                 </select>
                 <SizableText size="sm" color="muted">
-                  Input, as JSON. String values <code>"$event"</code> and <code>"$event.path"</code> are filled from the
-                  event (a webhook's posted JSON is <code>"$event.payload"</code>). Leave it empty to pass the event.
+                  {source?.type === 'schedule'
+                    ? 'Input for the tool, as JSON (optional).'
+                    : source?.type === 'webhook'
+                      ? 'Input for the tool, as JSON. "$event.payload" is the posted JSON; leave it empty to pass the whole event.'
+                      : 'Input for the tool, as JSON. "$event" and "$event.<field>" are filled from what happened; leave it empty to pass the whole event.'}
                 </SizableText>
                 <CodeTextArea
                   value={input}
@@ -313,12 +327,7 @@ export function TriggerDocumentView({
             <WebhookSection serverUrl={server.serverUrl} triggerId={state.trigger.id} secret={state.webhookSecret} />
           ) : null}
 
-          <FiringsSection
-            firings={state?.firings ?? []}
-            hostId={hostId}
-            toolId={refs.tool ?? ''}
-            hostIsAgent={hostIsAgent}
-          />
+          <FiringsSection firings={state?.firings ?? []} toolId={refs.tool ?? ''} sessionAgentId={sessionAgentId} />
         </div>
       </div>
     </div>
@@ -326,10 +335,10 @@ export function TriggerDocumentView({
 }
 
 /** The attributes a `SetAttributes` op list sets, as a metadata patch. */
-function attributesOf(ops: DocumentOperation[]): Record<string, unknown> {
-  const patch: Record<string, unknown> = {}
-  for (const op of ops) if (op.type === 'SetAttributes') for (const attr of op.attrs) patch[attr.key[0]!] = attr.value
-  return patch
+/** Whether a value holds a list anywhere (the desktop writes attributes one value at a time). */
+function containsList(value: unknown): boolean {
+  if (Array.isArray(value)) return true
+  return !!value && typeof value === 'object' && Object.values(value).some(containsList)
 }
 
 /** The tools a host lists, by URL and name, for choosing what a trigger calls. */
@@ -356,6 +365,8 @@ function TriggerStatus({
   canEdit,
   onEnabledChange,
   onOpenSettings,
+  onRunNow,
+  running,
 }: {
   serverUrl: string
   hostIsAgent: boolean
@@ -366,8 +377,13 @@ function TriggerStatus({
   canEdit: boolean
   onEnabledChange: (enabled: boolean) => void
   onOpenSettings: () => void
+  /** Fires it once now, to try it without waiting for its time. */
+  onRunNow?: () => void
+  running?: boolean
 }) {
-  const host = serverUrl ? new URL(serverUrl).host : null
+  const localServerUrl = useLocalAgentServerUrl()
+  const where = describeHostServer(serverUrl, localServerUrl.data)
+  const host = where === 'This computer' ? 'this computer' : where
   const line = loading
     ? 'Checking its server…'
     : error
@@ -395,6 +411,11 @@ function TriggerStatus({
           </button>
         ) : null}
       </div>
+      {onRunNow && active !== false && !error ? (
+        <Button size="sm" variant="outline" disabled={running} onClick={onRunNow}>
+          {running ? 'Starting…' : 'Run now'}
+        </Button>
+      ) : null}
       <SizableText size="xs" color="muted">
         {enabled ? 'On' : 'Off'}
       </SizableText>
@@ -450,16 +471,16 @@ const FIRING_LABELS: Record<string, string> = {
 
 function FiringsSection({
   firings,
-  hostId,
   toolId,
-  hostIsAgent,
+  sessionAgentId,
 }: {
   firings: TriggerFiringInfo[]
-  hostId: UnpackedHypermediaId | null
   toolId: string
-  hostIsAgent: boolean
+  /** The agent whose sessions this trigger starts, if it starts any. */
+  sessionAgentId: string | null
 }) {
   const navigate = useNavigate()
+  const sessionAgent = sessionAgentId ? unpackHmId(sessionAgentId) : null
   return (
     <section className="flex flex-col gap-2">
       <SizableText weight="bold">Firings</SizableText>
@@ -474,8 +495,9 @@ function FiringsSection({
               const id = toolId ? unpackHmId(toolId) : null
               if (id) navigate({key: 'document', id, toolCallId: firing.toolCallId})
             }
-          : firing.sessionId && hostId && hostIsAgent
-            ? () => navigate({key: 'document', id: hostId, agentView: 'session', agentSessionId: firing.sessionId})
+          : firing.sessionId && sessionAgent
+            ? () =>
+                navigate({key: 'document', id: sessionAgent, agentView: 'session', agentSessionId: firing.sessionId})
             : null
         return (
           <div
@@ -505,4 +527,13 @@ function FiringsSection({
       })}
     </section>
   )
+}
+
+/** A trigger's message as its owner reads and writes it: markdown without front matter or block ids. */
+export function messageMarkdown(content: HMBlockNode[]): string {
+  return blocksToMarkdown({metadata: {}, content} as HMDocument)
+    .replace(/^---\n[\s\S]*?---\n/, '')
+    .replace(/ ?<!-- (id|end):[^>]*-->/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }

@@ -3276,6 +3276,8 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
           // Doubles as the action's idempotency key; unique per send since drafts are stamped
           // fresh by addOptimisticSessionMessage.
           clientMessageId: messages[0]?.clientMessageId ?? randomUUID(),
+          // The agent reads times the person names in their own zone.
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       })
     },

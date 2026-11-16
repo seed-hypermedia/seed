@@ -696,6 +696,9 @@ async function main(): Promise<void> {
       if (synced > 0) console.log('[Agents Trigger Documents] Synced trigger documents', {hosts: synced})
     },
   })
+  // Firings that were waiting for a session run when the server last stopped.
+  const recovered = svc.recoverWaitingFirings()
+  if (recovered > 0) console.log('[Agents Trigger] Started sessions of firings left waiting', {recovered})
   activityMonitor.start()
   scheduleMonitor.start()
   triggerDocumentSync.start()
