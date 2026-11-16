@@ -195,7 +195,7 @@ export function AppChildrenTab({
               : kind === 'trigger'
                 ? host === 'agent'
                   ? 'A trigger starts a session with this agent, or calls one of its tools, when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Add one with New in the toolbar.'
-                  : 'A trigger does something for this app when something happens (on a schedule, when a webhook is posted, or on activity in Hypermedia): it calls one of the app’s tools, or has an agent do the work. Triggers fire while the app runs. Add one with New in the toolbar.'
+                  : 'A trigger calls one of this app’s tools when something happens: on a schedule, when a webhook is posted, or on activity in Hypermedia. Triggers fire while the app runs. Add one with New in the toolbar.'
                 : `Pages are built by agents for now. Ask an agent to add a page to this ${host}.`}
           </SizableText>
         </div>
@@ -335,14 +335,6 @@ function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStat
       ? (toolResource.data?.type === 'document' && toolResource.data.document.metadata.name) ||
         toolUrl.split('/').at(-1)
       : null
-  // An app's trigger without a tool hands its work to the agent it names.
-  const agentUrl = (item.metadata as {agent?: unknown} | undefined)?.agent
-  const agentResource = useResource(typeof agentUrl === 'string' ? unpackHmId(agentUrl) : null)
-  const agent =
-    typeof agentUrl === 'string'
-      ? (agentResource.data?.type === 'document' && agentResource.data.document.metadata.name) ||
-        agentUrl.split('/').at(-1)
-      : null
   const status = !enabled
     ? {label: 'Off', tone: 'muted' as const}
     : problem
@@ -360,7 +352,7 @@ function TriggerRowDetail({item, state}: {item: AppChildItem; state: TriggerStat
         <SizableText size="xs" color="muted">
           <TriggerSourceSummary source={entry.trigger.source} />
           {' · '}
-          {tool ? `calls ${tool}` : agent ? `${agent} does the work` : 'starts a session'}
+          {tool ? `calls ${tool}` : 'starts a session'}
         </SizableText>
       ) : null}
       {status ? (

@@ -223,22 +223,21 @@ describe('trigger documents', () => {
     }
   })
 
-  test("an app's trigger can name an agent: it lives in the app and starts that agent's session", async () => {
+  test("an agent's trigger starts its session; an app's trigger must call one of the app's tools", async () => {
     const db = new Database(':memory:', {create: true, strict: true})
     if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-app-agent-trigger-test-'))
     const originalFetch = globalThis.fetch
     const owner = blobs.generateNobleKeyPair()
-    const stranger = blobs.generateNobleKeyPair()
     const space = blobs.principalToString(owner.principal)
     const appUrl = `hm://${space}/recipes`
     const agentUrl = `hm://${space}/maple`
-    const triggers: Record<string, {metadata: Record<string, unknown>; version: string}> = {
-      shopping: {metadata: {agent: agentUrl}, version: 'bafyownerversion'},
-      'by-stranger': {metadata: {agent: agentUrl}, version: 'bafystrangerversion'},
-      'unknown-agent': {metadata: {agent: `hm://${space}/nobody`}, version: 'bafyownerversion'},
-      both: {metadata: {agent: agentUrl, tool: `hm://${space}/recipes/scale`}, version: 'bafyownerversion'},
-    }
+    const trigger = (url: string) =>
+      document(
+        url,
+        {name: url.split('/').at(-1), type: 'hm://hyper.media/trigger', source: 'ipfs://bafysource'},
+        message,
+      )
     const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
     const signerOf = (key: blobs.NobleKeyPair) =>
       Response.json(
@@ -279,31 +278,23 @@ describe('trigger documents', () => {
           return Response.json(
             serialize({value: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}}),
           )
-        return href.includes('bafystrangerversion') ? signerOf(stranger) : signerOf(owner)
+        return signerOf(owner)
       }
       if (href.includes('/api/Resource')) {
-        for (const [name, trigger] of Object.entries(triggers))
-          if (href.includes(`/recipes/${name}`))
-            return Response.json(
-              serialize(
-                document(
-                  `${appUrl}/${name}`,
-                  {name, type: 'hm://hyper.media/trigger', source: 'ipfs://bafysource', ...trigger.metadata},
-                  message,
-                  trigger.version,
-                ),
-              ),
-            )
+        if (href.includes('/maple/shopping')) return Response.json(serialize(trigger(`${agentUrl}/shopping`)))
+        if (href.includes('/recipes/no-tool')) return Response.json(serialize(trigger(`${appUrl}/no-tool`)))
         if (href.includes('/maple'))
-          return Response.json(serialize(document(agentUrl, {name: 'Maple', type: 'hm://hyper.media/agent'})))
+          return Response.json(
+            serialize(
+              document(agentUrl, {name: 'Maple', type: 'hm://hyper.media/agent'}, [card('b1', `${agentUrl}/shopping`)]),
+            ),
+          )
         if (href.includes('/recipes'))
           return Response.json(
             serialize(
-              document(
-                appUrl,
-                {name: 'Recipes', type: 'hm://hyper.media/app', appEnvironmentUrl: SERVER},
-                Object.keys(triggers).map((name, index) => card(`b${index}`, `${appUrl}/${name}`)),
-              ),
+              document(appUrl, {name: 'Recipes', type: 'hm://hyper.media/app', appEnvironmentUrl: SERVER}, [
+                card('b1', `${appUrl}/no-tool`),
+              ]),
             ),
           )
       }
@@ -334,26 +325,16 @@ describe('trigger documents', () => {
         ],
       )
 
-      const listed = await send(owner, {_: 'ListHostTriggers', hostId: appUrl})
-      expect(listed.triggers).toHaveLength(1)
-      expect(listed.triggers[0].trigger).toMatchObject({
-        appId: appUrl,
-        agentId: agentUrl,
-        documentId: `${appUrl}/shopping`,
-      })
-      expect(listed.triggers[0].trigger.continuation).toBeUndefined()
-      const errors = Object.fromEntries(
-        listed.errors.map((entry: any) => [entry.documentId.split('/').at(-1), entry.error]),
-      )
-      expect(errors['by-stranger']).toContain("Only the agent's owner")
-      expect(errors['unknown-agent']).toContain('does not run on this server')
-      expect(errors.both).toContain('both a tool and an agent')
+      // An app's trigger without a tool has nothing to run: it is listed as unusable.
+      const app = await send(owner, {_: 'ListHostTriggers', hostId: appUrl})
+      expect(app.triggers).toHaveLength(0)
+      expect(app.errors[0].error).toContain("calls one of the app's tools")
 
-      // The agent's own triggers are its own: syncing the agent leaves the app's trigger alone.
-      db.run(`UPDATE agent_triggers SET updated_at = ?`, [Date.now() - 11 * 60_000])
-      await svc.syncTriggerDocuments()
-      expect(await send(owner, {_: 'ListHostTriggers', hostId: agentUrl})).toMatchObject({triggers: []})
-      expect((await send(owner, {_: 'ListHostTriggers', hostId: appUrl})).triggers).toHaveLength(1)
+      // The agent's own trigger is a session trigger of the agent.
+      const listed = await send(owner, {_: 'ListHostTriggers', hostId: agentUrl})
+      expect(listed.triggers).toHaveLength(1)
+      expect(listed.triggers[0].trigger).toMatchObject({agentId: agentUrl, documentId: `${agentUrl}/shopping`})
+      expect(listed.triggers[0].trigger.appId).toBeUndefined()
 
       // Firing it starts a session with Maple.
       const ran = await send(owner, {_: 'RunTriggerNow', triggerId: listed.triggers[0].trigger.id})
@@ -380,7 +361,7 @@ describe('trigger documents', () => {
           'left-waiting',
           space,
           agentUrl,
-          appUrl,
+          null,
           listed.triggers[0].trigger.id,
           'manual:left-waiting',
           cbor.encode({type: 'schedule', scheduleKind: 'interval', scheduledAt: Date.now(), firedAt: Date.now()}),

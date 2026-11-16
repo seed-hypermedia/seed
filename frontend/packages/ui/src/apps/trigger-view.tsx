@@ -25,7 +25,6 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {AgentSubpageHeader} from '../agents/header'
 import {getAgentWebhookUrl} from '../agents/client'
 import {useLocalAgentServerUrl} from '../agents/models'
-import {useSiteAgentMounts} from '../site-agents'
 import {describeHostServer} from '../server-host-card'
 import {TriggerRunsAgentContext, TriggerSourceFields, TriggerSourceSummary} from '../agents/trigger-types'
 import {Button} from '../button'
@@ -89,14 +88,9 @@ export function TriggerDocumentView({
   const [message, setMessage] = useState('')
   const [chosenAction, setChosenAction] = useState<'tool' | 'session' | null>(null)
   const written = useRef<{inputCid: string | null; content: HMBlockNode[] | null}>({inputCid: null, content: null})
-  // An agent's trigger starts a session with it unless it calls a tool; an app's calls a tool unless
-  // it names an agent to do the work.
-  const action: 'tool' | 'session' =
-    chosenAction ?? (hostIsAgent ? (refs.tool ? 'tool' : 'session') : refs.agent ? 'session' : 'tool')
-  // The agents an app's trigger can hand its work to: those mounted in the app's space.
-  const spaceAgents = useSiteAgentMounts(!hostIsAgent ? hostId?.uid : null)
-  const appParent = hostId ? parentDocumentId(hostId) : null
-  const sessionAgentId = hostIsAgent ? hostId?.id ?? null : refs.agent
+  // An agent's trigger starts a session with it unless it calls a tool; an app's always calls a tool.
+  const action: 'tool' | 'session' = !hostIsAgent ? 'tool' : chosenAction ?? (refs.tool ? 'tool' : 'session')
+  const sessionAgentId = hostIsAgent ? hostId?.id ?? null : null
 
   // What the draft says (a new version, a discarded draft) replaces what the fields hold, unless the
   // fields wrote it themselves.
@@ -164,19 +158,12 @@ export function TriggerDocumentView({
   }
   function changeAction(next: 'tool' | 'session') {
     setChosenAction(next)
-    // A session trigger calls no tool; a tool trigger has no message (and, in an app, no agent).
-    if (next === 'session') {
-      // An app made under an agent hands its work to that agent unless another is chosen.
-      const defaultAgent =
-        refs.agent ?? spaceAgents.data?.find((agent) => agent.agentId === appParent?.id)?.agentId ?? null
-      draft.change(hostIsAgent ? {tool: null, input: null} : {tool: null, input: null, agent: defaultAgent})
-    } else {
-      if (!hostIsAgent && refs.agent) draft.change({agent: null})
-      if (draft.content.length) {
-        written.current.content = []
-        setMessage('')
-        draft.change({}, [])
-      }
+    // A session trigger calls no tool; a tool trigger has no message.
+    if (next === 'session') draft.change({tool: null, input: null})
+    else if (draft.content.length) {
+      written.current.content = []
+      setMessage('')
+      draft.change({}, [])
     }
   }
 
@@ -247,7 +234,7 @@ export function TriggerDocumentView({
             <SizableText weight="bold">When</SizableText>
             {source ? (
               canEdit ? (
-                <TriggerRunsAgentContext.Provider value={hostIsAgent || action === 'session'}>
+                <TriggerRunsAgentContext.Provider value={hostIsAgent}>
                   <TriggerSourceFields source={source} onChange={(next) => void changeSource(next)} />
                 </TriggerRunsAgentContext.Provider>
               ) : (
@@ -273,59 +260,36 @@ export function TriggerDocumentView({
 
           <section className="flex flex-col gap-3">
             <SizableText weight="bold">Then</SizableText>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={action === 'session' ? 'default' : 'outline'}
-                disabled={!canEdit}
-                onClick={() => changeAction('session')}
-              >
-                {hostIsAgent ? 'Start a session' : 'Have an agent do it'}
-              </Button>
-              <Button
-                size="sm"
-                variant={action === 'tool' ? 'default' : 'outline'}
-                disabled={!canEdit}
-                onClick={() => changeAction('tool')}
-              >
-                Call a tool
-              </Button>
-            </div>
+            {hostIsAgent ? (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={action === 'session' ? 'default' : 'outline'}
+                  disabled={!canEdit}
+                  onClick={() => changeAction('session')}
+                >
+                  Start a session
+                </Button>
+                <Button
+                  size="sm"
+                  variant={action === 'tool' ? 'default' : 'outline'}
+                  disabled={!canEdit}
+                  onClick={() => changeAction('tool')}
+                >
+                  Call a tool
+                </Button>
+              </div>
+            ) : null}
             {action === 'session' ? (
               <>
-                {hostIsAgent ? null : (
-                  <select
-                    aria-label="Agent that does the work"
-                    value={refs.agent ?? ''}
-                    disabled={!canEdit}
-                    onChange={(event) => draft.change({agent: event.currentTarget.value || null})}
-                    className="border-border bg-background text-foreground w-fit rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">Choose an agent…</option>
-                    {(spaceAgents.data ?? []).map((agent) => (
-                      <option key={agent.agentId} value={agent.agentId}>
-                        {agent.name}
-                      </option>
-                    ))}
-                    {refs.agent && !spaceAgents.data?.some((agent) => agent.agentId === refs.agent) ? (
-                      <option value={refs.agent}>{refs.agent}</option>
-                    ) : null}
-                  </select>
-                )}
                 <SizableText size="sm" color="muted">
-                  {hostIsAgent
-                    ? 'The agent starts a new session with this message, and the event that fired it.'
-                    : 'The agent starts a new session for this app with this message and the event that fired it, and works with the access it has.'}
+                  The agent starts a new session with this message, and the event that fired it.
                 </SizableText>
                 <Textarea
                   value={message}
                   readOnly={!canEdit}
                   onChange={(event) => changeMessage(event.target.value)}
-                  placeholder={
-                    hostIsAgent
-                      ? 'Someone mentioned you. Read the comment and answer it.'
-                      : 'Read this week’s records, write a short summary into the app, and mention me in a comment on it.'
-                  }
+                  placeholder="Someone mentioned you. Read the comment and answer it."
                   rows={5}
                 />
               </>

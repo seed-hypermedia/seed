@@ -32,8 +32,6 @@ export type TriggerDocument = {
   tool: string | null
   /** The tool's input template, if any. */
   input: unknown
-  /** For an app's trigger with no tool: hm:// URL of the agent whose session it starts. */
-  agent: string | null
   /** The document's body: an agent session trigger's first message. */
   content: HMBlockNode[]
 }
@@ -81,9 +79,6 @@ export async function readHostTriggers(
         signerOfVersion(client, document.version),
       ])
       if (refs.tool) assertHostTool(hostId, refs.tool)
-      if (refs.tool && refs.agent) throw new Error('This trigger names both a tool and an agent: keep one')
-      if (refs.agent && hostType === 'agent' && unpackHmId(refs.agent)?.id !== hostId.id)
-        throw new Error('A trigger under an agent starts a session with that agent: remove its agent field')
       const trigger: TriggerDocument = {
         documentId,
         version: document.version,
@@ -94,7 +89,6 @@ export async function readHostTriggers(
         source,
         tool: refs.tool,
         input,
-        agent: hostType === 'app' ? refs.agent : null,
         content: document.content ?? [],
       }
       cache?.set(documentId, trigger)
