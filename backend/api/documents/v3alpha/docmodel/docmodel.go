@@ -8,7 +8,6 @@ import (
 	"maps"
 	"math"
 	"net/url"
-	"reflect"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
@@ -232,7 +231,7 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 	var preds []opID
 	if reg := dm.crdt.stateMetadata.GetMaybe(exactKey); reg != nil {
 		latest := reg.GetLatest()
-		if reflect.DeepEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
+		if attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
 			// If metadata key already has the same value in the committed CRDT state,
 			// we do nothing, and just in case clear the dirty metadata value if any.
 			dm.dirtyMetadata.Delete(exactKey)
@@ -290,7 +289,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	var preds []opID
 	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
-		if ok && reflect.DeepEqual(oldValue, blk) {
+		if ok && blocksEqual(oldValue, blk) {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}

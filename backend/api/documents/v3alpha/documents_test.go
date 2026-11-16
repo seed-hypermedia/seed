@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -4416,4 +4417,127 @@ func TestHomeGenesisBootstrap(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, sdkGenesisCID.String(), got.Genesis)
 	})
+}
+
+// Applying the same changes twice must not produce any ops the second time,
+// regardless of the types of the values involved. The document is loaded from
+// the blob store here, so the committed state went through the CBOR round trip.
+func TestPrepareChangeIdenticalChangesAreNoOp(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	setAttr := func(value any, key ...string) *documents.DocumentChange {
+		attr := &documents.DocumentChange_SetAttribute{Key: key}
+		switch v := value.(type) {
+		case string:
+			attr.Value = &documents.DocumentChange_SetAttribute_StringValue{StringValue: v}
+		case int:
+			attr.Value = &documents.DocumentChange_SetAttribute_IntValue{IntValue: int64(v)}
+		case bool:
+			attr.Value = &documents.DocumentChange_SetAttribute_BoolValue{BoolValue: v}
+		case nil:
+			attr.Value = &documents.DocumentChange_SetAttribute_NullValue{NullValue: &emptypb.Empty{}}
+		default:
+			t.Fatalf("unsupported value type %T", value)
+		}
+
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{SetAttribute: attr}}
+	}
+
+	changes := []*documents.DocumentChange{
+		{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "No-op Test"},
+		}},
+		setAttr(5, "priority"),
+		setAttr(true, "showOutline"),
+		setAttr(false, "showActivity"),
+		setAttr(nil, "cover"),
+		setAttr(3, "theme", "header", "size"),
+		setAttr("fancy", "theme", "header", "layout"),
+		{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+		}},
+		{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{
+				Id:   "a",
+				Type: "Image",
+				Link: "https://example.com/image.png",
+				Attributes: must.Do2(structpb.NewStruct(map[string]any{
+					"width": 300,
+					"ratio": 1.5,
+				})),
+			},
+		}},
+		{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b", Parent: "", LeftSibling: "a"},
+		}},
+		{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{
+				Id:   "b",
+				Type: "Query",
+				Text: "Hello",
+				Attributes: must.Do2(structpb.NewStruct(map[string]any{
+					"query": map[string]any{"limit": 10, "includes": []any{map[string]any{"depth": 2}}},
+				})),
+				Annotations: []*documents.Annotation{{
+					Type:       "Bold",
+					Starts:     []int32{0},
+					Ends:       []int32{5},
+					Attributes: must.Do2(structpb.NewStruct(map[string]any{"weight": 700})),
+				}},
+			},
+		}},
+	}
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/noop-test",
+		Changes:        changes,
+	})
+	require.NoError(t, err)
+
+	prepare := func(changes []*documents.DocumentChange) blob.Change {
+		prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account:     alice.me.Account.PublicKey.String(),
+			Path:        "/noop-test",
+			BaseVersion: doc.Version,
+			Changes:     changes,
+		})
+		require.NoError(t, err)
+
+		var change blob.Change
+
+		require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &change))
+		return change
+	}
+
+	change := prepare(changes)
+	require.Empty(t, change.Body.Ops, "re-applying identical changes must not produce ops")
+	require.Equal(t, 0, change.Body.OpCount)
+
+	// Writing back the blocks exactly as the API returned them must be a no-op too.
+	var readBack []*documents.DocumentChange
+
+	for _, node := range doc.Content {
+		readBack = append(readBack, &documents.DocumentChange{
+			Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: node.Block},
+		})
+	}
+
+	require.Len(t, readBack, 2)
+	change = prepare(readBack)
+	require.Empty(t, change.Body.Ops, "writing back blocks as read must not produce ops")
+
+	// Sanity check: a real change is still detected.
+	changed := proto.Clone(doc.Content[0].Block).(*documents.Block)
+	changed.Attributes.Fields["width"] = structpb.NewNumberValue(301)
+	change = prepare([]*documents.DocumentChange{
+		{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: changed}},
+		setAttr(6, "priority"),
+	})
+	require.Len(t, change.Body.Ops, 2)
+	require.Equal(t, 2, change.Body.OpCount)
 }
