@@ -259,8 +259,8 @@ function typedServerUrl(input: string): URL {
 /**
  * Finds the app environment behind what someone typed: a host name (`hyper.media`), a site address,
  * or a full server URL. Nobody has to know the API path: a typed URL that carries a path is tried
- * as written, then the site's own `/hm/api/config` says where its app environment is, then the
- * site's `/hm/api/apps`, then the bare origin (a server on its own host). Throws, in words, when
+ * as written, then the site's own `/hm/api/config` says where its app environment is (believed once that
+ * server answers), then the site's `/hm/api/apps`, then the bare origin (a server on its own host). Throws, in words, when
  * nothing there answers as an app environment.
  */
 export async function findAppServer(input: string): Promise<string> {
@@ -270,18 +270,29 @@ export async function findAppServer(input: string): Promise<string> {
     const asTyped = normalizeAgentServerUrl(typed.toString())
     if (await answersAsAppServer(asTyped)) return asTyped
   }
+  let misnamed = ''
   try {
     const res = await fetch(`${origin}/hm/api/config`, {signal: AbortSignal.timeout(8_000)})
     if (res.ok && /json/i.test(res.headers.get('content-type') ?? '')) {
       const config = (await res.json()) as {appEnvironmentUrl?: unknown; agentServerUrl?: unknown}
       const advertised = config.appEnvironmentUrl || config.agentServerUrl
-      if (typeof advertised === 'string' && advertised) return normalizeAgentServerUrl(advertised)
+      if (typeof advertised === 'string' && advertised) {
+        // A site can name a server that is not there (a default left in its config): believe it
+        // only once that server answers, and otherwise keep looking at the site itself.
+        const named = normalizeAgentServerUrl(advertised)
+        if (await answersAsAppServer(named)) return named
+        misnamed = new URL(named).host
+      }
     }
   } catch {}
   for (const candidate of [`${origin}${APPS_API_PREFIX}`, origin]) {
     if (await answersAsAppServer(candidate)) return normalizeAgentServerUrl(candidate)
   }
-  throw new Error(`No app server answers at ${typed.host}`)
+  throw new Error(
+    misnamed && misnamed !== typed.host
+      ? `${typed.host} names ${misnamed} as its app server, which does not answer as one`
+      : `No app server answers at ${typed.host}`,
+  )
 }
 
 /** The agents service's live-update WebSocket URL. Keeps a path prefix (a server behind a reverse proxy). */

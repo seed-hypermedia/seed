@@ -21,6 +21,7 @@ describe('finding an app server from what someone typed', () => {
   it('asks the site which app environment it uses, so a host name is enough', async () => {
     stubFetch({
       'https://hyper.media/hm/api/config': ['application/json', {agentServerUrl: 'https://apps.seed.hyper.media/'}],
+      'https://apps.seed.hyper.media/agents/api/health': ['application/json', {status: 'ok'}],
     })
     expect(await findAppServer(' hyper.media ')).toBe('https://apps.seed.hyper.media')
   })
@@ -31,8 +32,23 @@ describe('finding an app server from what someone typed', () => {
         'application/json',
         {appEnvironmentUrl: 'https://example.com/hm/api/apps', agentServerUrl: 'https://old.example.com'},
       ],
+      'https://example.com/hm/api/apps/health': ['application/json', {status: 'ok'}],
     })
     expect(await findAppServer('https://example.com/some/page')).toBe('https://example.com/hm/api/apps')
+  })
+
+  it('does not believe a site that names a server which is not there', async () => {
+    const config: [string, unknown] = ['application/json', {appEnvironmentUrl: 'https://hyper.media/hm/api/apps'}]
+    stubFetch({'https://staging.example/hm/api/config': config})
+    await expect(findAppServer('staging.example')).rejects.toThrow(
+      'staging.example names hyper.media as its app server, which does not answer as one',
+    )
+    // The site's own server is still found when it is there.
+    stubFetch({
+      'https://staging.example/hm/api/config': config,
+      'https://staging.example/hm/api/apps/health': ['application/json', {status: 'ok'}],
+    })
+    expect(await findAppServer('staging.example')).toBe('https://staging.example/hm/api/apps')
   })
 
   it('finds a server the site serves under /hm/api/apps without advertising it', async () => {
