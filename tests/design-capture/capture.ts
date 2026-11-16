@@ -6,7 +6,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -491,7 +490,7 @@ async function captureStoryClips(
         await context.close()
         if (video) {
           const finalPath = path.join(clipsDir, `${clipName}--light.webm`)
-          renameSync(await video.path(), finalPath)
+          await video.saveAs(finalPath)
         }
       } catch (error) {
         addFailure(manifest, {
