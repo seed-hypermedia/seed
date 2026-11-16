@@ -11,30 +11,23 @@
  *
  * - an attribute the request cannot carry: a fractional number, or a key containing a dot;
  * - a reorder the daemon gets wrong: blocks that move while keeping the block before them (two
- *   neighbours carried elsewhere together), see {@link serverChanges};
+ *   neighbours carried elsewhere together), see `preparableDocumentChanges` in the client package;
  * - a request the site refuses as too large (HTTP 413; a site may cap its API bodies well below
  *   what the daemon accepts), which `client.publish` can still deliver blob by blob.
  */
 
-import {CID} from 'multiformats/cid'
 import {
-  createChange,
-  createChangeOps,
-  createVersionRef,
-  documentOperationsToChanges,
+  clientBuiltDocumentUpdateBlobs,
+  preparableDocumentChanges,
   prepareDocumentUpdateBlobs,
-  withoutLeadingMovesInPlace,
-  type DocumentChanges,
   SeedClientError,
+  type AnySigner,
   type CollectedBlob,
+  type DocumentContent,
   type DocumentOperation,
   type DocumentState,
   type SeedClient,
 } from '@seed-hypermedia/client'
-import type {AnySigner} from '@seed-hypermedia/client'
-
-/** A document's block tree, as far as placing blocks needs it. */
-export type DocumentContent = Array<{block: {id: string}; children?: unknown}> | undefined | null
 
 /** What to update, for {@link buildDocumentUpdate}. */
 export type DocumentUpdateInput = {
@@ -52,7 +45,7 @@ export type DocumentUpdateInput = {
   ops: DocumentOperation[]
   /**
    * The content of the document `ops` were computed against (the redirect target's, for a
-   * takeover). Needed to send the moves safely: see `withoutLeadingMovesInPlace`.
+   * takeover). Needed to send the moves safely: see `preparableDocumentChanges`.
    */
   content: DocumentContent
   capability?: string
@@ -121,8 +114,11 @@ export async function buildDocumentUpdate(input: DocumentUpdateInput): Promise<D
     )
   }
 
-  const forServer = serverChanges(input.ops, input.content)
-  if ('unsupported' in forServer) return buildLocally(input, forServer.unsupported)
+  // A reorder the daemon would misapply is not sent to it.
+  const forServer = preparableDocumentChanges(input.ops, input.content)
+  if ('unpreparable' in forServer) {
+    return buildLocally(input, `the server cannot place the blocks (${forServer.unpreparable})`)
+  }
 
   try {
     const prepared = await prepareDocumentUpdateBlobs({
@@ -153,134 +149,6 @@ export async function buildDocumentUpdate(input: DocumentUpdateInput): Promise<D
   }
 }
 
-/**
- * The `changes` to send to `PrepareDocumentChange` for `ops`, or why they cannot be sent.
- *
- * Replaces, deletes and attributes go as they are. Moves do not. A `MoveBlocks` from a diff lists
- * a whole level, which as a request is "first block at the start, each next block after the one
- * before". The daemon (as seen on a real one, 2026-11-16) gets that wrong in two ways:
- *
- * - a first block "moved" to where it already is makes the block after it land before it;
- * - a block whose move leaves it behind the same block as before is not written, even when that
- *   block itself moved: `[a, b, c, d]` to `[a, c, d, b]` sent as a chain stores only the move of
- *   `c` and reads back `[a, c, b, d]`.
- *
- * So each level is sent as the fewest moves that produce it: the longest run of blocks already in
- * the right order relative to each other stays put and is not mentioned, and every other block is
- * placed after the block that precedes it in the result. No block in place is ever sent, which
- * covers the first case (`withoutLeadingMovesInPlace` is still applied, as the guard the client
- * package gives every caller). The second case cannot be said to the daemon at all when a block
- * that has to move keeps its left neighbour (`[a, b, c, d]` to `[c, d, a, b]`: whichever pair
- * moves, its second block follows its first as before). Such an update is reported as
- * unsupported, and is built locally, where the level is stored as listed.
- *
- * A native `MoveBlocks` puts its blocks at the start of the level, in order, ahead of the blocks it
- * does not list; that is the result computed here when a list is not the whole level.
- */
-export function serverChanges(
-  ops: DocumentOperation[],
-  content: DocumentContent,
-): {changes: DocumentChanges} | {unsupported: string} {
-  const parentOf = new Map<string, string>()
-  const leftOf = new Map<string, string>()
-  const childrenOf = new Map<string, string[]>()
-  const walk = (nodes: unknown, parent: string) => {
-    if (!Array.isArray(nodes)) return
-    const ids: string[] = []
-    for (const node of nodes as Array<{block?: {id?: unknown}; children?: unknown}>) {
-      const id = node?.block?.id
-      if (typeof id !== 'string' || !id) continue
-      parentOf.set(id, parent)
-      leftOf.set(id, ids[ids.length - 1] ?? '')
-      ids.push(id)
-      walk(node.children, id)
-    }
-    childrenOf.set(parent, ids)
-  }
-  walk(content, '')
-
-  const deleted = new Set<string>()
-  /** Where each listed block is headed: the parent of the MoveBlocks that lists it. */
-  const destination = new Map<string, string>()
-  const movedParents = new Set<string>()
-  for (const op of ops) {
-    if (op.type === 'DeleteBlocks') for (const id of op.blocks) deleted.add(id)
-    if (op.type === 'MoveBlocks') {
-      const parent = op.parent ?? ''
-      if (movedParents.has(parent)) {
-        return {unsupported: `the update orders the blocks under ${parent ? `block ${parent}` : 'the root'} twice`}
-      }
-      movedParents.add(parent)
-      for (const id of op.blocks) {
-        if (destination.has(id)) return {unsupported: `the update places block ${id} twice`}
-        destination.set(id, parent)
-      }
-    }
-  }
-
-  const changes: DocumentChanges = []
-  for (const op of ops) {
-    if (op.type !== 'MoveBlocks') {
-      changes.push(...documentOperationsToChanges([op]))
-      continue
-    }
-    const parent = op.parent ?? ''
-    // The level as it will read: the listed blocks, then the ones that stay behind them.
-    const staying = (childrenOf.get(parent) ?? []).filter((id) => !deleted.has(id) && !destination.has(id))
-    const level = [...op.blocks, ...staying]
-    // Blocks that were already under this parent, by their old position; the longest run of them
-    // in rising order stays where it is.
-    const before = childrenOf.get(parent) ?? []
-    const oldIndex = level.map((id) => (parentOf.get(id) === parent ? before.indexOf(id) : -1))
-    const settled = longestRisingRun(oldIndex)
-    level.forEach((blockId, index) => {
-      if (settled.has(index)) return
-      const leftSibling = index > 0 ? level[index - 1]! : ''
-      changes.push({op: {case: 'moveBlock', value: {blockId, parent, leftSibling}}})
-    })
-    for (let index = 0; index < level.length; index++) {
-      if (settled.has(index)) continue
-      const blockId = level[index]!
-      if (parentOf.get(blockId) !== parent) continue
-      const leftSibling = index > 0 ? level[index - 1]! : ''
-      // What the block followed before: its left neighbour, or the nearest one that is not deleted.
-      let was = leftOf.get(blockId) ?? ''
-      const followed = new Set([was])
-      while (was && deleted.has(was)) {
-        was = leftOf.get(was) ?? ''
-        followed.add(was)
-      }
-      if (followed.has(leftSibling)) {
-        return {
-          unsupported: `the server cannot place block ${blockId}, which moves together with the block before it`,
-        }
-      }
-    }
-  }
-  return {changes: withoutLeadingMovesInPlace(changes, content)}
-}
-
-/** Indexes of the longest strictly rising run of non-negative values in `values`. */
-function longestRisingRun(values: number[]): Set<number> {
-  const best: number[] = new Array(values.length).fill(0)
-  const previous: number[] = new Array(values.length).fill(-1)
-  let end = -1
-  for (let i = 0; i < values.length; i++) {
-    if (values[i]! < 0) continue
-    best[i] = 1
-    for (let j = 0; j < i; j++) {
-      if (values[j]! >= 0 && values[j]! < values[i]! && best[j]! + 1 > best[i]!) {
-        best[i] = best[j]! + 1
-        previous[i] = j
-      }
-    }
-    if (end < 0 || best[i]! > best[end]!) end = i
-  }
-  const run = new Set<number>()
-  for (let i = end; i >= 0; i = previous[i]!) run.add(i)
-  return run
-}
-
 /** The daemon refuses a Change whose timestamp is not later than every Change it builds on. */
 function isClockBehindError(error: unknown): boolean {
   return error instanceof Error && /must be greater than ts of its dependency/.test(error.message)
@@ -288,36 +156,14 @@ function isClockBehindError(error: unknown): boolean {
 
 /** The Change exactly as requested, stamped with this machine's clock. */
 async function buildLocally(input: DocumentUpdateInput, localReason: string): Promise<DocumentUpdateResult> {
-  const {state} = input
-  const {unsignedBytes, ts} = createChangeOps({
+  const built = await clientBuiltDocumentUpdateBlobs({
+    signer: input.signer,
+    account: input.account,
+    path: input.path,
+    state: input.state,
     ops: input.ops,
-    genesisCid: CID.parse(state.genesis),
-    deps: state.heads.map((head) => CID.parse(head)),
-    depth: state.headDepth + 1,
+    capability: input.capability,
+    currentGeneration: input.minGeneration,
   })
-  const change = await createChange(unsignedBytes, input.signer)
-  const floor = input.minGeneration == null ? NaN : Number(input.minGeneration)
-  const generation = Number.isFinite(floor) && floor > Number(ts) ? floor : Number(ts)
-  const version = change.cid.toString()
-  const ref = await createVersionRef(
-    {
-      space: input.account,
-      path: input.path,
-      genesis: state.genesis,
-      version,
-      generation,
-      capability: input.capability,
-    },
-    input.signer,
-  )
-  return {
-    changed: true,
-    blobs: [
-      {data: new Uint8Array(change.bytes), cid: version},
-      ...ref.blobs.map((blob) => ({data: blob.data, cid: blob.cid!})),
-    ],
-    version,
-    builtBy: 'local',
-    localReason,
-  }
+  return {changed: true, blobs: built.blobs, version: built.version, builtBy: 'local', localReason}
 }
