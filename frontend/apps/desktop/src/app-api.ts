@@ -48,6 +48,7 @@ import {
   createAppWindowInputSchema,
   dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
+  focusWindowForRoute,
   getAllWindows,
   getFocusedWindow,
   getLastFocusedWindow,
@@ -222,6 +223,9 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
 }
 
 export async function openRoute(route: NavRoute) {
+  // Keep one window per resource: routes to a document or singleton page that
+  // is already open focus that window instead of navigating the focused one.
+  if (focusWindowForRoute(route)) return
   const focusedWindow = getFocusedWindow()
   if (focusedWindow) {
     focusedWindow.webContents.send('open_route', route)
@@ -386,11 +390,23 @@ export const router = t.router({
     await getFirstAvailableAccount()
     const browserWindow = createAppWindow(input)
 
-    trpcHandlers.attachWindow(browserWindow)
-    browserWindow.on('close', () => {
-      trpcHandlers.detachWindow(browserWindow)
-    })
+    // createAppWindow may return a window that already shows the requested
+    // route instead of opening a new one; attaching twice is not needed.
+    if (!trpcAttachedWindows.has(browserWindow)) {
+      trpcAttachedWindows.add(browserWindow)
+      trpcHandlers.attachWindow(browserWindow)
+      browserWindow.on('close', () => {
+        trpcHandlers.detachWindow(browserWindow)
+      })
+    }
   }),
+
+  /** Focus the window already showing this route's resource, if any. Used to keep one window per document. */
+  focusWindowForRoute: t.procedure
+    .input(z.object({windowId: z.string(), route: navRouteSchema}))
+    .mutation(({input}) => {
+      return focusWindowForRoute(input.route as NavRoute, input.windowId)
+    }),
 
   webQuery: t.procedure
     .input(
@@ -500,6 +516,7 @@ export const router = t.router({
 export const trpc = router.createCaller({})
 
 const trpcHandlers = createIPCHandler({router, windows: []})
+const trpcAttachedWindows = new WeakSet<BrowserWindow>()
 
 export type AppRouter = typeof router
 
