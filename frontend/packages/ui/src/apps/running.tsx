@@ -92,22 +92,36 @@ export function structValue(fields: StructField[], values: Record<string, string
  */
 export function useAppServerUrl(appId: UnpackedHypermediaId, app: HMDocument) {
   const own = hostServerUrl(app)
-  const home = useResource(own ? null : hmId(appId.uid))
+  const site = useSpaceAppServerUrl(own ? null : appId.uid)
+  return {
+    serverUrl: own || site.serverUrl,
+    fromApp: !!own,
+    isLoading: !own && site.isLoading,
+  }
+}
+
+/**
+ * The app environment a space's own site advertises (its home document's `siteUrl`, whose
+ * `/hm/api/config` names it), or '' when the space has no site or the site names none. A null
+ * `spaceUid` asks nothing.
+ */
+export function useSpaceAppServerUrl(spaceUid: string | null) {
+  const home = useResource(spaceUid ? hmId(spaceUid) : null)
   const siteUrl =
     home.data?.type === 'document' && typeof home.data.document.metadata.siteUrl === 'string'
       ? home.data.document.metadata.siteUrl
       : ''
   const site = useQuery({
     queryKey: ['app-site-environment', siteUrl],
-    enabled: !own && !!siteUrl,
+    enabled: !!spaceUid && !!siteUrl,
     ...APP_SERVER_QUERY,
     staleTime: 60_000,
     queryFn: () => siteAppEnvironment(siteUrl),
   })
   return {
-    serverUrl: own || site.data || '',
-    fromApp: !!own,
-    isLoading: !own && (home.isInitialLoading || site.isInitialLoading),
+    serverUrl: site.data || '',
+    siteUrl,
+    isLoading: !!spaceUid && (home.isInitialLoading || site.isInitialLoading),
   }
 }
 
@@ -252,6 +266,44 @@ export function useAppRun(serverUrl: string, appId: string) {
     onSuccess: refresh,
   })
   return {status, run, stop, accountUid}
+}
+
+/** What a server said when asked whether it would run an app for the signed-in account. */
+export type AppServerCheck = {allowed: boolean; reason?: string; run: AppRunInfo | null}
+
+/**
+ * Asks `serverUrl` whether it would run the app for `accountUid` (`CheckAppRun`), without running
+ * it. A server from before that question existed is asked whether the app runs instead: if it
+ * knows apps at all it is taken as willing (its `RunApp` still has the last word), and if it does
+ * not, that is the answer. Throws only when the server cannot be reached.
+ */
+export async function checkAppServer(serverUrl: string, accountUid: string, appId: string): Promise<AppServerCheck> {
+  const unsupported = (error: unknown) => /Unsupported action/i.test(error instanceof Error ? error.message : '')
+  try {
+    const {allowed, reason, run} = await appAction<AppServerCheck>(serverUrl, accountUid, {_: 'CheckAppRun', appId})
+    return {allowed, run, ...(reason ? {reason} : {})}
+  } catch (error) {
+    if (!unsupported(error)) throw error
+  }
+  try {
+    const {run} = await appAction<{run: AppRunInfo | null}>(serverUrl, accountUid, {_: 'GetAppRun', appId})
+    return {allowed: true, run}
+  } catch (error) {
+    if (!unsupported(error)) throw error
+    return {allowed: false, reason: 'This server does not run apps yet', run: null}
+  }
+}
+
+/** {@link checkAppServer} as a query, for the signed-in account; idle without a server or an account. */
+export function useAppServerCheck(serverUrl: string, appId: string) {
+  const accountUid = useAccountUid()
+  return useQuery({
+    queryKey: ['app-server-check', serverUrl, appId, accountUid],
+    enabled: !!serverUrl && !!accountUid,
+    ...APP_SERVER_QUERY,
+    staleTime: 30_000,
+    queryFn: () => checkAppServer(serverUrl, accountUid!, appId),
+  })
 }
 
 /** "Running on <server>" / "Not running" / "Not reachable". */

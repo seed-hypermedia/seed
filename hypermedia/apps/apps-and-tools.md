@@ -22,7 +22,7 @@ export default async function (input: Input, ctx: {app: string; publicConfig: ob
 }
 ```
 
-A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
+A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. The server reads the app and its tools from its own node; a document that node does not hold yet (published from a desktop, or through another site) is looked for on the network first, which can take a few seconds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
 
 # What runs where
 
@@ -44,7 +44,7 @@ An app opens as tabs instead of a text document, like an agent:
 
 A tool opens inside its app: the app's tabs stay above it with **Tools** selected, and the tool shows like an agent session, a header with a back button and its name, then one page with its description, input and output schemas (edited with the schema editor) and its `index.ts`. **Save** publishes every change as one new version; a code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes it and takes it off its app's list.
 
-**New → App** in a space's New menu creates an app. Inside an app, New offers **Tool** and **Trigger**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settings`. A trigger calls one of the app's tools when something happens, while the app runs: see [triggers](./triggers.md).
+**New → App** in a space's New menu creates an app. Inside an app, New offers **Tool** and **Trigger**: agents build pages for now. **Settings** runs the app (**Run App**: the server and the private config; the server is picked from a list that starts on the one the space's site advertises, a new one is added by its host name, such as `hyper.media`, and each is asked first whether it will run this app for you), edits its public config, and sets up its config fields. Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settings`. A trigger calls one of the app's tools when something happens, while the app runs: see [triggers](./triggers.md).
 
 # For agents
 

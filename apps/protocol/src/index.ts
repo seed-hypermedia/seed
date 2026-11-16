@@ -216,6 +216,7 @@ export type UnsignedAgentAction =
   | RunApp
   | StopApp
   | GetAppRun
+  | CheckAppRun
   | CallAppTool
   | ListAppToolCalls
   | GetAppToolCall
@@ -437,6 +438,16 @@ export type StopApp = {
 /** Whether an app runs on this server. Answers `AppRunResponse` with `run: null` when it does not. */
 export type GetAppRun = {
   _: 'GetAppRun'
+  appId: string
+}
+
+/**
+ * Asks whether this server would run an app for the signer, without running it: a client asks
+ * before it offers the server as the place to run the app. Answers `AppRunCheckResponse`. The app
+ * need not name this server yet (a client publishes that once the server is chosen).
+ */
+export type CheckAppRun = {
+  _: 'CheckAppRun'
   appId: string
 }
 
@@ -2176,6 +2187,17 @@ export type AppRunResponse = {
   run: AppRunInfo | null
 }
 
+/**
+ * Response for `CheckAppRun`: whether `RunApp` would be accepted from the signer for this app, the
+ * reason in words when it would not, and the app's run on this server if it already runs here.
+ */
+export type AppRunCheckResponse = {
+  _: 'AppRunCheckResponse'
+  allowed: boolean
+  reason?: string
+  run: AppRunInfo | null
+}
+
 /** One recorded call of an app tool. `output` is set on success, `error` on failure. */
 export type AppToolCallInfo = {
   id: string
@@ -2658,6 +2680,7 @@ export type AgentResponse =
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
   | AppRunResponse
+  | AppRunCheckResponse
   | AppToolCallResponse
   | ListAppToolCallsResponse
   | CreateSigningIdentityResponse
