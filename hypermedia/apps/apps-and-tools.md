@@ -22,7 +22,7 @@ export default async function (input: Input, ctx: {app: string; publicConfig: ob
 }
 ```
 
-A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
+A writer of the app's space runs the app on an app server (its `appEnvironmentUrl`, or the one its space's site names), with the app's private config, which only that server holds. The server reads the app and its tools from its own node; a document that node does not hold yet (published from a desktop, or through another site) is looked for on the network first, which can take a few seconds. Then anyone can call its tools: every run is signed, executes the tool's latest code in a sandbox, and is recorded with who ran it and the tool version. An agent's tools run whenever the agent is mounted on its server, with no run step. The app's pages call its tools with `seed.app.call` and read its public config with `seed.app.context()` ([custom HTML pages](./document-pages.md)).
 
 # What runs where
 
