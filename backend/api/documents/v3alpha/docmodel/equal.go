@@ -27,26 +27,41 @@ import (
 // They are only used for comparison: values are still stored exactly
 // as the caller provided them, so the encoding of new blobs doesn't change.
 
-// blocksEqual reports whether two blocks have the same logical content.
+// blocksEqual reports whether the committed block has the same logical content
+// as the incoming one, i.e. whether writing the incoming block would be a no-op.
 //
 // Fields that are absent and fields that are explicitly empty are the same:
 // our API can't express the difference (reading such a block and writing it back
 // is otherwise never a no-op), and our own encoding omits empty fields anyway.
-func blocksEqual(a, b blob.Block) bool {
-	return a.ID() == b.ID() &&
-		a.Type == b.Type &&
-		a.Text == b.Text &&
-		a.Link == b.Link &&
-		attrMapsEqual(a.Attributes(), b.Attributes()) &&
-		slices.EqualFunc(a.Annotations, b.Annotations, annotationsEqual)
+//
+// The arguments are not interchangeable: a committed block in an ambiguous
+// legacy encoding is never equal to anything, see hasAmbiguousAttrs.
+func blocksEqual(committed, incoming blob.Block) bool {
+	return !hasAmbiguousAttrs(committed.Attributes_Old, committed.InlineAttributes_) &&
+		committed.ID() == incoming.ID() &&
+		committed.Type == incoming.Type &&
+		committed.Text == incoming.Text &&
+		committed.Link == incoming.Link &&
+		attrMapsEqual(committed.Attributes(), incoming.Attributes()) &&
+		slices.EqualFunc(committed.Annotations, incoming.Annotations, annotationsEqual)
 }
 
-func annotationsEqual(a, b blob.Annotation) bool {
-	return a.Type == b.Type &&
-		a.Link == b.Link &&
-		attrMapsEqual(a.Attributes(), b.Attributes()) &&
-		slices.Equal(a.Starts, b.Starts) &&
-		slices.Equal(a.Ends, b.Ends)
+func annotationsEqual(committed, incoming blob.Annotation) bool {
+	return !hasAmbiguousAttrs(committed.Attributes_Old, committed.InlineAttributes_) &&
+		committed.Type == incoming.Type &&
+		committed.Link == incoming.Link &&
+		attrMapsEqual(committed.Attributes(), incoming.Attributes()) &&
+		slices.Equal(committed.Starts, incoming.Starts) &&
+		slices.Equal(committed.Ends, incoming.Ends)
+}
+
+// hasAmbiguousAttrs reports whether a committed value carries both the legacy
+// nested "attributes" map and inline attributes. Attributes() only returns
+// the legacy map in that case, so the inline ones are invisible to readers,
+// and a write that looks identical must still be emitted: it replaces the value
+// with one in the current encoding, where nothing is hidden.
+func hasAmbiguousAttrs(legacy, inline map[string]any) bool {
+	return len(legacy) > 0 && len(inline) > 0
 }
 
 // attrMapsEqual compares maps of attributes. Nil and empty maps are equal,
@@ -88,8 +103,13 @@ func attrValuesEqual(a, b any) bool {
 }
 
 // normalizeNumber converts any numeric value into a canonical representation:
-// int64 for whole numbers that fit, the same rule valueAsInterface applies
-// to numbers coming from protobuf, and uint64 or float64 for everything else.
+// int64 for whole numbers that fit, and uint64 or float64 for everything else.
+//
+// This is close to what valueAsInterface does to numbers coming from protobuf,
+// but not the same: valueAsInterface converts to int64 without a range check,
+// so the result for floats outside of the int64 range is platform-dependent
+// (2^63 saturates to MaxInt64 on arm64), and it turns negative zero into 0.
+// Here the range is checked, and negative zero stays a float.
 func normalizeNumber(v any) (n any, ok bool) {
 	switch vv := v.(type) {
 	case int:
@@ -130,6 +150,12 @@ func normalizeUint(v uint64) any {
 }
 
 func normalizeFloat(v float64) any {
+	// Negative zero is not the integer 0: it's a distinct value in the stored data,
+	// so replacing 0 with -0.0 (or the other way around) must remain a change.
+	if v == 0 && math.Signbit(v) {
+		return v
+	}
+
 	// Both bounds are exactly representable as float64. The upper one is exclusive,
 	// because 2^63 itself overflows int64. NaN fails the range check and is returned
 	// as is, so it never equals anything, which is what we want for change detection.
