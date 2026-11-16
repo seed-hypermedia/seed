@@ -734,7 +734,7 @@ async function seedDesignComments(serverUrl: string, account: TestAccount): Prom
   await publish('The spacing between sections feels consistent.')
 }
 
-async function setCollectionStyle(serverUrl: string, style: 'Table' | 'List' | 'Cards'): Promise<void> {
+async function setCollectionStyle(serverUrl: string, style: 'Table' | 'List' | 'Card'): Promise<void> {
   await createDocumentUpdate(serverUrl, FIXTURE_ACCOUNT, 'design/notes', [
     {
       type: 'ReplaceBlock',
@@ -809,14 +809,9 @@ async function captureWeb(browser: Browser, manifest: CaptureManifest, options: 
             fontRecorded = true
           }
           if (view.startsWith('notes-')) {
-            const styleName = view === 'notes-list' ? 'List' : view === 'notes-cards' ? 'Cards' : 'Table'
-            const viewButton = page.getByRole('button', {name: new RegExp(`^${styleName}$`, 'i')}).first()
-            if (await viewButton.count()) {
-              await viewButton.click()
-            } else {
-              await setCollectionStyle(env.web.baseUrl, styleName)
-              await page.reload({waitUntil: 'domcontentloaded'})
-            }
+            const styleName = view === 'notes-list' ? 'List' : view === 'notes-cards' ? 'Card' : 'Table'
+            await setCollectionStyle(env.web.baseUrl, styleName)
+            await page.reload({waitUntil: 'domcontentloaded'})
           }
           await capturePage(manifest, options.out, 'web', view, theme, viewport, page, true, url)
         }).catch((error) => addFailure(manifest, {surface: 'web', view, theme, viewport, error: errorMessage(error)}))
