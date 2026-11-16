@@ -795,7 +795,12 @@ export async function detectOldInstall(shell: ShellRunner): Promise<OldInstallIn
 // Legacy / orphan container cleanup
 // ---------------------------------------------------------------------------
 
-/** Host ports the new compose stack publishes. Kept in sync with docker-compose.yml. */
+/**
+ * Host ports the compose stack publishes and takes over from earlier installs.
+ * Kept in sync with docker-compose.yml, except 143 (the daemon's second libp2p
+ * port, for networks that block 56000): a foreign container on 143 is a mail
+ * server, not a legacy Seed install, so it is never evicted.
+ */
 export const SEED_PUBLISHED_PORTS = [80, 443, 3000, 56000] as const
 
 /** Watchtower-style autoupdater images shipped by older installs. */

@@ -215,13 +215,13 @@ Stored at `<seed-dir>/config.json`. User-facing fields:
 
 Three core containers, plus optional metrics:
 
-| Container     | Image                 | Ports            | Purpose                         |
-| ------------- | --------------------- | ---------------- | ------------------------------- |
-| `seed-proxy`  | `caddy:2`             | 80, 443, 443/udp | Reverse proxy + auto TLS        |
-| `seed-web`    | `seedhypermedia/web`  | 3000             | Web frontend                    |
-| `seed-daemon` | `seedhypermedia/site` | 56000, 56000/udp | P2P daemon + API                |
-| `prometheus`  | `prom/prometheus`     | —                | Metrics (profile: `metrics`)    |
-| `grafana`     | `grafana/grafana`     | —                | Dashboards (profile: `metrics`) |
+| Container     | Image                 | Ports                 | Purpose                         |
+| ------------- | --------------------- | --------------------- | ------------------------------- |
+| `seed-proxy`  | `caddy:2`             | 80, 443, 443/udp      | Reverse proxy + auto TLS        |
+| `seed-web`    | `seedhypermedia/web`  | 3000                  | Web frontend                    |
+| `seed-daemon` | `seedhypermedia/site` | 56000, 56000/udp, 143 | P2P daemon + API                |
+| `prometheus`  | `prom/prometheus`     | —                     | Metrics (profile: `metrics`)    |
+| `grafana`     | `grafana/grafana`     | —                     | Dashboards (profile: `metrics`) |
 
 All containers run as the host user (`SEED_UID:SEED_GID`) — no root inside containers. All bind mounts use the `:z` flag
 for SELinux compatibility.

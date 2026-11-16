@@ -27,7 +27,7 @@ The daemon uses go-libp2p's default transports (TCP, QUIC, WebSocket, WebTranspo
 /ip4/0.0.0.0/tcp/P
 ```
 
-IPv6 listening is off for now. The `-p2p.listen-addrs` flag replaces this set, and `-p2p.announce-addrs` replaces what the node tells others (a site announces `/dns4/<host>/tcp/56000` and `/dns4/<host>/udp/56000/quic-v1`). By default a desktop node also announces and stores private LAN addresses, so two laptops on one network can find each other. `-p2p.no-private-ips` turns that off. <!-- id:XPHhuCFo -->
+IPv6 listening is off for now. The `-p2p.listen-addrs` flag replaces this set, and `-p2p.announce-addrs` replaces what the node tells others (a site announces `/dns4/<host>/tcp/56000`, `/dns4/<host>/udp/56000/quic-v1` and `/dns4/<host>/tcp/143`). By default a desktop node also announces and stores private LAN addresses, so two laptops on one network can find each other. `-p2p.no-private-ips` turns that off. <!-- id:XPHhuCFo -->
 
 # Reachability and relays <!-- id:qD9Mpybv -->
 
@@ -161,11 +161,11 @@ The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, 
 | `seed-daemon` defaults | 55000 | 55001 | 55002 | <!-- id:qcJNGiIY --> |
 | Seed app, production | 56000 | 56001 | 56002 | 56003 metrics, 56004 Seed API bridge <!-- id:P5Fs4jsK --> |
 | Seed app, development (`./dev`) | 58000 | 58001 | 58002 | 58003 metrics, 58004 Seed API bridge <!-- id:qYRUih6B --> |
-| Self-hosted site (docker compose) | 56000 TCP and UDP, published | 56001, internal only (the web app and the `/ipfs` proxy use it) | 56002, internal only | 80 and 443 on the proxy <!-- id:LSnMxBHH --> |
+| Self-hosted site (docker compose) | 56000 TCP and UDP, published; host TCP 143 forwards to it | 56001, internal only (the web app and the `/ipfs` proxy use it) | 56002, internal only | 80 and 443 on the proxy <!-- id:LSnMxBHH --> |
 | `hyper.media` and `dev.hyper.media` bootstrap addresses | 56001 (QUIC and TCP) and TCP 143 |  |  | <!-- id:o29Au7If --> |
 | `staging.hyper.media` bootstrap address | 55001 |  |  | <!-- id:_TKThVuE --> |
 
-The Seed app and the [web app](../apps/web.md) always talk to the daemon over gRPC-web on the HTTP port. They never use the plain gRPC port. The hosted `hyper.media` servers appear to map their libp2p listener to 56001, with 143 as a second TCP listener for restrictive firewalls. That layout is not in this repository. For those hosts, trust the bootstrap addresses over the compose file. Older team notes that mention 53101 describe a standalone web daemon that no longer exists. <!-- id:9iOmo8-W -->
+The Seed app and the [web app](../apps/web.md) always talk to the daemon over gRPC-web on the HTTP port. They never use the plain gRPC port. Networks that block the libp2p port, such as the eduroam university network, leave TCP 143 (IMAP) open, so a site publishes 143 as a second way in to the same TCP listener and announces it. A Seed app learns the address from the site's `/hm/api/config` like any other. The hosted `hyper.media` servers appear to map their libp2p listener to 56001, with 143 as the second TCP port. That layout is not in this repository. For those hosts, trust the bootstrap addresses over the compose file. Older team notes that mention 53101 describe a standalone web daemon that no longer exists. <!-- id:9iOmo8-W -->
 
 ## Flags that matter to operators <!-- id:3QqngMIS -->
 

@@ -58,6 +58,8 @@ services:
     ports:
       - '56000:56000'
       - '56000:56000/udp'
+      # IMAP's port, forwarded to libp2p: university networks (eduroam) block 56000 but must leave 143 open.
+      - '143:56000'
     networks:
       - internal_network
     environment:
@@ -76,7 +78,7 @@ services:
       -keystore-dir=/data/keys -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}
       -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true
       -syncing.no-sync-back=true -syncing.no-pull=${SEED_SITE_NO_PULL:-false}
-      -p2p.announce-addrs=/dns4/${SEED_SITE_DNS}/tcp/56000,/dns4/${SEED_SITE_DNS}/udp/56000/quic-v1
+      -p2p.announce-addrs=/dns4/${SEED_SITE_DNS}/tcp/56000,/dns4/${SEED_SITE_DNS}/udp/56000/quic-v1,/dns4/${SEED_SITE_DNS}/tcp/143
       ${SEED_SITE_HOSTNAME}"'
 
   # Optional: Seed agents, served by the site under /hm/api/agents (the

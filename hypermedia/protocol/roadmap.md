@@ -99,7 +99,7 @@ The team decided to proceed with nodes over the current [change](./documents.md)
 - **Collections.** A collection is a document whose content is one top-level query block that lists its children. The indexer reports it as `isCollection`, and the older `type: Collection` attribute is ignored. It is an app presentation convention, and the protocol has no collection concept. See [query blocks](./blocks.md). <!-- id:aEqKQ-uD -->
 - **Extensions.** A plugin system is planned. Extensions are documents that carry small apps a site can install, starting with custom pages, then custom blocks, attribute editors and themes. A first attempt was built on a branch and closed without merging in September 2026. The system is being redone and nothing ships today. <!-- id:8zT18av8 -->
 - **Comment moderation.** Anyone can comment on anything, and the protocol has no moderation. Deleting and revoking comments on a site was on the mid-2026 launch checklist and is still a site-side design ([Comments](./comments.md)). <!-- id:7xb7Glxq -->
-- **Relays and reachability.** Networks that block the peer-to-peer port, such as university networks, motivated a proposal for relay addresses on port 443. Status unknown; see [Network](./network.md). <!-- id:dSObFbHp -->
+- **Relays and reachability.** Networks that block the peer-to-peer port, such as university networks, are served by a second TCP port, 143, that sites publish and announce; see [Network](./network.md). A network that also blocks 143 has no path yet. Peer-to-peer over secure WebSocket on port 443 is the candidate and is not built. A node on such a network also cannot be dialed by others, because the relays listen on port 4002. <!-- id:dSObFbHp -->
 
 # How to read this page <!-- id:5D6-Vn8W -->
 

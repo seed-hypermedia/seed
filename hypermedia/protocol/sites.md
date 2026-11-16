@@ -13,7 +13,7 @@ A site deployment runs three containers behind one domain: <!-- id:0jgAgYs3 -->
 <!-- id:h75-fJJo -->
 | Piece <!-- col:e96NCUpH --> | What it does <!-- col:Q-ZuR1y0 --> <!-- id:1QXbhd-7 --> |
 | --- | --- |
-| **the [Seed daemon](../apps/daemon.md)** (`seedhypermedia/site` image) | the libp2p peer that stores and serves the space's blobs; runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, announces `/dns4/<host>/tcp/56000` and `/dns4/<host>/udp/56000/quic-v1`, keeps its keys in a file keystore <!-- id:iMEv5biE --> |
+| **the [Seed daemon](../apps/daemon.md)** (`seedhypermedia/site` image) | the libp2p peer that stores and serves the space's blobs; runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, announces `/dns4/<host>/tcp/56000`, `/dns4/<host>/udp/56000/quic-v1` and `/dns4/<host>/tcp/143`, keeps its keys in a file keystore <!-- id:iMEv5biE --> |
 | **the [Seed web app](../apps/web.md)** (`seedhypermedia/web` image) | a server-rendered web app that talks to the daemon over gRPC-web, renders documents as HTML, exposes the [Seed API](../build/web-api.md) at `/api/<Key>` and the site services at `/hm/api/*`, and owns the registration state <!-- id:RhYvvilr --> |
 | **a reverse proxy** (Caddy) | terminates HTTPS for the domain, sends `/ipfs/*` straight to the daemon and everything else to the web app <!-- id:M1KwQU3S --> |
 
