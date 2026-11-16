@@ -1,12 +1,14 @@
 package docmodel
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 	"maps"
 	"math"
 	"seed/backend/core"
 	"seed/backend/util/btree"
+	"slices"
 	"strings"
 )
 
@@ -295,24 +297,16 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 
 		// We need to check whether the block is already in the desired position,
 		// i.e. it already has the same parent, and the block to the left of it is the desired left.
+		// A block with no visible left sibling is in the desired position when no left is wanted:
+		// moving the first block to the start changes nothing.
+		// Blocks in the trash have no meaningful position, so deleting a deleted block is not a move either.
 		if curState.Parent == parent {
-			// We check the items to the left of the current position of our block,
-			// to see if it's already the desired left block.
-			for k, v := range siblings.items.SeekReverse(fracdex) {
-				if k == fracdex {
-					continue
-				}
-				if v.IsDeleted {
-					continue
-				}
-				if _, ok := mut.dirty.invisibleMoves.Get(v.ID); ok {
-					continue
-				}
-				if v.Value == left {
-					return moveEffectNone, nil
-				}
-				// No need to iterate further than the first non-deleted left sibling.
-				break
+			if parent == TrashNodeID {
+				return moveEffectNone, nil
+			}
+
+			if lp, ok := mut.dirty.findLogicalPosition(block); ok && lp.Left == left {
+				return moveEffectNone, nil
 			}
 		}
 
@@ -334,18 +328,22 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	return me, nil
 }
 
+// Commit returns the moves that turn the initial state into the mutated one.
+//
+// The moves are derived from the resulting order of each sublist, not from the moves the mutation was asked
+// to make: as many blocks as possible keep their initial positions, and the rest are moved (see keepInitialPositions).
+// So a block that ends up where it initially was (e.g. moved away and back, or deleted and restored) is not moved,
+// and a block is moved if its neighbors changed, even if it still follows the same block as before.
+//
+// Each committed move is anchored on the committed position of the block
+// that precedes it in the resulting list: the initial position of a block that is not moved,
+// or the move produced just before for a block that is. Anchoring on anything else
+// (like the position a dropped move had inside of the mutation) places the block
+// correctly in the mutated state, but somewhere else for those who apply the committed moves.
 func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[moveRecord] {
-	// We iterate the state of the block tree in a breadth-first order,
-	// and we clean up all the moves we've made, such that redundant moves are not included.
-
 	// TODO(burdian): improve detecting operations created by our mutation.
 	isOurs := func(opID opID) bool {
 		return opID.Ts == math.MaxInt64 && opID.Actor == math.MaxUint64
-	}
-
-	type queueItem struct {
-		Block    string
-		Children *rgaList[string]
 	}
 
 	return func(yield func(moveRecord) bool) {
@@ -356,76 +354,144 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 		}()
 
 		var (
-			queue   = []queueItem{{Block: "", Children: mut.dirty.opSet.sublists.GetMaybe("")}}
+			queue   []string
+			seen    = map[string]struct{}{}
 			counter int
+			stopped bool
 		)
 
-		processQueue := func() {
-			for len(queue) > 0 {
-				sublist := queue[0]
-				queue = queue[1:]
-				var last rgaItem[string]
+		enqueue := func(block string) {
+			if _, ok := seen[block]; ok {
+				return
+			}
 
-				for _, block := range sublist.Children.items.Items() {
-					if children, ok := mut.dirty.opSet.sublists.Get(block.Value); ok && children.items.Len() > 0 {
-						queue = append(queue, queueItem{Block: block.Value, Children: children})
+			seen[block] = struct{}{}
+			queue = append(queue, block)
+		}
+
+		emit := func(mr moveRecord) bool {
+			if stopped || !yield(mr) {
+				stopped = true
+				return false
+			}
+
+			counter++
+
+			return true
+		}
+
+		processSublist := func(parent string) {
+			sublist := mut.dirty.opSet.sublists.GetMaybe(parent)
+			if sublist == nil || sublist.items.Len() == 0 {
+				return
+			}
+
+			// Initial positions of the blocks that initially were in this sublist.
+			var (
+				initial = make(map[string]int)
+				i       int
+			)
+
+			for _, item := range sublist.items.Items() {
+				if !isOurs(item.ID) {
+					if bs, ok := mut.initial.blocks[item.Value]; ok && bs.Parent == parent && bs.Position == item.ID {
+						initial[item.Value] = i
 					}
-
-					if !isOurs(block.ID) {
-						last = block
-						continue
-					}
-
-					if block.IsDeleted {
-						continue
-					}
-
-					mr := moveRecord{
-						OpID:   newOpID(ts, actor, counter),
-						Parent: sublist.Block,
-						Block:  block.Value,
-					}
-
-					if isOurs(last.ID) {
-						mr.Ref = newOpID(ts, actor, counter-1)
-					} else {
-						mr.Ref = last.ID
-					}
-
-					// Check if the current position of the block is the same as initial.
-					initialPos, ok := mut.initial.findLogicalPosition(block.Value)
-					if ok {
-						dirtyPos, ok := mut.dirty.findLogicalPosition(block.Value)
-						if ok && initialPos.Parent == dirtyPos.Parent && initialPos.Left == dirtyPos.Left {
-							continue
-						}
-					}
-
-					if !yield(mr) {
-						break
-					}
-
-					last = block
-					counter++
 				}
+
+				i++
+			}
+
+			var children []committedChild
+
+			i = -1
+			for _, item := range sublist.items.Items() {
+				i++
+
+				if item.IsDeleted {
+					continue
+				}
+
+				if _, ok := mut.dirty.invisibleMoves.Get(item.ID); ok {
+					continue
+				}
+
+				c := committedChild{Block: item.Value, Initial: -1}
+
+				if initIdx, ok := initial[item.Value]; ok {
+					c.Initial = initIdx
+					c.Position = mut.initial.blocks[item.Value].Position
+				}
+
+				children = append(children, c)
+			}
+
+			keepInitialPositions(children)
+
+			var ref opID
+
+			for _, c := range children {
+				// Children of this block will be processed after all the blocks on this level,
+				// such that parents created by our mutation always precede their children.
+				enqueue(c.Block)
+
+				if !c.Moved {
+					ref = c.Position
+					continue
+				}
+
+				mr := moveRecord{
+					OpID:   newOpID(ts, actor, counter),
+					Parent: parent,
+					Block:  c.Block,
+					Ref:    ref,
+				}
+
+				if !emit(mr) {
+					return
+				}
+
+				ref = mr.OpID
 			}
 		}
 
+		processQueue := func() {
+			for len(queue) > 0 && !stopped {
+				parent := queue[0]
+				queue = queue[1:]
+				processSublist(parent)
+			}
+		}
+
+		enqueue("")
 		processQueue()
 
 		deleted, ok := mut.dirty.opSet.sublists.Get(TrashNodeID)
 		if !ok {
 			panic("BUG: no trash sublist")
 		}
+		seen[TrashNodeID] = struct{}{}
 
 		for _, block := range deleted.items.Items() {
-			if !isOurs(block.ID) || block.IsDeleted {
+			if stopped {
+				return
+			}
+
+			if block.IsDeleted {
+				continue
+			}
+
+			// Deleted blocks may still have children moved by our mutation.
+			enqueue(block.Value)
+
+			if !isOurs(block.ID) {
 				continue
 			}
 
 			// If currently deleted block wasn't in the initial state,
 			// then we can safely ignore it, because it was created by our own transaction.
-			if _, ok := mut.initial.blocks[block.Value]; !ok {
+			// Same if it was already deleted in the initial state.
+			if bs, ok := mut.initial.blocks[block.Value]; !ok || bs.Parent == TrashNodeID {
 				continue
 			}
 
@@ -435,11 +501,12 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 				Block:  block.Value,
 				Ref:    opID{},
 			}
-			if !yield(mr) {
-				break
+			if !emit(mr) {
+				return
 			}
-			counter++
 		}
+
+		processQueue()
 
 		// Now let's handle detached blocks and their children.
 		for blk, state := range mut.dirty.opSet.detachedBlocks.Items() {
@@ -447,13 +514,74 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 				continue
 			}
 
-			queue = append(queue, queueItem{
-				Block:    blk,
-				Children: mut.dirty.opSet.sublists.GetMaybe(blk),
-			})
+			enqueue(blk)
 		}
 
 		processQueue()
+
+		// Whatever is left are sublists not reachable from the visible tree.
+		for blk := range mut.dirty.opSet.sublists.Items() {
+			enqueue(blk)
+		}
+
+		processQueue()
+	}
+}
+
+// committedChild is a visible child of a sublist in the mutated state.
+type committedChild struct {
+	Block string
+	// Position of the block in the committed state, if it initially was in this sublist.
+	Position opID
+	// Index of that position among all the items of the sublist, or -1 if there's none.
+	Initial int
+	// Whether a move has to be committed for the block.
+	Moved bool
+}
+
+// keepInitialPositions decides which children of a sublist keep their initial positions, and which have to move.
+//
+// Children are given in their resulting order. Those that initially were in this sublist can stay where they are
+// as long as their initial positions grow in the resulting order. We keep the longest such run, which leaves
+// the fewest possible children to move. It doesn't matter which of them the mutation moved to get to the result:
+// when the first block is moved to the end, moving that one block is what gets committed,
+// even if the mutation was told to place every other block before it.
+func keepInitialPositions(children []committedChild) {
+	// Longest increasing subsequence of the initial positions.
+	var (
+		tails []int // tails[n] is the child ending the best run of length n+1.
+		prev  = make([]int, len(children))
+	)
+
+	for i, c := range children {
+		children[i].Moved = true
+
+		if c.Initial < 0 {
+			continue
+		}
+
+		n, _ := slices.BinarySearchFunc(tails, c.Initial, func(tail, pos int) int {
+			return cmp.Compare(children[tail].Initial, pos)
+		})
+
+		prev[i] = -1
+		if n > 0 {
+			prev[i] = tails[n-1]
+		}
+
+		if n == len(tails) {
+			tails = append(tails, i)
+		} else {
+			tails[n] = i
+		}
+	}
+
+	if len(tails) == 0 {
+		return
+	}
+
+	for i := tails[len(tails)-1]; i >= 0; i = prev[i] {
+		children[i].Moved = false
 	}
 }
 

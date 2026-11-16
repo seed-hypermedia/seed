@@ -3876,6 +3876,109 @@ func TestPrepareChangeBlockReordering(t *testing.T) {
 	require.Equal(t, "b", got.Content[2].Block.Id, "third block must be B after reorder")
 }
 
+// A request that re-lists a whole level starts with "first block at the start",
+// which is already true. That move used to be dropped only when the change was written,
+// leaving the block that follows it anchored on nothing: [f1, f2, f3] plus a new block
+// after f1 read back as [new, f1, f2, f3]. Similarly, clearing a map attribute and setting
+// some of the entries it already had used to store the clear only, losing the map.
+func TestPrepareChangeRelistedLevelAndClearedMap(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	move := func(block, left string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: block, Parent: "", LeftSibling: left},
+		}}
+	}
+	replace := func(block string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{Id: block, Type: "paragraph", Text: block},
+		}}
+	}
+	attr := func(value string, key ...string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{
+			SetAttribute: &documents.DocumentChange_SetAttribute{Key: key, Value: &documents.DocumentChange_SetAttribute_StringValue{StringValue: value}},
+		}}
+	}
+	clearAttr := func(key ...string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{
+			SetAttribute: &documents.DocumentChange_SetAttribute{Key: key, Value: &documents.DocumentChange_SetAttribute_NullValue{NullValue: &emptypb.Empty{}}},
+		}}
+	}
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/relist-test",
+		Changes: []*documents.DocumentChange{
+			move("f1", ""), replace("f1"),
+			move("f2", "f1"), replace("f2"),
+			move("f3", "f2"), replace("f3"),
+			attr("x", "source", "type"),
+			attr("1", "source", "a"),
+			attr("2", "source", "b"),
+		},
+	})
+	require.NoError(t, err)
+
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     account,
+		Path:        "/relist-test",
+		BaseVersion: doc.Version,
+		Changes: []*documents.DocumentChange{
+			move("f1", ""),
+			move("new", "f1"),
+			move("f2", "new"),
+			move("f3", "f2"),
+			replace("new"),
+			clearAttr("source"),
+			attr("x", "source", "type"),
+			attr("1", "source", "a"),
+		},
+	})
+	require.NoError(t, err)
+
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		doc.GenerationInfo.Generation,
+		genesisCid,
+		kp.Principal(),
+		"/relist-test",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/relist-test"})
+	require.NoError(t, err)
+
+	order := make([]string, len(got.Content))
+	for i, node := range got.Content {
+		order[i] = node.Block.Id
+	}
+
+	require.Equal(t, []string{"f1", "new", "f2", "f3"}, order)
+	require.Equal(t, map[string]any{"type": "x", "a": "1"}, got.Metadata.AsMap()["source"])
+
+	// Only what changed is stored: one move, one block, and the entry that is gone.
+	stored := &blob.Change{}
+	require.NoError(t, cbornode.DecodeInto(signedChange.RawData(), stored))
+	require.Equal(t, 3, stored.Body.OpCount, "stored ops: %v", stored.Body.Ops)
+}
+
 func TestPrepareChangeMetadataUpdate(t *testing.T) {
 	t.Parallel()
 
