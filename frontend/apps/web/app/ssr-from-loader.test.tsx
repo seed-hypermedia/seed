@@ -10,13 +10,16 @@
  * back — for a plain document and for a republish.
  */
 import {hydrate, QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {ResourcePage} from '@shm/ui/resource-page-common'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {hmId} from '@shm/shared'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createElement} from 'react'
 import {renderToString} from 'react-dom/server'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {loadResource} from './loaders'
 import {FakeDaemon, makeDocument, OTHER_UID, SITE_UID} from './loaders.test-support'
+import {parseRequest} from './request'
 
 const state = vi.hoisted(() => ({
   daemon: null as unknown as {
@@ -155,10 +158,6 @@ beforeEach(() => {
 })
 
 async function renderThroughLoader(routeId: UnpackedHypermediaId) {
-  const {loadResource} = await import('./loaders')
-  const {parseRequest} = await import('./request')
-  const {ResourcePage} = await import('@shm/ui/resource-page-common')
-
   const payload = await loadResource(
     routeId,
     parseRequest(new Request(`https://site.example/${routeId.path?.join('/')}`)),
