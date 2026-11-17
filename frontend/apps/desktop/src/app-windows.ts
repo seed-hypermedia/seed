@@ -974,8 +974,8 @@ export function createLoadingWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay()
   const {width: screenWidth, height: screenHeight} = primaryDisplay.workAreaSize
 
-  // Keep the loading window compact, but give it standard window controls so
-  // a long-running migration does not block the rest of the desktop.
+  // Keep the loading window compact and frameless; its content provides the
+  // drag region so users can move it during a long-running migration.
   const windowWidth = 400
   const windowHeight = 480
 
@@ -986,7 +986,7 @@ export function createLoadingWindow(): BrowserWindow {
     y: Math.floor((screenHeight - windowHeight) / 2),
     title: 'Seed — Loading',
     show: true, // Show immediately for testing
-    frame: true,
+    frame: false,
     transparent: false,
     resizable: false,
     movable: true,
