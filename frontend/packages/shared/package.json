@@ -20,6 +20,7 @@
     "test": "vitest --run",
     "test:w": "vitest",
     "typecheck": "tsc --noEmit --project tsconfig.app.json",
+    "probes": "node xstate-v6-probes/run-probes.mjs",
     "build:types": "tsc -p tsconfig.types.json"
   },
   "keywords": [],
@@ -27,7 +28,8 @@
   "license": "ISC",
   "devDependencies": {
     "typescript": "5.8.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.8",
+    "xstate6": "npm:xstate@6.0.0-beta.3"
   },
   "dependencies": {
     "@seed-hypermedia/client": "workspace:*",
