@@ -249,6 +249,14 @@ import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
 
+/** Checks a block reference against published content or an editor draft snapshot. */
+export function hasRenderableBlock(content: HMBlockNode[] | EditorBlock[], blockRef: string): boolean {
+  return content.some((node) => {
+    const id = 'block' in node ? node.block.id : node.id
+    return id === blockRef || hasRenderableBlock(node.children ?? [], blockRef)
+  })
+}
+
 /** Build a draft breadcrumb while preserving published metadata omitted by partial draft edits. */
 export function getDraftBreadcrumbEntry({
   id,
@@ -2365,7 +2373,7 @@ function DocumentBody({
   const blockExists = useMemo(
     () =>
       routeBlockRef && !documentIsPlaceholderData && (!shouldUseDraftOverlay || draftResolution !== undefined)
-        ? !!findContentBlock(sourceBlocks ?? [], routeBlockRef)
+        ? hasRenderableBlock(sourceBlocks ?? [], routeBlockRef)
         : undefined,
     [routeBlockRef, documentIsPlaceholderData, shouldUseDraftOverlay, draftResolution, sourceBlocks],
   )

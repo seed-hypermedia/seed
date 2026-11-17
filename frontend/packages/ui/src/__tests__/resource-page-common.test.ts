@@ -1,4 +1,6 @@
 import {hmId, unpackHmId, type NavRoute} from '@shm/shared'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
@@ -24,7 +26,44 @@ import {
   getDocumentPagePanelMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
   getBlockCitationsPanelRoute,
+  hasRenderableBlock,
 } from '../resource-page-common'
+
+describe('block references in rendered content', () => {
+  const published: HMBlockNode[] = [
+    {
+      block: {id: 'heading', type: 'Heading', text: 'User Story Map', attributes: {}, annotations: []},
+      children: [
+        {
+          block: {id: 'nested-block', type: 'Paragraph', text: 'A user story', attributes: {}, annotations: []},
+          children: [],
+        },
+      ],
+    },
+  ]
+  const draft = hmBlocksToEditorContent(published)
+  draft[0]!.children.push({id: 'draft-only', type: 'paragraph', content: [], props: {}, children: []})
+
+  it.each([
+    {name: 'published', content: published},
+    {name: 'draft', content: draft},
+  ])('finds top-level and nested links in $name content', ({content}) => {
+    expect(hasRenderableBlock(content, 'heading')).toBe(true)
+    expect(hasRenderableBlock(content, 'nested-block')).toBe(true)
+    expect(hasRenderableBlock(content, 'missing')).toBe(false)
+  })
+
+  it('finds newly added blocks only in the draft', () => {
+    expect(hasRenderableBlock(draft, 'draft-only')).toBe(true)
+    expect(hasRenderableBlock(published, 'draft-only')).toBe(false)
+  })
+
+  it('reports deleted blocks and empty content as missing', () => {
+    const removed = [{...draft[0]!, children: []}]
+    expect(hasRenderableBlock(removed, 'nested-block')).toBe(false)
+    expect(hasRenderableBlock([], 'heading')).toBe(false)
+  })
+})
 
 describe('draft breadcrumb metadata', () => {
   const id = hmId('alice', {path: ['opaque-document-id']})
