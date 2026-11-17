@@ -2,7 +2,7 @@
 name: SDK
 summary: The @seed-hypermedia/client package reference, from installing it and reading a document to building, signing and publishing your own blobs.
 ---
-The SDK is the TypeScript package `@seed-hypermedia/client`. It is the one implementation of the Hypermedia data formats that the [Seed app](../apps/desktop.md), the [Seed web app](../apps/web.md), the [Seed CLI](./cli.md), the [vault](../apps/vault.md) and [Seed Agents](../agent.md) all share. It covers how a [blob](../protocol/blobs.md) is encoded and signed, how a [document](../protocol/documents.md) [change](../change.md) is built, how markdown round-trips, and how a [schema](../schema.md) is resolved. Nothing in it needs React, a [daemon](../apps/daemon.md) or a network beyond plain `fetch`, so it runs in Node, Bun, browsers and React Native. <!-- id:GKERgZSz -->
+The SDK is the TypeScript package `@seed-hypermedia/client`. It is the one implementation of the Hypermedia data formats that the [Seed app](../software/desktop.md), the [Seed web app](../software/web.md), the [Seed CLI](./cli.md), the [vault](../software/vault.md) and [Seed Agents](../agent.md) all share. It covers how a [blob](../protocol/blobs.md) is encoded and signed, how a [document](../protocol/documents.md) [change](../change.md) is built, how [markdown](./markdown-dialect.md) round-trips, and how a [schema](../schema.md) is resolved. Nothing in it needs React, a [daemon](../software/daemon.md) or a network beyond plain `fetch`, so it runs in Node, Bun, browsers and React Native. <!-- id:GKERgZSz -->
 
 This page is the reference. If you have never published anything yet, start with [Getting started](./getting-started.md). If you only need to read public data, the [Seed API](./web-api.md) over plain HTTP may be enough. <!-- id:uMFhMR5F -->
 
@@ -82,26 +82,9 @@ const resource = await client.request('Resource', id)
 if (resource.type === 'document') console.log(resource.document.metadata.name)
 ```
 
-The keys you will use most: <!-- id:SgBrNcQY -->
+Every key, with its input and output, is in the [Seed API key tables](./web-api.md#the-keys). Inputs that the tables show as an `hm://` string are an unpacked id here.
 
-<!-- id:-23opo3a -->
-| Key <!-- col:d7BKam6L --> | Input <!-- col:6ZeAVhqr --> | Gives you <!-- col:zCYxtb0w --> <!-- id:oTgoz8L8 --> |
-| --- | --- | --- |
-| `Resource` | an unpacked id | a document, comment, redirect, tombstone or `not-found` <!-- id:zIGyryB_ --> |
-| `ResourceMetadata` | an unpacked id | metadata only, cheap <!-- id:_OLiFEiW --> |
-| `Account` | a uid string | the account and its home document metadata <!-- id:Jr9071Rh --> |
-| `Query` | `{includes: [{space, path?, mode}], sort?, limit?}` | a directory listing (`Children` or `AllDescendants`) <!-- id:YjdRd2zH --> |
-| `QueryDocuments` | `{filter?, sort?, pageSize?, pageToken?}` | documents matched by attribute; see [Query grammar](./query-grammar.md) <!-- id:ksiY2jWj --> |
-| `Search` | `{query, accountUid?, includeBody?, searchType?, …}` | ranked hits <!-- id:QbzoS6bQ --> |
-| `ListComments`, `ListDiscussions` | `{targetId}` | comments on a document <!-- id:tFas-lWK --> |
-| `ListChanges` | `{targetId}` | the change DAG (used to build updates) <!-- id:S0sAKPyD --> |
-| `ListCitations` | `{targetId}` | who links here <!-- id:De29a4uP --> |
-| `ListCapabilities` | `{targetId}` | who may write here <!-- id:FhpQy98b --> |
-| `ListEvents` | paging and filters | the activity feed <!-- id:xkvNNLJj --> |
-| `GetCID` | `{cid}` | `{value}`: a stored blob decoded to DAG-JSON <!-- id:r_m2eGVm --> |
-| `DiscoveryStatus` | `{uid, path, version?, latest?}` | whether the site has found a resource yet <!-- id:Ls9FCHT_ --> |
-
-`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and [`visibility`](../protocol/privacy.md). Every key's exact input and output shape is in [the Seed API guide](./web-api.md). <!-- id:UBN1iThC -->
+`HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and [`visibility`](../protocol/privacy.md). <!-- id:UBN1iThC -->
 
 To follow [moves and republishes](../protocol/documents.md), `followRedirects(client, id)` walks the redirect chain, `followToDocument` stops at the first document, and `resolveEditableDocument` returns what an editor should load together with the address that a new change must take over. <!-- id:NY7ZIh68 -->
 
@@ -132,7 +115,7 @@ const {blobs} = await createDocumentBlobs(signer, {
 await client.publish({blobs})
 ```
 
-**The genesis rule.** A document's identity is its genesis Change. For the home document (path `''`) the genesis is deterministic: the signer's key and a zero timestamp. Every device of an account, and the daemon itself, derive the same one. Every other document has no genesis blob of its own. Its first content Change is its genesis, with no `genesis` or `deps` fields, and the Ref points its `genesis` and its head at that same Change. Creating an ordinary document on the home genesis merges it with the home document as far as the daemon is concerned: comments, activity and moves all collapse into one. So `createDocumentBlobs` decides this for you, and `createGenesisChange` is deprecated in favour of the explicit `createHomeGenesisChange`. Only the owner can create a home. The builder refuses any other signer for path `''`. <!-- id:2HwrtkSZ -->
+**The genesis rule.** A document's identity is its genesis Change, and only a home document (path `''`) has a deterministic one. [Documents](../protocol/documents.md) has the rule. `createDocumentBlobs` applies it for you: an ordinary document's first content Change is its genesis, and a home document starts from `createHomeGenesisChange`. `createGenesisChange` is the older name of that function. Only the owner can create a home. The builder refuses any other signer for path `''`. <!-- id:2HwrtkSZ -->
 
 **Update a document.** Fetch the current state, build a Change on the heads, and publish it with a fresh Ref: <!-- id:7sbzYzez -->
 
@@ -160,11 +143,11 @@ await client.publish({blobs: [{data: change.bytes, cid: change.cid.toString()}, 
 
 **Writing into someone else's space.** Pass `capability: <cid>` on every Change-carrying Ref, tombstone and redirect. A [capability](../protocol/permissions.md) is what lets your key write there. `resolveCapability(client, targetAccount, signerAccount, path?)` finds a WRITER or AGENT capability the space published for your key and returns its CID, or `undefined` when you are the owner. See [Permissions](../protocol/permissions.md). <!-- id:83ddWDHQ -->
 
-**The CID rule.** Every blob you publish that another blob references by CID must be published with its `cid` set. The SDK computes [CIDs](../protocol/blobs.md) with SHA-256. The daemon computes a BLAKE2b CID for any blob that arrives without one, and then the reference from the next blob points at nothing. The builders fill `cid` for you. Keep it when you assemble your own `publish` payload. <!-- id:0RkGAVtI -->
+**The CID rule.** A blob that another blob references by CID must be published with its `cid` set. [Blobs](../protocol/blobs.md) has the rule and the two hashes behind it. The builders fill `cid` for you. Keep it when you assemble your own `publish` payload. <!-- id:0RkGAVtI -->
 
 # Comments, contacts, profiles, capabilities <!-- id:ONoosCgT -->
 
-These are snapshot blobs, replaced whole on edit and addressed as `<author>/<tsid>`. See [Comments](../protocol/comments.md), [contacts and capabilities](../protocol/permissions.md), and [Identity](../protocol/identity.md) for profiles. <!-- id:tIj1HebI -->
+These are snapshot blobs, replaced whole on edit and addressed as `<author>/<tsid>`. See [Comments](../protocol/comments.md), [contacts and capabilities](../protocol/contacts.md), and [Identity](../protocol/identity.md) for profiles. <!-- id:tIj1HebI -->
 
 ```ts <!-- id:I2aG-U6E -->
 createComment({docId, docVersion, content: HMBlockNode[], replyCommentVersion?, rootReplyCommentVersion?, quoting?, visibility?}, signer)
@@ -188,13 +171,9 @@ A comment pins the target `docVersion` it was written against. `quoting: {blockI
 
 `fileToIpfsBlobs(bytes)` chunks a file into UnixFS blocks and returns the blocks plus the root CID, so an image becomes `ipfs://<cid>` in a block's `link` or in `metadata.icon`. `filesToIpfsBlobs` does several at once. `resolveFileLinksInBlocks` replaces `file://` links in a block tree with published `ipfs://` links, and `hasFileLinks` tells you whether there is anything to upload. Publish the file blocks in the same `publish` call as the document that links them, or the [gateway](../protocol/sites.md) will report them as not public. [Files](../protocol/files.md) has the rules. <!-- id:aAxXX4-N -->
 
-# The markdown dialect <!-- id:ZwTWCrBr -->
+# Markdown
 
-`blocksToMarkdown(doc)` and `parseMarkdown(md)` are a lossless pair: every [block](../protocol/blocks.md) type, [annotation](../protocol/blocks.md), attribute and [metadata](../metadata.md) key survives a round trip. The frontmatter is YAML with every metadata key. Each block ends in an `<!-- id:X -->` comment, with `type:` and `attrs:` in the same comment for what markdown cannot express. Nesting is indentation. `parseMarkdown` returns `{tree, metadata}` and `flattenToOperations` turns the tree into `DocumentOperation`s. `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the API shape. `parseMarkdown` throws `MarkdownFrontmatterError` on frontmatter whose YAML does not parse (pass `{strictFrontmatter: false}` on a display path that must render anything). `assertValidMermaid(nodes, parser)` rejects with `InvalidMermaidError` when a mermaid Code block does not parse; `loadMermaidParser()` from `@seed-hypermedia/client/mermaid-parser` supplies the parser in a browser, Node or Bun (with `mermaid`, plus `linkedom` outside a browser, installed by the caller). [Publish a folder](./publish-a-folder.md) describes the dialect as a writer sees it. <!-- id:WvgA5VpZ -->
-
-For display, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/comments.md) and [query blocks](../protocol/blocks.md) over the network and inline them. The web `.md` export and the agents' [`read`](../app-environment/read.md) verb return this form. <!-- id:60n-DBmo -->
-
-Drafts: `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the desktop app do. <!-- id:wxZ_H1P7 -->
+`blocksToMarkdown(doc)` and `parseMarkdown(md)` convert between a document and its lossless markdown form, and `documentToResolvedMarkdown` produces markdown for display. The format and every function around it are on the [markdown dialect](./markdown-dialect.md) page.
 
 # Typed documents and your own blobs <!-- id:51hJgH0T -->
 
@@ -226,7 +205,7 @@ The client is a thin layer over the [Seed API](./web-api.md). Anything the SDK d
 
 ## Agents <!-- id:RZwid2d1 -->
 
-Seed Agents call these same functions when an agent's [`write`](../app-environment/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
+Seed Agents call these same functions when an agent's [`write`](../agent/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
 
 # See also <!-- id:WLNqrO8T -->
 
@@ -237,4 +216,5 @@ Seed Agents call these same functions when an agent's [`write`](../app-environme
 - [Seed CLI](./cli.md) <!-- id:wcLvU_Qx -->
 - [Keys](./keys.md) <!-- id:NjPCSXMt -->
 - [Sign in with Seed](./sign-in.md) <!-- id:UDcI1Ddr -->
+- [Markdown dialect](./markdown-dialect.md)
 - [Query grammar](./query-grammar.md) <!-- id:cJXiZige -->

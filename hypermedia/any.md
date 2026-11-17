@@ -11,3 +11,4 @@ The **any** type matches every Hypermedia value: null, a boolean, a number, a st
 - [value](./value.md): the smaller union a metadata attribute can hold. <!-- id:49AnlS5k -->
 - [list](./list.md) and [map](./map.md): the container kinds. <!-- id:LdxJNcAp -->
 - [block](./block.md): the open block, whose extra fields are of this type. <!-- id:FqUALYAw -->
+- [Catalogue of types](./schema/types.md): every type in the library.

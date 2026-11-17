@@ -9,3 +9,4 @@ The **list** type is an ordered sequence of values. It is List\<Any> until a [li
 - [List schema](./schema/list-schema.md): how a schema sets the item type. <!-- id:4qu2BggC -->
 - [map](./map.md) and [struct](./struct.md): the keyed containers. <!-- id:TwaOFAra -->
 - [any](./any.md): the union of every value. <!-- id:PILgxpMW -->
+- [Catalogue of types](./schema/types.md): every type in the library.

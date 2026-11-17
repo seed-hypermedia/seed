@@ -1,8 +1,8 @@
 ---
 name: DAG-JSON
-summary: The JSON form of the same data model, used as the human-editable form in this repo.
+summary: The JSON form of the IPLD data model, which is the form people read and edit, where DAG-CBOR is the form that is hashed and stored.
 ---
-**dag-json**: the JSON form of the same [data model](./data-model.md), used as the human-editable form in this repo. It writes [links](../link.md) as `{"/":"…"}` and bytes as `{"/":{"bytes":"…"}}`. Those reserved-key objects are [envelopes](./envelope.md). <!-- id:iFdzDAvy -->
+**dag-json**: the JSON form of the same [data model](./data-model.md) that [DAG-CBOR](./dag-cbor.md) encodes. It is the form people read and edit, and schema files are written in it. It writes [links](../link.md) as `{"/":"…"}` and bytes as `{"/":{"bytes":"…"}}`. Those reserved-key objects are [envelopes](./envelope.md). <!-- id:iFdzDAvy -->
 
 # See also <!-- id:HZxh7aJc -->
 

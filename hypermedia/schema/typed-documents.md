@@ -2,9 +2,11 @@
 name: Typed Documents
 summary: How a Hypermedia document declares what it is with the attributesSchema, childAttributesSchema and schemaDefinition fields, with a worked example, the child-inheritance rule and what the editor does with a typed document.
 ---
+A typed document is a [document](../protocol/documents.md) that says which [schema](../schema.md) its attributes follow. This page covers the three metadata fields that bind documents to schemas, the rule for inheriting a type from a folder, and what the Seed app does with a typed document.
+
 # Three fields, three meanings <!-- id:jXvF5E3K -->
 
-A [document's](../protocol/documents.md) metadata may carry up to three schema fields. The base document's [metadata](../metadata.md) declares them, and each one says something different: <!-- id:eKwMrgCU -->
+A document's metadata may carry up to three schema fields. The base document's [metadata](../metadata.md) declares them, and each one says something different: <!-- id:eKwMrgCU -->
 
 <!-- id:IWXxmzY8 -->
 | field <!-- col:Bf70KZPY --> | the sentence it says <!-- col:QNHARA77 --> | value <!-- col:982dpIgh --> <!-- id:bAOtxS8S --> |
@@ -29,7 +31,7 @@ The library ships this exact shape as an example. [example/person-doc](../exampl
 
 One rule decides a document's **effective** attributes schema. It is the document's own `attributesSchema` if it has one, otherwise its parent's `childAttributesSchema`, otherwise none. A child that declares its own `attributesSchema` under a parent with a `childAttributesSchema` must satisfy both. <!-- id:ZMmssRpC -->
 
-This rule types a whole [directory](../protocol/documents.md) without every page repeating the binding. It also lets one page opt out, or opt into something more specific, explicitly. <!-- id:SDKbJneG -->
+This rule types a whole [directory](../protocol/spaces.md) without every page repeating the binding. It also lets one page opt out, or opt into something more specific, explicitly. <!-- id:SDKbJneG -->
 
 # An attributes schema is a struct <!-- id:--K0cmG7 -->
 
@@ -52,7 +54,7 @@ When a document is checked, the base [metadata](../metadata.md) fields are folde
 Once a document has an effective schema, the Seed app changes in four visible ways: <!-- id:SaArwfA0 -->
   - **Required attributes are always present.** Each required field from the resolved schema is a fixed row you cannot remove. It appears at the top of the **Attributes** tab and above the body in the **Content** tab, so a person page cannot lose its surname by accident. <!-- id:byLBE05n -->
   - **Fields get the right control.** A field whose format is a Hypermedia URL renders as a searchable, clickable title pill. When the field names a `target`, the search offers documents typed by that schema or a subtype of it first, folder-typed children included, and a reference of another type shows a warning. A field whose format is an IPFS reference gets a file picker and a file pill. A union of [literals](./literal-schema.md) becomes a dropdown. `attributesSchema` and `childAttributesSchema` are document-reference fields themselves, and `icon`, `cover` and `schemaDefinition` are IPFS-reference fields. <!-- id:hF8BrCL- -->
-  - **Problems show in red and never block.** A per-field badge and a summary banner list the actual violations, such as "surname is required" or "status must be one of draft, published, archived". Saving always works, because validation only warns. See [why Hypermedia Schemas](./why.md). <!-- id:lciGA4Bw -->
+  - **Problems show in red and never block.** A per-field badge and a summary banner list the actual violations, such as "surname is required" or "status must be one of draft, published, archived". Saving always works, because validation only warns. See [the rationale](./why.md). <!-- id:lciGA4Bw -->
   - **You edit the schemas on the page.** The **Attributes** tab opens with two sections. **Attributes schema** holds the fields this document carries, and **Children attributes schema** holds the fields every document created inside it carries. Each section shows the full schema editor when the document owns the schema. Edits stay in the [draft](../protocol/documents.md). Publishing freezes each edited schema into a new IPFS object and points the binding key at it. A binding to a type page shows read-only with a link, and **Edit a copy here** takes it over. The options menu entries **Attributes Schema** and **Children Attributes Schema** open the tab on the matching section, and draft an empty struct when nothing is bound yet. So on a folder called Trees, one menu choice and one added field give every tree a `height`. <!-- id:utrc8CYQ -->
   - **A type's home page gets actions.** A document carrying `schemaDefinition` shows a **New Document** button, which starts a draft whose `attributesSchema` is this page. It also shows a **New Collection** button, which starts a draft whose `childAttributesSchema` is this page. So a folder of people is one click from the person type. The options menu adds **Extend Schema** and, for developers, **New Raw Value** (a bare IPFS blob of the type) and **Inspect Schema**. <!-- id:4EmRqGxG -->
 
@@ -60,13 +62,13 @@ Once a document has an effective schema, the Seed app changes in four visible wa
 
 Three kinds of field make a typed document work like a record: <!-- id:7vSmoGzD -->
   - **Dates.** [date](../date.md) and [date-time](../date-time.md) are built-in refinements of string. A date is an ISO 8601 `YYYY-MM-DD` calendar date, and a date-time is an RFC 3339 instant. Each has a `pattern`, so a validator can check the shape. The editor shows a **date picker**, and the value on the wire is still the plain string. <!-- id:ihWPLrSf -->
-  - **References with a target.** A field whose format is `hm-url` or `ipfs` may carry a `target`: the schema the referenced document or object should conform to. `character.home` targets the Place type, and `character.stats` targets [Character stats](../example/stats.md). A target is advisory, and the validator never dereferences a reference. The editor uses the target to pre-seed and validate what you create. See [references and naming](./references.md). <!-- id:diqJ6BQO -->
-  - **Linked objects.** An `ipfs` field can point at an uploaded [file](../protocol/files.md) or at an _object_: a [DAG-CBOR](./dag-cbor.md) value you author in the Attributes editor. Press **Create object** on an empty field. With a target, the editor is locked to that type and publishes only a conforming value. Without one, you pick any schema (advisory) or choose free-form data. The published object carries a `schema` link to its type, the field is set to `ipfs://<cid>`, and the pill offers to open or edit the object. Blobs are immutable, so editing publishes a new object and re-points the field. <!-- id:jlc30xO3 -->
+  - **References with a target.** A field whose format is `hm-url` or `ipfs-url` may carry a `target`: the schema the referenced document or object should conform to. `character.home` targets the Place type, and `character.stats` targets [Character stats](../example/stats.md). A target is advisory, and the validator never dereferences a reference. The editor uses the target to pre-seed and validate what you create. See [references and naming](./references.md). <!-- id:diqJ6BQO -->
+  - **Linked objects.** An `ipfs-url` field can point at an uploaded [file](../protocol/files.md) or at an _object_: a [DAG-CBOR](./dag-cbor.md) value you author in the Attributes editor. Press **Create object** on an empty field. With a target, the editor is locked to that type and publishes only a conforming value. Without one, you pick any schema (advisory) or choose free-form data. The published object carries a `schema` link to its type, the field is set to `ipfs://<cid>`, and the pill offers to open or edit the object. Blobs are immutable, so editing publishes a new object and re-points the field. <!-- id:jlc30xO3 -->
 
 # Doing it yourself <!-- id:lasXj_Va -->
 
-Turn on Developer Mode, then: <!-- id:eTXH_hda -->
-  1. **New Schema**, in the options menu of a type's page, opens the schema editor. Build the struct of attributes. Publishing mints the blob and gives you an `ipfs://` CID. <!-- id:jpM2R4ld -->
+In the Seed app, these steps set up a type, an instance and a typed folder. [Schema workflows](./workflows.md) has the same tasks for the CLI and an agent, and says what shows the **New Schema** entry. <!-- id:eTXH_hda -->
+  1. **New Schema** opens the schema editor. Build the struct of attributes. Publishing mints the blob and gives you an `ipfs://` CID. <!-- id:jpM2R4ld -->
   2. On the page that should be the type's home, set `schemaDefinition` to that CID in the Attributes editor. The page now shows the schema tag and the New Document and New Collection buttons. <!-- id:r5qfTMyI -->
   3. On a page that should be an instance, set `attributesSchema` to the home page's `hm://` URL, or press **New Document** on the type's page. Required fields appear immediately. <!-- id:fTgpB37E -->
   4. On a folder, set `childAttributesSchema` to the same URL to type everything beneath it, or press **New Collection** on the type's page. To type a folder's children without a separate type page, choose **Children Attributes Schema** from the folder's options menu and add the fields there. <!-- id:aKAQIRBf -->
@@ -77,7 +79,7 @@ A reference by CID pins exact bytes. The type never changes under you, and you m
 
 # See also <!-- id:oWU3rUEa -->
 
-- [How Hypermedia Schemas work](./how-it-works.md): the pipeline from schema file to typed document. <!-- id:JfaOlasx -->
+- [Schema workflows](./workflows.md): each task step by step in the app, the CLI and through an agent. <!-- id:JfaOlasx -->
 - [The World Builder](./world-builder.md): a worked demo of linked types in the app. <!-- id:oVtIGDI0 -->
 - [Metadata](../metadata.md): the base document attributes, including the three binding keys. <!-- id:bZlgaAck -->
 - [Documents](../protocol/documents.md): paths, drafts, versions and children. <!-- id:FNZFTX9J -->

@@ -2,7 +2,7 @@
 name: URLs
 summary: The hm:// URL names a space, a path, optionally an exact version and a block or text range, and this page gives the full grammar, the view suffixes, comment addresses, and how web URLs map to it.
 ---
-A Hypermedia link names a thing by its owner. The server that holds it does not appear. An `hm://` URL starts with an [account](./identity.md)'s public key and continues with a path the owner chose. It can pin an exact [version](./documents.md), and even a single paragraph or a range of words inside it. Any web [site](./sites.md) that runs Seed can serve the same [document](./documents.md) under an ordinary `https://` URL, and the two forms convert into each other exactly. <!-- id:rfRwLU52 -->
+A Hypermedia link names a thing by its owner. The server that holds it does not appear. An `hm://` URL starts with an [account](./identity.md)'s public key, which names its [space](./spaces.md), and continues with a path the owner chose. It can pin an exact [version](./documents.md), and even a single paragraph or a range of words inside it. Any web [site](./sites.md) that runs Seed can serve the same [document](./documents.md) under an ordinary `https://` URL, and the two forms convert into each other exactly. <!-- id:rfRwLU52 -->
 
 # The grammar <!-- id:JuiXbcTE -->
 
@@ -21,15 +21,19 @@ hm://<uid>[/<path>][?v=<version>[&l]][#<block>[+|[<start>:<end>]]]
 | `#block+` | the block and all of its children | `#Zr1kAbQ2+` <!-- id:6MZIgv-a --> |
 | `#block[start:end]` | a range of text inside the block, in Unicode code points | `#Zr1kAbQ2[12:40]` <!-- id:BUdBcK3j --> |
 
-So `hm://z6Mkfz…/notes/sushi?v=bafyreid3…#Zr1kAbQ2[12:40]` means "characters 12 to 40 of block Zr1kAbQ2, in the version whose single head is bafyreid3…, of the document at /notes/sushi in the space z6Mkfz…". Without `v` the URL means the latest version the reader knows about. With `v` alone it is an immutable reference. With `v` and `l` it asks for the newest version but records the one the author saw, so the link still works as an exact citation if the document is deleted. Today the daemon returns the latest version when `l` is present. <!-- id:Ccp6Y7Wg -->
+So `hm://z6Mkfz…/notes/sushi?v=bafyreid3…#Zr1kAbQ2[12:40]` means "characters 12 to 40 of block Zr1kAbQ2, in the version whose single head is bafyreid3…, of the document at /notes/sushi in the space z6Mkfz…". Without `v` the URL means the latest version the reader knows about. With `v` alone it is an immutable reference. With `v` and `l` it asks for the newest version but records the one the author saw, so the link still works as an exact citation if the document is deleted. The daemon does not enforce the "at least" part: when `l` is present it returns the latest version it knows. <!-- id:Ccp6Y7Wg -->
 
 Paths must start with `/`, must not end with `/`, and may not contain single or double quotes, backslashes, NUL, tab, CR or LF. The daemon rejects any [Ref](../ref.md) that breaks these rules. Two segment shapes have a special meaning. A path that is a single segment decoding as a [TSID](./blobs.md) (14 or 15 base58 characters) is a comment or contact record. The apps use a leading `-` for local draft paths that are never published. <!-- id:w3OedhEC -->
+
+The `l` flag has no value and follows `v`, so it is always written `?v=<version>&l`.
+
+A reference can name a web domain in place of the uid, as in `hm://hyper.media/agent/guide`. The reader resolves the domain to its registered account before reading the resource. The [SDK](../build/sdk.md) and embed readers use the domain cache first and fall back to the HTTPS `OPTIONS` headers described below. The path, version and block fragment survive resolution. An unresolved domain is an error and is never treated as an account id. The stored reference keeps the domain, while reads and discovery use the resolved id.
 
 # Versions, blocks and ranges <!-- id:RQMevPWC -->
 
 A version pins the whole history, because every head [Change](../change.md) links its dependencies by [CID](../cid.md). The same `v=` always replays to the same content on any node that has the blobs. Without `v`, a block reference `#id` follows the block wherever it moves in later versions. Combine both when you need a quotation that cannot drift. Ranges count Unicode code points. They do not count UTF-16 units or bytes, so an emoji counts once. <!-- id:kjOBFhbW -->
 
-Links inside documents use the same grammar. A link annotation, an embed block, a button, and a mention all carry an `hm://` URL. The daemon indexes each of them as a citation of the target; see [Comments](./comments.md) for backlinks. Web URLs of Seed sites are converted to `hm://` when pasted into the editor. <!-- id:IlSRfmmm -->
+Links inside documents use the same grammar. A link annotation, an embed block, a button, and a mention all carry an `hm://` URL. The daemon indexes each of them as a citation of the target; see [Links and citations](./links-and-citations.md) for backlinks. Web URLs of Seed sites are converted to `hm://` when pasted into the editor. <!-- id:IlSRfmmm -->
 
 # View suffixes <!-- id:KfDzsmvv -->
 
@@ -38,29 +42,23 @@ A path segment beginning with `:` after the document path selects a view of the 
 <!-- id:BtVPKkn9 -->
 | suffix <!-- col:zvOkSMbZ --> | shows <!-- col:EN9M9UTm --> | notes <!-- col:yPWuXlns --> <!-- id:hHX1Vr6g --> |
 | --- | --- | --- |
-| `/:directory` | the documents under this path | listing via [`Query`](../query.md); reserved but unimplemented in daemon discovery <!-- id:_XZPpsw7 --> |
+| `/:directory` | the documents under this path | listing via [`Query`](../query.md); daemon discovery does not accept this suffix <!-- id:_XZPpsw7 --> |
 | `/:comments` | the discussion | `/:comments/<uid>/<tsid>` opens one comment; `?panel=comments/<uid>/<tsid>` opens it in the side panel instead <!-- id:JBzA6ClQ --> |
 | `/:activity` | the activity feed | `/:activity/comments`, `/versions`, `/citations` filter it <!-- id:H0vhpJEl --> |
 | `/:collaborators` | who may [write](./permissions.md) here | <!-- id:3LQrMFfp --> |
 | `/:attributes` | the metadata as attributes | `/:metadata` is accepted for old links <!-- id:Yg_h-f9E --> |
 | `/:schema` | the [schema](../schema.md) this document defines | <!-- id:OV2cqeHD --> |
 | `/:profile` | the account's [profile](../profile.md) | also accepted by daemon discovery <!-- id:bToA9-Py --> |
-| `/:membership`, `/:followers`, `/:following` | [contact](./permissions.md) views of a space | optionally `/:followers/<uid>` <!-- id:kZTvciM8 --> |
+| `/:membership`, `/:followers`, `/:following` | [contact](./contacts.md) views of a space | optionally `/:followers/<uid>` <!-- id:kZTvciM8 --> |
 | `/:feed`, `/:all-documents`, `/:explore`, `/:settings` | site-level views | app and web only <!-- id:qj1efh9h --> |
 
-The [agents runtime](../agent.md)'s [`read`](../app-environment/read.md) verb accepts `/:directory`, `/:attributes`, `/:profile` and `/:comments` on an `hm://` address. The daemon's [discovery](./network.md) request also understands the wildcards `hm://<uid>/<path>/*` (one level) and `hm://<uid>/<path>/**` (everything beneath). <!-- id:P-bycAsF -->
+The [agents runtime](../agent.md)'s [`read`](../agent/read.md) verb accepts `/:directory`, `/:attributes`, `/:profile` and `/:comments` on an `hm://` address. The daemon's [discovery](./network.md) request also understands the wildcards `hm://<uid>/<path>/*` (one level) and `hm://<uid>/<path>/**` (everything beneath). <!-- id:P-bycAsF -->
 
 # Comments and other records <!-- id:MTAqFeRT -->
 
-A [comment](./comments.md)'s identity is `<author uid>/<tsid>`, and its address is `hm://<author uid>/<tsid>`. The record lives in its author's space. The document it is about may be in another space. On the web it is usually shown in context as `https://<site>/<doc path>/:comments/<author uid>/<tsid>`, with `?v=<comment cid>` pinning one edit of the comment. Contacts are addressed the same way by TSID. [Capabilities](./permissions.md) have no URL, and the API lists them. The daemon's link indexer also understands `hm://c/<cid>`, a link to one exact comment blob, but the apps do not produce that form today. <!-- id:SGCNi-zq -->
+A [comment](./comments.md)'s identity is `<author uid>/<tsid>`, and its address is `hm://<author uid>/<tsid>`. The record lives in its author's space. The document it is about may be in another space. On the web it is usually shown in context as `https://<site>/<doc path>/:comments/<author uid>/<tsid>`, with `?v=<comment cid>` pinning one edit of the comment. Contacts are addressed the same way by TSID. [Capabilities](./permissions.md) have no URL, and the API lists them. The daemon's link indexer also understands `hm://c/<cid>`, a link to one exact comment blob. The apps never write that form. <!-- id:SGCNi-zq -->
 
-The apps and the web server read a comment's place on the page from the URL. `/<doc path>/:comments/<root uid>/<root tsid>` opens a thread in the main view. `/<doc path>?panel=comments/<root uid>/<root tsid>` opens it in the side panel. Without a `reply` parameter, the root is highlighted. Add `?reply=<reply uid>/<reply tsid>` to the main-view form, or `&reply=<reply uid>/<reply tsid>` to the panel form, to scroll to and highlight only that reply. The selected highlight stays until the selection changes. <!-- id:PoC-L7WA -->
-
-"Copy comment link" preserves the current layout. A reply link contains both the thread root and the selected reply. Opening it adds the selected reply as an embed to the root's comment draft, without replacing existing draft text or duplicating the embed. Submission still targets the root. Clicking an embedded document block or fragment replaces the current navigation entry, scrolls to the source, and keeps the thread in the side panel; from the main comments view, this returns to the document.
-
-The root list shows comments from oldest to newest and initially scrolls to the bottom. Returning from a thread restores the previous reading position, including when new roots arrived while the thread was open. These rules apply to both layouts on web and desktop.
-
-Older links still parse: `/:discussions` means `/:comments`, `?panel=comment/<uid>/<tsid>` means `?panel=comments/…`, and `?panel=discussions/<block id>` opens the discussion of one block. The parser is `createDocumentNavRoute` in [`frontend/packages/shared/src/routes.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/shared/src/routes.ts).
+Three older forms still parse: `/:discussions` means `/:comments`, `?panel=comment/<uid>/<tsid>` means `?panel=comments/<uid>/<tsid>`, and `?panel=discussions/<block id>` opens the discussion of one block. [Comments](./comments.md) describes threads and replies.
 
 # Web URLs and hm URLs <!-- id:Q6dkury9 -->
 
@@ -72,58 +70,48 @@ Every Seed web server, whether it is `hyper.media` or a site published at its ow
 | `https://<host>/hm/<uid>[/<path>]` | the gateway form: any document of any space, convertible 1:1 to `hm://<uid>/<path>` <!-- id:1v21okmr --> |
 | `https://<host>[/<path>]` | the site form: the document at `path` in the space registered to that host <!-- id:1l0vgKEy --> |
 
-Query parameters and fragments carry over unchanged, so `https://hyper.media/hm/z6Mkfz…/notes/sushi?v=…#Zr1kAbQ2+` and `hm://z6Mkfz…/notes/sushi?v=…#Zr1kAbQ2+` are the same reference. This keeps web links durable. If the `hyper.media` server is offline, a reader who knows the rule can keep using the `/hm/` URLs as `hm://` URLs on the peer-to-peer [network](./network.md). See [broken links](../why/broken-links.md). <!-- id:eCbqzq-L -->
+Query parameters and fragments carry over unchanged, so `https://hyper.media/hm/z6Mkfz…/notes/sushi?v=…#Zr1kAbQ2+` and `hm://z6Mkfz…/notes/sushi?v=…#Zr1kAbQ2+` are the same reference. This keeps web links durable. If the `hyper.media` server is offline, a reader who knows the rule can keep using the `/hm/` URLs as `hm://` URLs on the peer-to-peer [network](./network.md). See [broken links](../why/broken-links.md). A site renders any document this way, including other accounts' documents, because documents link across spaces and a linked space may have no site at all. <!-- id:eCbqzq-L -->
 
 The site form needs one extra fact: which space the host is registered to. Three mechanisms provide it: <!-- id:92vvfi31 -->
   1. `GET https://<host>/hm/api/config` returns `{registeredAccountUid, peerId, addrs, …}`. The daemon uses this to resolve any `https://` URL you hand to it. One Seed node also learns this way which peer serves a site; see [Sites](./sites.md). <!-- id:fx9paYGo -->
   2. Any document page answers `OPTIONS` (and `GET`) with `X-Hypermedia-Id`, `X-Hypermedia-Version`, `X-Hypermedia-Title`, `X-Hypermedia-Type` (`Document` or `Comment`), `X-Hypermedia-Authors` and, for comments, `X-Hypermedia-Target`. The id, title, authors and target are URL-encoded. The response is 200 with only CORS headers if the URL does not resolve. <!-- id:td6m4z0M -->
   3. The same values are in the HTML as `<meta name="hypermedia_id">`, `hypermedia_version`, `hypermedia_title`, `hypermedia_type`, `hypermedia_authors` and `hypermedia_target`. <!-- id:gdZEaddn -->
 
-Add `.md` or `.json` to the document segment of a site URL to export it: `https://<host>/notes/sushi.md`, `/notes/sushi.json/:directory`, `/hm/<uid>/<path>.md`, with `?v=` and `?l` honoured. <!-- id:MzL0HPy7 -->
+Add `.md` or `.json` to the document segment of a site URL to export it: `https://<host>/notes/sushi.md`, `/notes/sushi.json/:directory`, `/hm/<uid>/<path>.md`, with the `v` and `l` parameters honoured. <!-- id:MzL0HPy7 -->
 
 ## Reserved first segments <!-- id:mJl-MXsn -->
 
-On a web host: <!-- id:6pQNHaI1 -->
+A site keeps these first segments for itself, so a document path cannot start with them:
   - `/hm/…` is the [gateway](./sites.md) namespace, and `/hm/api/…` holds its services. <!-- id:hhy1aPmM -->
   - `/api/<Key>` is the [Seed API](../build/web-api.md). <!-- id:AB08SQb4 -->
-  - `/ipfs/<cid>` serves raw blobs ([Files](./files.md)). <!-- id:NJc-Zih1 -->
-  - `/robots.txt` and `/.well-known/` are the usual web reservations. <!-- id:tMrg73-4 -->
+  - `/ipfs/<cid>` serves raw blobs ([Files](./files.md)). The site's reverse proxy sends it to the daemon. <!-- id:NJc-Zih1 -->
+  - `/assets/`, `/favicon.ico` and `/robots.txt` belong to the web app. <!-- id:tMrg73-4 -->
+
+The apps refuse to create a document whose path is `hm`, `api`, `assets`, `favicon.ico` or `robots.txt`, or whose first segment starts with `-`, `.` or `_`. The last rule keeps `/.well-known/` free. A site keeps working if a document exists at one of these paths.
 
 Under `/hm/`, the segments `download`, `connect`, `register`, `profile`, `contact`, `agents`, `auth`, `create-site`, `notifications`, `embed` and `inspect` are pages. None of them is a space. In the `hm://` scheme itself, `hm://connect/<payload>` carries a peer-connection invitation and `hm://inspect/<uid>/<path>` opens the app's blob inspector. Neither is a document address. <!-- id:uTivcFxL -->
 
 # Working with URLs <!-- id:6fOFhA7C -->
 
-## In the Seed app <!-- id:qENuYTw- -->
+- **Seed app.** Copy Link on a document, a block or a selection produces the site form when the space has a site, and the gateway form otherwise. Pasting an `hm://` or a Seed web URL into the editor makes a link.
+- **CLI.** Every command that takes an id accepts `hm://` and Seed web URLs alike. See the [CLI reference](../build/cli.md).
+- **SDK.** `unpackHmId(url)` parses `hm://` and gateway URLs, `packHmId(id)` writes the `hm://` form, and `resolveHypermediaUrl(url)` resolves any web URL. See the [SDK guide](../build/sdk.md).
+- **Web API.** `GET /api/Resource?id=<url-encoded hm:// URL>` reads a resource by its URL. See the [Seed API guide](../build/web-api.md).
+- **Agents.** [`read`](../agent/read.md) and [`write`](../agent/write.md) take an `hm://` URL. See [using Seed from your own agent](../build/agents.md).
 
-In the [Seed app](../apps/desktop.md), Copy Link on a document, a block or a selection produces the site form when the space has a site, and the gateway form otherwise. It uses `#block+` for a whole block and `#block[start:end]` for a selection. The version graph's "Exact version" link adds `v=`. Pasting an `hm://` or a Seed web URL into the editor makes a link. The app registers `hm://` as an operating-system scheme, so such links open the desktop app. <!-- id:oh3LF9A2 -->
-
-## CLI <!-- id:_Keand-u -->
-
-Every [CLI](../build/cli.md) command that takes an id accepts `hm://` and Seed web URLs alike: `seed-cli document get https://hyper.media/hm/<uid>/<path>` and `seed-cli document get hm://<uid>/<path>?v=<version>` both work, and `document get <url>/:directory` lists children. To turn an unknown web URL into an `hm://` one from a shell: <!-- id:bCFCOe0y -->
+To turn an unknown web URL into an `hm://` one from a shell:
 
 ```sh <!-- id:GNZ3b7P5 -->
 curl -s -X OPTIONS -I https://example.org/some/page | grep -i x-hypermedia
 ```
 
-## SDK <!-- id:olnz0jdZ -->
-
-In the [SDK](../build/sdk.md), `unpackHmId(url)` parses `hm://` URLs and gateway `https://<host>/hm/…` URLs into `{id, uid, path, version, latest, blockRef, blockRange, hostname, scheme}`. It returns null for a site-form URL. `packHmId(id)` writes the `hm://` form, and `parseFragment` / `serializeBlockRange` handle the `#` part. `resolveHypermediaUrl(url)` resolves an arbitrary web URL through an optional cached domain resolver and then the `OPTIONS` headers. These are in `@seed-hypermedia/client`; see [the SDK guide](../build/sdk.md). The web-form builders `createWebHMUrl` and `createSiteUrl` live in `@shm/shared`, a package internal to the apps. <!-- id:unyPYv5T -->
-
-## Web API <!-- id:OOoMdJAa -->
-
-The `Resource` request takes the packed id as its `id` parameter: `GET /api/Resource?id=hm://<uid>/<path>?v=…` (URL-encoded). The daemon's `GetResource` accepts `hm://`, `http://` and `https://` and does the `/hm/api/config` resolution itself. `GET /api/DiscoveryStatus?uid=&path=&v=` reports whether a node has fetched a document it did not have. See [the Seed API guide](../build/web-api.md). <!-- id:shVAciPW -->
-
-## Agents <!-- id:hRKIiBnD -->
-
-[Seed Agents](../agent.md) address everything by URL: [`read`](../app-environment/read.md) `hm://<uid>/<path>` (with `?v=`, `/:directory`, `/:attributes`, `/:profile`, `/:comments`, or a comment id `hm://<uid>/<tsid>`), `read https://…` (tried as Hypermedia first, then as a web page), and [`write`](../app-environment/write.md) `hm://<uid>/<path>`. An external agent should convert web URLs with the `OPTIONS` trick above before calling the CLI. See [Agents](../build/agents.md). <!-- id:xLo8L22B -->
-
-Domain-based references such as `hm://hyper.media/app-environment/guide` resolve the domain to its registered Hypermedia account before reading the resource. The SDK and embed readers use the domain cache first and fall back to HTTPS OPTIONS metadata. The path, version, and block fragment survive resolution; an unresolved domain is an error, never an account ID. The stored reference remains readable, while resource reads and discovery use the resolved canonical ID.
-
 # See also <!-- id:zi3pWi3V -->
 
 - [Documents](./documents.md) for what a version is. <!-- id:84OVp_oO -->
 - [Blocks](./blocks.md) for block ids and ranges. <!-- id:Lvw4oYNf -->
+- [Spaces](./spaces.md) for paths and the home document.
 - [Sites](./sites.md) for registration and `/hm/api/config`. <!-- id:lvPrUoZm -->
 - [Comments](./comments.md) for comment ids. <!-- id:xZAg6Qsx -->
+- [Links and citations](./links-and-citations.md) for how the links in content are indexed.
 - [Network](./network.md) for how an `hm://` address is discovered. <!-- id:8N3XnLBb -->
 - Schema pages: [hm-url](../hm-url.md) (the value type used in schemas), [ipfs-url](../ipfs-url.md), [principal](../principal.md). <!-- id:_3qmjREW -->

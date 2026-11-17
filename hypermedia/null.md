@@ -10,3 +10,4 @@ The **null** type has one value, null. It is a [primitive](./schema/primitive.md
 - [value](./value.md): the scalar values an attribute can hold; null deletes a key. <!-- id:fJ-BksDc -->
 - [key-value](./key-value.md): how a null value removes an attribute. <!-- id:taZ-XMnS -->
 - [any](./any.md): the union of every value. <!-- id:VnvIg3Tf -->
+- [Catalogue of types](./schema/types.md): every type in the library.

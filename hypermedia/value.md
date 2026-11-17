@@ -10,3 +10,4 @@ A **value** is a scalar a document attribute can hold: a string, an integer, a b
 - [key-value](./key-value.md): one attribute assignment. <!-- id:fGjElCvD -->
 - [SetAttributes](./change/op/set-attributes.md): the op that writes values. <!-- id:sQjYh4s3 -->
 - [any](./any.md): the union of every value. <!-- id:0odp9V71 -->
+- [Catalogue of types](./schema/types.md): every type in the library.

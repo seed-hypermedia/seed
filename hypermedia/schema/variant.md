@@ -2,7 +2,7 @@
 name: Variant
 summary: "One of the member schemas of the meta-schema union: the nine closed-map schema kinds plus the bare string, integer, boolean, and null literals."
 ---
-**Variant**: one of the member schemas of the [meta-schema](../schema.md) union. Nine are closed maps: `schema/struct-schema`, `schema/map-schema`, `schema/list-schema`, `schema/scalar-schema`, `schema/link-schema`, `schema/include-schema`, `schema/anyof`, `schema/var-schema` and `schema/literal-schema`. The other four are the bare `string`, `integer`, `boolean` and `null` kinds, which are literals. <!-- id:ndDb3Ur5 -->
+**Variant**: one of the member schemas of the [meta-schema](../schema.md) union. Nine are closed maps: [`schema/struct-schema`](./struct-schema.md), [`schema/map-schema`](./map-schema.md), [`schema/list-schema`](./list-schema.md), [`schema/scalar-schema`](./scalar-schema.md), [`schema/link-schema`](./link-schema.md), [`schema/include-schema`](./include-schema.md), [`schema/anyof`](./anyof.md), [`schema/var-schema`](./var-schema.md) and [`schema/literal-schema`](./literal-schema.md). The other four are the bare `string`, `integer`, `boolean` and `null` kinds, which are literals. <!-- id:ndDb3Ur5 -->
 
 # See also <!-- id:aPPMMnjb -->
 

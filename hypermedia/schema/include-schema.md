@@ -1,5 +1,5 @@
 ---
-name: Reference Schema
+name: Include schema
 summary: The variant for a reference, which is a bare include or, when it carries refinements, an extension.
 ---
 **Include**: a `type` that names another schema by its [URL](../hm-url.md) and nothing else: `{ "type": "hm://…" }`. The node becomes exactly that schema. Adding any other key, such as `properties`, `values`, `items`, `target` or a leaf constraint, makes the node refine the schema it names instead. That is an [extension](./extension.md). [References and naming](./references.md) covers includes, links and extensions. <!-- id:NgjaircK -->

@@ -9,3 +9,4 @@ The **string** type is UTF-8 text. It is a [primitive](./schema/primitive.md) of
 - [url](./url.md), [hm-url](./hm-url.md), [ipfs-url](./ipfs-url.md), [date](./date.md) and [date-time](./date-time.md): string types with a format. <!-- id:fRfCEUDW -->
 - [value](./value.md): the scalar values an attribute can hold. <!-- id:QlZY_iWt -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:kH3S49VK -->
+- [Catalogue of types](./schema/types.md): every type in the library.

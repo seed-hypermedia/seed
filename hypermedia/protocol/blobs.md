@@ -20,29 +20,11 @@ So every publisher must follow one rule: **a blob that another blob references b
 
 # The signed envelope <!-- id:67mrbAkr -->
 
-Every structured blob embeds the same four fields, defined by the [blob](../blob.md) schema: <!-- id:_STw4W2v -->
-
-<!-- id:pswiXeCA -->
-| key <!-- col:t3qWvl2d --> | CBOR type <!-- col:4-f3FKCa --> | meaning <!-- col:8b49Zwu7 --> <!-- id:75JN_Jwz --> |
-| --- | --- | --- |
-| `type` | text | `"Change"`, `"Ref"`, `"Comment"`, `"Capability"`, `"Contact"` or `"Profile"` <!-- id:movgKdIU --> |
-| `signer` | bytes | the [principal](../principal.md) of the signing key: a multicodec prefix plus the raw public key <!-- id:-Jvjg17G --> |
-| `sig` | bytes | the [signature](../signature.md), 64 bytes for Ed25519 and for P-256 <!-- id:rsnPhmwR --> |
-| `ts` | integer | the [timestamp](../timestamp.md) in Unix milliseconds <!-- id:5sAxNStB --> |
+Every structured blob embeds the same four fields: `type`, `signer`, `sig` and `ts`. The [blob](../blob.md) type page is the reference for them and for the exact signing rule. <!-- id:_STw4W2v -->
 
 The `signer` field holds bytes. URLs and the apps show its string form: multibase base58btc, which starts with `z6Mk…` for Ed25519. [Identity](./identity.md) explains how keys become principals. <!-- id:T2-8ODlZ -->
 
-## The signing rule <!-- id:CGFv9qfW -->
-
-Signing fills the signature field with zeros first: <!-- id:VNf8aZMm -->
-  1. Set `sig` to 64 zero bytes. <!-- id:bv5lyS55 -->
-  2. Encode the whole map as canonical DAG-CBOR. <!-- id:Zy3nuSXx -->
-  3. Sign those bytes with the signer's private key. <!-- id:zFYPhpBc -->
-  4. Put the real signature into `sig` and encode again. Those final bytes are the blob, and their hash is its CID. <!-- id:zBbbQ23Z -->
-
-Verification runs the same steps backwards: check the signature length, copy the signature out, zero the field in place, re-encode, verify against the re-encoded bytes. The signed message is the blob with a zeroed signature. A third-party implementation that drops the field instead of zeroing it produces signatures the daemon rejects. The SDK and the daemon agree on this rule. The `PrepareDocumentChange` API (the daemon's `PrepareChange`) returns an unsigned Change with null `signer` and `sig` that a client completes with the same steps. <!-- id:ziJbERbT -->
-
-One legacy case: the daemon verifies Comment signatures over the blob decoded as an opaque map instead of the typed struct, because early comments were encoded slightly differently. Every other type is verified after a strict typed decode. <!-- id:3-pNNr1- -->
+Signing zeroes the signature field first. The signer sets `sig` to 64 zero bytes, encodes the map, signs those bytes, and puts the signature back. Verification runs the same steps in reverse. An implementation that drops the field instead of zeroing it produces signatures the daemon rejects.
 
 ## Timestamps <!-- id:gwd46YK9 -->
 
@@ -61,7 +43,7 @@ One legacy case: the daemon verifies Comment signatures over the blob decoded as
 | `Profile` | an account's name, avatar and description, or an alias to another account | the profile | [Profile](../profile.md), [Identity](./identity.md) <!-- id:8S1qGL4i --> |
 | `dag-pb` and `raw` | UnixFS file nodes and chunks; not signed | files and images | [Files](./files.md) <!-- id:LOZvTu_b --> |
 
-Change is the only delta type. The other four signed types are **snapshot blobs**: an edit publishes a new blob carrying the full value, and the newest one wins. Comments and contacts are addressed by a **TSID** (timestamped id), described below, instead of a path. A profile has one current value per account: the newest. A capability is never edited. <!-- id:PzO9Vrs3 -->
+Change is the only delta type. A Ref holds no content of its own: it points an address at Changes. Comments, contacts and profiles are **snapshot blobs**: an edit publishes a new blob carrying the full value, and the newest one wins. Comments and contacts are addressed by a **TSID** (timestamped id), described below, instead of a path. A profile has one current value per account: the newest. A capability is a standalone grant and is never edited. <!-- id:PzO9Vrs3 -->
 
 The proto schema for every blob type is in this library: the root pages [blob](../blob.md), [change](../change.md), [ref](../ref.md), [comment](../comment.md), [capability](../capability.md), [contact](../contact.md) and [profile](../profile.md) each carry their formal schema, and [Network blobs](../schema/blobs.md) explains how they were schematised. <!-- id:sTsUdcWS -->
 
@@ -83,7 +65,7 @@ Two limits apply. A single blob may be at most 2 MiB, the Bitswap block-size lim
 
 # TSIDs <!-- id:uLQVlr7x -->
 
-Snapshot blobs need a stable identity that survives edits. A TSID is 10 bytes: a 48-bit big-endian Unix-millisecond timestamp followed by the first 4 bytes of the SHA-256 of the blob's bytes, written as base58btc multibase, which comes out at 14 or 15 characters. The first version of a [comment](./comments.md) or [contact](./permissions.md) derives its TSID from its own bytes. An edit or a tombstone carries the original TSID in its `id` field so the daemon knows which record it replaces. The full identity of such a record is `<signer principal>/<tsid>`, which is also what appears in URLs. See [URLs](./urls.md). <!-- id:7JJBWA4h -->
+Snapshot blobs need a stable identity that survives edits. A TSID is 10 bytes: a 48-bit big-endian Unix-millisecond timestamp followed by the first 4 bytes of the SHA-256 of the blob's bytes, written as base58btc multibase, which comes out at 14 or 15 characters. The first version of a [comment](./comments.md) or [contact](./contacts.md) derives its TSID from its own bytes. An edit or a tombstone carries the original TSID in its `id` field so the daemon knows which record it replaces. The full identity of such a record is `<signer principal>/<tsid>`, which is also what appears in URLs. See [URLs](./urls.md). <!-- id:7JJBWA4h -->
 
 # A worked example <!-- id:AQ6nV8i9 -->
 
@@ -106,12 +88,6 @@ There is no `space` field because the signer is the space. The daemon omits the 
 
 # Working with blobs <!-- id:iCaKkmHm -->
 
-## In the Seed app <!-- id:glVJsQlK -->
-
-You rarely see a blob. With the Developer Tools experiment enabled, a document's options menu gains "Inspect Document", which opens the inspector (an `hm://inspect/…` address): the Refs and Changes behind the document, each openable by CID. <!-- id:-EJtUoXs -->
-
-## CLI <!-- id:K5F8qY99 -->
-
 ```sh <!-- id:Tlb8KZRL -->
 seed-cli blob get <cid>                     # print any blob as DAG-JSON
 seed-cli blob verify <cid>                  # check the signature (and a schema, with -s)
@@ -120,24 +96,11 @@ seed-cli blob create -f value.json          # publish an unsigned DAG-CBOR value
 seed-cli document changes <hm-url>          # the Change blobs behind a document
 ```
 
-`blob sign` is how you publish your own blob types with the same envelope; pair it with a schema as described in [Hypermedia Schemas](../schema.md). The full command list is in [the CLI reference](../build/cli.md). <!-- id:Yspq5SQM -->
-
-## SDK <!-- id:OTndTD7P -->
-
-The [SDK](../build/sdk.md), `@seed-hypermedia/client`, implements the envelope once, and every higher-level builder uses it. The `@seed-hypermedia/client/blobs` module has `sign(signer, blob)`, which zeroes and signs, `encode(blob)`, which produces the DAG-CBOR bytes and the SHA-256 CID, `decodeBlob(bytes, cid)`, which checks the bytes against the CID, and `verify(blob)`, which checks an Ed25519 signature. For arbitrary values the `@seed-hypermedia/client/signed-blob` module has `signBlob`, `verifySignedBlob` and `encodeDagCbor`. Publishing is `client.publish({blobs: [{cid, data}]})`, which is the `PublishBlobs` request below. See [the SDK guide](../build/sdk.md) for the builders (`createChange`, `createVersionRef`, `createComment`, `createCapability`, …). <!-- id:IjFAFsou -->
-
-## Web API <!-- id:XPMgYBb7 -->
-
-<!-- id:EgAFlEDq -->
+- `blob sign` publishes your own blob types with the same envelope. Pair it with a schema as described in [Hypermedia Schemas](../schema.md). The full command list is in [the CLI reference](../build/cli.md). <!-- id:Yspq5SQM -->
+- The [SDK](../build/sdk.md) implements the envelope in `@seed-hypermedia/client/blobs`: `sign`, `encode`, `decodeBlob` and `verify`. `client.publish({blobs: [{cid, data}]})` stores a batch.
 - `POST /api/PublishBlobs` with `{blobs: [{cid?, data}]}` stores a batch atomically and returns the CIDs in order. Supply `cid` for every blob another blob references. <!-- id:SbDrkiM_ -->
 - `GET /api/GetCID?cid=<cid>` returns the decoded value of any stored blob as JSON. <!-- id:2R1W6r8k -->
-- On the daemon's own HTTP port, `GET /ipfs/<cid>` serves the raw block and `GET /ipfs/<cid>.dagjson` the decoded form. <!-- id:AEUK1G-c -->
-
-The request catalogue is in the [Seed API guide](../build/web-api.md). <!-- id:XHmNiLuP -->
-
-## Agents <!-- id:2pyg3rmk -->
-
-[Seed Agents](../agent.md) read and write blobs through two address verbs. [`read`](../app-environment/read.md) of `ipfs://<cid>` returns a file, or for a DAG-CBOR blob the decoded object together with a signature check and, when the blob names a schema, a validation result. [`write`](../app-environment/write.md) to `ipfs://<cid>` publishes a memory file, an attachment or a JSON object as blobs. Writes to `hm://` addresses sign Change, Ref, Comment, Capability, Contact and Profile blobs for the agent with the key its [grant](../app-environment/grants.md) allows. An external agent such as Claude Code with the seed-cli skill uses the CLI commands above; see [Agents](../build/agents.md). <!-- id:sH6hAmMT -->
+- [Seed Agents](../agent.md) [read](../agent/read.md) and [write](../agent/write.md) `ipfs://<cid>` addresses. See [Agents](../build/agents.md).
 
 # See also <!-- id:U8_iES-_ -->
 

@@ -2,9 +2,9 @@
 name: Sign in with Seed
 summary: How a third-party website lets a person act as their Hypermedia account without ever holding their key, using a browser session key and a capability signed by the user's vault.
 ---
-A website that wants its visitors to write as themselves on the Hypermedia network must never see the visitor's [account](../protocol/identity.md) key. Sign in with Seed solves this the way the protocol solves every trust question, with a signed [blob](../protocol/blobs.md). The site makes a throwaway key in the browser. The user's [vault](../apps/vault.md) signs a [capability](../capability.md) that lets that key act for the account. From then on the site signs with its own key and attaches the capability. If the site is compromised, the attacker gets only a session key with a scoped grant. The account key stays safe. <!-- id:G1fhaFf2 -->
+A website that wants its visitors to write as themselves on the Hypermedia network must never see the visitor's [account](../protocol/identity.md) key. Sign in with Seed solves this the way the protocol solves every trust question, with a signed [blob](../protocol/blobs.md). The site makes a throwaway key in the browser. The user's [vault](../software/vault.md) signs a [capability](../capability.md) that lets that key act for the account. From then on the site signs with its own key and attaches the capability. If the site is compromised, the attacker gets only a session key with a scoped grant. The account key stays safe. <!-- id:G1fhaFf2 -->
 
-The flow is browser-only by design. A script or server that needs to act for an account uses a bot key with a published capability. See [Keys](./keys.md). <!-- id:OlXms388 -->
+The flow is browser-only by design. A script or server that needs to act for an account uses a bot key with a published capability, as [Keys](./keys.md) describes. <!-- id:OlXms388 -->
 
 # The parties <!-- id:JMDSYzo1 -->
 
@@ -20,7 +20,7 @@ Nothing is registered in advance. The vault trusts the redirect because the requ
 2. The vault authenticates the person if needed, checks the request, and shows consent naming your origin. <!-- id:akh05uNC -->
 3. On approval the vault signs a capability from the chosen account to your session key, with role `AGENT` and the label `Session key for <your origin>`, and redirects back to your `redirect_uri`. <!-- id:fAIChmbc -->
 4. On that page you call `handleCallback`. It checks the state, verifies the capability's signature and [CID](../protocol/blobs.md), checks that the capability's delegate is your session key and that its signer is the account, and returns the session. <!-- id:14JDIhWt -->
-5. You publish the capability blob so [daemons](../apps/daemon.md) can verify it, then sign [comments](../protocol/comments.md) and [documents](../protocol/documents.md) with `createSessionSigner(session)`, putting the capability's CID on each. <!-- id:AxmJO9wG -->
+5. You publish the capability blob so [daemons](../software/daemon.md) can verify it, then sign [comments](../protocol/comments.md) and [documents](../protocol/documents.md) with `createSessionSigner(session)`, putting the capability's CID on each. <!-- id:AxmJO9wG -->
 
 # The request <!-- id:dF8FlFRs -->
 
@@ -50,7 +50,7 @@ The vault redirects to `redirect_uri?data=<payload>&state=<state>`, or `?error=<
 
 `handleCallback` decodes it, re-encodes the capability and the profile and compares their CIDs to the ones sent, verifies both signatures, and checks the two principal relationships. Only then does the session become usable. <!-- id:5aq9zVzw -->
 
-When `requestEmailPrevalidation` is enabled, Vault discloses verified-email sharing in its consent screen and returns an optional `#email_prevalidation=…` fragment containing base64url DAG-CBOR `{email, host, signer, sig}`. `handleCallback` immediately removes that fragment, including on failure, and returns the proof only after the delegation checks pass and its issuer matches the Vault origin. Treat it as private: do not log it or place it in query parameters. The receiving service must still verify its signature and trust the issuer. Seed Hosting accepts this timeless proof only for new accounts; existing accounts require fresh email verification. Old clients and Vaults remain compatible without the proof. <!-- id:emailProofCallback -->
+When `requestEmailPrevalidation` is enabled, Vault discloses verified-email sharing in its consent screen and returns an optional `#email_prevalidation=…` fragment containing base64url DAG-CBOR `{email, host, signer, sig}`. `handleCallback` immediately removes that fragment, including on failure, and returns the proof only after the delegation checks pass and its issuer matches the Vault origin. Treat it as private: do not log it or place it in query parameters. The receiving service must still verify its signature and trust the issuer. Seed Hosting accepts this proof only for new accounts. Existing accounts require fresh email verification. <!-- id:emailProofCallback -->
 
 # The SDK <!-- id:kZG846xF -->
 
@@ -91,9 +91,9 @@ The capability is not a secret. Authority comes from holding the session's priva
   - **Cite it** on every write: `capability: capability.cid.toString()` in the input of `createComment`, `createVersionRef`, `createDocumentBlobs` and the other builders, or in `client.publishDocument`. <!-- id:mmGJCcxY -->
   - **Store** `accountPrincipal` and the capability CID next to the session. `getSession` only returns the key. <!-- id:_O-JB8_p -->
 
-The [Seed web app](../apps/web.md)'s own sign-in does the same. It also publishes a reverse capability and a [profile](../protocol/identity.md) alias so that the session key is visibly linked to the account, then pushes those blobs to the vault's origin. A third-party site can skip that. <!-- id:TG6kLcnh -->
+The [Seed web app](../software/web.md)'s own sign-in does the same. It also publishes a reverse capability and a [profile](../protocol/identity.md) alias so that the session key is visibly linked to the account, then pushes those blobs to the vault's origin. A third-party site can skip that. <!-- id:TG6kLcnh -->
 
-Signing out is `clearSession(vaultUrl)`. The capability stays valid on the network, because capabilities cannot be revoked today. That is why the delegation goes to a session key you can discard and never to the account key. The vault records the delegation and can show it to the person. <!-- id:EjeqZPXf -->
+Signing out is `clearSession(vaultUrl)`. The capability stays valid on the network, because capabilities cannot be revoked. That is why the delegation goes to a session key you can discard and never to the account key. The vault records the delegation and can show it to the person. <!-- id:EjeqZPXf -->
 
 # What this is not <!-- id:ku2NGhRH -->
 
@@ -106,11 +106,11 @@ Signing out is `clearSession(vaultUrl)`. The capability stays valid on the netwo
 
 ## In the Seed app <!-- id:omoG5IX4 -->
 
-The Seed web app signs its visitors in through the same vault flow. The [desktop app](../apps/desktop.md) holds the account key itself and needs no delegation. <!-- id:ofPfIfwk -->
+The Seed web app signs its visitors in through the same vault flow. The [desktop app](../software/desktop.md) holds the account key itself and needs no delegation. <!-- id:ofPfIfwk -->
 
 ## CLI <!-- id:vUJvv8cl -->
 
-The CLI has no interactive sign-in. Its equivalent is a bot key plus `seed-cli capability create --delegate <bot> --role AGENT` issued by the account, then `-a <account>` on writes. See [Seed CLI](./cli.md). <!-- id:C-_4N5LB -->
+The CLI has no interactive sign-in. Its equivalent is a bot key with a capability issued by the account. [A key for a bot](./keys.md) has the commands. <!-- id:C-_4N5LB -->
 
 ## SDK <!-- id:hOdbK3Xd -->
 
@@ -131,4 +131,4 @@ The vault's `/vault/delegate` page and the client's redirect page are ordinary p
 - [Capability](../capability.md) <!-- id:NPFQXmkh -->
 - [Keys](./keys.md) <!-- id:qsmZUcxH -->
 - [SDK](./sdk.md) <!-- id:xynUkuN_ -->
-- [Vault](../apps/vault.md) <!-- id:LRqOMEYl -->
+- [Vault](../software/vault.md) <!-- id:LRqOMEYl -->

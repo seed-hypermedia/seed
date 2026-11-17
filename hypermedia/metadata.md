@@ -6,7 +6,7 @@ A document's **metadata** is the map of attributes its [Changes](./change.md) se
 
 Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
 
-A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/comments.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./app-environment/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
+A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/links-and-citations.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./agent/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
 
 # The keys Seed understands <!-- id:O1w2gINW -->
 
@@ -21,13 +21,13 @@ A value that names an account or a document is a link. A bare account id (`z6Mk�
 | `siteUrl` | URL | the web address a space is published at; set on the home document when a site is registered, see [Sites](./protocol/sites.md) <!-- id:AyiR8yjR --> |
 | `appEnvironmentUrl` | URL | the app environment a space is bound to, set on the home document: the server its agents run on; read before `agentServerUrl`, the older name of the same binding. On an app document, the app environment chosen for that app when it was created |
 | `agentServerUrl` | URL | the app environment that hosts the agent this document mounts (an http(s) origin), set together with `type: hm://hyper.media/agent`; the document's versionless id is the agent's id, and a space's agents are found by querying its documents for that type, see [Agents](./agent.md) <!-- id:Y7jh1Rjp --> |
-| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md), [apps](./apps/apps-and-tools.md) `hm://hyper.media/app`, their tools `hm://hyper.media/tool` and their [triggers](./apps/triggers.md) `hm://hyper.media/trigger` <!-- id:3-HON7jT --> |
-| `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input (see [Page input](./page-input.md)) or what an [app tool](./apps/apps-and-tools.md) takes <!-- id:lGfreYXM --> |
-| `outputSchema` | URL | a published HM struct defining what an [app tool](./apps/apps-and-tools.md) returns |
-| `code` | `ipfs://` | an [app tool](./apps/apps-and-tools.md)'s code: a UnixFS folder whose `index.ts` default-exports the tool's async function |
-| `source`, `tool`, `input`, `enabled` | `ipfs://`, URL, `ipfs://`, boolean | a [trigger](./apps/triggers.md)'s source (DAG-CBOR), the host tool it calls, that tool's input template (DAG-CBOR), and whether it is on |
-| `homePage` | URL | the hm:// URL of one of an [app](./apps/apps-and-tools.md)'s own pages, which its Home tab shows |
-| `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
+| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md), [apps](./app.md) `hm://hyper.media/app`, their tools `hm://hyper.media/tool` and their [triggers](./trigger.md) `hm://hyper.media/trigger` <!-- id:3-HON7jT --> |
+| `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input (see [Page input](./page-input.md)) or what an [app tool](./tool.md) takes <!-- id:lGfreYXM --> |
+| `outputSchema` | URL | a published HM struct defining what an [app tool](./tool.md) returns |
+| `code` | `ipfs://` | an [app tool](./tool.md)'s code: a UnixFS folder whose `index.ts` default-exports the tool's async function |
+| `source`, `tool`, `input`, `enabled` | `ipfs://`, URL, `ipfs://`, boolean | a [trigger](./trigger.md)'s source (DAG-CBOR), the host tool it calls, that tool's input template (DAG-CBOR), and whether it is on |
+| `homePage` | URL | the hm:// URL of one of an [app](./app.md)'s own pages, which its Home tab shows |
+| `html` | `ipfs://` | a [custom HTML page](./build/custom-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
 | `displayPublishTime` | string | the publication date shown to readers, when it differs from the change history <!-- id:0GpDlsoW --> |
 | `displayAuthor` | string | an author byline shown to readers <!-- id:EErr-5X_ --> |
 | `showOutline` | boolean | whether to show the document outline <!-- id:lWBPOths --> |
@@ -53,11 +53,24 @@ Three keys bind a document to [Hypermedia Schemas](./schema.md). [Typed document
 | `attributesSchema` | an instance | the attributes schema **this** document conforms to: the type page's `hm://` URL or `ipfs://<cid>` <!-- id:idnTWx4c --> |
 | `childAttributesSchema` | a folder | the attributes schema this document's **children** conform to <!-- id:t-Ks00Sy --> |
 
-Older documents may still carry `title` (now `name`), and old profiles `alias` and `description` (now `summary`). Readers map them. The daemon also keeps internal keys prefixed `$db.` (the redirect, visibility and derived fields) and strips them from the metadata it serves. A site's navigation menu lives in a detached block, outside the metadata; see [navigation item](./metadata/navigation-item.md). <!-- id:9s03Zq9R -->
+Documents may also carry `title`, which readers map to `name`, and profiles may carry `alias` and `description`, which readers map to `summary`. The daemon also keeps internal keys prefixed `$db.` (the redirect, visibility and derived fields) and strips them from the metadata it serves. A site's navigation menu lives in a detached block, outside the metadata; see [navigation item](./metadata/navigation-item.md). <!-- id:9s03Zq9R -->
+
+# Sets, maps and lists in attributes
+
+Metadata merges last-writer-wins per key path; [Documents](./protocol/documents.md) has the rule.
+
+**What this means for data kept in attributes.** Every key path merges on its own, so the shape of the data decides what survives concurrent edits:
+
+- **A map written one key per entry** (`tags.dinner = true`, `tags.quick = true`) merges: two people changing different entries both keep their edits, one entry changes without touching the rest, a null removes one entry, and every entry is searchable (the attribute index stores each single value under its dotted key path).
+- **A list is one value.** There are no list operations (insert, remove one item), so a list is replaced whole and the later write wins; concurrent edits to it lose all but one. The attribute index skips lists, so they cannot be searched or filtered on. Lists are read back exactly as written.
+- **A whole map written as one value** (`tags = {dinner: true}`) behaves like a list: it replaces every older entry under that key.
+- **Replacing a map exactly** is a null at its key followed by its entries, in one change: the entries' op ids are newer than the null, so they win over it, and the null removed every older entry.
+
+So store a set as `{<item>: true}` and a keyed collection as a map keyed by id. Keep a list only for a small value edited as a unit by one writer. Anything ordered that several people edit belongs in the body (blocks merge as an ordered tree) or in child documents. Trigger documents follow these rules: see [triggers](./trigger.md).
 
 # Working with metadata <!-- id:9_Lec_uh -->
 
-In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./app-environment/read.md) `hm://…/:attributes` and [write](./app-environment/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md). <!-- id:09DUk8Zl -->
+In the [Seed app](./software/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./agent/read.md) `hm://…/:attributes` and [write](./agent/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md). <!-- id:09DUk8Zl -->
 
 # See also <!-- id:xkWCsJm3 -->
 

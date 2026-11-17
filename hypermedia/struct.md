@@ -15,3 +15,4 @@ Use a struct when the fields have names and meanings of their own: a person has 
 - [property](./schema/property.md): one field of a struct. <!-- id:dIHHKN5o -->
 - [Closed map](./schema/closed-map.md): what closed means. <!-- id:YbKVw2qm -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:4JMUSvl1 -->
+- [Catalogue of types](./schema/types.md): every type in the library.

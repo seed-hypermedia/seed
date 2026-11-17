@@ -2,9 +2,9 @@
 name: Query grammar
 summary: The one query language that Explore, the CLI, the SDK and Seed Agents share for finding documents by their attributes, the DocumentFilter it compiles to, and the attribute listings that tell you which keys exist.
 ---
-Every Hypermedia [document](../protocol/documents.md) carries attributes: its [metadata](../metadata.md), from `name` and `summary` to any key a [schema](../schema.md) or a person adds. The query grammar is one short string that says which documents you mean by those attributes, such as `status="In Progress" AND priority>=3`. The Explore surface in the [Seed app](../apps/desktop.md), the [Seed CLI](./cli.md)'s `query --where`, the [SDK](./sdk.md) and the `query` tool of [Seed Agents](../agent.md) all read it the same way. Every surface compiles it to the same `DocumentFilter` that the [daemon](../apps/daemon.md)'s `QueryDocuments` call evaluates. <!-- id:OYIudbfN -->
+Every Hypermedia [document](../protocol/documents.md) carries attributes: its [metadata](../metadata.md), from `name` and `summary` to any key a [schema](../schema.md) or a person adds. The query grammar is one short string that says which documents you mean by those attributes, such as `status="In Progress" AND priority>=3`. The Explore surface in the [Seed app](../software/desktop.md), the [Seed CLI](./cli.md)'s `query --where`, the [SDK](./sdk.md) and the `query` tool of [Seed Agents](../agent.md) all read it the same way. Every surface compiles it to the same `DocumentFilter` that the [daemon](../software/daemon.md)'s `QueryDocuments` call evaluates. <!-- id:OYIudbfN -->
 
-This page is the reference for the grammar, the filter and the attribute listings. Full-text search is a different tool. `Search` ranks words, and a query matches attributes exactly. <!-- id:gCGe8JOf -->
+This page is the reference for the grammar, the filter and the attribute listings. Full-text search is a different tool. `Search` ranks words, and a query matches attributes exactly. A directory listing is a different request too: the [Query](../query.md) type, with its includes, sort and limit, is what a query block stores, and it does not use this grammar. <!-- id:gCGe8JOf -->
 
 # The grammar <!-- id:ves_HELe -->
 
@@ -65,7 +65,7 @@ Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the re
 # Attribute listings <!-- id:_42Wv7fB -->
 
 Before you query you usually want to know which keys exist and what values they take. Two calls answer that, and both are cheap: <!-- id:Ds06UUTK -->
-  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object. `recursive` lists complete dotted scalar paths instead. `account` puts one [space](../protocol/identity.md) first. <!-- id:cJnLwzn0 -->
+  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object. `recursive` lists complete dotted scalar paths instead. `account` puts one [space](../protocol/spaces.md) first. <!-- id:cJnLwzn0 -->
   - `ListDocumentAttributeValues{path, kind, account?, prefix?, pageSize?, pageToken?}` lists the distinct values one key has been seen with, for one scalar kind. `account` restricts to a space. <!-- id:V8JW9oNO -->
 
 # Working with it <!-- id:g0eWbGIb -->
@@ -86,7 +86,7 @@ seed-cli attributes <space> --parent address --recursive
 seed-cli attributes <space> --values status --kind string --prefix In
 ```
 
-`query` without `-w`, `--filter` or `*` is a plain directory listing (`Children` or `AllDescendants`) through the `Query` request. `-q` prints one `hm://` id and name per line. `--where`, `--filter` and `attributes` are newer than the npm release of mid-September 2026 (0.2.9), so for now they need a CLI built from source. See [Seed CLI](./cli.md). <!-- id:_In3_iNp -->
+`query` without `-w`, `--filter` or `*` is a plain directory listing (`Children` or `AllDescendants`) through the `Query` request. `-q` prints one `hm://` id and name per line. See [Seed CLI](./cli.md). <!-- id:_In3_iNp -->
 
 ## SDK <!-- id:jJNUFZbC -->
 
@@ -98,7 +98,7 @@ The grammar lives in `@seed-hypermedia/client/explore-query`: `parseExploreQuery
 
 ## Agents <!-- id:PsKjae1a -->
 
-Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the [`call`](../app-environment/call.md) verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../app-environment/call.md) and [Using Seed from your own agent](./agents.md). <!-- id:Q-PPApnx -->
+Seed Agents call `query` with `{q?, filter?, sort?, pageSize?, pageToken?}` and `attributes` with `{key?, kind?, parent?, recursive?, account?, prefix?, pageSize?, pageToken?}`, both through the [`call`](../agent/call.md) verb, with the same grammar and the same filter JSON. The tool descriptions tell the model to use `search` for words and `query` for attributes, and to run `attributes` first to learn the keys. An external agent uses the CLI lines above. See [call](../agent/call.md) and [Using Seed from your own agent](./agents.md). <!-- id:Q-PPApnx -->
 
 # See also <!-- id:UmFeD-YS -->
 

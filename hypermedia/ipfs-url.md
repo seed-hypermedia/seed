@@ -12,3 +12,4 @@ This page describes the **ipfs-url** type, a value type of [Hypermedia Schemas](
 - [cid](./cid.md): the content identifier inside the URL. <!-- id:F5PfmjmF -->
 - [url](./url.md) and [hm-url](./hm-url.md): the other URL types. <!-- id:Znu0NQPL -->
 - [metadata](./metadata.md): `icon`, `cover` and `schemaDefinition` hold this type. <!-- id:LQusOTJj -->
+- [Catalogue of types](./schema/types.md): every type in the library.

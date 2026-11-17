@@ -4,7 +4,7 @@ summary: What Hypermedia verifies cryptographically end to end (content addressi
 ---
 When you read a Hypermedia [document](./documents.md), you read bytes that came from somewhere: a [site](./sites.md), a [peer](./network.md), a cache. Integrity covers what you can check about those bytes yourself, without trusting whoever handed them to you. You can verify some things from the content alone. Other things are trusted, and you need to know which. <!-- id:1IPrLiS2 -->
 
-This page lists both, as the [daemon](../apps/daemon.md) implements them today, and then the mitigations for the trusted parts. <!-- id:iirFiDsg -->
+This page lists both, as the [daemon](../software/daemon.md) implements them, and then the mitigations for the trusted parts. <!-- id:iirFiDsg -->
 
 # What is verified end to end <!-- id:C8kii1Jw -->
 
@@ -20,7 +20,7 @@ Together, these let a reader who holds a version's CIDs verify three things with
 
 # What is trusted <!-- id:m_bRAU2K -->
 
-**Timestamps are self-declared.** Nothing checks a blob's `ts` against real time when it is ingested. Ordering inside a document is causal (dependencies). But last-writer-wins resolution of metadata, comment ordering, and [generation](./documents.md) numbers all read declared times, so a legitimate signer can back-date or forward-date. A capability issued after a Ref authorizes it retroactively. If you need a trustworthy time, anchor the CID externally. The team has discussed OpenTimestamps, but nothing is built. <!-- id:rZDXk-t2 -->
+**Timestamps are self-declared.** Nothing checks a blob's `ts` against real time when it is ingested. Ordering inside a document is causal (dependencies). But last-writer-wins resolution of metadata, comment ordering, and [generation](./documents.md) numbers all read declared times, so a legitimate signer can back-date or forward-date. A capability issued after a Ref authorizes it retroactively. If you need a trustworthy time, anchor the CID externally. Nothing in the protocol anchors time. <!-- id:rZDXk-t2 -->
 
 **Nothing checks authorization on Changes and comments.** The daemon stores any key's Change. The Change becomes part of a document only through an authorized Ref. Any key can attach a public [comment](./comments.md) to any document. No layer checks it: not the index, not the API. Moderation is left to clients and sites. <!-- id:TABAN6Hu -->
 
@@ -41,24 +41,14 @@ Together, these let a reader who holds a version's CIDs verify three things with
 <!-- id:9KFP54wS -->
 | Trusted part <!-- col:_8gmy-bk --> | What to do about it <!-- col:o8c578o6 --> <!-- id:C8M3OtL5 --> |
 | --- | --- |
-| trusted API callers | keep default-mode API access loopback-only; keep hosted daemon API ports private with `-server-mode`; see [Self-hosting](../build/self-hosting.md) <!-- id:va4uXiFL --> |
-| unauthenticated comments | filter by author or by [contacts](./permissions.md) in the client; site-level comment gating is planned <!-- id:_dNSAAI5 --> |
+| trusted API callers | keep default-mode API access loopback-only; keep hosted daemon API ports private with `-server-mode`; see [Self-hosting](../operate/self-hosting.md) <!-- id:va4uXiFL --> |
+| unauthenticated comments | filter by author or by [contacts](./contacts.md) in the client <!-- id:_dNSAAI5 --> |
 | eternal capabilities | grant WRITER on a path to a key you control; give bots and servers their own keys; treat a lost delegate key as permanent <!-- id:E6SkAwMy --> |
 | self-declared time | treat `ts` as the author's claim; anchor externally if it matters <!-- id:hMxG5DQa --> |
 | site trust | keep control of the domain and certificate; the site's account and signer are visible in `/hm/api/config` <!-- id:1OYen0iH --> |
 | dual CIDs | always pass a `cid` with every blob you publish that another blob links to <!-- id:I5V7emo6 --> |
 
-# Compared with ActivityPub <!-- id:ZqN7xelS -->
-
-Federated social protocols such as ActivityPub verify a message at the transport. The receiving server checks an HTTP signature from the sending server, then stores the content as its own copy under its own authority. If that server goes away or changes its mind, the content and its provenance go with it. Hypermedia puts the signature on the content. Every blob carries its author's signature and its own hash. Any copy, on any node, years later, still proves who wrote it and that nothing changed. Servers are replicas with no authority over the content. The longer argument, and the trade-offs, are in [Why signed content](../why/signed-content.md). <!-- id:VseXAp7H -->
-
 # Working with integrity <!-- id:rVRtYCG3 -->
-
-## In the Seed app <!-- id:lYAETstD -->
-
-The [Seed app](../apps/desktop.md) verifies signatures and CIDs on everything it indexes through the local daemon. It shows the author of each change in a document's history, and stashes unauthorized Refs. Verification is always on, and there is no switch for it. <!-- id:8UiG6u0s -->
-
-## CLI <!-- id:S98KMjE7 -->
 
 ```sh <!-- id:XhZyWaRJ -->
 seed-cli blob get <cid>                 # fetch the raw signed blob
@@ -67,23 +57,13 @@ seed-cli document changes hm://…        # the change DAG with signers and time
 seed-cli document cid hm://…            # the CIDs behind a version
 ```
 
-See [the CLI guide](../build/cli.md). <!-- id:07MEld4- -->
-
-## SDK <!-- id:KgEm50AD -->
-
-`blobs.verify` checks a signature against the embedded signer. `signed-blob` handles the canonical encoding and the zeroed-signature rule so your own blob types verify the same way. Compute CIDs with `multiformats` and pass them explicitly on publish. See [SDK](../build/sdk.md). <!-- id:5C7ht3P2 -->
-
-## Web API <!-- id:JvJy5vBz -->
-
-On the [Seed API](../build/web-api.md), `GET /api/GetCID?cid=…` returns a blob as DAG-JSON for inspection. `GET /api/ListChanges?targetId=…` walks a document's history with signers. `/ipfs/<cid>` on a site serves raw bytes whose hash you can recompute. On the read side you trust the site only to be available. <!-- id:wVT5ffrF -->
-
-## Agents <!-- id:Fjnb0lul -->
-
-[Seed Agents](../agent.md) read through the same site APIs and can inspect a blob with [`read`](../app-environment/read.md) on an `ipfs://<cid>` address. When an agent publishes, the app environment signs with the agent's own key. For delegated writes it attaches the capability CID so a receiving node can re-verify authority. The runtime's own signed envelope uses the same blob signing scheme with a time window; see [Signed API](../app-environment/signed-api.md). <!-- id:V4Dws-X9 -->
+- See [the CLI guide](../build/cli.md). <!-- id:07MEld4- -->
+- `blobs.verify` checks a signature against the embedded signer. `signed-blob` handles the canonical encoding and the zeroed-signature rule so your own blob types verify the same way. Compute CIDs with `multiformats` and pass them explicitly on publish. See [SDK](../build/sdk.md). <!-- id:5C7ht3P2 -->
+- On the [Seed API](../build/web-api.md), `GET /api/GetCID?cid=…` returns a blob as DAG-JSON for inspection. `GET /api/ListChanges?targetId=…` walks a document's history with signers. `/ipfs/<cid>` on a site serves raw bytes whose hash you can recompute. On the read side you trust the site only to be available. <!-- id:wVT5ffrF -->
 
 # See also <!-- id:4Wlg7DZR -->
 
 - [Blobs](./blobs.md), [Documents](./documents.md), [Identity](./identity.md), [Permissions](./permissions.md), [Privacy](./privacy.md), [Network](./network.md) <!-- id:5FHwtieD -->
 - [CID](../cid.md), [Signature](../signature.md), [Timestamp](../timestamp.md) <!-- id:b4zleV6n -->
-- [Why signed content](../why/signed-content.md), [The end of broken links](../why/broken-links.md) <!-- id:EDttAXTg -->
+- [Why signed content](../why/signed-content.md) for the comparison with ActivityPub, and [The end of broken links](../why/broken-links.md) <!-- id:EDttAXTg -->
 - [Glossary](../glossary.md) <!-- id:--5qxReP -->

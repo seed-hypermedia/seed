@@ -214,15 +214,89 @@ async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryR
 }
 
 /**
- * Where a page lived before the app environment rename moved the environment's pages from `agent/`
- * to `app-environment/`. Block ids identify a moved page on their own; this covers a page that has
- * none yet, so the old address still becomes a redirect.
+ * Where each page lived before the knowledge base was regrouped (agent/, build/, operate/, contribute/,
+ * software/, and the concept pages app, trigger). Block ids identify a moved page on their own; this
+ * covers a page that has none, so the old address still becomes a redirect.
  */
+const MOVED_FROM: Record<string, string> = {
+  'agent/actor': 'app-environment/actor',
+  'agent/attachment': 'app-environment/attachment',
+  'agent/batch-step': 'app-environment/batch-step',
+  'agent/brief': 'app-environment/brief',
+  'agent/call': 'app-environment/call',
+  'agent/child': 'app-environment/child',
+  'agent/continue-as-new': 'app-environment/continue-as-new',
+  'agent/contract': 'app-environment/contract',
+  'agent/datalab-importer': 'app-environment/datalab-importer',
+  'agent/delegate': 'app-environment/delegate',
+  'agent/durable-sessions': 'app-environment/durable-sessions',
+  'agent/effect-outbox': 'app-environment/effect-outbox',
+  'agent/firing': 'app-environment/firing',
+  'agent/glossary': 'app-environment/glossary',
+  'agent/grants': 'app-environment/grants',
+  'agent/guide': 'app-environment/guide',
+  'agent/how-it-works': 'app-environment/system-overview',
+  'agent/in-the-app': 'app-environment/desktop-ui',
+  'agent/journal': 'app-environment/journal',
+  'agent/log': 'app-environment/log',
+  'agent/mcp': 'app-environment/mcp',
+  'agent/model-providers': 'app-environment/model-providers',
+  'agent/park': 'app-environment/park',
+  'agent/plan': 'app-environment/plan',
+  'agent/promotion': 'app-environment/promotion',
+  'agent/prompt': 'app-environment/prompt-injection-map',
+  'agent/read': 'app-environment/read',
+  'agent/runs': 'app-environment/runs',
+  'agent/script': 'app-environment/script',
+  'agent/security': 'app-environment/security',
+  'agent/session-continuation': 'app-environment/session-continuation',
+  'agent/space': 'app-environment/space',
+  'agent/space-index': 'app-environment/space-index',
+  'agent/step': 'app-environment/step',
+  'agent/tool-document': 'app-environment/tool-document',
+  'agent/tools': 'app-environment/tools',
+  'agent/triggers': 'app-environment/triggers',
+  'agent/typed-result': 'app-environment/typed-result',
+  'agent/wake-source': 'app-environment/wake-source',
+  'agent/wrench-palette': 'app-environment/wrench-palette',
+  'agent/write': 'app-environment/write',
+  app: 'apps/apps-and-tools',
+  'build/custom-pages': 'apps/document-pages',
+  'build/signed-api': 'app-environment/signed-api',
+  'build/websocket-subscriptions': 'app-environment/websocket-subscriptions',
+  'contribute/contributing': 'build/contributing',
+  'contribute/development': 'app-environment/development',
+  'contribute/local-ci': 'build/local-ci',
+  'contribute/releasing': 'build/releasing',
+  'contribute/sentry': 'build/sentry',
+  'operate/environments': 'app-environment/environments',
+  'operate/operations': 'app-environment/operations',
+  'operate/persistence': 'app-environment/persistence',
+  'operate/self-hosting': 'build/self-hosting',
+  'operate/troubleshooting': 'app-environment/troubleshooting',
+  'schema/workflows': 'schema/user-stories',
+  software: 'apps',
+  'software/app-environment': 'apps/app-environment',
+  'software/cli': 'apps/cli',
+  'software/daemon': 'apps/daemon',
+  'software/desktop': 'apps/desktop',
+  'software/explorer': 'apps/explorer',
+  'software/mobile': 'apps/mobile',
+  'software/notify': 'apps/notify',
+  'software/vault': 'apps/vault',
+  'software/web': 'apps/web',
+  trigger: 'apps/triggers',
+}
+
+/** The addresses a page may have lived at before, most likely first, in the caller's path form. */
 export function movedDocsPaths(path: string): string[] {
   const slash = path.startsWith('/') ? '/' : ''
   const clean = path.replace(/^\//, '')
-  if (clean.startsWith('app-environment/')) return [`${slash}agent/${clean.slice('app-environment/'.length)}`]
-  return []
+  const from = MOVED_FROM[clean]
+  if (!from) return []
+  // Pages under app-environment/ lived under agent/ before that, which is where production may still hold them.
+  const older = from.startsWith('app-environment/') ? [`agent/${from.slice('app-environment/'.length)}`] : []
+  return [from, ...older].filter((p) => p !== clean).map((p) => slash + p)
 }
 
 /** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */

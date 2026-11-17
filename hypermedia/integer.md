@@ -10,3 +10,4 @@ The **integer** type is a whole number. [DAG-CBOR](./schema/dag-cbor.md) encodes
 - [timestamp](./timestamp.md): Unix milliseconds, stored as an integer. <!-- id:RSUsKhlI -->
 - [value](./value.md): the scalar values an attribute can hold. <!-- id:fcVXKZES -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:kkDgXSRa -->
+- [Catalogue of types](./schema/types.md): every type in the library.

@@ -18,18 +18,11 @@ The address is a key and the data is content-addressed, so the document does not
 
 When you reference something on the Hypermedia network, your node is encouraged to download and keep the source data. That keeps your reference working. If the destination is offline or will not share, you can redistribute what you hold. Your readers check the signatures and content hashes, so they do not have to trust you. <!-- id:BrKLWx1k -->
 
-So archival becomes something a community does by default, where today a few institutions do it. Content that many people link becomes permanent in practice, because many nodes hold it. The team is blunt about the limit: the only way to guarantee permanence is to save it yourself. Nothing in the protocol forces anyone else to host your data. <!-- id:UNDT6Tav -->
+So archival becomes something a community does by default, where today a few institutions do it. Content that many people link becomes permanent in practice, because many nodes hold it. The limit is plain: the only way to guarantee permanence is to save it yourself. Nothing in the protocol forces anyone else to host your data. <!-- id:UNDT6Tav -->
 
-# What ships today <!-- id:ylDasLAh -->
+# Limits today <!-- id:G-kzTMNL -->
 
-- Every signed blob carries its own signature and is fetched by CID, so its integrity does not depend on the [peer](../protocol/network.md) that delivered it. See [Integrity](../protocol/integrity.md). <!-- id:OdFTCZcl -->
-- A node keeps what it has synced. Sync is scoped: your node fetches the sites you joined, the material they link, and the [comments](../protocol/comments.md) on them. It does not fetch everything it hears about. See [Network](../protocol/network.md). <!-- id:7M4B8Cl0 -->
-- Versioned links, `?v=` in the URL, name an exact set of change heads, so a citation cannot drift under you. See [Documents](../protocol/documents.md). <!-- id:0a1hQdWq -->
-- Files and media travel as IPFS blocks, fetched through any node's [gateway](../protocol/sites.md). See [Files](../protocol/files.md). <!-- id:6ZMKWj3F -->
-
-# What is still direction <!-- id:G-kzTMNL -->
-
-Each node chooses what to keep. There is no protocol-level pinning agreement, no incentive layer, and no guarantee that a peer will keep serving a blob. The team's stated design is that nodes choose what to broadcast, what to block, and what to archive without distributing. Content that is linked often becomes permanent in effect because many nodes copy it. No rule makes it permanent. <!-- id:1AdxY5VV -->
+Each node chooses what to keep, what to broadcast and what to block. Sync is scoped: a node fetches the sites it joined, the material they link, and the [comments](../protocol/comments.md) on them, and does not fetch everything it hears about. There is no pinning agreement, no incentive layer, and no guarantee that a [peer](../protocol/network.md) keeps serving a blob. Content that is linked often becomes permanent in effect because many nodes copy it. No rule makes it permanent.
 
 # See also <!-- id:ju5OzHnh -->
 
@@ -39,3 +32,4 @@ Each node chooses what to keep. There is no protocol-level pinning agreement, no
 - [Blobs](../protocol/blobs.md) and [CID](../cid.md) <!-- id:KDmeIHO8 -->
 - [URLs](../protocol/urls.md) <!-- id:H0_RiqrA -->
 - [Integrity](../protocol/integrity.md) <!-- id:p58fLxe- -->
+- [Network](../protocol/network.md) and [Files](../protocol/files.md)

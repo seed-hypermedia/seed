@@ -10,3 +10,4 @@ The **map** type is a core type: a map whose keys are data, where each value mat
 - [Map schema](./schema/map-schema.md): how a schema constrains the values. <!-- id:5Owa55ZV -->
 - [Example: Counts](./example/counts.md): a map in use. <!-- id:T9m1ZsgI -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:--9KkCvb -->
+- [Catalogue of types](./schema/types.md): every type in the library.

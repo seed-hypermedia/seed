@@ -39,7 +39,6 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 ## Repo Rules
 
-
 - Use `pnpm` for the JavaScript/TypeScript workspace; `apps/**` and `vault/**` use Bun. Follow package scripts.
 - Code inside `ops/**` uses a pinned Bun version (see `ops/package.json` `engines.bun`). Always build
   `ops/dist/deploy.js` with that exact version (`bunx --bun bun@<version> build ...`) or CI will fail the staleness
@@ -50,7 +49,7 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 ## Workflow
 
-- To cut a release, follow `hypermedia/build/releasing.md` (interactive runbook: `.agents/skills/run-release`).
+- To cut a release, follow `hypermedia/contribute/releasing.md` (interactive runbook: `.agents/skills/run-release`).
 - Use OS temp dir for scratch files. Clean up after you're done.
 - This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
 - If direnv blocks the environment, inspect `.envrc` and its referenced repository bootstrap tasks, then run
@@ -63,8 +62,8 @@ identified unauthorized publications; it is not permission for subsequent direct
 ## Required checks before completion
 
 - For changes affecting the pnpm JavaScript/TypeScript workspace, its dependencies, build configuration, or shared
-  interfaces, run the checks required by the affected subtree instructions after the final change. Choose scope from the full task
-  diff, including committed, staged, unstaged, and untracked files; include affected callers and dependents.
+  interfaces, run the checks required by the affected subtree instructions after the final change. Choose scope from the
+  full task diff, including committed, staged, unstaged, and untracked files; include affected callers and dependents.
 - For documentation-only changes, check formatting and references; application tests and typechecks are not required.
 - Format touched files with the owning area's formatter before completion or a commit. Review formatter changes; if they
   change code, rerun the affected checks against the final files.
@@ -75,7 +74,8 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 ## Local CI
 
-- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `hypermedia/build/local-ci.md`.
+- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide:
+  `hypermedia/contribute/local-ci.md`.
 - Select workflows relevant to the change; commands, setup, and platform limitations are in the runbook.
 - Use `-p` (`--pause-on-failure`). On failure, fix in place and run `npx @redwoodjs/agent-ci retry --name <runner-name>`
   rather than starting a fresh runner.

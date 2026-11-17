@@ -14,3 +14,4 @@ The value is Unix milliseconds. The daemon refuses to encode or decode a time th
 - [Integrity](./protocol/integrity.md): what is trusted and what is verified. <!-- id:aRZLRVkF -->
 - [Documents](./protocol/documents.md): how timestamps order Changes. <!-- id:LnCSw9kS -->
 - [date-time](./date-time.md): a human-readable instant for schemas. <!-- id:ziLlpH5M -->
+- [Catalogue of types](./schema/types.md): every type in the library.

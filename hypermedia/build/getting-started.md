@@ -2,11 +2,11 @@
 name: Getting started
 summary: Read a document from hyper.media with curl, the SDK and the CLI, then create a key and publish your first document, in about fifteen minutes.
 ---
-The fastest way to understand the [Hypermedia protocol](../protocol.md) is to read a [document](../protocol/documents.md) three ways and then publish one. You do not need to run a [daemon](../apps/daemon.md) or a server. Every request goes to `https://hyper.media`, the public [gateway](../protocol/sites.md), and the [key](./keys.md) you create stays on your machine. <!-- id:rcv36Bj6 -->
+The fastest way to understand the [Hypermedia protocol](../protocol.md) is to read a [document](../protocol/documents.md) three ways and then publish one. You do not need to run a [daemon](../software/daemon.md) or a server. Every request goes to `https://hyper.media`, the public [gateway](../protocol/sites.md), and the [key](./keys.md) you create stays on your machine. <!-- id:rcv36Bj6 -->
 
 **Goal.** In fifteen minutes you will fetch a document with `curl`, with the [SDK](./sdk.md) and with the [Seed CLI](./cli.md). Then you create an [account](../protocol/identity.md) key, publish a home document and a page under it, and see them on the web. <!-- id:hZxc4H5u -->
 
-**Prerequisites.** `curl`, and [Node.js](https://nodejs.org/) 18 or newer. The CLI's key storage uses the OS keyring and needs macOS or Linux. The CLI's key store does not support Windows yet, so on Windows use a key file, described in [keys](./keys.md). <!-- id:oBcsTktU -->
+**Prerequisites.** `curl`, and [Node.js](https://nodejs.org/) 18 or newer. The CLI's key storage uses the OS keyring and needs macOS or Linux. On Windows use a key file, described in [keys](./keys.md). <!-- id:oBcsTktU -->
 
 # 1. Read a document with curl <!-- id:Xmp_0E63 -->
 
@@ -110,9 +110,9 @@ seed-cli key generate --name main --show-mnemonic
 ℹ Account ID: z6Mk…
 ```
 
-The account id is a [principal](../principal.md): `z6Mk` followed by the base58 encoding of an Ed25519 public key. It is your account id on the network and the `uid` in every `hm://` URL of your [space](../protocol/identity.md). `seed-cli key list` shows it again. To derive the id from a phrase without storing it, run `seed-cli key derive "<words>"`. The standard test phrase `abandon … about` derives `z6MkqqiSjqcT9NasDUXiymyB8kpgz6h3CNQaghGAoXsaYJ2f`. <!-- id:6nM6zg4l -->
+The account id is a [principal](../principal.md): `z6Mk` followed by the base58 encoding of an Ed25519 public key. It is your account id on the network and the `uid` in every `hm://` URL of your [space](../protocol/spaces.md). `seed-cli key list` shows it again. To derive the id from a phrase without storing it, run `seed-cli key derive "<words>"`. The standard test phrase `abandon … about` derives `z6MkqqiSjqcT9NasDUXiymyB8kpgz6h3CNQaghGAoXsaYJ2f`. <!-- id:6nM6zg4l -->
 
-If you already use the [Seed app](../apps/desktop.md), the CLI reads the app's [vault](../apps/vault.md) too, so your existing account shows up in `key list` with `"source": "vault"` and you can skip this step. [Keys](./keys.md) covers mnemonics, key files and headless setups. <!-- id:XYXVNA7T -->
+If you already use the [Seed app](../software/desktop.md), the CLI reads the app's [vault](../software/vault.md) too, so your existing account shows up in `key list` with `"source": "vault"` and you can skip this step. [Keys](./keys.md) covers mnemonics, key files and headless setups. <!-- id:XYXVNA7T -->
 
 # 5. Publish <!-- id:wR5xysHm -->
 
@@ -162,10 +162,11 @@ Nothing was logged in. Your authority to publish at `hm://z6Mk…/hello` is that
 # Next <!-- id:LTnHqNN- -->
 
 - Publish a whole folder of markdown and keep it in sync with git: [publish a folder](./publish-a-folder.md). <!-- id:-3Mnam0M -->
+- Publish and update a document from your own TypeScript: [publishing from code](./publishing-from-code.md).
 - Build the blobs yourself in TypeScript, with `createDocumentBlobs`, `createComment` and `createCapability`: [SDK](./sdk.md). <!-- id:kykE3X_B -->
 - Let an agent read and write your space with a delegated key: [using Seed from your own agent](./agents.md). <!-- id:rrfnOUBm -->
 - Sign in a browser visitor to your own app with their Seed account: [sign in](./sign-in.md). <!-- id:XuPImF9N -->
-- Serve your space on your own domain: [self-hosting](./self-hosting.md). <!-- id:wY5wLGHU -->
+- Serve your space on your own domain: [self-hosting](../operate/self-hosting.md). <!-- id:wY5wLGHU -->
 - Understand what you just used, from keys to sync: [the protocol](../protocol.md). <!-- id:2ZN96Db6 -->
 
 # See also <!-- id:VOQUEID7 -->

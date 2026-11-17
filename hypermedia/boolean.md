@@ -9,3 +9,4 @@ The **boolean** type is a true or false value. It is a [primitive](./schema/prim
 - [value](./value.md): the scalar values an attribute can hold. <!-- id:tCAhF_9E -->
 - [any](./any.md): the union of every value. <!-- id:OuTpuMPH -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:cSLyTwT1 -->
+- [Catalogue of types](./schema/types.md): every type in the library.

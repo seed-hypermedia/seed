@@ -14,3 +14,4 @@ The signed message is the blob itself with `sig` set to 64 zero bytes, encoded a
 - [blob](./blob.md): the envelope that carries `sig`. <!-- id:I_P6RN3i -->
 - [principal](./principal.md): the public key that verifies it. <!-- id:TWWpORXq -->
 - [Integrity](./protocol/integrity.md): what a signature proves. <!-- id:lqBlZ1Wr -->
+- [Catalogue of types](./schema/types.md): every type in the library.

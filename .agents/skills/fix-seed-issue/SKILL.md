@@ -146,9 +146,9 @@ unrelated cleanup, dependency changes, or shared configuration edits.
 ## 4. Verify and collect evidence
 
 Run the affected area's required checks from `AGENTS.md` and package scripts, including applicable callers/dependents,
-typechecks, lint, tests, and formatting. Run relevant local CI via [the runbook](../../../hypermedia/build/local-ci.md)
-before pushing. Report exact commands, scope, outputs, and any blocked checks; do not represent targeted checks as full
-CI.
+typechecks, lint, tests, and formatting. Run relevant local CI via
+[the runbook](../../../hypermedia/contribute/local-ci.md) before pushing. Report exact commands, scope, outputs, and any
+blocked checks; do not represent targeted checks as full CI.
 
 Reproduce the original steps against the final code on the same target and data conditions. Verify each acceptance
 criterion and relevant adjacent behavior in the actual UI. For UI changes, capture before/after screenshots or a short

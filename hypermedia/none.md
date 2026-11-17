@@ -8,10 +8,11 @@ Unlike none, the [null](./null.md) type and the bare literal schema `null` accep
 
 A list whose `items` schema is none can only be empty. A map whose `values` schema is none can only be empty. On a struct, `values` applies to additional fields, so setting it to none forbids fields outside `properties`. An optional field typed none must be absent; a required field typed none makes the struct impossible to satisfy. <!-- id:KyHcjRq9 -->
 
-The TypeScript generator emits `HMNone = never`. The type has no default value for editors to create. Its formal schema is attached as the `schemaDefinition` in this document's metadata. <!-- id:W0TpDrCU -->
+The generated TypeScript type is `HMNone = never`. The type has no default value for editors to create. Its formal schema is attached as the `schemaDefinition` in this document's metadata. <!-- id:W0TpDrCU -->
 
 # See also <!-- id:2ecP_G1Y -->
 
 - [Union schema](./schema/anyof.md): a value must match at least one alternative. <!-- id:qeRTFpYc -->
 - [Null](./null.md): the type with exactly one value. <!-- id:kdTi0uv8 -->
 - [Any](./any.md): the type that accepts every value. <!-- id:g7czSn-4 -->
+- [Catalogue of types](./schema/types.md): every type in the library.

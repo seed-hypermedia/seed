@@ -10,3 +10,4 @@ A **key/value** is one attribute assignment. The payload of a [SetAttributes](./
 - [metadata](./metadata.md): the keys a document carries. <!-- id:tuYVDsB9 -->
 - [value](./value.md): what a key can hold. <!-- id:qdc0XiUi -->
 - [Documents](./protocol/documents.md): how registers merge. <!-- id:rLLaiZi9 -->
+- [Catalogue of types](./schema/types.md): every type in the library.

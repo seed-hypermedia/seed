@@ -2,7 +2,7 @@
 name: Blocks
 summary: The content of a document or comment is a tree of blocks, and this page explains the block tree, block fields, inline annotations, layouts, every built-in block type, embeds, query blocks, tables and text fragments.
 ---
-A Hypermedia [document](./documents.md) stores its body as a tree of small, addressable pieces called blocks: a paragraph, a heading, an image, a table row. Every block has a permanent id. A link, a [comment](./comments.md) or a citation can point at exactly one block, and two people editing different blocks never conflict. This page describes the block model as the Seed [daemon](../apps/daemon.md) and the [SDK](../build/sdk.md) implement it today. <!-- id:W37Ua9TA -->
+A Hypermedia [document](./documents.md) stores its body as a tree of small, addressable pieces called blocks: a paragraph, a heading, an image, a table row. Every block has a permanent id. A link, a [comment](./comments.md) or a citation can point at exactly one block, and two people editing different blocks never conflict. This page describes the block model as the Seed [daemon](../software/daemon.md) and the [SDK](../build/sdk.md) implement it. <!-- id:W37Ua9TA -->
 
 # The block tree <!-- id:0PGaEtrf -->
 
@@ -48,7 +48,7 @@ Two attributes exist on every block that can have children. <!-- id:1GIO2fft -->
 | `Range` | ranges only | a highlight, rendered as marked text <!-- id:8yCEreSK --> |
 | `TextColor`, `BackgroundColor`, `TextSize`, `TextFamily` | `value` | a style value such as a color or a font family <!-- id:813uEvcy --> |
 
-A mention is an inline embed. The block's `text` holds a single placeholder character, U+FFFC (the object replacement character), at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. In markdown, a mention is a link whose label is `@`: `[@](hm://ACCOUNT_UID/:profile)` for a person, `[@](hm://UID/path)` for a document (text after the `@` is ignored); `<hm://ACCOUNT_UID/:profile>` is equivalent. See [Comments](./comments.md). <!-- id:Db5LYiXW -->
+A mention is an inline embed. The block's `text` holds a single placeholder character, U+FFFC (the object replacement character), at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. [Links and citations](./links-and-citations.md) covers what a mention does and how it is written in markdown. <!-- id:Db5LYiXW -->
 
 # Built-in block types <!-- id:Ab6ehaxJ -->
 
@@ -79,20 +79,20 @@ An unknown type is never an error. The wire [block](../block.md) schema is open.
 
 # Embeds <!-- id:U4JGYCtf -->
 
-An `Embed` block shows another Hypermedia [resource](../glossary.md) inside this one. Its `link` is an `hm://` URL, and the URL decides what is embedded: a whole document, one block with `#blockId`, a block and its children with `#blockId+`, or a text range with `#blockId[start:end]`. The URL also decides which [version](./documents.md) you see. With `?v=` the embed is pinned to that exact version. With `&l` it follows the latest version. The Seed app pins the version when you embed a block from a [comment](./comments.md), and follows the latest by default everywhere else. [URLs](./urls.md) has the grammar. <!-- id:HmN49Lid -->
+An `Embed` block shows another Hypermedia [resource](../glossary.md) inside this one. Its `link` is an `hm://` URL, and the URL decides what is embedded: a whole document, one block with `#blockId`, a block and its children with `#blockId+`, or a text range with `#blockId[start:end]`. The URL also decides which [version](./documents.md) you see. With `?v=` the embed is pinned to that exact version. With the `l` flag, or with no version, it follows the latest version. The Seed app pins the version when you embed a block from a [comment](./comments.md), and follows the latest by default everywhere else. [URLs](./urls.md) has the grammar. <!-- id:HmN49Lid -->
 
 The [embed view](../block/embed-view.md) attribute chooses the rendering. `Content` shows the target's body. `Card` shows its title, summary and cover. `Comments` shows its discussion. `Link` shows a plain link. Renderers keep a stack of the resources they are inside. They stop when an embed would show a document that already contains it, so a cycle renders as a link and does not recurse. <!-- id:v-l5BrCw -->
 
 # Query blocks <!-- id:2CLfvJsM -->
 
 A `Query` block is a live listing. The author stores a [query](../query.md), and every reader sees the current result. The query has three parts. <!-- id:d0v7wprf -->
-  - `includes`: one or more [inclusions](../query/inclusion.md), each a [space](./identity.md), an optional path prefix inside it, and a mode of `Children` or `AllDescendants`. <!-- id:mYJkUEW7 -->
-  - `sort`: a list of [sort terms](../query/sort.md), each `{term, reverse}`. The app writes `title`, `path`, `created`, `updated`, `displayTime` and `activity` today. Older documents carry `Title`, `UpdateTime` and the other capitalized spellings, and readers normalize them. A legacy time term sorted newest first by default, so readers flip its `reverse` flag on the way in. <!-- id:dC_nJi_7 -->
+  - `includes`: one or more [inclusions](../query/inclusion.md), each a [space](./spaces.md), an optional path prefix inside it, and a mode of `Children` or `AllDescendants`. <!-- id:mYJkUEW7 -->
+  - `sort`: a list of [sort terms](../query/sort.md), each `{term, reverse}`. The app writes `title`, `path`, `created`, `updated`, `displayTime` and `activity`. Some documents carry `Title`, `UpdateTime` and the other capitalized spellings, and readers normalize them. A capitalized time term sorts newest first by default, so readers flip its `reverse` flag on the way in. <!-- id:dC_nJi_7 -->
   - `limit`: an optional maximum number of results. <!-- id:oZxBg7kh -->
 
 The block's own attributes choose the presentation. [style](../query/style.md) is `Card`, `List` or `Table`. `columnCount` is the number of card columns. `banner` shows the first result as a banner above the rest. [table config](../query/table-config.md) remembers which columns are visible in the table view and how wide they are. <!-- id:cxzenQBe -->
 
-The query object carries no filters today. Attribute filters such as "status is Done" live in the [Seed API](../build/web-api.md)'s `QueryDocuments` request and the Explore grammar, described in [the query grammar](../build/query-grammar.md). A query block resolves through the same daemon listing and returns each document's info and metadata. That is why a folder page is usually one query block over its own children. <!-- id:ndrQtVsj -->
+The query object carries no filters. Attribute filters such as "status is Done" live in the [Seed API](../build/web-api.md)'s `QueryDocuments` request and the Explore grammar, described in [the query grammar](../build/query-grammar.md). A query block resolves through the same daemon listing and returns each document's info and metadata. That is why a folder page is usually one query block over its own children. <!-- id:ndrQtVsj -->
 
 ## Collections <!-- id:HWyyW7c4 -->
 
@@ -101,11 +101,11 @@ A **collection** is a document whose content is exactly one top-level `Query` bl
   - that block is a `Query` block; <!-- id:1mikg4Rd -->
   - the query has no `includes`, an empty list, or exactly one inclusion that is either empty (no space and no path) or names the document's own space and normalized path. <!-- id:60tZZwqq -->
 
-The style (`Card`, `List` or `Table`), the table config and any blocks nested under the query block do not matter. More than one top-level block, more than one inclusion, a partly filled inclusion, or an inclusion pointing elsewhere makes it an ordinary document. The older `type: Collection` metadata attribute, shipped in release 2026.8.9, is ignored and never migrated. <!-- id:I0_0PZTQ -->
+The style (`Card`, `List` or `Table`), the table config and any blocks nested under the query block do not matter. More than one top-level block, more than one inclusion, a partly filled inclusion, or an inclusion pointing elsewhere makes it an ordinary document. A `type: Collection` metadata attribute is ignored. <!-- id:I0_0PZTQ -->
 
-The daemon derives the flag when it indexes a published document and serves it as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. The value is optional: unset means the indexer has not reached that document yet, and readers treat it as an ordinary document. Existing documents are backfilled by a bounded background worker after startup rather than by a full reindex, so old rows can read as documents for a while. The derivation never blocks indexing. <!-- id:GDbOHYOJ -->
+The daemon derives the flag when it indexes a published document and serves it as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. The value is optional: unset means the indexer has not reached that document yet, and readers treat it as an ordinary document. The derivation never blocks indexing. <!-- id:GDbOHYOJ -->
 
-In the Seed app a collection renders in its query's stored view: Table, List or Cards. Editors click another view to switch, or click the active view to open its settings instead of a separate three-dot menu. Every view has a document limit; Cards also has columns and a show-banner switch. Readers can inspect these settings but cannot edit them. **New Collection** starts a draft with one canonical query block (`Table`, an empty `Children` inclusion, sorted by `updated`), and publishing retargets that inclusion to the final space and path. **Convert to Collection** and **Convert to Document** sit in the document options menu. Each asks for confirmation, because one replaces all content with a query block and the other removes the query, and each changes only the local draft, so the normal Publish step applies it. Desktop and web drafts store the derived `isCollection` with each listed draft, and a matching draft overrides the published value in the file browser until it is published. <!-- id:5qaOlDBP -->
+In the Seed app, **New Collection** starts a draft with one canonical query block (`Table`, an empty `Children` inclusion, sorted by `updated`), and publishing retargets that inclusion to the final space and path. <!-- id:5qaOlDBP -->
 
 # Tables <!-- id:0pXxkUBN -->
 
@@ -136,30 +136,16 @@ The `revision` the daemon reports on each block is the CID of the last Change th
 
 # Working with blocks <!-- id:6YL3RLsp -->
 
-## In the Seed app <!-- id:qYSlWwpw -->
-
-The [Seed app](../apps/desktop.md) editor is a block editor built on BlockNote and ProseMirror. Every editor block maps one to one onto a Hypermedia block. The slash menu inserts the built-in types. The drag handle moves a block and its children together. A list, quote or grid is a setting on the parent block. Copying a block gives you its `hm://` URL with the block fragment. Selecting text and choosing to comment or copy a link gives you a range fragment. <!-- id:6APO5nKK -->
-
-## CLI <!-- id:_RfdIINq -->
-
-`seed-cli document get <id>` prints a document as markdown. Every block ends with a `<!-- id:… -->` comment. Block types that markdown cannot express carry `type:` in that comment, and attributes without a native syntax are written as `attrs:` JSON. `document create -f page.md` and `document update` accept the same dialect, match blocks by those ids, and emit operations only for blocks that changed. `--json` switches to the block tree. The reference is in [the CLI guide](../build/cli.md). <!-- id:pznE_tFb -->
-
-## SDK <!-- id:7ihPQK-H -->
-
-The SDK exports the zod schemas for every block type (`HMBlockSchema` with a passthrough for unknown types), `parseMarkdown` and `blocksToMarkdown` for the lossless markdown dialect, and `createDocumentBlobs` to turn a block tree into signed Changes. The markdown dialect is the one the CLI prints. Its table form carries column and row identity in comments, so a table survives a round trip. See [the SDK guide](../build/sdk.md). <!-- id:Q13Icb5C -->
-
-## Web API <!-- id:Tk7mRSlQ -->
-
-`GET /api/Resource?id=hm://…` returns the document with its `content` tree and `detachedBlocks`. Appending `.md` or `.json` to a site URL exports the same document with embeds, mentions and query blocks resolved. `QueryBlock` resolves a query block on the server. Details are in [the Seed API guide](../build/web-api.md). <!-- id:3pF1uWI3 -->
-
-## Agents <!-- id:ydxPrUaK -->
-
-[Seed Agents](../agent.md) and external agents read and write blocks as markdown. They do not send raw operations. The [read](../app-environment/read.md) verb returns a document as resolved markdown. The [write](../app-environment/write.md) verb accepts the dialect above and updates a document in place. An agent that edits a table must keep the `<!-- col:… -->` and row `<!-- id:… -->` comments so the table's identity survives. Claude Code with the seed-cli skill uses the CLI commands above. [Building with agents](../build/agents.md) has the workflow. <!-- id:iY-h20Xf -->
+- `seed-cli document get <id>` prints a document as markdown. Every block ends with a `<!-- id:… -->` comment. Block types that markdown cannot express carry `type:` in that comment, and attributes without a native syntax are written as `attrs:` JSON. `document create -f page.md` and `document update` accept the same dialect, match blocks by those ids, and emit operations only for blocks that changed. `--json` switches to the block tree. The reference is in [the CLI guide](../build/cli.md). <!-- id:pznE_tFb -->
+- The SDK exports the zod schemas for every block type (`HMBlockSchema` with a passthrough for unknown types), `parseMarkdown` and `blocksToMarkdown` for the lossless markdown dialect, and `createDocumentBlobs` to turn a block tree into signed Changes. The markdown dialect is the one the CLI prints. Its table form carries column and row identity in comments, so a table survives a round trip. See [the SDK guide](../build/sdk.md). <!-- id:Q13Icb5C -->
+- `GET /api/Resource?id=hm://…` returns the document with its `content` tree and `detachedBlocks`. Appending `.md` or `.json` to a site URL exports the same document with embeds, mentions and query blocks resolved. `QueryBlock` resolves a query block on the server. Details are in [the Seed API guide](../build/web-api.md). <!-- id:3pF1uWI3 -->
+- [Seed Agents](../agent.md) and external agents read and write blocks as markdown. They do not send raw operations. The [read](../agent/read.md) verb returns a document as resolved markdown. The [write](../agent/write.md) verb accepts the dialect above and updates a document in place. An agent that edits a table must keep the `<!-- col:… -->` and row `<!-- id:… -->` comments so the table's identity survives. Claude Code with the seed-cli skill uses the CLI commands above. [Building with agents](../build/agents.md) has the workflow. <!-- id:iY-h20Xf -->
 
 # See also <!-- id:BMxeMIXC -->
 
 - [Documents](./documents.md): how Changes merge into the block tree. <!-- id:docIFdLk -->
 - [URLs](./urls.md): block and range fragments. <!-- id:NwAK7W4l -->
+- [Links and citations](./links-and-citations.md): how links and mentions are indexed.
 - [Comments](./comments.md): comments that attach to blocks. <!-- id:nuXFRtzK -->
 - [Files](./files.md): what image and file blocks link to. <!-- id:dBPmEMtT -->
 - [Hypermedia Schemas](../schema.md): typed attributes and custom block types. <!-- id:EvM2XdLy -->

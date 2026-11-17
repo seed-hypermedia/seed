@@ -10,12 +10,12 @@ describe('resolved embeds written back', () => {
       'Respond to the mention.',
       '<!-- /embed: hm://z6Mkspace/agent/on-mention -->',
       '',
-      '<!-- embed: hm://z6Mkdocs/app-environment/guide; title: Agent Guide --> <!-- id:default-skill -->',
+      '<!-- embed: hm://z6Mkdocs/agent/guide; title: Agent Guide --> <!-- id:default-skill -->',
       'This page is the default system prompt.',
       '<!-- embed: hm://z6Mkdocs/nested; title: Nested -->',
       'Nested text.',
       '<!-- /embed: hm://z6Mkdocs/nested -->',
-      '<!-- /embed: hm://z6Mkdocs/app-environment/guide -->',
+      '<!-- /embed: hm://z6Mkdocs/agent/guide -->',
       '',
       'My own words.',
       '',
@@ -29,7 +29,7 @@ describe('resolved embeds written back', () => {
     )
     expect(blocks.map((b) => [b.type, b.link ?? b.text, b.attributes.view])).toEqual([
       ['Embed', 'hm://z6Mkspace/agent/on-mention', 'Card'],
-      ['Embed', 'hm://z6Mkdocs/app-environment/guide', undefined],
+      ['Embed', 'hm://z6Mkdocs/agent/guide', undefined],
       ['Paragraph', 'My own words.', undefined],
       ['Embed', 'hm://z6Mkspace/agent/writing', 'Card'],
     ])

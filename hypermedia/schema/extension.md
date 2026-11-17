@@ -1,14 +1,14 @@
 ---
 name: Extension
-summary: A Reference Schema that also carries refinements.
+summary: An include schema that also carries refinements, which makes it a subtype of the schema it names.
 ---
-**Extension**: a [Reference Schema](./include-schema.md) that _also_ carries refinements. <!-- id:IoC_acS3 -->
+**Extension**: an [include schema](./include-schema.md) that _also_ carries refinements. <!-- id:IoC_acS3 -->
 
 `{ "type": "hm://…/example/person", "properties": {…} }` <!-- id:vG52Mjgo -->
 
 An extension is a subtype. It has the parent's fields plus the new ones, and each new field is a [property](./property.md) that says whether it is required. <!-- id:lJDeDmj1 -->
 
-There is no `extends` keyword. `type` names the parent. Any other key on the node is what makes it an extension instead of a bare [Reference Schema](./include-schema.md). <!-- id:drnWeK9F -->
+There is no `extends` keyword. `type` names the parent. Any other key on the node is what makes it an extension instead of a bare [include](./include-schema.md). [The schema language](./schema-language.md) has the merge rules. <!-- id:drnWeK9F -->
 
 Example: [employee](../example/employee.md) extends [person](../example/person.md). <!-- id:-NO5_fFA -->
 

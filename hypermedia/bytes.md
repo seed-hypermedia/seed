@@ -10,3 +10,4 @@ The **bytes** type is raw binary data, a byte string. It is a [primitive](./sche
 - [signature](./signature.md): a blob's signature, stored as bytes. <!-- id:UPXu4hI3 -->
 - [any](./any.md): the union of every value. <!-- id:HdyF_opS -->
 - [Data model](./schema/data-model.md): all the kinds. <!-- id:3H3j5pVy -->
+- [Catalogue of types](./schema/types.md): every type in the library.

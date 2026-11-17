@@ -1,6 +1,6 @@
 ---
 name: Files
-summary: Images, videos and attachments travel as content-addressed IPFS file blocks, linked from documents by ipfs:// URLs and served by every node's /ipfs gateway.
+summary: Images, videos and attachments travel as content-addressed IPFS file blocks, linked from documents by ipfs:// URLs and served by every node at /ipfs/<cid>.
 ---
 A picture in a [document](./documents.md) lives outside the document. It is split into content-addressed blocks and given a [CID](../cid.md), and the document carries only a link `ipfs://<cid>`. The blocks travel over the same [network](./network.md) as everything else, and any Seed node that holds them can serve the file back at `/ipfs/<cid>`. <!-- id:yP2vctFk -->
 
@@ -10,7 +10,7 @@ Seed uses the [IPFS](https://docs.ipfs.tech/concepts/) file model unchanged, wit
 
 ## Files are UnixFS DAGs <!-- id:xEJdFHW5 -->
 
-A file is chunked into pieces of up to 256 KiB. Each piece becomes a **raw** block whose CID is the SHA-256 of its bytes (CIDv1, the `bafkrei…` form). A file that fits in one piece is that one raw block. That is why small icons in [metadata](../metadata.md) look like `ipfs://bafkreie6wls…`. A larger file gets a root node in [DAG-PB](https://ipld.io/docs/codecs/known/dag-pb/) encoding (`bafybei…`), the UnixFS format. The root lists the pieces in order, with up to 174 links per node in a balanced tree. Both the [daemon](../apps/daemon.md) and the [SDK](../build/sdk.md) build the tree with the same parameters (balanced layout, raw leaves, CIDv1, 256 KiB chunks), so the same bytes get the same CID whichever side chunks them. <!-- id:tHJMplbk -->
+A file is chunked into pieces of up to 256 KiB. Each piece becomes a **raw** block whose CID is the SHA-256 of its bytes (CIDv1, the `bafkrei…` form). A file that fits in one piece is that one raw block. That is why small icons in [metadata](../metadata.md) look like `ipfs://bafkreie6wls…`. A larger file gets a root node in [DAG-PB](https://ipld.io/docs/codecs/known/dag-pb/) encoding (`bafybei…`), the UnixFS format. The root lists the pieces in order, with up to 174 links per node in a balanced tree. Both the [daemon](../software/daemon.md) and the [SDK](../build/sdk.md) build the tree with the same parameters (balanced layout, raw leaves, CIDv1, 256 KiB chunks), so the same bytes get the same CID whichever side chunks them. <!-- id:tHJMplbk -->
 
 DAG-PB is compact and carries almost no metadata: a node is a byte payload plus links. This is on purpose. The IPFS blocks of a file hold no filename, MIME type or size. A File [block](./blocks.md) in a document may carry a display name beside the link. The daemon serves the bytes as `application/octet-stream`, and the client detects the type. File data is not signed. Its integrity comes from the hash alone, and its authorship from the signed [blob](../blob.md) that links to it. <!-- id:-mKRWYdr -->
 
@@ -33,27 +33,11 @@ This surprises people: **a file uploaded on its own is not public**. Publishing 
 
 ## The `/ipfs` gateway <!-- id:XelAsoKi -->
 
-Every daemon serves files on its HTTP port, and every [site](./sites.md) proxies `/ipfs/*` on its domain straight to its daemon: <!-- id:easwJ69R -->
+Every daemon serves files on its HTTP port at `GET /ipfs/<cid>`, and every [site](./sites.md) proxies `/ipfs/*` on its domain straight to its daemon. The daemon looks locally first, then on the network over [Bitswap](./network.md). A UnixFS root is reassembled into the whole file, and range requests work, which lets video seek. The [web app](../software/web.md) adds `/hm/api/file/<cid>` and `/hm/api/image/<cid>` on top, so signed-in readers can see private files and pages get resized images. The [web API guide](../build/web-api.md) lists the routes, parameters and headers.
 
-<!-- id:8oxv9Mb9 -->
-| Request <!-- col:f5dl8Z7O --> | Behaviour <!-- col:wItX6-Qx --> <!-- id:ULlbhRwV --> |
-| --- | --- |
-| `GET /ipfs/<cid>` | Look locally first, then on the network over [Bitswap](./network.md) for up to one minute (`408` on timeout). A UnixFS root is reassembled into the whole file; any other block is returned raw. <!-- id:1trBmp0w --> |
-| `GET /ipfs/<cid>?filename=photo.jpg` | Adds `Content-Disposition: attachment; filename="photo.jpg"`. <!-- id:ZvQHYexw --> |
-| `Range: bytes=…` | Honoured with `206 Partial Content`. `Accept-Ranges: bytes` is always sent, which lets video seek. <!-- id:F-NzKWDk --> |
-| `GET /ipfs/<cid>.dagjson` | Decodes the block with its codec and returns pretty-printed DAG-JSON. This is how you inspect a [change](../change.md), [ref](../ref.md) or comment blob by CID. <!-- id:3AgXw6U5 --> |
-| `POST /ipfs/file-upload` | Multipart form field `file`, at most 150 MiB. Chunks the file and answers `201` with the root CID as plain text. <!-- id:uX0TQ8fj --> |
-| `POST /ipfs/<cid>` | Store one raw block. The daemon recomputes the multihash and rejects a mismatch with `400`. At most 150 MiB. <!-- id:-vUup8n- --> |
-
-Responses carry `ETag: <cid>` and `Content-Type: application/octet-stream`. The client works out the file's real type. `Cache-Control` is `public, max-age=29030400, immutable` (about 336 days) when the daemon can prove the blob is public, and `private, max-age=29030400, immutable` otherwise, so shared caches and CDNs never keep private content. An `Authorization: Bearer` header from a signed-in web session lets the daemon serve a private file to a reader who may see its [space](./identity.md). <!-- id:-f6HpGkq -->
-
-In default mode, only loopback socket peers are admitted; local tools can read any blob the daemon holds and use both upload routes. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser metadata and exact origins; see [Daemon](../apps/daemon.md). Hosted sites use server mode: the Docker image sets `SEED_SERVER_MODE=true`, so anonymous private reads are filtered even when Compose passes no mode flag. Keep the daemon API on the trusted deployment network and proxy only `/ipfs/*`. The proxy forwards every method on those routes, including uploads. An upload stays private until something public links it, but it still uses disk; see [self-hosting](../build/self-hosting.md). <!-- id:KSKS52ek -->
+A daemon in its default mode admits only local callers, and a daemon in server mode filters anonymous reads of private content; see [Integrity](./integrity.md). A site's proxy forwards uploads on `/ipfs/*` too. An upload stays private until something public links it, but it still uses disk; see [self-hosting](../operate/self-hosting.md).
 
 Public IPFS gateways such as `ipfs.io` cannot find content published only on Seed. Seed nodes do not advertise blocks to the IPFS DHT (see [Network](./network.md)). An `https://ipfs.io/ipfs/<cid>` link works only for content someone pinned there separately. <!-- id:URxNAB6R -->
-
-## The site's file and image services <!-- id:2HWScTI0 -->
-
-The [web app](../apps/web.md) adds two routes on top of the raw gateway. `GET /hm/api/file/<cid>` streams the daemon's `/ipfs/<cid>` with `Range` forwarded and the visitor's session cookie turned into a bearer token, so private files render for signed-in readers on hosted sites. `GET /hm/api/image/<cid>?size=S|M|L|XL` returns a PNG resized to at most 120, 650, 1600 or 4000 pixels wide (default `M`; GIFs pass through untouched). It caches the result on disk only when the daemon says the source is public. Every icon, cover and inline image on a rendered page goes through the image route. Downloads and videos go through the file route. <!-- id:IFM5pnYg -->
 
 ## Uploading <!-- id:xXvAXmF5 -->
 
@@ -76,46 +60,17 @@ Read the raw block back on any node with `curl https://alice.example/ipfs/bafybe
 
 # Working with files <!-- id:QngllqZu -->
 
-## In the Seed app <!-- id:N8ueOXW_ -->
-
-Drag a file or image into the editor, paste one, or use the block menu's Image, Video and File blocks. The [Seed app](../apps/desktop.md) uploads to its local daemon and inserts the `ipfs://` link. Space and document settings upload icons, covers and logos the same way. Files render from the local daemon's gateway, so they are available offline once synced. The maximum upload is 150 MiB. The agents memory tab has a "Publish to IPFS" action for a memory file, with the same "not public until linked" caveat. <!-- id:pVqva5gb -->
-
-## CLI <!-- id:ewAMCvnq -->
-
-`seed-cli document create -f page.md` resolves `file://` links in image blocks and in `icon`, `cover` and logo metadata. It chunks each file with the SDK, publishes the blocks with the document, and turns the links into `ipfs://` URLs. `seed-cli profile set --icon ipfs://<cid>` accepts only an already-published CID. `seed-cli document cid <cid>` fetches a block decoded as DAG-JSON through the site's `GetCID`, and `seed-cli blob get ipfs://<cid>` reads a DAG-CBOR blob and checks its signature and schema. There is no standalone upload command. Publish files as part of a document. See the [CLI reference](../build/cli.md). <!-- id:Sj6ighDR -->
-
-## SDK <!-- id:idf4itXS -->
-
-```ts <!-- id:ZrEXBS0J -->
-import {createSeedClient, fileToIpfsBlobs} from '@seed-hypermedia/client'
-
-const client = createSeedClient('https://hyper.media')
-const {cid, blobs} = await fileToIpfsBlobs(bytes)
-await client.publish({blobs: blobs.map((b) => ({cid: b.cid, data: b.data}))})
-// use `ipfs://${cid}` in a block's link or in metadata, then publish the document
-const {value} = await client.request('GetCID', {cid})
-```
-
-`resolveFileLinksInBlocks(nodes, loader)` replaces `file://` links in a block tree with published `ipfs://` links and returns the blobs to publish beside the document. `hasFileLinks(nodes)` tells you whether you need it. For reading, build URLs from the site: `${base}/ipfs/${cid}` for bytes, `${base}/hm/api/image/${cid}?size=L` for a resized image. The [SDK guide](../build/sdk.md) has the full surface. <!-- id:H1C6jndW -->
-
-## Web API <!-- id:g-DnRgBi -->
-
-On any site: `GET /ipfs/<cid>` and `GET /ipfs/<cid>.dagjson` (the daemon's gateway, proxied), `GET /hm/api/file/<cid>`, `GET /hm/api/image/<cid>?size=…`, `GET /api/GetCID?cid=…` (returns `{value}` decoded), and `POST /api/PublishBlobs` with `{blobs: [{cid, data}]}` to store blocks you chunked yourself. On a daemon you control, `POST /ipfs/file-upload` and `POST /ipfs/<cid>` as above. The [web API guide](../build/web-api.md) documents request and response shapes. <!-- id:bUJKCYiG -->
-
-```sh <!-- id:wyv4nL0b -->
-curl -F file=@talk.pdf http://localhost:56001/ipfs/file-upload      # → bafybeigd…
-curl -o talk.pdf "https://hyper.media/ipfs/bafybeigd…?filename=talk.pdf"
-curl https://hyper.media/ipfs/bafy2bzace….dagjson                  # inspect a Change
-```
-
-## Agents <!-- id:hutET4mn -->
-
-[Seed Agents](../agent.md) address files with their two verbs. [`read`](../app-environment/read.md) of `ipfs://<cid>` fetches a file into the agent's memory. For a DAG-CBOR object it returns the decoded value with its signature and schema check. [`write`](../app-environment/write.md) to `ipfs://` publishes from exactly one source: `options.fromPath` for a memory file, `options.fromAttachment` for a file the user attached to the chat, or a JSON object in `content` (optionally validated against a schema and signed). It needs the agent's `publish` [grant](../app-environment/grants.md) and returns the CID and `ipfs://` URL. The runtime chunks with the SDK and publishes in 3 MiB batches to the agent's configured site (hosted agents use `https://hyper.media`; the desktop's agent uses the app's daemon). The guides at `~/tools/write/ipfs` and `~/tools/write/documents` spell out the options. Agents follow the same rule as everyone else: an `ipfs://` URL on its own displays nowhere. To show a file in chat, an agent references its memory path (`![caption](~/memory/path.png)`). To publish it for the world, the agent links the URL from a document or comment. External agents using the `seed-cli` skill publish files through `document create -f` as above. See [using Seed from your own agent](../build/agents.md). <!-- id:9ZO5ERaI -->
+- **Seed app.** Drag a file or image into the editor, paste one, or use the Image, Video and File blocks. The [Seed app](../software/desktop.md) uploads to its local daemon and inserts the `ipfs://` link. The maximum upload is 150 MiB.
+- **CLI.** `seed-cli document create -f page.md` resolves `file://` links in image blocks and in `icon`, `cover` and logo metadata, publishes the file blocks with the document, and turns the links into `ipfs://` URLs. There is no standalone upload command. See the [CLI reference](../build/cli.md).
+- **SDK.** `fileToIpfsBlobs(bytes)` returns the root CID and the blocks, and `client.publish({blobs})` stores them. `resolveFileLinksInBlocks(nodes, loader)` does the same for every `file://` link in a block tree. See the [SDK guide](../build/sdk.md).
+- **Web API.** `GET /ipfs/<cid>` reads a file and `POST /api/PublishBlobs` stores blocks you chunked yourself. See the [web API guide](../build/web-api.md).
+- **Agents.** [`read`](../agent/read.md) of `ipfs://<cid>` fetches a file into the agent's memory, and [`write`](../agent/write.md) to `ipfs://` publishes one from a memory file, a chat attachment or a JSON object. It needs the agent's `publish` [grant](../agent/grants.md). An `ipfs://` URL on its own displays nowhere: the agent links it from a document or comment to publish it. See [using Seed from your own agent](../build/agents.md).
 
 # See also <!-- id:a6roXza4 -->
 
 - [Network](./network.md): how file blocks travel over Bitswap and why bulk media downloads are throttled. <!-- id:v7qNl9Cx -->
-- [Sites](./sites.md): the gateway and image routes every site exposes. <!-- id:R1efbqFv -->
+- [Sites](./sites.md): the server that proxies `/ipfs/*` for a space. <!-- id:R1efbqFv -->
+- [Web API](../build/web-api.md): the `/ipfs` routes and the site's file and image services.
 - [Privacy](./privacy.md): the visibility model that files inherit. <!-- id:LvK_E7wX -->
 - [Blobs](./blobs.md), [CID](../cid.md), [ipfs-url](../ipfs-url.md): the primitives underneath. <!-- id:ISbJ236E -->
 - [Blocks](./blocks.md): the Image, Video and File block types. <!-- id:LL1A1gwR -->

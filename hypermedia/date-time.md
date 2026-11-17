@@ -12,3 +12,4 @@ This page describes the **date-time** type, a value type of [Hypermedia Schemas]
 - [timestamp](./timestamp.md): the Unix-millisecond time inside blobs. <!-- id:4Mglu7q6 -->
 - [string](./string.md): the underlying kind. <!-- id:10HU0a0l -->
 - [Scalar schema](./schema/scalar-schema.md): how `format` and patterns refine a string. <!-- id:B7uD_g9g -->
+- [Catalogue of types](./schema/types.md): every type in the library.
