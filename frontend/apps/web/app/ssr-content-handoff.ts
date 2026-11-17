@@ -18,3 +18,18 @@ export function omitSSRContentHTML(serverHandoffString: string): string {
     (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
   )
 }
+
+/** Restore the omitted HTML before Remix reads or caches the initial loader data. */
+export function restoreSSRContentHTML(
+  loaderData: Record<string, {json?: {document?: unknown; ssrContentHTML?: string | null}} | null>,
+  document: Document,
+) {
+  const contentHTML = document.querySelector('.ssr-content-placeholder')?.outerHTML
+  if (!contentHTML) return
+
+  for (const payload of Object.values(loaderData)) {
+    if (payload?.json?.document && !('ssrContentHTML' in payload.json)) {
+      payload.json.ssrContentHTML = contentHTML
+    }
+  }
+}

@@ -141,7 +141,7 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
-import {DocumentContentHandoff} from './document-content-handoff'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
@@ -5299,6 +5299,64 @@ function ContentViewWithOutline({
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
+    </div>
+  )
+}
+
+/**
+ * Swaps the server-rendered document HTML for the live editor without a
+ * blank paint. The editor's React node views flush a frame after the
+ * ProseMirror DOM mounts, so unmounting the placeholder in the same commit
+ * paints one frame of empty block containers (content flashes and the page
+ * height collapses). Instead the placeholder stays stacked above the
+ * mounting editor — and the container holds its height — for two animation
+ * frames, by which point the node views have rendered underneath.
+ */
+function DocumentContentHandoff({
+  ssrContentHTML,
+  editorMounted,
+  children,
+}: {
+  ssrContentHTML?: string | null
+  editorMounted: boolean
+  children: ReactNode
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const placeholderRef = useRef<HTMLDivElement>(null)
+  const [settled, setSettled] = useState(false)
+
+  useIsomorphicLayoutEffect(() => {
+    if (!editorMounted || settled) return
+    // Hold the placeholder's height so content below the document doesn't
+    // jump while the editor lays out behind the overlay.
+    if (containerRef.current && placeholderRef.current) {
+      containerRef.current.style.minHeight = `${placeholderRef.current.offsetHeight}px`
+    }
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (containerRef.current) containerRef.current.style.minHeight = ''
+        setSettled(true)
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      if (raf2) cancelAnimationFrame(raf2)
+    }
+  }, [editorMounted, settled])
+
+  if (!ssrContentHTML) return <>{children}</>
+
+  return (
+    <div ref={containerRef} className="relative">
+      {children}
+      {!settled && (
+        <div
+          ref={placeholderRef}
+          className={editorMounted ? 'dark:bg-background absolute inset-x-0 top-0 z-10 bg-white' : undefined}
+          dangerouslySetInnerHTML={{__html: ssrContentHTML}}
+        />
+      )}
     </div>
   )
 }
