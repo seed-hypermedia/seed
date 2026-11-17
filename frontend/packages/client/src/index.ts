@@ -126,7 +126,6 @@ export {
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
   clientBuiltDocumentUpdateBlobs,
-  DEFAULT_MAX_MOVE_HISTORY_CHANGES,
   DEFAULT_MAX_PREPARED_CHANGE_BYTES,
   DEFAULT_PREPARE_TIMEOUT_MS,
   documentOperationsToChanges,

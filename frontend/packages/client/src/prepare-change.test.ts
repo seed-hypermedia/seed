@@ -550,7 +550,6 @@ describe('createDocumentUpdateBlobs', () => {
           ],
         }
       }
-      if (key === 'GetCID') return {value: {body: {ops: []}}}
       if (key === 'PrepareDocumentChange') return {unsignedChange: prepared}
       throw new Error(`unexpected request ${key}`)
     })
@@ -736,12 +735,9 @@ describe('documentUpdateBlobs', () => {
   const LATEST = 1_800_000_000_000
   let documents = 0
   /** A document of [a, b, c] with one Change after its genesis, and a fake site around it. */
-  function setup(
-    prepare: (input: any, options?: {signal?: AbortSignal}) => Promise<{unsignedChange: Uint8Array}>,
-    history: Record<string, unknown[]> = {},
-  ) {
+  function setup(prepare: (input: any, options?: {signal?: AbortSignal}) => Promise<{unsignedChange: Uint8Array}>) {
     const request = vi.fn(async (key: string, input: any, options?: {signal?: AbortSignal}) => {
-      if (key === 'GetCID') return {value: {ts: LATEST, body: {ops: history[input.cid] ?? []}}}
+      if (key === 'GetCID') return {value: {ts: LATEST}}
       if (key === 'PrepareDocumentChange') return prepare(input, options)
       throw new Error(`unexpected request ${key}`)
     })
@@ -757,7 +753,6 @@ describe('documentUpdateBlobs', () => {
         headDepth: 1,
         version: HEAD,
         headTs: LATEST,
-        changeIds: [GENESIS, HEAD],
       },
       content: ['a', 'b', 'c'].map((id) => ({block: {id}, children: []})),
       documentVersion: HEAD,
@@ -892,75 +887,6 @@ describe('documentUpdateBlobs', () => {
     const large = setup(prepared)
     const third = await documentUpdateBlobs({...large.input, ops: append, maxPreparedChangeBytes: 32})
     expect(third.changed && third.localReason).toContain('bytes, over the 32')
-  })
-
-  it('does not ask a daemon to move blocks in a document whose history turned a child into its parent', async () => {
-    // b was under a, and later a went under b: the daemon keeps both placements.
-    // (Changes are remembered by CID, so this history has CIDs of its own.)
-    const history = {
-      'bafy-first': [
-        {type: 'MoveBlocks', blocks: ['a']},
-        {type: 'MoveBlocks', blocks: ['b'], parent: 'a'},
-      ],
-      'bafy-second': [
-        {type: 'MoveBlocks', blocks: ['b']},
-        {type: 'MoveBlocks', blocks: ['a'], parent: 'b'},
-      ],
-    }
-    const withHistory = (input: ReturnType<typeof setup>['input']) => ({
-      ...input,
-      state: {...input.state, changeIds: Object.keys(history)},
-    })
-    const turned = setup(prepared, history)
-    const result = await documentUpdateBlobs({...withHistory(turned.input), ops: append})
-    expect(result.changed && result.builtBy).toBe('local')
-    expect(result.changed && result.localReason).toContain('was once inside a block that is now inside it')
-    expect(turned.asked()).toBe(0)
-
-    // An update that moves and deletes nothing is safe to ask for, and the history is not read.
-    const text: DocumentOperation[] = [{type: 'ReplaceBlock', block: {id: 'a', type: 'Paragraph', text: 'edited'}}]
-    const quiet = setup(async () => ({unsignedChange: unsignedChange(text)}), history)
-    const edited = await documentUpdateBlobs({...withHistory(quiet.input), ops: text})
-    expect(edited.changed && edited.builtBy).toBe('server')
-    expect(quiet.request.mock.calls.some((call) => call[0] === 'GetCID')).toBe(false)
-
-    // The check can be turned off for a daemon known to be fixed.
-    const trusted = setup(prepared, history)
-    const asked = await documentUpdateBlobs({...withHistory(trusted.input), ops: append, checkMoveHistory: false})
-    expect(asked.changed && asked.builtBy).toBe('server')
-  })
-
-  it('builds the Change here when the history cannot be checked', async () => {
-    const unreadable = setup(prepared)
-    unreadable.request.mockImplementation(async (key: string) => {
-      if (key === 'GetCID') throw new SeedClientError('HTTP 500 from GetCID', 500)
-      throw new Error(`unexpected request ${key}`)
-    })
-    const first = await documentUpdateBlobs({
-      ...unreadable.input,
-      // Changes this process has not read yet.
-      state: {...unreadable.input.state, changeIds: [CAPABILITY]},
-      ops: append,
-    })
-    expect(first.changed && first.localReason).toContain('history could not be read')
-
-    const long = setup(prepared)
-    const second = await documentUpdateBlobs({
-      ...long.input,
-      state: {...long.input.state, changeIds: ['bafy-unread-1', 'bafy-unread-2', 'bafy-unread-3']},
-      ops: append,
-      maxMoveHistoryChanges: 2,
-    })
-    expect(second.changed && second.localReason).toContain('too long to check')
-
-    const unknown = setup(prepared)
-    const third = await documentUpdateBlobs({
-      ...unknown.input,
-      state: {...unknown.input.state, changeIds: undefined},
-      ops: append,
-    })
-    expect(third.changed && third.localReason).toContain('history is not known')
-    expect(unreadable.asked() + long.asked() + unknown.asked()).toBe(0)
   })
 
   it('builds the Change here, without asking, for content that is not the content at the heads', async () => {

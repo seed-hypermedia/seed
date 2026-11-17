@@ -796,16 +796,20 @@ describe('document updates through PrepareDocumentChange', () => {
   it('reads back every edit as written (seeded random edits through createDocumentUpdateBlobs)', async () => {
     const stats = newFuzzStats()
     const failures: string[] = []
-    // Four documents whose edits include parent and child swaps (after one, an unfixed daemon is
-    // not asked to move blocks in that document again), and two without.
+    // Six documents, forty rounds of edits each, none of which leaves a parent/child inversion in
+    // the document's history: a daemon without Seed PR #1375 never answers a request that moves
+    // blocks in a document with one, and the daemon binary under plz-out/ may be that old (CI
+    // builds the daemon from the branch). Each document then ends with one swap of a parent and
+    // its child, which is built here and never sent, and is not written to again.
     for (const seed of [20261116, 7, 424242, 99991, 31337, 2718]) {
-      const fuzzer = createTreeFuzzer(seed, {swaps: seed !== 31337 && seed !== 2718})
+      const fuzzer = createTreeFuzzer(seed, {inversions: false})
       const docPath = `/random-${seed}`
       let tree: Tree = flat('a', 'b', 'c', 'd', 'e')
       tree[1]!.children = flat('p', 'q', 'r')
       await startTree(docPath, tree)
-      for (let round = 0; round < 40; round++) {
-        const next = fuzzer.mutate(tree)
+      for (let round = 0; round <= 40; round++) {
+        const next = round < 40 ? fuzzer.mutate(tree) : fuzzer.swap(tree)
+        if (!next) throw new Error(`seed ${seed}: no parent to swap in ${JSON.stringify(toShape(tree))}`)
         const label = `seed ${seed} round ${round} (${next.edits.join(', ')}): ${JSON.stringify(
           toShape(tree),
         )} -> ${JSON.stringify(toShape(next.tree))}`
@@ -823,57 +827,58 @@ describe('document updates through PrepareDocumentChange', () => {
     }
     reportStats(`FUZZ-STATS createDocumentUpdateBlobs ${JSON.stringify(stats)}`)
     expect(failures).toEqual([])
-    expect(stats.rounds).toBe(240)
+    expect(stats.rounds).toBe(246)
     expect(stats.server).toBeGreaterThan(20)
     expect(stats.wrong).toBe(0)
+    expect(stats.edits.swap).toBe(6)
+    // No round waited for a daemon that was never going to answer.
+    expect(Object.keys(stats.reasons).filter((reason) => reason.includes('did not answer'))).toEqual([])
   }, 600_000)
 
-  // Last: it leaves the daemon busy, and restarts it.
+  // Last: against a daemon without Seed PR #1375 it leaves the daemon busy, and restarts it.
   it('gives up on a daemon that never answers and builds the Change here', async () => {
     // `q` was under `p`; then they swapped. The swap is built here and never sent (see above),
-    // but the daemon now holds both placements, and its walk over them never ends: any request
-    // that moves or deletes a block in this document makes it spin.
+    // but the document's history now holds both placements. A daemon without Seed PR #1375 walks
+    // them without end: any request that moves or deletes a block in this document makes it spin.
+    // That is the daemon a developer is likely to have under plz-out/. CI builds the daemon from
+    // the branch, so once the fix is on main the request below is simply answered.
     await startTree('/turned', [{id: 'p', children: flat('q')}])
     const swapped: Tree = [{id: 'q', children: flat('p')}]
-    expect((await writeTree('/turned', swapped)).got).toEqual(toShape(swapped))
+    const swap = await writeTree('/turned', swapped)
+    expect(swap.got).toEqual(toShape(swapped))
+    expect(swap.builtBy).toBe('local')
+    expect(swap.localReason).toContain('under a block that is, or was, inside it')
 
-    // The guard that is on by default reads the history and does not ask at all.
-    const appended: Tree = [...cloneTree(swapped), ...flat('z')]
-    const calm = daemonCpu()
-    const started = Date.now()
-    const guarded = await updateTree('/turned', appended)
-    expect(Date.now() - started).toBeLessThan(5_000)
-    expect(guarded.got).toEqual(toShape(appended))
-    expect(guarded.update.changed && guarded.update.builtBy).toBe('local')
-    expect(guarded.update.changed && guarded.update.localReason).toContain(
-      'was once inside a block that is now inside it',
-    )
-    expect(daemonCpu()).toBeLessThan(Math.max(50, calm + 40))
-
-    // An update that moves nothing is still prepared by the daemon: only its walk over moves hangs.
-    const {base} = await opsFor('/turned', appended)
+    // An update that moves nothing is prepared by either daemon: only the walk over moves hangs.
+    const {base} = await opsFor('/turned', swapped)
     const text = await documentUpdateBlobs({
       client,
       signer,
       account: account.accountId,
       path: '/turned',
       state: base.state,
-      ops: [{type: 'ReplaceBlock', block: {id: 'z', type: 'Paragraph', text: 'edited', annotations: []}}],
+      ops: [{type: 'ReplaceBlock', block: {id: 'p', type: 'Paragraph', text: 'edited', annotations: []}}],
       content: base.document.content ?? [],
       documentVersion: base.document.version,
     })
     expect(text.changed && text.builtBy).toBe('server')
     if (text.changed) await client.publish({blobs: text.blobs})
 
-    // With that guard off the request is sent. The daemon never answers; the helper stops
-    // waiting after its timeout and builds the Change here.
-    const more: Tree = [...cloneTree(appended), ...flat('y')]
+    // A new block moves blocks, and nothing here looks at the history first: the request is sent.
+    const more: Tree = [...cloneTree(swapped), ...flat('y')]
     const waited = Date.now()
-    const timedOut = await updateTree('/turned', more, {checkMoveHistory: false, prepareTimeoutMs: 1_500})
+    const edited = await updateTree('/turned', more, {prepareTimeoutMs: 1_500})
     expect(Date.now() - waited).toBeLessThan(6_000)
-    expect(timedOut.got).toEqual(toShape(more))
-    expect(timedOut.update.changed && timedOut.update.builtBy).toBe('local')
-    expect(timedOut.update.changed && timedOut.update.localReason).toContain('did not answer within 1.5 s')
+    expect(edited.got).toEqual(toShape(more))
+    if (!edited.update.changed) throw new Error('expected a change')
+    if (edited.update.builtBy === 'server') {
+      reportStats('UNANSWERED the daemon answered for a document with an inversion in its history (it has the fix)')
+      return
+    }
+
+    // The daemon never answered; the helper stopped waiting after its timeout and built the
+    // Change here.
+    expect(edited.update.localReason).toContain('did not answer within 1.5 s')
 
     // The abandoned request is still running in the daemon and will not stop. Kill the daemon
     // and start it again on the same data, so nothing is left spinning and the rest is checked
@@ -888,7 +893,7 @@ describe('document updates through PrepareDocumentChange', () => {
     expect(shape((await readDocument('/turned')).content)).toEqual(toShape(more))
     // The helper remembers the unanswered document and does not ask again for a while.
     const after: Tree = [...cloneTree(more), ...flat('x')]
-    const remembered = await updateTree('/turned', after, {checkMoveHistory: false, prepareTimeoutMs: 1_500})
+    const remembered = await updateTree('/turned', after, {prepareTimeoutMs: 1_500})
     expect(remembered.got).toEqual(toShape(after))
     expect(remembered.update.changed && remembered.update.localReason).toContain('did not answer an earlier request')
     expect(daemonCpu()).toBeLessThan(50)

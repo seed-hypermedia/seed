@@ -58,7 +58,7 @@ const CHANGES = {
 }
 
 describe('resolveDocumentState', () => {
-  it('reports the latest head timestamp to the millisecond, and every change of the history', async () => {
+  it('reports the latest head timestamp to the millisecond', async () => {
     const docId = id(`hm://${SPACE_A}/notes`)
     const OTHER = 'bafyreihlnsrncs74ilkjhpl5zbhiyix5rip2kntvkca72gsxr2pspms3sm'
     const client = stubClient({
@@ -76,7 +76,6 @@ describe('resolveDocumentState', () => {
     const state = await resolveDocumentState(client, packHmId(docId))
     expect(state.heads).toEqual([HEAD, OTHER])
     expect(state.headTs).toBe(Date.parse('2026-11-17T08:00:01Z'))
-    expect(state.changeIds).toEqual([GENESIS, HEAD, OTHER])
     // A server that does not say when a head was made leaves the time unknown.
     const bare = stubClient({resources: {}, changes: {[packHmId(docId)]: CHANGES}})
     expect((await resolveDocumentState(bare, packHmId(docId))).headTs).toBeUndefined()
@@ -122,7 +121,6 @@ describe('resolveEditableDocument', () => {
     expect(base.redirect).toBeNull()
     expect(base.targetId).toEqual(docId)
     expect(base.state).toMatchObject({genesis: GENESIS, heads: [HEAD], headDepth: 1, version: HEAD})
-    expect(base.state.changeIds).toEqual([GENESIS, HEAD])
   })
 
   it('follows a republish redirect to the target and reports the redirect', async () => {
