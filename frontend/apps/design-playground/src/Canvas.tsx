@@ -33,10 +33,10 @@ export function storyUrl(id: string): string {
   return url.href
 }
 const buttonDefaultOptions = [
-  {variant: 'ghost', label: 'A · ghost (current): no background until hover'},
+  {variant: 'ghost', label: 'A · ghost: no background until hover'},
   {variant: 'outline', label: 'B · outline: bordered, neutral fill'},
   {variant: 'secondary', label: 'C · secondary: soft neutral fill'},
-  {variant: 'default', label: 'D · default: primary fill'},
+  {variant: 'default', label: 'D · default (current): primary fill'},
 ] as const
 function Composition({title, children}: {title: string; children: ReactNode}) {
   return (
@@ -118,8 +118,8 @@ export function Canvas() {
         <Composition title="Button default options">
           <div className="flex flex-col gap-4">
             <Text size="sm" color="muted">
-              Candidates for what a plain {'<Button>'} renders. Production call sites now pass their variant explicitly,
-              so changing the default only affects new code.
+              A plain {'<Button>'} now renders option D. Production call sites pass their variant explicitly, so the
+              default only affects new code.
             </Text>
             {buttonDefaultOptions.map((option) => (
               <div key={option.variant} className="flex flex-col gap-2 border-t pt-3">
