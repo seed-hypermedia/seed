@@ -90,7 +90,6 @@ describe('deleteWebDocuments', () => {
     expect(publish).toHaveBeenCalledTimes(2)
     expect(invalidateQueriesMock).toHaveBeenCalled()
     expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_DIRECTORY'], {refetchType: 'all'})
-    expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_UNREFERENCED', 'uid-1'], {refetchType: 'all'})
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         deletedDocumentId: ids[0]!.id,

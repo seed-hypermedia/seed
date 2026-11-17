@@ -64,6 +64,17 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Drop the unreferenced-document index. Its writes and its RPC were disabled
+	// on 2026-09-15 and the tables have stayed empty since; sidebar navigation now
+	// comes from Card embeds on the client. Nothing reads them, so no reindex.
+	{Version: "2026-11-16.135116", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS document_reference_targets_by_target;
+			DROP TABLE IF EXISTS document_reference_targets;
+			DROP TABLE IF EXISTS document_reference_summaries;
+		`))
+	}},
+
 	// Initialize the derived authority graph with earliest-mention provenance
 	// and its membership cache. MaybeReindex backfills them from validated
 	// structural blobs before startup completes, without a full reindex or

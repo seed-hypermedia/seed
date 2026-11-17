@@ -465,26 +465,12 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	// collection may well carry an icon. Only the storing of FirstImage stays
 	// gated.
 	if !isTombstone && appliedNewChanges && ictx.deriveDocFields != nil && len(dg.Heads) > 0 {
-		isCurrentGeneration, err := sqlitex.QueryOne[int](conn, `
-			SELECT NOT EXISTS (
-				SELECT 1 FROM document_generations
-				WHERE resource = ? AND generation > ?
-			)
-		`, dg.ResourceID, dg.Generation)
-		if err != nil {
-			return err
-		}
 		headIDs := slices.Collect(maps.Keys(dg.Heads))
 		changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
 		if cerr != nil {
 			ictx.log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(iri)), zap.Error(cerr))
 		} else if fields, derr := ictx.deriveDocFields(iri, changes); derr != nil {
 			ictx.log.Warn("FailedToDeriveDocFields", zap.String("iri", string(iri)), zap.Error(derr))
-			if isCurrentGeneration != 0 {
-				if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-					return err
-				}
-			}
 		} else {
 			// The timestamp rides at the generation's latest alive Ref time so that
 			// a late-arriving older Ref which completes the merge still wins the LWW
@@ -499,11 +485,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 			}
 
 			dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
-			if isCurrentGeneration != 0 {
-				if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, fields.ReferencedDocuments, fields.HasSelfQuery, true); err != nil {
-					return err
-				}
-			}
 		}
 	}
 
@@ -1066,12 +1047,8 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
 	if cerr != nil {
 		log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(k.IRI)), zap.Error(cerr))
-		if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-			return 0, false, err
-		}
-		// Stamp the legacy marker independently as well, so neither half of the
-		// combined worker can select this permanently unreadable generation in a
-		// tight loop. Readers still see the failed reference status as incomplete.
+		// Stamp the collection marker anyway, so the backfill never selects this
+		// permanently unreadable generation in a tight loop.
 		dg.Metadata.set(IsCollectionAttr, false, dg.LastAliveRefTime)
 		if err := dg.save(conn); err != nil {
 			return 0, false, err
@@ -1101,9 +1078,6 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 		// clients act on it by skipping their fallback fetch — a claim this
 		// failure gives no grounds to make.
 		dg.Metadata.set(IsCollectionAttr, false, ts)
-		if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-			return changesReplayed, false, err
-		}
 		if err := dg.save(conn); err != nil {
 			return changesReplayed, false, err
 		}
@@ -1118,53 +1092,12 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 		dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
 	}
 	dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
-	if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, fields.ReferencedDocuments, fields.HasSelfQuery, true); err != nil {
-		return changesReplayed, false, err
-	}
 
 	if err := dg.save(conn); err != nil {
 		return changesReplayed, false, err
 	}
 
 	return changesReplayed, true, nil
-}
-
-func replaceDocumentReferenceSummary(conn *sqlite.Conn, resource, generation int64, genesis string, heads map[int64]struct{}, targets []string, hasSelfQuery, success bool) error {
-	// Temporarily keep the unreferenced-document index dormant while its issues
-	// are addressed. The schema remains in place so this can be re-enabled
-	// without another migration.
-	const enabled = false
-	if !enabled {
-		return nil
-	}
-
-	headIDs := slices.Collect(maps.Keys(heads))
-	slices.Sort(headIDs)
-	headsJSON, err := json.Marshal(headIDs)
-	if err != nil {
-		return err
-	}
-	status := 2
-	if success {
-		status = 1
-	}
-	if err := sqlitex.Exec(conn, `INSERT INTO document_reference_summaries (resource, generation, genesis, heads, status, has_self_query)
-		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(resource) DO UPDATE SET generation=excluded.generation, genesis=excluded.genesis,
-		heads=excluded.heads, status=excluded.status, has_self_query=excluded.has_self_query`, nil,
-		resource, generation, genesis, string(headsJSON), status, hasSelfQuery); err != nil {
-		return err
-	}
-	if err := sqlitex.Exec(conn, `DELETE FROM document_reference_targets WHERE parent = ?`, nil, resource); err != nil {
-		return err
-	}
-	if success {
-		for _, target := range targets {
-			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO document_reference_targets (parent, target_iri) VALUES (?, ?)`, nil, resource, target); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // deriveAllDocFields derives the document-level derived fields once per document

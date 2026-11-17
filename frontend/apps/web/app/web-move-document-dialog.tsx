@@ -604,9 +604,6 @@ function getMoveCleanupInputsForMoves(
 
 function invalidateMoveQueries(moves: PlannedMove[]) {
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
-  new Set(moves.flatMap(({from, to}) => [from.uid, to.uid])).forEach((uid) => {
-    invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
-  })
   moves.forEach(({from, to}) => {
     const affectedIds = [from, to]
     affectedIds.forEach((id) => {

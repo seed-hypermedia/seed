@@ -468,15 +468,6 @@ func TestListDocuments(t *testing.T) {
 	testutil.StructsEqual(list, list2).Compare(t, "list with no account ID must be allowed")
 }
 
-func TestListUnreferencedDocuments(t *testing.T) {
-	t.Parallel()
-	alice := newTestDocsAPI(t, "alice")
-	account := alice.me.Account.PublicKey.String()
-
-	_, err := alice.ListUnreferencedDocuments(t.Context(), &documents.ListUnreferencedDocumentsRequest{Account: account})
-	require.Equal(t, codes.Unavailable, status.Code(err))
-}
-
 func TestGetDocumentWithVersion(t *testing.T) {
 	t.Parallel()
 
