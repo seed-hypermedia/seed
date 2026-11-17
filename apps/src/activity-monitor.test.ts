@@ -10,6 +10,39 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 describe('activity monitor', () => {
+  test('asks the feed for document attribute mentions, which its default list leaves out', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const account = blobs.principalToString(blobs.generateNobleKeyPair().principal)
+    const requests: Array<Record<string, unknown>> = []
+    const service = {
+      processActivityEvent: async () => ({checked: 1, matched: 0, fired: 0, skipped: 0, errors: 0}),
+    } as unknown as apisvc.Service
+    try {
+      insertEnabledTrigger(db, dataDir, account, 1)
+      const monitor = new ActivityMonitor(db, service, {
+        hmServerUrl: 'https://hm.example',
+        pollIntervalMs: 1000,
+        pageSize: 10,
+        maxPagesPerPoll: 1,
+        client: {
+          request: async (_key: string, input: Record<string, unknown>) => {
+            requests.push(input)
+            return {events: [], nextPageToken: ''}
+          },
+        } as never,
+      })
+      await monitor.pollOnce()
+      expect(requests).toHaveLength(1)
+      const types = requests[0]?.filterEventType as string[]
+      expect(types).toContain('metadata/Link')
+      // The comment and citation types every other trigger depends on are still requested.
+      expect(types).toEqual(expect.arrayContaining(['Comment', 'Ref', 'comment/Embed', 'doc/Embed', 'doc/Link']))
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('first poll processes events observed after trigger creation', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const account = blobs.principalToString(blobs.generateNobleKeyPair().principal)

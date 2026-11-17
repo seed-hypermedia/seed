@@ -1,5 +1,8 @@
 import {describe, expect, it, vi} from 'vitest'
-import {listBlockCitationEvents} from '../api-activity'
+import {ListEvents, listBlockCitationEvents} from '../api-activity'
+
+// ListEvents builds its own request cache; hand it the same stub the other tests pass in.
+vi.mock('../request-cache', () => ({createRequestCache: () => makeCache()}))
 
 const paper = 'hm://z6MkOwner/paper'
 
@@ -105,6 +108,60 @@ describe('listBlockCitationEvents', () => {
       expect((result.events[0] as any).source.id.version).toBeNull()
       expect(cache.getDocument).toHaveBeenCalledWith({account: 'z6MkOwner', path: '/paper', version: undefined})
     } finally {
+      warnSpy.mockRestore()
+    }
+  })
+})
+
+describe('ListEvents', () => {
+  it('resolves a document attribute naming an account instead of dropping the event', async () => {
+    const site = 'z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh'
+    const owner = 'z6Mkj6fUDHMAvGm1MRqtjrBH5vLX5gQnDYh2f74NRFfccbVt'
+    const cid = 'bafyreih34oqhzivq6xhrsetg3tgrcnrmg4giwysh34wktgcz6ph736kxka'
+    const feed = {
+      events: [
+        {
+          account: site,
+          eventTime: '2026-11-17T16:47:14.812Z',
+          observeTime: '2026-11-17T16:47:18Z',
+          newMention: {
+            source: `hm://${site}/tasks/comment-on-web-crashes`,
+            sourceType: 'metadata/Link',
+            sourceContext: 'Owner',
+            sourceBlob: {cid, author: site, createTime: '2026-11-17T16:47:14.812Z'},
+            sourceDocument: '',
+            target: `hm://${owner}`,
+            targetVersion: '',
+            targetFragment: '',
+          },
+        },
+      ],
+      nextPageToken: '',
+    }
+    const listEvents = vi.fn(async () => ({toJson: () => feed}))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const result = await ListEvents.getData(
+        {activityFeed: {listEvents}} as any,
+        {
+          filterEventType: ['metadata/Link'],
+        } as any,
+        (async () => null) as any,
+      )
+
+      expect(result.events).toHaveLength(1)
+      expect(result.events[0]).toMatchObject({
+        type: 'citation',
+        citationType: 'd',
+        metadataKey: 'Owner',
+        feedEventId: `mention-${cid}--hm://${owner}`,
+        target: {id: {uid: owner}},
+        source: {id: {uid: site, path: ['tasks', 'comment-on-web-crashes']}},
+      })
+      expect(warnSpy).not.toHaveBeenCalledWith('Unknown event type: metadata/link')
+    } finally {
+      errorSpy.mockRestore()
       warnSpy.mockRestore()
     }
   })
