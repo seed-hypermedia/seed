@@ -390,10 +390,8 @@ func TestWriterCheck_OwnersSessionKey(t *testing.T) {
 	require.Equal(t, []cid.Cid{change.CID}, got)
 }
 
-// TestWriterCheck_DirectWriter covers the fast path of the split writer check: a
-// non-owner with a direct WRITER capability from the owner writing into the
-// owner's space. This is the common case isValidWriter optimizes (it must match
-// on qIsValidWriterDirect alone, never reaching the agent-chain branch).
+// TestWriterCheck_DirectWriter covers a non-owner with a direct WRITER
+// capability writing into the owner's space.
 func TestWriterCheck_DirectWriter(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	bob := coretest.NewTester("bob").Account
@@ -435,18 +433,17 @@ func TestWriterCheck_DirectWriter(t *testing.T) {
 }
 
 // TestWriterValidityCache covers the in-memory cache primitive used by
-// isValidWriter: nil-safety and get/put/clear semantics.
+// isValidWriter: nil-safety and get/put semantics.
 func TestWriterValidityCache(t *testing.T) {
 	// A nil cache is a no-op: never panics, always misses.
-	var nilc *writerValidityCache
+	var nilc *indexBatch
 	_, ok := nilc.get("k")
 	require.False(t, ok)
 	nilc.put("k", true)
-	nilc.clear()
 	_, ok = nilc.get("k")
 	require.False(t, ok)
 
-	c := newWriterValidityCache()
+	c := newIndexBatch()
 	_, ok = c.get("k")
 	require.False(t, ok, "empty cache misses")
 
@@ -460,16 +457,16 @@ func TestWriterValidityCache(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, v, "negative results are cached too")
 
-	c.clear()
+	clear(c.writers)
 	_, ok = c.get("k")
-	require.False(t, ok, "clear drops all entries")
+	require.False(t, ok, "clearing drops all entries")
 	_, ok = c.get("k2")
 	require.False(t, ok)
 }
 
 // TestWriterCheck_CacheConsultedAndInvalidated verifies the isValidWriter cache
 // (a) never changes the computed result, (b) is actually consulted on a hit, and
-// (c) is dropped by clear() — the invalidation indexCapability performs whenever
+// (c) is dropped on flush — the invalidation flushAuthority performs whenever
 // a capability changes, which is what keeps the cache correct under a future
 // capability revocation.
 func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
@@ -498,7 +495,7 @@ func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
 	other := must.Do2(NewIRI(alice.Principal(), "/other"))   // bob has no capability here
 
 	// (a) Correct results with a live cache.
-	cache := newWriterValidityCache()
+	cache := newIndexBatch()
 	got, err := isValidWriter(conn, bobID, shared, cache)
 	require.NoError(t, err)
 	require.True(t, got, "bob holds a WRITER capability on /shared")
@@ -508,15 +505,15 @@ func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
 
 	// (b) The cache is actually consulted: poison the /other entry and observe the
 	// stale value served without touching the DB.
-	otherKey := writerCacheKey(aliceID, bobID, string(must.Do2(json.Marshal(other.Breadcrumbs()))))
+	otherKey := writerCacheKey(aliceID, bobID, authorityScopesJSON(other))
 	cache.put(otherKey, true)
 	got, err = isValidWriter(conn, bobID, other, cache)
 	require.NoError(t, err)
 	require.True(t, got, "poisoned cache entry is served (proves the cache is read)")
 
-	// (c) clear() restores correctness — this is what indexCapability does on any
-	// capability change, including a future revocation.
-	cache.clear()
+	// (c) Dropping memoized results restores correctness — this is what
+	// flushAuthority does after any capability change.
+	clear(cache.writers)
 	got, err = isValidWriter(conn, bobID, other, cache)
 	require.NoError(t, err)
 	require.False(t, got, "after clear the result is recomputed from the DB")

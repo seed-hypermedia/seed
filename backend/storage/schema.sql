@@ -8,6 +8,51 @@ CREATE TABLE kv (
     value TEXT
 ) WITHOUT ROWID;
 
+-- Interned authority graph identities with earliest-mention provenance.
+-- ts is the signed Unix millisecond timestamp; blob_key is the canonical CID
+-- used to break timestamp ties independently of local blob IDs.
+-- Reference-only identities have all three provenance columns NULL.
+CREATE TABLE keyline_nodes (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL CHECK (name != ''),
+    blob_id INTEGER CHECK (blob_id > 0),
+    ts INTEGER,
+    blob_key TEXT CHECK (blob_key != ''),
+    CHECK ((blob_id IS NULL AND ts IS NULL AND blob_key IS NULL) OR (blob_id IS NOT NULL AND ts IS NOT NULL AND blob_key IS NOT NULL))
+) STRICT;
+
+CREATE TABLE keyline_delegations (
+    id TEXT PRIMARY KEY CHECK (id != ''),
+    issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE keyline_revocations (
+    id TEXT PRIMARY KEY CHECK (id != ''),
+    issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    target TEXT NOT NULL CHECK (target != ''),
+    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX keyline_outgoing ON keyline_delegations (subject, issuer);
+CREATE INDEX keyline_delegations_by_issuer ON keyline_delegations (issuer);
+CREATE INDEX keyline_delegations_by_audience ON keyline_delegations (audience);
+CREATE INDEX keyline_targeting ON keyline_revocations (target);
+CREATE INDEX keyline_revocations_by_issuer ON keyline_revocations (issuer);
+
+-- Effective authority memberships derived from the Keyline graph.
+CREATE TABLE keyline_members (
+    subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    member INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+    PRIMARY KEY (subject, member)
+) WITHOUT ROWID;
+
+CREATE INDEX keyline_members_by_member ON keyline_members (member, subject);
+
 -- Stores the public keys that we know about.
 -- The public key is stored in a principal encoding,
 -- which is `<pub-key-type-multicodec><pub-key-bytes>`.
