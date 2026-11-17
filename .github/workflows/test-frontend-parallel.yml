@@ -174,10 +174,11 @@ jobs:
   # Job 2: Integration tests (real daemon + built web server). Run on every frontend
   # pull request and whenever a calling workflow asks for them. They were PR-gated
   # from 2026-08-28 to 2026-09-15, during which the republish SSR regression (#1120)
+  # Pinned to 24.04: Playwright 1.57 cannot install Chromium deps on the ubuntu-latest (26.04) image.
   # shipped in seven releases with no CI signal.
   integration-tests:
     if: inputs.run-integration-tests || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - name: Checkout code
@@ -353,10 +354,11 @@ jobs:
   # commented-out commands below) — keeping it in the matrix just burned a
   # runner and 30 s of install for an echo statement. When desktop E2E is
   # re-enabled, re-add `desktop` to the list and drop the `if:` guard on
+  # Pinned to 24.04: Playwright 1.57 cannot install Chromium deps on the ubuntu-latest (26.04) image.
   # the Playwright-cache step below.
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
