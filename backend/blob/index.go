@@ -1,6 +1,7 @@
 package blob
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -784,7 +785,43 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		outErr = errors.Join(outErr, check())
 	}
 
-	return it, check
+	return causalOrder(it), check
+}
+
+// causalOrder puts dependencies first among changes with the same timestamp.
+// qIterChangesFromHeads orders changes by timestamp, but a change may carry
+// the same timestamp as a change it depends on, and its depth is always
+// greater. Only runs of equal timestamps are buffered.
+func causalOrder(changes iter.Seq[ChangeRecord]) iter.Seq[ChangeRecord] {
+	return func(yield func(ChangeRecord) bool) {
+		var run []ChangeRecord
+
+		flush := func() bool {
+			slices.SortStableFunc(run, compareChangeDepth)
+			for _, c := range run {
+				if !yield(c) {
+					return false
+				}
+			}
+
+			run = run[:0]
+			return true
+		}
+
+		for c := range changes {
+			if len(run) > 0 && !run[0].Data.Ts.Equal(c.Data.Ts) && !flush() {
+				return
+			}
+
+			run = append(run, c)
+		}
+
+		flush()
+	}
+}
+
+func compareChangeDepth(a, b ChangeRecord) int {
+	return cmp.Compare(a.Data.Depth, b.Data.Depth)
 }
 
 var qIterChangesFromHeads = dqb.Str(`
@@ -896,7 +933,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		outErr = errors.Join(outErr, check())
 	}
 
-	return it, check
+	return causalOrder(it), check
 }
 
 // ResolveVersion resolves the generation and visibility an explicit version of
@@ -1087,6 +1124,11 @@ func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Rows come in timestamp order; ties put dependencies first. See causalOrder.
+	slices.SortStableFunc(out, func(a, b ChangeRecord) int {
+		return cmp.Or(a.Data.Ts.Compare(b.Data.Ts), compareChangeDepth(a, b))
+	})
 
 	return out, nil
 }
