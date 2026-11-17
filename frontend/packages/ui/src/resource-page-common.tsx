@@ -237,7 +237,7 @@ import {
   useResolvedSchema,
 } from './schema/schema-resolve'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
-import {SiteHeader} from './site-header'
+import {EditNavPanePlacementContext, SiteHeader} from './site-header'
 import {useSpaceHome, useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
 import {SizableText, Text} from './text'
@@ -1179,6 +1179,7 @@ function ResourcePageContent({
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
   const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
+  const [editNavMenuPortalElement, setEditNavMenuPortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
@@ -1575,6 +1576,7 @@ function ResourcePageContent({
       fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
       fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
       editNavPanePortalRef={setEditNavPanePortalElement}
+      editNavMenuPortalRef={setEditNavMenuPortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
@@ -1604,6 +1606,12 @@ function ResourcePageContent({
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
+        {editNavPane && editNavMenuPortalElement
+          ? createPortal(
+              <EditNavPanePlacementContext.Provider value="menu">{editNavPane}</EditNavPanePlacementContext.Provider>,
+              editNavMenuPortalElement,
+            )
+          : null}
         <AttributeAutocompleteProvider value={attributeAutocomplete}>
           <DocumentBody
             routeDocId={docId}
@@ -1761,6 +1769,7 @@ export interface PageShellProps {
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from an active document machine. */
@@ -1782,6 +1791,7 @@ export function PageShell({
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1845,6 +1855,7 @@ export function PageShell({
           rightActions={rightActions}
           editNavPane={editNavPanePortalRef ? undefined : editNavPane}
           editNavPanePortalRef={editNavPanePortalRef}
+          editNavMenuPortalRef={editNavMenuPortalRef}
         />
         <TransientResourceBanner error={transientResourceError ?? null} />
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
@@ -1863,6 +1874,7 @@ export function PageWrapper({
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1878,6 +1890,7 @@ export function PageWrapper({
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from a document machine mounted inside this wrapper. */
@@ -1889,7 +1902,7 @@ export function PageWrapper({
   fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
-  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // navigation changes held in a home draft show immediately in
   // the visible site header. Mirrors the legacy draft route at
   // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
   // outside DocumentMachineProvider (loading/error/discovery branches), in
@@ -1908,6 +1921,7 @@ export function PageWrapper({
       rightActions={rightActions}
       editNavPane={editNavPane}
       editNavPanePortalRef={editNavPanePortalRef}
+      editNavMenuPortalRef={editNavMenuPortalRef}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveItems}
       onPrefetchDocument={onPrefetchDocument}

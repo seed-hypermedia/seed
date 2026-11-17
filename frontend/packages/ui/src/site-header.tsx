@@ -65,6 +65,8 @@ function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedH
     .sort((a, b) => (b.id?.path?.length ?? 0) - (a.id?.path?.length ?? 0))[0]?.key
 }
 
+export const EditNavPanePlacementContext = React.createContext<'header' | 'menu'>('header')
+
 export function SiteHeader({
   siteHomeId,
   docId,
@@ -81,6 +83,7 @@ export function SiteHeader({
   isLatest: _isLatest,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   wrapperClassName,
   notifyServiceHost: _notifyServiceHost,
   routeType,
@@ -102,6 +105,7 @@ export function SiteHeader({
   isLatest?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
@@ -260,6 +264,16 @@ export function SiteHeader({
                     />
                   </div>
                 )}
+                {editNavPane || editNavMenuPortalRef ? (
+                  // Collapse for readers who aren't the owner.
+                  <div ref={editNavMenuPortalRef} className="-mt-2 mb-4 flex flex-col px-1 empty:hidden">
+                    {editNavPane ? (
+                      <EditNavPanePlacementContext.Provider value="menu">
+                        {editNavPane}
+                      </EditNavPanePlacementContext.Provider>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!IS_DESKTOP && (
                   <div className="mb-4 flex flex-col gap-2 px-1">
                     <AssistantPanelMenuItem onClick={() => setIsMobileMenuOpen(false)} />
@@ -471,7 +485,7 @@ export function SiteHeaderMenu({
     <div
       ref={containerRef}
       className={cn(
-        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
+        'group/nav relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
         'md:flex md:py-1 md:pr-0 md:pl-2',
         isCenterLayout ? 'justify-center' : 'justify-start',
       )}
@@ -537,7 +551,8 @@ export function SiteHeaderMenu({
       )}
       {(editNavPane || editNavPanePortalRef) && (
         <div
-          className="shrink-0"
+          // Shown on hover on desktop and always on mobile.
+          className="shrink-0 opacity-0 transition-opacity group-hover/nav:opacity-100 focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
           ref={(node) => {
             editNavPaneRef.current = node
             editNavPanePortalRef?.(node)

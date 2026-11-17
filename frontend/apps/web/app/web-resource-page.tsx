@@ -75,6 +75,7 @@ import {processPendingIntent} from './pending-intent'
 import {openWebDomainSettings} from './models/domain-publishing'
 import {useCanOpenSpaceSettings} from './components/web-space-settings-menu'
 import {CreateSpaceProvider} from '@shm/ui/create-space-context'
+import {WebHeaderAddLink} from './components/web-space-settings-menu'
 import {useCreateSpaceDialog, useHasExistingSpace, usePublishSpaceDraft} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
@@ -842,6 +843,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                               profileHeaderButtons={profileHeaderButtons}
                               onFollowClick={onFollowClick}
                               rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                              editNavPane={<WebHeaderAddLink siteUid={docId.uid} />}
                               optionsMenuItems={optionsMenuItems}
                               fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                               fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
