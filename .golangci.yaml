@@ -49,6 +49,10 @@ linters:
         path: _test\.go
         text: weak random number generator
       - linters:
+          - govet
+        path: _test\.go
+        text: struct literal uses unkeyed fields
+      - linters:
           - revive
         text: if-return
       - linters:
