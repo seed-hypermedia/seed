@@ -42,11 +42,11 @@ The control plane is signed the same way. Every request to an app environment is
 - To understand the runtime: [system overview](./app-environment/system-overview.md), then [tools](./app-environment/tools.md), [triggers](./app-environment/triggers.md), [persistence](./app-environment/persistence.md), [durable sessions](./app-environment/durable-sessions.md), the [effect outbox](./app-environment/effect-outbox.md), and [security](./app-environment/security.md). <!-- id:BvDmGUR0 -->
 - To talk to a server from your own code: [signed API](./app-environment/signed-api.md) and [WebSocket subscriptions](./app-environment/websocket-subscriptions.md). <!-- id:pfZb1MX5 -->
 - To run or deploy a server: [operations](./app-environment/operations.md), [environments](./app-environment/environments.md), [model providers](./app-environment/model-providers.md), and [troubleshooting](./app-environment/troubleshooting.md). <!-- id:WNPnKf7v -->
-- To change the code: [development](./app-environment/development.md) has the code map and the commands. The [roadmap](./app-environment/roadmap.md) and the open [plans](./app-environment/plans/speed.md) say where this is going. The build history that used to live here is in git. <!-- id:MQefzS0T -->
+- To change the code: [development](./app-environment/development.md) has the code map and the commands. The [roadmap](./app-environment/roadmap.md) and the [plans](./app-environment/plans.md) say where this is going. The build history that used to live here is in git. <!-- id:MQefzS0T -->
 
 # See also <!-- id:DjNqP3PQ -->
 
-- [App environment](./apps/app-environment.md) for the software and how it ships. <!-- id:C9tvvzFn -->
+- [App environment reference](./app-environment.md) for every reference page, term by term. <!-- id:C9tvvzFn -->
 - [Building agents on Seed](./build/agents.md) for external agents that use the CLI. <!-- id:IT0c7_0G -->
 - [Permissions](./protocol/permissions.md) for the `WRITER` and `AGENT` roles an agent receives. <!-- id:tsaPdU6_ -->
 - [Identity](./protocol/identity.md) for accounts and keys. <!-- id:qx-0dmsn -->

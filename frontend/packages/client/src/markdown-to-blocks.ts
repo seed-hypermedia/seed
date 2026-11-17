@@ -1190,6 +1190,15 @@ export function parseMarkdown(
   // Blocks that got children without a marker are Group parents.
   const finalize = (nodes: BlockNode[]) => {
     for (const n of nodes) {
+      // A children type spelled in `attrs:` (Grid has no marker of its own) is the block's children
+      // type, kept where every other children type lives rather than among the extra attributes.
+      const explicit = n.block.attributes?.childrenType
+      if (typeof explicit === 'string') {
+        const {childrenType: _childrenType, ...rest} = n.block.attributes!
+        n.block.childrenType = explicit
+        if (Object.keys(rest).length) n.block.attributes = rest
+        else delete n.block.attributes
+      }
       if (n.children.length && !n.block.childrenType && n.block.type !== 'Table' && n.block.type !== 'TableRow') {
         n.block.childrenType = 'Group'
       }

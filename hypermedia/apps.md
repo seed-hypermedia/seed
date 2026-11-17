@@ -74,3 +74,29 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 An [app](./apps/apps-and-tools.md) is a document that lists its tools, pages and [triggers](./apps/triggers.md).
 
 A [custom HTML page](./apps/document-pages.md) is not a component but a kind of document: one whose `html` metadata names a UnixFS folder that the desktop opens as a sandboxed HTML page.
+
+# The programs, one page each <!-- id:tZmvGBXl attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./apps/app-environment.md> <!-- id:Qo1lEcy8 type:Embed attrs:{"view":"Card"} -->
+
+<./apps/apps-and-tools.md> <!-- id:fCOidTL6 type:Embed attrs:{"view":"Card"} -->
+
+<./apps/cli.md> <!-- id:RtD9o77C type:Embed attrs:{"view":"Card"} -->
+
+<./apps/daemon.md> <!-- id:4aysBe2u type:Embed attrs:{"view":"Card"} -->
+
+<./apps/desktop.md> <!-- id:MacRaRqz type:Embed attrs:{"view":"Card"} -->
+
+<./apps/document-pages.md> <!-- id:c9qhA35P type:Embed attrs:{"view":"Card"} -->
+
+<./apps/explorer.md> <!-- id:SDOytJ5w type:Embed attrs:{"view":"Card"} -->
+
+<./apps/mobile.md> <!-- id:C3TTrGji type:Embed attrs:{"view":"Card"} -->
+
+<./apps/notify.md> <!-- id:9aKBTeji type:Embed attrs:{"view":"Card"} -->
+
+<./apps/triggers.md> <!-- id:4cb17h7S type:Embed attrs:{"view":"Card"} -->
+
+<./apps/vault.md> <!-- id:EphtkFYe type:Embed attrs:{"view":"Card"} -->
+
+<./apps/web.md> <!-- id:k2FGfnXS type:Embed attrs:{"view":"Card"} -->

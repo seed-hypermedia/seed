@@ -17,3 +17,7 @@ Create and remove contacts with `seed-cli contact create --subject <uid> --name 
 - [profile](./profile.md): the name an account gives itself. <!-- id:2wBRY82P -->
 - [Sites](./protocol/sites.md): site members. <!-- id:fM8XiSa4 -->
 - [blob](./blob.md): the signed envelope. <!-- id:gsEkmi9E -->
+
+# Pages in this section <!-- id:Y3p3WaVT attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./contact/subscribe.md> <!-- id:FQQeqiLN type:Embed attrs:{"view":"Card"} -->

@@ -18,6 +18,7 @@
 //   7. bindings      `attributesSchema` / `childAttributesSchema` / `schemaDefinition` resolve
 //   8. frontmatter   every page has a name and a whole one-sentence summary
 //   9. tables        every table row has as many cells as its header (a raw `|` inside inline code splits a row)
+//  10. tree          every page has a parent page, and every parent shows a Card embed of each child (tree.mjs)
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
@@ -28,6 +29,7 @@ import {HM_DIR, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
 
 /** A reference's library name, checked against the files on disk. */
 const nameOf = (ref) => refToName(ref, (name) => existsSync(resolve(HM_DIR, `${name}.schema.json`)))
+import {findTreeProblems} from './tree.mjs'
 import {load, validate} from './validate.mjs'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
@@ -237,6 +239,20 @@ section('Every table row matches its header')
     }
   }
   if (!bad) ok('every table row matches its header')
+}
+
+// 10. Tree ───────────────────────────────────────────────────────────────────
+// A folder without its landing page publishes pages nobody can reach from above, and a parent that does not
+// show a child leaves it out of the site's navigation. The sync refuses to publish either (requireChildCards).
+section('Every page has a parent that shows its card')
+{
+  const {missingParents, missingCards} = findTreeProblems()
+  for (const [parent, children] of missingParents)
+    fail(parent, `missing: it is the parent page of ${children.slice(0, 3).join(', ')}${children.length > 3 ? `, … (${children.length} pages)` : ''}`)
+  for (const [parent, children] of missingCards)
+    for (const child of children)
+      fail(parent, `no Card embed of its child ${child} (node scripts/hypermedia/tree.mjs --fix adds it)`)
+  if (!missingParents.size && !missingCards.size) ok('every page has a parent page with a Card embed of it')
 }
 
 if (failures.length) {

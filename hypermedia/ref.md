@@ -18,3 +18,7 @@ Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `hea
 - [Seed API](./build/web-api.md): `Resource` returns a document, a redirect or a tombstone. <!-- id:6dVqgLC7 -->
 - [change](./change.md): the blobs a Ref's heads point at. <!-- id:icR4eZUw -->
 - [ref/redirect-target](./ref/redirect-target.md): where a redirect sends readers. <!-- id:DW3vxLxf -->
+
+# Pages in this section <!-- id:K17RQNDO attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./ref/redirect-target.md> <!-- id:hNttLyOl type:Embed attrs:{"view":"Card"} -->

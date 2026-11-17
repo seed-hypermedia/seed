@@ -22,3 +22,15 @@ Op ids are `(ts, idx, actor)`: the Change's timestamp, the op's position counter
 - [Documents](../protocol/documents.md): op ids, the CRDT rules and replay. <!-- id:0bBEwnNO -->
 - [Blocks](../protocol/blocks.md): what a block contains. <!-- id:_Km1h1dQ -->
 - [metadata](../metadata.md): the keys SetAttributes writes. <!-- id:btAHkrBi -->
+
+# The operations <!-- id:OxHD1H4G attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./op/delete-blocks.md> <!-- id:reeUVwvl type:Embed attrs:{"view":"Card"} -->
+
+<./op/move-blocks.md> <!-- id:taMwoWtH type:Embed attrs:{"view":"Card"} -->
+
+<./op/replace-block.md> <!-- id:bF22Ti6J type:Embed attrs:{"view":"Card"} -->
+
+<./op/set-attributes.md> <!-- id:4bymAZ5P type:Embed attrs:{"view":"Card"} -->
+
+<./op/set-key.md> <!-- id:sPjUbKc1 type:Embed attrs:{"view":"Card"} -->

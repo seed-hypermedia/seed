@@ -67,3 +67,7 @@ In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with th
 - [Typed documents](./schema/typed-documents.md): the schema-binding keys. <!-- id:YJsQMrfm -->
 - [navigation item](./metadata/navigation-item.md): the site menu. <!-- id:DYF6jNMP -->
 - [Seed API](./build/web-api.md): `ResourceMetadata` returns metadata. <!-- id:CaWZ_NsU -->
+
+# Pages in this section <!-- id:BVpU58jG attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./metadata/navigation-item.md> <!-- id:taijXciG type:Embed attrs:{"view":"Card"} -->

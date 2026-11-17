@@ -96,3 +96,79 @@ seed-cli blob validate -f value.json --schema <type URL>
 - [Hypermedia Schemas in one page](./schema/quick-reference.md): the features these examples follow. <!-- id:AcIT29Wj -->
 - [Typed documents](./schema/typed-documents.md): attributes schemas on real pages. <!-- id:7IMvkykK -->
 - [The World Builder](./schema/world-builder.md): the demo behind the world-builder types. <!-- id:NhbaWGTZ -->
+
+# Every example <!-- id:A7okslZo attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./example/address.md> <!-- id:4Rf80KGi type:Embed attrs:{"view":"Card"} -->
+
+<./example/admin.md> <!-- id:maqs8C59 type:Embed attrs:{"view":"Card"} -->
+
+<./example/alice.md> <!-- id:Lofpdmle type:Embed attrs:{"view":"Card"} -->
+
+<./example/app-block.md> <!-- id:GWGTZyzh type:Embed attrs:{"view":"Card"} -->
+
+<./example/article.md> <!-- id:lMlEVo4v type:Embed attrs:{"view":"Card"} -->
+
+<./example/blob.md> <!-- id:c99odiNe type:Embed attrs:{"view":"Card"} -->
+
+<./example/bob.md> <!-- id:lebNJcRl type:Embed attrs:{"view":"Card"} -->
+
+<./example/carol.md> <!-- id:K7R25cyN type:Embed attrs:{"view":"Card"} -->
+
+<./example/character-doc.md> <!-- id:05W9CTB4 type:Embed attrs:{"view":"Card"} -->
+
+<./example/comment.md> <!-- id:Es8F1AA9 type:Embed attrs:{"view":"Card"} -->
+
+<./example/constrained.md> <!-- id:zoefHwbU type:Embed attrs:{"view":"Card"} -->
+
+<./example/counts.md> <!-- id:Xe2z594M type:Embed attrs:{"view":"Card"} -->
+
+<./example/dave.md> <!-- id:4VdRaCEp type:Embed attrs:{"view":"Card"} -->
+
+<./example/document.md> <!-- id:CwktgzI6 type:Embed attrs:{"view":"Card"} -->
+
+<./example/employee.md> <!-- id:ZKRW1Rg0 type:Embed attrs:{"view":"Card"} -->
+
+<./example/entry.md> <!-- id:koGpz5Lc type:Embed attrs:{"view":"Card"} -->
+
+<./example/event-doc.md> <!-- id:5u42rMtb type:Embed attrs:{"view":"Card"} -->
+
+<./example/faction-doc.md> <!-- id:JFxfxxru type:Embed attrs:{"view":"Card"} -->
+
+<./example/file.md> <!-- id:Ui9Xmksu type:Embed attrs:{"view":"Card"} -->
+
+<./example/folder.md> <!-- id:l0XLenPn type:Embed attrs:{"view":"Card"} -->
+
+<./example/geo.md> <!-- id:246iB3MF type:Embed attrs:{"view":"Card"} -->
+
+<./example/json.md> <!-- id:UG05XpWm type:Embed attrs:{"view":"Card"} -->
+
+<./example/matrix.md> <!-- id:KdESht2s type:Embed attrs:{"view":"Card"} -->
+
+<./example/metadata.md> <!-- id:vDK6WRYk type:Embed attrs:{"view":"Card"} -->
+
+<./example/myapp-change.md> <!-- id:KQKgkggf type:Embed attrs:{"view":"Card"} -->
+
+<./example/person-doc.md> <!-- id:R2eT6KgB type:Embed attrs:{"view":"Card"} -->
+
+<./example/person.md> <!-- id:26SXTRXR type:Embed attrs:{"view":"Card"} -->
+
+<./example/place-doc.md> <!-- id:F7r5E8Td type:Embed attrs:{"view":"Card"} -->
+
+<./example/poll-block.md> <!-- id:Rn0MNLJS type:Embed attrs:{"view":"Card"} -->
+
+<./example/registry.md> <!-- id:mNXm92eT type:Embed attrs:{"view":"Card"} -->
+
+<./example/root.md> <!-- id:YHghdw38 type:Embed attrs:{"view":"Card"} -->
+
+<./example/stats.md> <!-- id:3p0Lmv5Z type:Embed attrs:{"view":"Card"} -->
+
+<./example/status.md> <!-- id:OYaPDqLa type:Embed attrs:{"view":"Card"} -->
+
+<./example/tags.md> <!-- id:Tc6AViHJ type:Embed attrs:{"view":"Card"} -->
+
+<./example/tree.md> <!-- id:biyZQVwO type:Embed attrs:{"view":"Card"} -->
+
+<./example/value.md> <!-- id:SA7USxeM type:Embed attrs:{"view":"Card"} -->
+
+<./example/world-doc.md> <!-- id:nMeBplZZ type:Embed attrs:{"view":"Card"} -->

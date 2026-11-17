@@ -85,3 +85,37 @@ The **peer protocol** is [libp2p](./protocol/network.md) with the protocol id `/
 - [The Seed software](./apps.md), a map of the programs these surfaces belong to. <!-- id:yVWdtHaJ -->
 - [Seed Agents](./agent.md), the hosted agent runtime. <!-- id:bUu8evms -->
 - [Glossary](./glossary.md), one-line definitions of every term. <!-- id:VqJpifp_ -->
+
+# The guides <!-- id:mMyz4HJB attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./build/agents.md> <!-- id:pQ5bL3F7 type:Embed attrs:{"view":"Card"} -->
+
+<./build/apps-ui.md> <!-- id:XAxY9LO6 type:Embed attrs:{"view":"Card"} -->
+
+<./build/cli.md> <!-- id:hPmJm9eo type:Embed attrs:{"view":"Card"} -->
+
+<./build/contributing.md> <!-- id:ZqziQgeM type:Embed attrs:{"view":"Card"} -->
+
+<./build/getting-started.md> <!-- id:tzbvCkWO type:Embed attrs:{"view":"Card"} -->
+
+<./build/grpc.md> <!-- id:CTTjS8hq type:Embed attrs:{"view":"Card"} -->
+
+<./build/keys.md> <!-- id:kSRC2MvV type:Embed attrs:{"view":"Card"} -->
+
+<./build/local-ci.md> <!-- id:3WSjo1pF type:Embed attrs:{"view":"Card"} -->
+
+<./build/publish-a-folder.md> <!-- id:aDy2OZlw type:Embed attrs:{"view":"Card"} -->
+
+<./build/query-grammar.md> <!-- id:xBg20jH8 type:Embed attrs:{"view":"Card"} -->
+
+<./build/releasing.md> <!-- id:B7qQsxr2 type:Embed attrs:{"view":"Card"} -->
+
+<./build/sdk.md> <!-- id:VAtraoD8 type:Embed attrs:{"view":"Card"} -->
+
+<./build/self-hosting.md> <!-- id:a0krLhQR type:Embed attrs:{"view":"Card"} -->
+
+<./build/sentry.md> <!-- id:fZcCqccx type:Embed attrs:{"view":"Card"} -->
+
+<./build/sign-in.md> <!-- id:maGsluvV type:Embed attrs:{"view":"Card"} -->
+
+<./build/web-api.md> <!-- id:vplTSOZ7 type:Embed attrs:{"view":"Card"} -->

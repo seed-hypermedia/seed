@@ -172,6 +172,7 @@ pnpm hypermedia:push -- --dry-run     # what a publish would create, update, mov
 
 Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Nothing publishes while any relative link is broken, so fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
+  - Nothing publishes while a page has no parent page, or a parent has no Card embed of a child. A new folder needs its landing page beside it, and `node scripts/hypermedia/tree.mjs --fix` adds the missing cards to the parents. <!-- id:tR3eRu1e -->
   - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
   - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
   - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->

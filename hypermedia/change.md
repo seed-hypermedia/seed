@@ -17,3 +17,9 @@ A Change alone does not change what readers see. A [Ref](./ref.md) that points a
 - [change/body](./change/body.md) and [change/op](./change/op.md): the operations. <!-- id:gPH5jraA -->
 - [Seed API](./build/web-api.md): `ListChanges` lists a document's Changes. <!-- id:mYSOepZn -->
 - [ref](./ref.md): the blob that points an address at a Change's heads. <!-- id:gBQE-w7g -->
+
+# Pages in this section <!-- id:mxMDTMXw attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./change/body.md> <!-- id:UDdFNq4s type:Embed attrs:{"view":"Card"} -->
+
+<./change/op.md> <!-- id:YSbtiDY2 type:Embed attrs:{"view":"Card"} -->

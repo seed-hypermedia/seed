@@ -51,7 +51,7 @@ The loop talks to the dev app's API on `http://localhost:58004` and to its daemo
 
 # How this documentation is published <!-- id:S9sJBMK0 -->
 
-The folder `hypermedia/` in the Seed repository is this site. A small script in the CLI package, `sync-hypermedia.ts`, wraps `space import`, `space export` and `space dev` with the folder's layout: `index.md` is the home document, `README.md` stays on GitHub, every other `<x>.md` publishes at `/<x>`, and a `*.schema.json` beside a page is the schema that page defines. Before anything is published the script encodes every schema file and checks its [CID](../protocol/blobs.md) against `schemas.lock.json`, then publishes the schema blobs first. <!-- id:PtSuOMus -->
+The folder `hypermedia/` in the Seed repository is this site. A small script in the CLI package, `sync-hypermedia.ts`, wraps `space import`, `space export` and `space dev` with the folder's layout: `index.md` is the home document, `README.md` stays on GitHub, every other `<x>.md` publishes at `/<x>`, and a `*.schema.json` beside a page is the schema that page defines. Before anything is published the script encodes every schema file and checks its [CID](../protocol/blobs.md) against `schemas.lock.json`, then publishes the schema blobs first. The layout also sets `requireChildCards`: the import refuses to publish while a page has no parent page (a folder without its landing page beside it) or a parent page has no Card embed of one of its children. `node scripts/hypermedia/tree.mjs` reports both offline and `--fix` adds the missing cards. <!-- id:PtSuOMus -->
 
 ```sh <!-- id:MTYNMnUm -->
 pnpm hypermedia:check                # offline consistency checks (schemas, lockfile, generated files, page names and summaries)
