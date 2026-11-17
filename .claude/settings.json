@@ -12,6 +12,7 @@
       "Bash(bash .agents/skills/security-audit/scripts/probes/*)",
       "Bash(scripts/crawler-load-test.py:*)",
       "Bash(bun scripts/profile-daemon.ts:*)",
+      "Bash(direnv exec . node scripts/hypermedia/publish.mjs)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)"
     ]

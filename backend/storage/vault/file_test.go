@@ -41,7 +41,7 @@ func TestGetKeyResolvesByPrincipalWhenNameDiffers(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -75,7 +75,7 @@ func TestLocal(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -151,7 +151,7 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, firstStore.Store(localVaultKEKName, "", keyMaterial))
 
-	first, err := New(dir, firstStore)
+	first, err := New(dir, firstStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -161,7 +161,7 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 	secondStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, secondStore.Store(localVaultKEKName, "", keyMaterial))
-	second, err := New(dir, secondStore)
+	second, err := New(dir, secondStore, withoutNetwork())
 	require.NoError(t, err)
 
 	got, err := second.GetKey(ctx, "main")
@@ -177,7 +177,7 @@ func TestLocalConcurrentReadsAndWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	mainKey, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -263,7 +263,7 @@ func TestLocalStoreKeyWithMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -304,7 +304,7 @@ func TestLocalRejectsInvalidConfiguration(t *testing.T) {
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", []byte("0123456789abcdef0123456789abcdef")))
-	_, err = New("relative/path", secretStore)
+	_, err = New("relative/path", secretStore, withoutNetwork())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "must be absolute")
 
@@ -391,7 +391,7 @@ func TestLocalRejectsUndecryptablePayload(t *testing.T) {
 		WrappedDEK:    mustWrapLocalTestDEK(t, keyMaterial),
 	}))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	_, err = ks.ListKeys(context.Background())
@@ -408,7 +408,7 @@ func TestLocalRejectsWrongKeyForExisting(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, firstStore.Store(localVaultKEKName, "", keyMaterial))
 
-	first, err := New(dir, firstStore)
+	first, err := New(dir, firstStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -418,7 +418,7 @@ func TestLocalRejectsWrongKeyForExisting(t *testing.T) {
 	secondStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, secondStore.Store(localVaultKEKName, "", differentKeyMaterial))
-	second, err := New(dir, secondStore)
+	second, err := New(dir, secondStore, withoutNetwork())
 	require.NoError(t, err)
 
 	_, err = second.ListKeys(ctx)
@@ -449,7 +449,7 @@ func TestLocalRejectsCorruptStatePayload(t *testing.T) {
 		WrappedDEK:    mustWrapExplicitTestDEK(t, keyMaterial, dek),
 	}))
 
-	ks, err := New(dir, secretStore)
+	ks, err := New(dir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	_, err = ks.ListKeys(context.Background())
