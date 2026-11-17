@@ -36,6 +36,7 @@ export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'>
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
   getSigner?: (accountUid: string) => HMSigner
+  watchChanges?: UniversalClient['watchChanges']
 }
 
 export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
@@ -137,6 +138,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     deleteRecent: deps.deleteRecent,
 
     getSigner: deps.getSigner,
+    watchChanges: deps.watchChanges,
 
     request: deps.request,
     publish: deps.publish,

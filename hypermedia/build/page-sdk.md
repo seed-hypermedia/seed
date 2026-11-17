@@ -38,7 +38,11 @@ How it works:
 - The watch starts with the bridge method `watch.start`. Its first answer is exactly what the one-time read would return, with the same permission rules.
 - After that, the host watches the data, not the page. The host reads again as the page when the data may have changed. It sends the new value (a `seed-data` message) only when the value is different from the last one it sent.
 - On desktop, the app's activity feed tells the host about changes, about a second after a change reaches the [node](../software/daemon.md). The watch also keeps the node syncing that data, as it does for an open document.
-- On the web there is no change feed. The host checks watched data every five seconds while the tab is visible.
+- On the web, the server follows the activity feed and the browser listens. When a page starts its first watch, the tab opens one event stream, `GET /hm/api/changes?r=<resource>&d=<directory>`, naming up to 32 addresses it watches (`d` covers a directory and everything below it).
+  - The stream only says "this address may have changed". It never carries content, so it needs no page permission. The read that follows still uses the page's own access.
+  - One web server process follows the feed once for all its streams, and only while at least one stream is open. An idle watch costs one open connection.
+  - While the stream is not live (connecting, dropped, refused because the server is at its stream limit, or silent for two missed heartbeats), the host checks watched data every 30 seconds and reconnects, waiting from one second up to a minute between tries. When the stream returns, watched data is read again once.
+  - A tab hidden for 15 seconds closes its stream and opens it again when shown.
 - A refresh never asks the viewer for permission. If no saved permission covers the read any more (a read allowed once, or a permission the viewer removed), the page keeps its last value and `onError` is called once. The next change tries again.
 - A write the page makes itself (`seed.publishDocument`, `seed.publish`, `seed.comments.create`) refreshes its watches as soon as the write is confirmed.
 - One page can hold at most 16 watches. They end when the page stops them, reloads, navigates away or closes.
