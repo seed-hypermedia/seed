@@ -56,6 +56,68 @@ func TestFetchSliceResetsIdle(t *testing.T) {
 	}
 }
 
+func TestFetchSliceExcludesSkippedWants(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		present   int
+		inflight  int
+		future    int64
+		hasError  bool
+		keepGoing bool
+	}{
+		{name: "requested backlog", keepGoing: true},
+		{name: "small tail", present: 50, inflight: 49},
+		{name: "all skipped", present: 50, inflight: 50},
+		{name: "unissued wants remain outstanding", present: 50, inflight: 49, future: 100, keepGoing: true},
+		{name: "failed Has still requests", present: 100, hasError: true, keepGoing: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tier := fetchTierState{wants: 200 + tt.future, downloaded: 100}
+
+			idx := &fetchClaimIndex{present: make(map[cid.Cid]bool)}
+			if tt.hasError {
+				idx.err = fmt.Errorf("Has failed")
+			}
+
+			var inflight sync.Map
+			var wants []cid.Cid
+
+			expected := make([]cid.Cid, 0)
+			for i := range 100 {
+				id := blocks.NewBlock([]byte(fmt.Sprintf("claim block %d", i))).Cid()
+				wants = append(wants, id)
+				switch {
+				case i < tt.present:
+					idx.present[id] = true
+				case i < tt.present+tt.inflight:
+					inflight.Store(string(id.Hash()), struct{}{})
+				default:
+					expected = append(expected, id)
+				}
+			}
+
+			if tt.hasError {
+				expected = wants
+			}
+
+			claimed := tier.claimWants(t.Context(), idx, &inflight, wants)
+			require.Equal(t, expected, claimed)
+			require.Equal(t, int64(100+len(claimed))+tt.future, tier.wants)
+			require.Equal(t, tt.keepGoing, shouldKeepDrainingTier(tier.wants-tier.downloaded, tier.wants, 1))
+		})
+	}
+}
+
+type fetchClaimIndex struct {
+	Index
+	present map[cid.Cid]bool
+	err     error
+}
+
+func (idx *fetchClaimIndex) Has(_ context.Context, id cid.Cid) (bool, error) {
+	return idx.present[id], idx.err
+}
+
 func TestSyncWithPeerFetchStops(t *testing.T) {
 	for _, tt := range []struct {
 		mode       string

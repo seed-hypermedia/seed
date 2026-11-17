@@ -1705,15 +1705,7 @@ func syncResources(
 		//      right now, so two tasks don't both pull the same not-yet-persisted
 		//      block. Claims release when this tier returns; a skipped CID is
 		//      persisted by its owner or re-driven next discovery cycle.
-		claimed := make([]cid.Cid, 0, len(wants))
-		for _, w := range wants {
-			if has, herr := idx.Has(ctx, w); herr == nil && has {
-				continue
-			}
-			if _, dup := inflight.LoadOrStore(string(w.Hash()), struct{}{}); !dup {
-				claimed = append(claimed, w)
-			}
-		}
+		claimed := tier.claimWants(ctx, idx, inflight, wants)
 		defer func() {
 			for _, w := range claimed {
 				inflight.Delete(string(w.Hash()))
@@ -2033,6 +2025,23 @@ func (tier *fetchTierState) startSlice(idleTimeout time.Duration) {
 	} else {
 		tier.idle.Reset(idleTimeout)
 	}
+}
+
+func (tier *fetchTierState) claimWants(ctx context.Context, idx Index, inflight *sync.Map, wants []cid.Cid) []cid.Cid {
+	claimed := make([]cid.Cid, 0, len(wants))
+	for _, w := range wants {
+		if has, herr := idx.Has(ctx, w); herr == nil && has {
+			continue
+		}
+
+		if _, dup := inflight.LoadOrStore(string(w.Hash()), struct{}{}); !dup {
+			claimed = append(claimed, w)
+		}
+	}
+
+	tier.wants -= int64(len(wants) - len(claimed))
+
+	return claimed
 }
 
 // mediaTierQueryHead/Tail bucket blobs by the highest-priority (lowest-numbered)
