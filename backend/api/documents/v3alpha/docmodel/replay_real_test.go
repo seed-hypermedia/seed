@@ -85,6 +85,7 @@ func TestReplayRealDocuments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		r.maxHang = n
 	}
 
@@ -93,12 +94,14 @@ func TestReplayRealDocuments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		r.timeout = d
 	}
 
 	if data, err := os.ReadFile(outPath); err == nil { //nolint:gosec
 		for _, line := range strings.Split(string(data), "\n") {
 			var rec replayRecord
+
 			if json.Unmarshal([]byte(line), &rec) == nil && rec.IRI != "" {
 				r.done[rec.IRI+"|"+rec.Step] = struct{}{}
 				if rec.Hang {
@@ -126,6 +129,7 @@ func TestReplayRealDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	r.dec = dec
 
 	docs := r.listDocuments(t)
@@ -135,6 +139,7 @@ func TestReplayRealDocuments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		docs = docs[:min(n, len(docs))]
 	}
 
@@ -152,11 +157,13 @@ func TestReplayRealDocuments(t *testing.T) {
 	}
 
 	var prefixes int
+
 	if v := os.Getenv("SEED_REPLAY_PREFIXES"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		prefixes = n
 	}
 
@@ -184,6 +191,7 @@ func TestReplayRealDocuments(t *testing.T) {
 			if k == last {
 				continue
 			}
+
 			last = k
 
 			pd := d
@@ -280,6 +288,7 @@ type replayer struct {
 
 func (r *replayer) write(rec replayRecord) {
 	rec.Label = r.label
+
 	data, err := json.Marshal(rec)
 	if err != nil {
 		panic(err)
@@ -302,6 +311,7 @@ func (r *replayer) watchdog() {
 			_ = r.out.Sync()
 			os.Exit(3)
 		}
+
 		r.mu.Unlock()
 	}
 }
@@ -325,6 +335,7 @@ func (r *replayer) listDocuments(t *testing.T) []replayDoc {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if !ok {
 			break
 		}
@@ -333,6 +344,7 @@ func (r *replayer) listDocuments(t *testing.T) []replayDoc {
 		if iri == last {
 			continue
 		}
+
 		last = iri
 
 		if stmt.ColumnInt(3) != 0 || stmt.ColumnInt(2) == 0 {
@@ -397,6 +409,7 @@ func (r *replayer) loadChanges(d replayDoc) ([]replayChange, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if !ok {
 			break
 		}
@@ -489,6 +502,7 @@ func newReplayModel(docpb *documents.Document, doc *Document) *replayModel {
 
 	// Keys whose stored value is a whole map or list.
 	var compound [][]string
+
 	for k, reg := range doc.crdt.stateMetadata.Items() {
 		if latest, ok := reg.GetLatestOK(); ok {
 			switch latest.Value.(type) {
@@ -499,6 +513,7 @@ func newReplayModel(docpb *documents.Document, doc *Document) *replayModel {
 	}
 
 	var walk func(parent string, nodes []*documents.BlockNode, depth int)
+
 	walk = func(parent string, nodes []*documents.BlockNode, depth int) {
 		for _, n := range nodes {
 			m.Levels[parent] = append(m.Levels[parent], n.Block.Id)
@@ -539,6 +554,7 @@ func newReplayModel(docpb *documents.Document, doc *Document) *replayModel {
 	}
 
 	var flatten func(prefix []string, v any)
+
 	flatten = func(prefix []string, v any) {
 		if slices.ContainsFunc(compound, func(k []string) bool { return slices.Equal(k, prefix) }) {
 			m.MetaCompound++
@@ -552,6 +568,7 @@ func newReplayModel(docpb *documents.Document, doc *Document) *replayModel {
 			for k := range v {
 				keys = append(keys, k)
 			}
+
 			slices.Sort(keys)
 
 			for _, k := range keys {
@@ -606,6 +623,7 @@ func newReplayModel(docpb *documents.Document, doc *Document) *replayModel {
 			m.Trashed = append(m.Trashed, blk)
 		}
 	}
+
 	slices.Sort(m.Trashed)
 
 	h := fnv.New64a()
@@ -630,6 +648,7 @@ func (m *replayModel) Pairs() []blockPair {
 	var out []blockPair
 
 	var walk func(parent string)
+
 	walk = func(parent string) {
 		for _, c := range m.Levels[parent] {
 			out = append(out, blockPair{Parent: parent, Child: c})
@@ -665,6 +684,7 @@ func (m *replayModel) insert(block, parent, left string) {
 // every block, and every metadata leaf. It's what a client that doesn't diff does.
 func (m *replayModel) relist(doc *Document) error {
 	var walk func(parent string) error
+
 	walk = func(parent string) error {
 		var left string
 
@@ -672,6 +692,7 @@ func (m *replayModel) relist(doc *Document) error {
 			if err := doc.MoveBlock(c, parent, left); err != nil {
 				return err
 			}
+
 			left = c
 
 			if _, noContent := m.NoContent[c]; !noContent && m.Blocks[c] != nil {
@@ -729,6 +750,7 @@ var replaySteps = []replayStep{
 		Name: "append-root", WantMoves: 1, NewBlock: true,
 		Run: func(doc *Document, m *replayModel) (string, error) {
 			var left string
+
 			if roots := m.Levels[""]; len(roots) > 0 {
 				left = roots[len(roots)-1]
 			}
@@ -736,6 +758,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(replayNewBlock, "", left); err != nil {
 				return "", err
 			}
+
 			m.insert(replayNewBlock, "", left)
 
 			return "", replayPutNew(doc)
@@ -752,6 +775,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(replayNewBlock, "", roots[0]); err != nil {
 				return "", err
 			}
+
 			m.insert(replayNewBlock, "", roots[0])
 
 			return "", replayPutNew(doc)
@@ -770,6 +794,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(replayNewBlock, m.Largest, left); err != nil {
 				return "", err
 			}
+
 			m.insert(replayNewBlock, m.Largest, left)
 
 			return "", replayPutNew(doc)
@@ -785,6 +810,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(replayNewBlock, m.Deepest, ""); err != nil {
 				return "", err
 			}
+
 			m.insert(replayNewBlock, m.Deepest, "")
 
 			return "", replayPutNew(doc)
@@ -802,6 +828,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(last, "", ""); err != nil {
 				return "", err
 			}
+
 			m.remove(last)
 			m.insert(last, "", "")
 
@@ -817,6 +844,7 @@ var replaySteps = []replayStep{
 			}
 
 			var left string
+
 			if children := m.Levels[roots[0]]; len(children) > 0 {
 				left = children[len(children)-1]
 			}
@@ -825,6 +853,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(second, roots[0], left); err != nil {
 				return "", err
 			}
+
 			m.remove(second)
 			m.insert(second, roots[0], left)
 
@@ -844,6 +873,7 @@ var replaySteps = []replayStep{
 			if err := doc.DeleteBlock(leaf); err != nil {
 				return "", err
 			}
+
 			m.remove(leaf)
 
 			return "", nil
@@ -854,6 +884,7 @@ var replaySteps = []replayStep{
 		Name: "relist-append-root", WantMoves: 1, NewBlock: true,
 		Run: func(doc *Document, m *replayModel) (string, error) {
 			var left string
+
 			if roots := m.Levels[""]; len(roots) > 0 {
 				left = roots[len(roots)-1]
 			}
@@ -945,6 +976,7 @@ var replaySteps = []replayStep{
 			for parent := range m.Levels {
 				parents = append(parents, parent)
 			}
+
 			slices.Sort(parents)
 
 			for _, parent := range parents {
@@ -959,6 +991,7 @@ var replaySteps = []replayStep{
 
 				// Blocks that can stay are the longest run still in the initial order.
 				var tails []int
+
 				for _, c := range children {
 					n, _ := slices.BinarySearch(tails, index[c])
 					if n == len(tails) {
@@ -987,6 +1020,7 @@ var replaySteps = []replayStep{
 
 			var subtree []string
 			var walk func(b string)
+
 			walk = func(b string) {
 				subtree = append(subtree, b)
 				for _, c := range m.Levels[b] {
@@ -999,6 +1033,7 @@ var replaySteps = []replayStep{
 				if err := doc.DeleteBlock(b); err != nil {
 					return "", err
 				}
+
 				delete(m.Levels, b)
 			}
 
@@ -1017,6 +1052,7 @@ var replaySteps = []replayStep{
 			}
 
 			var left string
+
 			if roots := m.Levels[""]; len(roots) > 0 {
 				left = roots[len(roots)-1]
 			}
@@ -1025,6 +1061,7 @@ var replaySteps = []replayStep{
 			if err := doc.MoveBlock(blk, "", left); err != nil {
 				return "", err
 			}
+
 			m.insert(blk, "", left)
 			m.Ignore = map[string]struct{}{blk: {}}
 
@@ -1065,6 +1102,7 @@ var replaySteps = []replayStep{
 		Run: func(doc *Document, m *replayModel) (string, error) {
 			for _, k := range m.Maps {
 				var entries []replayAttr
+
 				for _, kv := range m.Meta {
 					if kv.Key[0] == k {
 						entries = append(entries, kv)
@@ -1118,6 +1156,7 @@ func replayPruneKey(m map[string]any, key []string) {
 	}
 
 	replayPruneKey(sub, key[1:])
+
 	if len(sub) == 0 {
 		delete(m, key[0])
 	}
@@ -1165,10 +1204,12 @@ func (r *replayer) replayDocument(d replayDoc) {
 			}
 
 			r.mu.Lock()
+
 			r.started = time.Time{}
 			if _, ok := r.done[rec.IRI+"|"+rec.Step]; !ok {
 				r.write(*rec)
 			}
+
 			r.mu.Unlock()
 		}()
 
@@ -1182,6 +1223,7 @@ func (r *replayer) replayDocument(d replayDoc) {
 
 	run(&base, func() {
 		var err error
+
 		changes, err = r.loadChanges(d)
 		if err != nil {
 			base.Err = "load changes: " + err.Error()
@@ -1194,11 +1236,13 @@ func (r *replayer) replayDocument(d replayDoc) {
 		}
 
 		start := time.Now()
+
 		doc, err := replayLoad(d.IRI, changes)
 		if err != nil {
 			base.Err = err.Error()
 			return
 		}
+
 		base.LoadNs = time.Since(start).Nanoseconds()
 
 		docpb, err := doc.Hydrate(context.Background())
@@ -1293,6 +1337,7 @@ func (r *replayer) replayStep(d replayDoc, changes []replayChange, initial *repl
 
 	start := time.Now()
 	skip, err := step.Run(doc, want)
+
 	rec.RequestNs = time.Since(start).Nanoseconds()
 	if err != nil {
 		rec.Err = "request: " + err.Error()
@@ -1313,6 +1358,7 @@ func (r *replayer) replayStep(d replayDoc, changes []replayChange, initial *repl
 
 	start = time.Now()
 	change, err := doc.CreateChange(kp, time.Now())
+
 	rec.CommitNs = time.Since(start).Nanoseconds()
 	if err != nil {
 		rec.Err = "create change: " + err.Error()
@@ -1459,6 +1505,7 @@ func (r *replayer) replayStep(d replayDoc, changes []replayChange, initial *repl
 
 		if !proto.Equal(blk, initial.Blocks[id]) {
 			contentDiffs++
+
 			if len(rec.Detail) < 20 {
 				rec.Detail = append(rec.Detail, "content:"+id)
 			}
