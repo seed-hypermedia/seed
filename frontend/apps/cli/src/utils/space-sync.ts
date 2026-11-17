@@ -33,6 +33,7 @@ import {
   createRedirectRef,
   createTombstoneRef,
   createVersionRef,
+  documentUpdateBlobs,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
   parseMarkdown,
@@ -846,6 +847,13 @@ function metadataLeaves(metadata: Record<string, unknown> | undefined, prefix: s
 /**
  * The SetAttributes op turning `oldMetadata` into `newMetadata`: changed and
  * added leaves are set, leaves missing from the new metadata are nulled.
+ *
+ * A map is rewritten entry by entry, never as "clear the key, then set its
+ * entries": the server leaves out the entries whose value is unchanged and
+ * keeps the clear, which removes the whole map. For the same reason a leaf
+ * that gave way to a map (`kind: plain` to `kind: {of: map}`) or a map that
+ * gave way to a leaf gets no null: a write at a key already removes what was
+ * stored above and below it, and a null there would remove the new value too.
  */
 export function metadataDiffOp(
   oldMetadata: Record<string, unknown> | undefined,
@@ -859,8 +867,12 @@ export function metadataDiffOp(
     seen.add(k)
     if (!oldLeaves.has(k) || oldLeaves.get(k) !== leaf.value) attrs.push(leaf)
   }
-  for (const [k] of oldLeaves) {
-    if (!seen.has(k)) attrs.push({key: k.split(' '), value: null})
+  const kept = metadataLeaves(newMetadata).map((leaf) => leaf.key)
+  const within = (a: string[], b: string[]) => a.length <= b.length && a.every((segment, i) => segment === b[i])
+  for (const leaf of metadataLeaves(oldMetadata)) {
+    if (seen.has(leaf.key.join(' '))) continue
+    if (kept.some((key) => within(key, leaf.key) || within(leaf.key, key))) continue
+    attrs.push({key: leaf.key, value: null})
   }
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
@@ -1063,33 +1075,38 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     result.updated.push(file)
     if (opts.dryRun) return
 
-    const state = (await getBase()).state
-    const {unsignedBytes, ts} = createChangeOps({
+    // The server computes the Change from the document's real state, so only what differs is
+    // stored; a request it refuses, does not answer or answers implausibly is built here instead
+    // (documentUpdateBlobs), so one file's refusal never stops the import. A document that has
+    // just moved here already holds a Ref with a current-time generation at this path, which the
+    // new Ref must not go below.
+    const attached = [...schemaBlobs, ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid}))]
+    const update = await documentUpdateBlobs({
+      client: opts.client,
+      signer: opts.signer,
+      account: opts.account,
+      path,
+      state: (await getBase()).state,
       ops,
-      genesisCid: CID.parse(state.genesis),
-      deps: state.heads.map((h) => CID.parse(h)),
-      depth: state.headDepth + 1,
+      content: oldDoc.content ?? [],
+      // The diff was made against the document read first; the heads are read now.
+      documentVersion: oldDoc.version,
+      capability: opts.capability,
+      currentGeneration:
+        movedFrom !== null
+          ? Date.now()
+          : (oldDoc as {generationInfo?: {generation?: number | bigint | string}}).generationInfo?.generation,
     })
-    const changeBlock = await createChange(unsignedBytes, opts.signer)
-    const ref = await createVersionRef(
-      {
-        space: opts.account,
-        path,
-        genesis: state.genesis,
-        version: changeBlock.cid.toString(),
-        generation: Number(ts),
-        capability: opts.capability,
-      },
-      opts.signer,
-    )
-    await opts.client.publish({
-      blobs: [
-        {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-        ...ref.blobs,
-        ...schemaBlobs,
-        ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
-      ],
-    })
+    if (!update.changed) {
+      // The ops asked for nothing the document does not already hold: no new version.
+      log(`same    ${label}  (the server found nothing to change)`)
+      result.updated.splice(result.updated.lastIndexOf(file), 1)
+      result.unchanged.push(file)
+      if (attached.length) await opts.client.publish({blobs: attached})
+      return
+    }
+    if (update.builtBy === 'local') log(`        ${label}: change built locally because ${update.localReason}`)
+    await opts.client.publish({blobs: [...update.blobs, ...attached]})
   }
   await mapPool(files, CONCURRENCY, processFile)
   return result

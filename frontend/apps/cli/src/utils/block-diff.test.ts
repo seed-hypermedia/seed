@@ -285,6 +285,36 @@ describe('computeReplaceOps', () => {
 
 // ── ID-based diffing (smart update flow) ─────────────────────────────────────
 
+describe('computeReplaceOps — a level whose order changed is listed whole', () => {
+  // A MoveBlocks carries no anchor (its blocks go to the start of the level, in order), so the
+  // diff cannot say "after block b". The server drops the moves that change nothing.
+  const level = (...ids: string[]) => ids.map((id) => apiBlock(id, 'Paragraph', id))
+  const tree = (...ids: string[]) => ids.map((id) => newBlock(id, 'Paragraph', id))
+  const moves = (ops: ReturnType<typeof computeReplaceOps>) =>
+    ops.filter((o) => o.type === 'MoveBlocks').map((o: any) => ({blocks: o.blocks, parent: o.parent}))
+
+  test('a block appended at the end lists the whole level', () => {
+    const ops = computeReplaceOps(createBlocksMap(level('a', 'b')), tree('a', 'b', 'x'))
+    expect(moves(ops)).toEqual([{blocks: ['a', 'b', 'x'], parent: ''}])
+    expect(ops.filter((o) => o.type === 'ReplaceBlock')).toHaveLength(1)
+  })
+
+  test('a block deleted from a level lists what remains', () => {
+    const ops = computeReplaceOps(createBlocksMap(level('a', 'b', 'c')), tree('a', 'c'))
+    expect(moves(ops)).toEqual([{blocks: ['a', 'c'], parent: ''}])
+    expect(ops.filter((o) => o.type === 'DeleteBlocks')).toEqual([{type: 'DeleteBlocks', blocks: ['b']}])
+  })
+
+  test('only the levels that changed are listed', () => {
+    const old = [apiBlockWithChildren('a', 'Paragraph', 'a', level('k', 'l')), ...level('b')]
+    const ops = computeReplaceOps(createBlocksMap(old), [
+      newBlockWithChildren('a', 'Paragraph', 'a', tree('l', 'k')),
+      newBlock('b', 'Paragraph', 'b'),
+    ])
+    expect(moves(ops)).toEqual([{blocks: ['l', 'k'], parent: 'a'}])
+  })
+})
+
 describe('computeReplaceOps — ID-based diff (no matchBlockIds)', () => {
   test('blocks with matching IDs: unchanged content produces no ReplaceBlock', () => {
     // Simulates: user exports doc, makes no changes, re-imports

@@ -323,12 +323,22 @@ function rebindTable(oldTable: APIBlockNode | undefined, newTable: BlockNode): B
 // ── Compute minimal operations from matched tree ─────────────────────────────
 
 /**
- * Compare the new block tree against the old blocks map and produce
- * the minimal set of DocumentOperations:
+ * Compare the new block tree against the old blocks map and produce the
+ * DocumentOperations that turn one into the other:
  *
- * - ReplaceBlock for new or content-changed blocks
- * - MoveBlocks for positioning (new blocks or position changes)
+ * - ReplaceBlock for new or content-changed blocks (an unchanged block gets none)
+ * - MoveBlocks for a level whose order changed (an unchanged level gets none)
  * - DeleteBlocks for blocks removed from the document
+ *
+ * The replaces are minimal; the moves are not. A native MoveBlocks carries no
+ * anchor: it places its blocks at the start of the parent's children, in the
+ * order listed. So a level whose order changed in any way (a block added,
+ * removed or moved) is listed whole, the blocks already in place included.
+ * An update sent through `PrepareDocumentChange` (documentUpdateBlobs)
+ * drops the moves that change nothing, so the stored Change is minimal there;
+ * a Change built from these ops directly (createChangeOps) stores them all.
+ * Skipping unchanged blocks here still matters on the daemon path: it writes
+ * a block with a whole-number attribute again even when it is equal.
  *
  * The delete pass is global: every old block whose id does not appear
  * anywhere in the new tree is deleted, including descendants of deleted
@@ -421,6 +431,8 @@ function computeReplaceOpsInner(
   // Emit a single MoveBlocks for all blocks at this level, positioning them
   // under the parent in order — unless the level already reads exactly like
   // this in the old document, so an untouched document yields no ops at all.
+  // A level whose order did change lists every block of it, the ones already
+  // in place included (see computeReplaceOps).
   const oldOrder = oldSiblingOrder(oldMap, parentId)
   const sameOrder = oldOrder.length === blockIdsAtLevel.length && blockIdsAtLevel.every((id, i) => oldOrder[i] === id)
   if (blockIdsAtLevel.length > 0 && !sameOrder) {
