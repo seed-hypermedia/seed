@@ -120,7 +120,7 @@ func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32)
 // pure function so the daemon can wire it before the migration-triggered
 // backfill reindex starts, long before this server exists.
 //
-// Both fields come out of one replay on purpose: rebuilding the model is the
+// All fields come out of one replay on purpose: rebuilding the model is the
 // entire cost, and each field is then a walk over a tree that already exists.
 //
 // The changes are supplied by the indexer (already loaded on its transaction's
@@ -161,8 +161,9 @@ func DeriveDocFields(iri blob.IRI, changes []blob.ChangeRecord) (fields blob.Der
 	}
 
 	return blob.DerivedDocFields{
-		FirstImage:   doc.FirstContentImage(),
-		IsCollection: doc.IsCollection(),
+		FirstImage:      doc.FirstContentImage(),
+		IsCollection:    doc.IsCollection(),
+		NavigationCards: doc.NavigationCards(),
 	}, nil
 }
 
@@ -2487,15 +2488,31 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	// flag, so the answer stays correct no matter which client wrote the
 	// document or how old it is.
 	//
-	// Unset means the indexer has not derived it yet, which clients must read as
-	// "not known to be a collection" rather than "not a collection": the
-	// derivation is backfilled asynchronously.
+	// Indexing derives it for every document; unset only on documents indexed
+	// before it existed, which the reindex scheduled with it replaces.
 	var isCollection *bool
 	for _, key := range []string{blob.IsCollectionAttr, "$db.isFolder"} {
 		if v, ok := attrs[key]; ok {
 			if b, isBool := indexedAttrBool(v); isBool {
 				isCollection = &b
 				break
+			}
+		}
+	}
+
+	// Derived navigation Cards, stored as a JSON array because attribute values
+	// are scalars. Indexing derives them for every document.
+	var navigationCards *documents.NavigationCards
+
+	if v, ok := attrs[blob.NavigationCardsAttr]; ok {
+		if s, isStr := v.Value.(string); isStr {
+			var targets []string
+
+			if err := json.Unmarshal([]byte(s), &targets); err == nil {
+				navigationCards = &documents.NavigationCards{}
+				if len(targets) > 0 {
+					navigationCards.Targets = targets
+				}
 			}
 		}
 	}
@@ -2585,6 +2602,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Metadata:            metastruct,
 		FirstImageInContent: firstImageInContent,
 		IsCollection:        isCollection,
+		NavigationCards:     navigationCards,
 		Authors:             authors,
 		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),

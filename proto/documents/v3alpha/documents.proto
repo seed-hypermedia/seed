@@ -1090,9 +1090,19 @@ message DocumentInfo {
   optional string first_image_in_content = 15;
 
   // Output only. Whether the published document has the Collection shape. Derived
-  // by the indexer and backfilled incrementally for existing documents.
-  // Unset means the indexer has not derived the value yet.
+  // by the indexer for every document.
   optional bool is_collection = 16;
+  // Output only. Documents the published version links as Card embeds that
+  // follow the latest version, in reading order, once each. The sidebar is
+  // built from them without loading documents. Derived by the indexer for
+  // every document.
+  NavigationCards navigation_cards = 17;
+}
+
+// Card embeds a document uses for navigation.
+message NavigationCards {
+  // hm:// IDs of the whole target documents, without version or fragment.
+  repeated string targets = 1;
 }
 
 // Information about the generation of a document.

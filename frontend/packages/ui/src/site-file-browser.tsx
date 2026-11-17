@@ -6,11 +6,11 @@ import {
   type HMListedDraftWithLocation,
 } from '@shm/shared/draft-breadcrumb-context'
 import {deriveDocumentType} from '@shm/shared/models/document-machine'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useDirectory, useDocumentInfo, useResolvedHmId, useResource} from '@shm/shared/models/entity'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import {filterDocumentsByTitle} from '@shm/shared/utils/all-documents-tree'
-import {getCardNavigationTargets} from '@shm/shared/utils/card-navigation'
+import {getCardNavigationTargets, getIndexedCardNavigationTargets} from '@shm/shared/utils/card-navigation'
 import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
@@ -299,11 +299,36 @@ type CardNavigationProps = Pick<SiteFileBrowserProps, 'activeDocumentId' | 'onNa
 
 /**
  * One navigation row and, once expanded, its Card targets. Navigation follows Card embeds only; document paths play no
- * part in it. Only visible rows fetch documents, and collapsed descendants never mount. Rows read what is already
- * available without subscribing: the app syncs followed spaces on its own, and a Card into another space must not
- * start syncing that space just by rendering its row.
+ * part in it. A row reads the indexer's document info, which carries the title, kind, and navigation Cards, so it never
+ * loads document content. Only an address the info cannot answer, because it moved or is missing, loads the resource
+ * to follow redirects. Collapsed descendants never mount. Rows read what is already available without subscribing: the
+ * app syncs followed spaces on its own, and a Card into another space must not start syncing that space just by
+ * rendering its row.
  */
-function CardNavigationBranch({
+function CardNavigationBranch(props: CardNavigationProps & {id: UnpackedHypermediaId; ancestors: string[]}) {
+  // A Card may name its target by domain (hm://example.com/page). Resolve it to the
+  // account first, as embeds do: document queries need an account ID.
+  const isDomain = props.id.uid.includes('.')
+  const resolved = useResolvedHmId(isDomain ? props.id.id : undefined)
+  if (!isDomain) return <CardNavigationRow {...props} />
+  if (resolved.id) {
+    return <CardNavigationRow {...props} id={latestId(hmId(resolved.id.uid, {path: resolved.id.path}))} />
+  }
+  return (
+    <div role="status" className="text-muted-foreground flex h-8 items-center gap-2 pl-5 text-xs">
+      {resolved.isLoading ? (
+        <>
+          <Spinner />
+          Loading…
+        </>
+      ) : (
+        `Could not resolve ${props.id.id}.`
+      )}
+    </div>
+  )
+}
+
+function CardNavigationRow({
   id,
   ancestors,
   ...props
@@ -311,12 +336,24 @@ function CardNavigationBranch({
   id: UnpackedHypermediaId
   ancestors: string[]
 }) {
-  const resource = useResource(id, {useErrorBoundary: false})
+  const info = useDocumentInfo(id, {useErrorBoundary: false})
+  const indexed = info.data && !info.data.redirectInfo ? info.data : null
+  const resource = useResource(info.isInitialLoading || indexed ? null : id, {useErrorBoundary: false})
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const resolvedId =
-    resource.data?.type === 'document' ? latestId(hmId(resource.data.id.uid, {path: resource.data.id.path})) : id
+  const resolvedId = indexed
+    ? latestId(hmId(indexed.id.uid, {path: indexed.id.path}))
+    : resource.data?.type === 'document'
+      ? latestId(hmId(resource.data.id.uid, {path: resource.data.id.path}))
+      : id
   const branchIds = [...ancestors, id.id, resolvedId.id]
-  const targets = useMemo(() => getCardNavigationTargets(document?.content ?? []), [document?.content])
+  const navigationCards = indexed ? indexed.navigationCards ?? [] : null
+  const targets = useMemo(
+    () =>
+      navigationCards
+        ? getIndexedCardNavigationTargets(navigationCards)
+        : getCardNavigationTargets(document?.content ?? []),
+    [navigationCards, document?.content],
+  )
   const children = targets.filter((target) => !branchIds.includes(target.id))
   const isRoot = ancestors.length === 0
   const active = props.activeDocumentId
@@ -329,10 +366,11 @@ function CardNavigationBranch({
   // A moved address can resolve back to an ancestor even when its written link differs.
   if (ancestors.includes(resolvedId.id)) return null
 
-  const title = document?.metadata.name || id.path?.at(-1) || 'Untitled Document'
+  const metadata = indexed ? indexed.metadata : document?.metadata
+  const title = metadata?.name || id.path?.at(-1) || 'Untitled Document'
   const isActive = active?.id === id.id || active?.id === resolvedId.id
-  const isLoading = resource.isInitialLoading || resource.isDiscovering
-  const unavailable = !isLoading && (!document || resource.isError)
+  const isLoading = info.isInitialLoading || (!indexed && (resource.isInitialLoading || resource.isDiscovering))
+  const unavailable = !isLoading && !indexed && (!document || resource.isError)
   const hasChildren = children.length > 0
   const contents = (
     <>
@@ -348,7 +386,14 @@ function CardNavigationBranch({
       ) : unavailable ? (
         <div role="status" className="text-muted-foreground py-2 pl-5 text-xs">
           Could not load {isRoot ? 'navigation' : 'page'}.
-          <button type="button" className="ml-1 underline" onClick={() => void resource.refetch()}>
+          <button
+            type="button"
+            className="ml-1 underline"
+            onClick={() => {
+              void info.refetch()
+              void resource.refetch()
+            }}
+          >
             Retry
           </button>
         </div>
@@ -385,11 +430,15 @@ function CardNavigationBranch({
           className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
         >
           <DocumentKindIcon
-            kind={getDocumentKind({
-              metadata: document?.metadata,
-              visibility: document?.visibility,
-              isCollection: deriveDocumentType(document?.content, resolvedId) === 'collection',
-            })}
+            kind={getDocumentKind(
+              indexed
+                ? {metadata: indexed.metadata, visibility: indexed.visibility, isCollection: indexed.isCollection}
+                : {
+                    metadata: document?.metadata,
+                    visibility: document?.visibility,
+                    isCollection: deriveDocumentType(document?.content, resolvedId) === 'collection',
+                  },
+            )}
             className="size-4 shrink-0"
           />
           <span className="truncate">{title}</span>

@@ -295,12 +295,13 @@ func TestListRootDocuments(t *testing.T) {
 
 // stampDerivedFields sets the index-derived fields on an expected listing item.
 // Listings carry first_image_in_content for every document without a
-// cover/icon (empty = "derived, no image") and is_collection for every
-// document, while DocumentToListItem — converting from a raw Document — leaves
+// cover/icon (empty = "derived, no image"), and is_collection and
+// navigation_cards for every document, while DocumentToListItem — converting from a raw Document — leaves
 // both unset.
 func stampDerivedFields(d *documents.DocumentInfo) *documents.DocumentInfo {
 	d.FirstImageInContent = proto.String("")
 	d.IsCollection = proto.Bool(false)
+	d.NavigationCards = &documents.NavigationCards{}
 	return d
 }
 
@@ -1269,6 +1270,125 @@ func TestListDirectoryChildrenCount(t *testing.T) {
 	require.Equal(t, int32(1), children["/parent/kid-a"], "kid-a has one child")
 	require.Equal(t, int32(0), children["/parent/kid-b"])
 	require.Equal(t, int32(0), children["/loner"])
+}
+
+func TestDocumentInfoNavigationCards(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+	card := must.Do2(structpb.NewStruct(map[string]any{"view": "Card"}))
+	embed := func(id, left, link string) []*documents.DocumentChange {
+		return []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: id, Parent: "", LeftSibling: left},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: id, Type: "Embed", Link: link, Attributes: card},
+			}},
+		}
+	}
+
+	changes := []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+		SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Home"},
+	}}}
+	changes = append(changes, embed("team", "", "hm://"+aliceSpace+"/team")...)
+	changes = append(changes, embed("pinned", "team", "hm://"+aliceSpace+"/old?v=bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi")...)
+	changes = append(changes, embed("blog", "pinned", "hm://"+aliceSpace+"/blog?l")...)
+	home, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Changes:        changes,
+	})
+	require.NoError(t, err)
+
+	cards := func() []string {
+		info, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: aliceSpace})
+		require.NoError(t, err)
+		require.NotNil(t, info.NavigationCards, "the indexer derives navigation Cards for every document")
+		return info.NavigationCards.Targets
+	}
+
+	require.Equal(t, []string{"hm://" + aliceSpace + "/team", "hm://" + aliceSpace + "/blog"}, cards(),
+		"latest Cards in reading order; a pinned Card is not navigation")
+
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		BaseVersion:    home.Version,
+		Changes:        []*documents.DocumentChange{{Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: "team"}}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"hm://" + aliceSpace + "/blog"}, cards(), "a removed Card leaves navigation")
+}
+
+// A Ref that arrives late, with an older timestamp than the latest indexed Ref,
+// can still change the merged heads. The navigation derived from those heads
+// must replace the previous value, not lose a timestamp tie to it.
+func TestDocumentInfoNavigationCardsLateOlderRef(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+	card := must.Do2(structpb.NewStruct(map[string]any{"view": "Card"}))
+	embed := func(id, left, link string) []*documents.DocumentChange {
+		return []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: id, Parent: "", LeftSibling: left},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: id, Type: "Embed", Link: link, Attributes: card},
+			}},
+		}
+	}
+
+	t0 := time.Now().Add(-time.Hour).Truncate(time.Millisecond)
+	changes := []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+		SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Home"},
+	}}}
+	changes = append(changes, embed("team", "", "hm://"+aliceSpace+"/team")...)
+	changes = append(changes, embed("blog", "team", "hm://"+aliceSpace+"/blog")...)
+	home, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Changes:        changes,
+		Timestamp:      timestamppb.New(t0),
+	})
+	require.NoError(t, err)
+
+	// The newer branch is indexed first and leaves the Cards alone.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		BaseVersion:    home.Version,
+		Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Home renamed"},
+		}}},
+		Timestamp: timestamppb.New(t0.Add(20 * time.Minute)),
+	})
+	require.NoError(t, err)
+
+	// The older concurrent branch arrives late and removes a Card.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		BaseVersion:    home.Version,
+		Changes:        []*documents.DocumentChange{{Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: "team"}}},
+		Timestamp:      timestamppb.New(t0.Add(10 * time.Minute)),
+	})
+	require.NoError(t, err)
+
+	doc, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: aliceSpace})
+	require.NoError(t, err)
+	require.Contains(t, doc.Version, ".", "both branches must be merged heads")
+
+	info, err := alice.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{Account: aliceSpace})
+	require.NoError(t, err)
+	require.NotNil(t, info.NavigationCards)
+	require.Equal(t, []string{"hm://" + aliceSpace + "/blog"}, info.NavigationCards.Targets,
+		"navigation must follow the merged heads, including the late older branch")
 }
 
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
@@ -4379,107 +4499,6 @@ func TestListDirectoryDerivesIsCollection(t *testing.T) {
 
 	require.False(t, isCollection("/notes"),
 		"a stale collection flag must not outlive the shape that produced it")
-}
-
-func TestBackfillDerivesIsCollection(t *testing.T) {
-	t.Parallel()
-
-	alice := newTestDocsAPI(t, "alice")
-	ctx := context.Background()
-	aliceSpace := alice.me.Account.PublicKey.String()
-
-	publishCollection := func(path string) {
-		t.Helper()
-		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
-			SigningKeyName: "main",
-			Path:           path,
-			Account:        aliceSpace,
-			Changes: []*documents.DocumentChange{
-				{Op: &documents.DocumentChange_MoveBlock_{
-					MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "q1", Parent: "", LeftSibling: ""},
-				}},
-				{Op: &documents.DocumentChange_ReplaceBlock{
-					ReplaceBlock: &documents.Block{
-						Id: "q1", Type: "Query",
-						Attributes: must.Do2(structpb.NewStruct(map[string]any{
-							"query": map[string]any{
-								"includes": []any{
-									map[string]any{"space": aliceSpace, "path": path, "mode": "Children"},
-								},
-							},
-						})),
-					},
-				}},
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	publishCollection("/one")
-	publishCollection("/two")
-
-	isCollection := func(path string) *bool {
-		t.Helper()
-		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
-			Account:       aliceSpace,
-			DirectoryPath: "",
-			Recursive:     true,
-		})
-		require.NoError(t, err)
-		for _, d := range list.Documents {
-			if d.Path == path {
-				return d.IsCollection
-			}
-		}
-		t.Fatalf("expected %s in the listing", path)
-		return nil
-	}
-
-	require.True(t, *isCollection("/one"))
-	require.True(t, *isCollection("/two"))
-
-	// Simulate a database indexed before the rename: move the derived attribute
-	// to the legacy key, leaving the documents exactly as an older daemon left them.
-	// This is the state the asynchronous backfill exists to repair — without a
-	// full reindex, and without blocking startup.
-	{
-		conn, release, err := alice.db.WriteConn(ctx)
-		require.NoError(t, err)
-		err = sqlitex.Exec(conn, `
-			INSERT INTO document_attribute_keys (key, search_key)
-			VALUES (?, ?)
-			ON CONFLICT (key) DO NOTHING
-		`, nil, "$db.isFolder", "$db.isFolder")
-		require.NoError(t, err)
-		err = sqlitex.Exec(conn, `
-			UPDATE document_attributes
-			SET key = (SELECT id FROM document_attribute_keys WHERE key = ?)
-			WHERE key = (SELECT id FROM document_attribute_keys WHERE key = ?)
-		`, nil, "$db.isFolder", blob.IsCollectionAttr)
-		release()
-		require.NoError(t, err)
-	}
-
-	require.True(t, *isCollection("/one"), "the legacy indexed value must remain visible while backfill catches up")
-	require.True(t, *isCollection("/two"))
-
-	// One bounded pass picks up exactly what it was asked for, leaving the rest
-	// for the next one — the property that keeps a backfill off the write path
-	// for long.
-	n, err := alice.idx.BackfillDocFields(ctx, 1)
-	require.NoError(t, err)
-	require.Equal(t, 1, n, "a bounded pass must derive at most its batch size")
-
-	n, err = alice.idx.BackfillDocFields(ctx, 10)
-	require.NoError(t, err)
-	require.Equal(t, 1, n, "the second pass picks up the generation the first left")
-
-	require.True(t, *isCollection("/one"))
-	require.True(t, *isCollection("/two"))
-
-	n, err = alice.idx.BackfillDocFields(ctx, 10)
-	require.NoError(t, err)
-	require.Zero(t, n, "a drained backfill must report nothing pending, so the worker can stop")
 }
 
 func TestListingRepublishedDocumentPresentsTargetDisplayFields(t *testing.T) {

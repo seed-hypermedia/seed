@@ -64,6 +64,13 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Derive navigation Cards and the other derived document fields for every
+	// document. They change what readers see (the sidebar is built from them),
+	// so they are derived during indexing, never by a lagging background job.
+	{Version: "2026-11-17.003358", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
+
 	// Rebuild document_attributes with order-independent structural resolution.
 	// Changes reach the index across separate Refs in any order, and a write to a
 	// key path (theme) racing writes to its children (theme.Color) used to leave

@@ -9,6 +9,7 @@ import {DraftBreadcrumbContext} from '@shm/shared/draft-breadcrumb-context'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import type {UniversalClient} from '@shm/shared/universal-client'
+import {getCardNavigationTargets} from '@shm/shared/utils/card-navigation'
 import {hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {useState} from 'react'
@@ -43,7 +44,29 @@ function page(id: UnpackedHypermediaId, name: string, links: string[] = []): HMR
   }
 }
 
-function createFixture() {
+/** Document info as the indexer returns it, with navigation Cards derived from the published content. */
+function info(resource: HMResourceDocument) {
+  return HMDocumentInfoSchema.parse({
+    type: 'document',
+    id: resource.id,
+    path: resource.id.path ?? [],
+    metadata: resource.document.metadata,
+    authors: [],
+    createTime: '',
+    updateTime: '',
+    sortTime: new Date(0),
+    genesis: resource.document.genesis,
+    version: resource.document.version,
+    breadcrumbs: [],
+    generationInfo: {genesis: resource.document.genesis, generation: 1n},
+    activitySummary: {latestChangeTime: '', latestCommentId: '', commentCount: 0, isUnread: false},
+    navigationCards: getCardNavigationTargets(resource.document.content).map((target) => target.id),
+    visibility: 'PUBLIC',
+  })
+}
+
+/** With `indexed`, rows read navigation Cards from document info; otherwise that request fails and rows fall back. */
+function createFixture(indexed: boolean) {
   const pages = new Map<string, HMResourceDocument>([
     [
       home.id,
@@ -59,6 +82,11 @@ function createFixture() {
   const queryRequests: string[] = []
   const client = {
     async request(key: string, request: unknown) {
+      if (key === 'DocumentInfo' && indexed) {
+        const input = request as UnpackedHypermediaId
+        const resource = pages.get(latestId(input).id)
+        return resource ? info(resource) : null
+      }
       if (key === 'Resource') {
         const input = request as UnpackedHypermediaId
         resourceRequests.push(input)
@@ -106,7 +134,7 @@ function createFixture() {
 
 /** Browser regression fixture using the real resource and search directory queries. */
 export function TestCardNavigation() {
-  const [fixture] = useState(createFixture)
+  const [fixture] = useState(() => createFixture(new URLSearchParams(window.location.search).has('indexed')))
   const [active, setActive] = useState<UnpackedHypermediaId>(home)
   const [destination, setDestination] = useState('Home')
   const [searchVisible, setSearchVisible] = useState(false)

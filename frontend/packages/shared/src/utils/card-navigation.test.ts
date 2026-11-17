@@ -1,6 +1,6 @@
 import {HMBlockNodeSchema, type HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {getCardNavigationTargets} from './card-navigation'
+import {getCardNavigationTargets, getIndexedCardNavigationTargets} from './card-navigation'
 import {hmId, latestId} from './entity-id-url'
 
 function card(link: string): HMBlockNode {
@@ -49,5 +49,12 @@ describe('Card navigation', () => {
       },
     })
     expect(getCardNavigationTargets([content, paragraph, card('not a link'), card('https://example.com')])).toEqual([])
+  })
+
+  it('reads indexed navigation Cards as latest document IDs, once each', () => {
+    expect(getIndexedCardNavigationTargets(['hm://site/b', 'hm://site/a', 'hm://site/b/', 'not a link'])).toEqual([
+      latestId(hmId('site', {path: ['b']})),
+      latestId(hmId('site', {path: ['a']})),
+    ])
   })
 })

@@ -1,6 +1,6 @@
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries, setQueriesDataByKey} from './query-client'
-import {queryKeys} from './query-keys'
+import {documentInfoQueryKey, isDocumentInfoQueryKey, queryKeys} from './query-keys'
 
 /**
  * Core cache invalidation after a successful document publish.
@@ -13,12 +13,19 @@ import {queryKeys} from './query-keys'
 export function invalidateAfterPublish(docId: UnpackedHypermediaId, newDocument: HMDocument) {
   const resultId = {...docId, version: newDocument.version}
   // Write the freshly published document straight into the ENTITY cache (this
-  // matches all ENTITY queries for the doc, including the "latest" one).
-  setQueriesDataByKey([queryKeys.ENTITY, docId.id], {
-    type: 'document' as const,
-    document: newDocument,
-    id: resultId,
-  })
+  // matches all ENTITY queries for the doc, including the "latest" one). The
+  // document's indexed info shares the prefix but isn't a resource, so it's
+  // refetched instead of overwritten.
+  setQueriesDataByKey(
+    [queryKeys.ENTITY, docId.id],
+    {
+      type: 'document' as const,
+      document: newDocument,
+      id: resultId,
+    },
+    (key) => !isDocumentInfoQueryKey(key),
+  )
+  invalidateQueries(documentInfoQueryKey(docId.id))
   // Deliberately DO NOT invalidate the ENTITY query for this doc: it would
   // refetch "latest" from the daemon whose latest pointer can still lag right
   // after publish (especially on web against a remote daemon), returning the

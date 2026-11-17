@@ -874,6 +874,61 @@ func (dm *Document) FirstContentImage() string {
 	return ""
 }
 
+// NavigationCards returns the documents this document links as Card embeds, in
+// reading order, once each, as hm:// IRIs of the whole document without version
+// or fragment. Nested blocks count. Only Cards that follow the latest version
+// count: a link with no version, or with a version and the latest flag. A Card
+// pinned to a version is not navigation. The sidebar is built from these.
+func (dm *Document) NavigationCards() []string {
+	if dm.mut != nil {
+		// A document with uncommitted changes has no stable committed state.
+		return nil
+	}
+
+	var out []string
+
+	seen := make(map[string]bool)
+	for pair := range dm.crdt.tree.State().DFT("") {
+		bs := dm.crdt.stateBlocks[pair.Child]
+		if bs == nil {
+			continue
+		}
+
+		_, blk, ok := bs.GetLatestWithID()
+		if !ok || blk.Type != "Embed" || blk.Attributes()["view"] != "Card" {
+			continue
+		}
+
+		target, ok := navigationTarget(blk.Link)
+		if ok && !seen[target] {
+			seen[target] = true
+			out = append(out, target)
+		}
+	}
+
+	return out
+}
+
+// navigationTarget returns the document a latest-following hm:// link points to.
+func navigationTarget(link string) (string, bool) {
+	u, err := url.Parse(link)
+	if err != nil || u.Scheme != "hm" || u.Host == "" || u.Host == "c" {
+		return "", false
+	}
+
+	q := u.Query()
+	if q.Get("v") != "" && !q.Has("l") {
+		return "", false
+	}
+
+	// Document paths have no escaping layer: the client splits hm:// links as raw
+	// text and never percent-decodes them, so take the link as written rather than
+	// rebuilding it from url.URL's decoded Path.
+	target, _, _ := strings.Cut(link, "#")
+	target, _, _ = strings.Cut(target, "?")
+	return strings.TrimSuffix(target, "/"), true
+}
+
 // BlockFromProto converts a protobuf block into our internal representation.
 // It's largely the same, but we need a separate type for CBOR encoding which we use in the permanent data.
 func BlockFromProto(b *documents.Block) (blob.Block, error) {

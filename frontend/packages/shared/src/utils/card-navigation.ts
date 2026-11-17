@@ -23,3 +23,15 @@ export function getCardNavigationTargets(content: HMBlockNode[]): UnpackedHyperm
   visit(content)
   return Array.from(targets.values())
 }
+
+/** Card targets from the indexer's navigation Cards (hm:// IDs in reading order), each opening its latest version. */
+export function getIndexedCardNavigationTargets(ids: string[]): UnpackedHypermediaId[] {
+  const targets = new Map<string, UnpackedHypermediaId>()
+  for (const raw of ids) {
+    const target = unpackHmId(raw)
+    if (!target?.uid) continue
+    const id = latestId(hmId(target.uid, {path: target.path}))
+    if (!targets.has(id.id)) targets.set(id.id, id)
+  }
+  return Array.from(targets.values())
+}

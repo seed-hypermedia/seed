@@ -30,11 +30,15 @@ describe('invalidateAfterPublish', () => {
   it('invalidates activity feed so document versions refresh after publishing a draft', () => {
     invalidateAfterPublish(docId, document)
 
-    expect(setQueriesDataByKey).toHaveBeenCalledWith([queryKeys.ENTITY, docId.id], {
-      type: 'document',
-      document,
-      id: {...docId, version: document.version},
-    })
+    expect(setQueriesDataByKey).toHaveBeenCalledWith(
+      [queryKeys.ENTITY, docId.id],
+      {
+        type: 'document',
+        document,
+        id: {...docId, version: document.version},
+      },
+      expect.any(Function),
+    )
     expect(invalidateQueries).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
   })
 

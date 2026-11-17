@@ -322,6 +322,10 @@ type DerivedDocFields struct {
 
 	// IsCollection reports the structurally derived Collection status.
 	IsCollection bool
+
+	// NavigationCards lists the documents linked as latest-following Card
+	// embeds, in reading order. The sidebar is built from them.
+	NavigationCards []string
 }
 
 // DeriveDocFields derives DerivedDocFields for a document from the changes that

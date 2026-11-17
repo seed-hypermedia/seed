@@ -16,9 +16,18 @@ import {SiteFileBrowser} from '../site-file-browser'
 const useDirectoryMock = vi.hoisted(() => vi.fn())
 const useDraftsMock = vi.hoisted(() => vi.fn())
 const useResourceMock = vi.hoisted(() => vi.fn())
+const useDocumentInfoMock = vi.hoisted(() => vi.fn())
+/** Domain-based IDs and the account IDs they resolve to. */
+const domains = vi.hoisted(() => new Map<string, unknown>())
 vi.mock('@shm/shared/models/entity', () => ({
   useDirectory: useDirectoryMock,
   useResource: useResourceMock,
+  useDocumentInfo: useDocumentInfoMock,
+  useResolvedHmId: (url: string | undefined) => ({
+    id: url ? domains.get(url) ?? null : null,
+    isLoading: false,
+    error: null,
+  }),
 }))
 vi.mock('@shm/shared/draft-breadcrumb-context', async () => ({
   ...(await vi.importActual<typeof import('@shm/shared/draft-breadcrumb-context')>(
@@ -31,9 +40,12 @@ if (typeof PointerEvent === 'undefined') vi.stubGlobal('PointerEvent', MouseEven
 let container: HTMLDivElement
 let root: Root
 let resources: Map<string, HMResource>
+/** Indexed document info by ID. Rows without an entry fall back to the whole document. */
+let infos: Map<string, HMDocumentInfo>
 let directory: HMDocumentInfo[]
 const onNavigate = vi.fn()
 const refetch = vi.fn()
+const refetchInfo = vi.fn()
 
 function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   const id = hmId('site', {path})
@@ -75,17 +87,30 @@ function click(label: string) {
   act(() => button.click())
 }
 
+/** Indexes a document's info with navigation Cards, as the backend derives them. */
+function setIndexed(path: string[], name: string, navigationCards: string[]) {
+  const id = hmId('site', {path})
+  infos.set(id.id, {id, path, metadata: {name}, visibility: 'PUBLIC', navigationCards} as unknown as HMDocumentInfo)
+}
+
 beforeEach(() => {
+  domains.clear()
   resources = new Map()
+  infos = new Map()
   makeDoc([], 'Home')
   makeDoc(['guides'], 'Guides')
   setDirectory({directory: [], drafts: []})
   useDirectoryMock.mockImplementation(listDirectory)
-  useResourceMock.mockImplementation((id: ReturnType<typeof hmId>) => ({
-    data: resources.get(id.id) ?? {type: 'not-found', id},
+  useResourceMock.mockImplementation((id: ReturnType<typeof hmId> | null) => ({
+    data: id ? resources.get(id.id) ?? {type: 'not-found', id} : undefined,
     isInitialLoading: false,
     isError: false,
     refetch,
+  }))
+  useDocumentInfoMock.mockImplementation((id: ReturnType<typeof hmId>) => ({
+    data: infos.get(hmId(id.uid, {path: id.path}).id) ?? null,
+    isInitialLoading: false,
+    refetch: refetchInfo,
   }))
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -99,6 +124,57 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('builds navigation from indexed Cards without loading documents', () => {
+    setIndexed([], 'Home', ['hm://site/zebra', 'hm://site/alpha'])
+    setIndexed(['zebra'], 'Zebra', ['hm://site/zebra/child'])
+    setIndexed(['alpha'], 'Alpha', [])
+    setIndexed(['zebra', 'child'], 'Child', [])
+    render(hmId('site', {path: ['zebra', 'child']}))
+    const buttons = Array.from(container.querySelectorAll('[role="treeitem"] > div > button:last-child'))
+    expect(buttons.map((button) => button.textContent)).toEqual(['Zebra', 'Child', 'Alpha'])
+    expect(useResourceMock.mock.calls.every(([id]) => id === null)).toBe(true)
+  })
+
+  it('never loads a document that has indexed info, even without Cards', () => {
+    setIndexed([], 'Home', ['hm://site/guides'])
+    infos.set(hmId('site', {path: ['guides']}).id, {
+      id: hmId('site', {path: ['guides']}),
+      path: ['guides'],
+      metadata: {name: 'Guides'},
+      visibility: 'PUBLIC',
+    } as unknown as HMDocumentInfo)
+    setCards('hm://site/guides', ['hm://site/page'])
+    render()
+    expect(container.textContent).toContain('Guides')
+    expect(container.querySelector('[aria-label="Expand Guides"]')).toBeNull()
+    expect(useResourceMock.mock.calls.every(([id]) => id === null)).toBe(true)
+  })
+
+  it('loads a resource only for an address without document info', () => {
+    setIndexed([], 'Home', ['hm://site/guides'])
+    setCards('hm://site/guides', ['hm://site/page'])
+    makeDoc(['page'], 'Page')
+    render(hmId('site', {path: ['page']}))
+    expect(container.textContent).toContain('Guides')
+    expect(container.textContent).toContain('Page')
+    const loaded = useResourceMock.mock.calls.flatMap(([id]) => (id ? [id.id] : []))
+    expect(loaded).toContain('hm://site/guides')
+    expect(loaded).not.toContain('hm://site')
+  })
+
+  it('resolves a domain-based Card target before loading it', () => {
+    setIndexed([], 'Home', ['hm://example.com/guides', 'hm://unknown.example/page'])
+    setIndexed(['guides'], 'Guides', [])
+    domains.set('hm://example.com/guides', hmId('site', {path: ['guides']}))
+    render()
+    expect(container.textContent).toContain('Guides')
+    expect(container.textContent).toContain('Could not resolve hm://unknown.example/page.')
+    const queried = [...useDocumentInfoMock.mock.calls, ...useResourceMock.mock.calls].flatMap(([id]) =>
+      id ? [id.uid] : [],
+    )
+    expect(queried.some((uid) => uid.includes('.'))).toBe(false)
+  })
+
   it('uses Card order instead of path order and does not include unembedded pages', () => {
     const alpha = makeDoc(['alpha'], 'Alpha')
     const zebra = makeDoc(['elsewhere', 'zebra'], 'Zebra')
@@ -244,6 +320,7 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('a')).toBeNull()
     click('Retry')
     expect(refetch).toHaveBeenCalledOnce()
+    expect(refetchInfo).toHaveBeenCalledOnce()
   })
 
   it('shows loading rather than an empty sidebar while the root is loading', () => {

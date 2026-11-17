@@ -4083,11 +4083,15 @@ type DocumentInfo struct {
 	// the document is known to have no content image.
 	FirstImageInContent *string `protobuf:"bytes,15,opt,name=first_image_in_content,json=firstImageInContent,proto3,oneof" json:"first_image_in_content,omitempty"`
 	// Output only. Whether the published document has the Collection shape. Derived
-	// by the indexer and backfilled incrementally for existing documents.
-	// Unset means the indexer has not derived the value yet.
-	IsCollection  *bool `protobuf:"varint,16,opt,name=is_collection,json=isCollection,proto3,oneof" json:"is_collection,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// by the indexer for every document.
+	IsCollection *bool `protobuf:"varint,16,opt,name=is_collection,json=isCollection,proto3,oneof" json:"is_collection,omitempty"`
+	// Output only. Documents the published version links as Card embeds that
+	// follow the latest version, in reading order, once each. The sidebar is
+	// built from them without loading documents. Derived by the indexer for
+	// every document.
+	NavigationCards *NavigationCards `protobuf:"bytes,17,opt,name=navigation_cards,json=navigationCards,proto3" json:"navigation_cards,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DocumentInfo) Reset() {
@@ -4225,6 +4229,59 @@ func (x *DocumentInfo) GetIsCollection() bool {
 	return false
 }
 
+func (x *DocumentInfo) GetNavigationCards() *NavigationCards {
+	if x != nil {
+		return x.NavigationCards
+	}
+	return nil
+}
+
+// Card embeds a document uses for navigation.
+type NavigationCards struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// hm:// IDs of the whole target documents, without version or fragment.
+	Targets       []string `protobuf:"bytes,1,rep,name=targets,proto3" json:"targets,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NavigationCards) Reset() {
+	*x = NavigationCards{}
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NavigationCards) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NavigationCards) ProtoMessage() {}
+
+func (x *NavigationCards) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NavigationCards.ProtoReflect.Descriptor instead.
+func (*NavigationCards) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *NavigationCards) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
 // Information about the generation of a document.
 type GenerationInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4240,7 +4297,7 @@ type GenerationInfo struct {
 
 func (x *GenerationInfo) Reset() {
 	*x = GenerationInfo{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[53]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4252,7 +4309,7 @@ func (x *GenerationInfo) String() string {
 func (*GenerationInfo) ProtoMessage() {}
 
 func (x *GenerationInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[53]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4265,7 +4322,7 @@ func (x *GenerationInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerationInfo.ProtoReflect.Descriptor instead.
 func (*GenerationInfo) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{53}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *GenerationInfo) GetGenesis() string {
@@ -4305,7 +4362,7 @@ type ActivitySummary struct {
 
 func (x *ActivitySummary) Reset() {
 	*x = ActivitySummary{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[54]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4317,7 +4374,7 @@ func (x *ActivitySummary) String() string {
 func (*ActivitySummary) ProtoMessage() {}
 
 func (x *ActivitySummary) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[54]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4330,7 +4387,7 @@ func (x *ActivitySummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivitySummary.ProtoReflect.Descriptor instead.
 func (*ActivitySummary) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{54}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ActivitySummary) GetLatestCommentTime() *timestamppb.Timestamp {
@@ -4390,7 +4447,7 @@ type Breadcrumb struct {
 
 func (x *Breadcrumb) Reset() {
 	*x = Breadcrumb{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[55]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4402,7 +4459,7 @@ func (x *Breadcrumb) String() string {
 func (*Breadcrumb) ProtoMessage() {}
 
 func (x *Breadcrumb) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[55]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4415,7 +4472,7 @@ func (x *Breadcrumb) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Breadcrumb.ProtoReflect.Descriptor instead.
 func (*Breadcrumb) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{55}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *Breadcrumb) GetName() string {
@@ -4474,7 +4531,7 @@ type Document struct {
 
 func (x *Document) Reset() {
 	*x = Document{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[56]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4486,7 +4543,7 @@ func (x *Document) String() string {
 func (*Document) ProtoMessage() {}
 
 func (x *Document) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[56]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4499,7 +4556,7 @@ func (x *Document) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Document.ProtoReflect.Descriptor instead.
 func (*Document) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{56}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *Document) GetAccount() string {
@@ -4599,7 +4656,7 @@ type BlockNode struct {
 
 func (x *BlockNode) Reset() {
 	*x = BlockNode{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[57]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4611,7 +4668,7 @@ func (x *BlockNode) String() string {
 func (*BlockNode) ProtoMessage() {}
 
 func (x *BlockNode) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[57]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4624,7 +4681,7 @@ func (x *BlockNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockNode.ProtoReflect.Descriptor instead.
 func (*BlockNode) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{57}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *BlockNode) GetBlock() *Block {
@@ -4673,7 +4730,7 @@ type Block struct {
 
 func (x *Block) Reset() {
 	*x = Block{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[58]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4685,7 +4742,7 @@ func (x *Block) String() string {
 func (*Block) ProtoMessage() {}
 
 func (x *Block) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[58]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4698,7 +4755,7 @@ func (x *Block) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Block.ProtoReflect.Descriptor instead.
 func (*Block) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{58}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *Block) GetId() string {
@@ -4779,7 +4836,7 @@ type Annotation struct {
 
 func (x *Annotation) Reset() {
 	*x = Annotation{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[59]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4791,7 +4848,7 @@ func (x *Annotation) String() string {
 func (*Annotation) ProtoMessage() {}
 
 func (x *Annotation) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[59]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4804,7 +4861,7 @@ func (x *Annotation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Annotation.ProtoReflect.Descriptor instead.
 func (*Annotation) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{59}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *Annotation) GetType() string {
@@ -4859,7 +4916,7 @@ type DocumentChange struct {
 
 func (x *DocumentChange) Reset() {
 	*x = DocumentChange{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[60]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4871,7 +4928,7 @@ func (x *DocumentChange) String() string {
 func (*DocumentChange) ProtoMessage() {}
 
 func (x *DocumentChange) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[60]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4884,7 +4941,7 @@ func (x *DocumentChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentChange.ProtoReflect.Descriptor instead.
 func (*DocumentChange) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{60}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *DocumentChange) GetOp() isDocumentChange_Op {
@@ -5005,7 +5062,7 @@ type Ref struct {
 
 func (x *Ref) Reset() {
 	*x = Ref{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[61]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5017,7 +5074,7 @@ func (x *Ref) String() string {
 func (*Ref) ProtoMessage() {}
 
 func (x *Ref) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[61]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5030,7 +5087,7 @@ func (x *Ref) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ref.ProtoReflect.Descriptor instead.
 func (*Ref) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{61}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *Ref) GetId() string {
@@ -5106,7 +5163,7 @@ type RefTarget struct {
 
 func (x *RefTarget) Reset() {
 	*x = RefTarget{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[62]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5118,7 +5175,7 @@ func (x *RefTarget) String() string {
 func (*RefTarget) ProtoMessage() {}
 
 func (x *RefTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[62]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5131,7 +5188,7 @@ func (x *RefTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefTarget.ProtoReflect.Descriptor instead.
 func (*RefTarget) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{62}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *RefTarget) GetTarget() isRefTarget_Target {
@@ -5209,7 +5266,7 @@ type DocumentFilter_And struct {
 
 func (x *DocumentFilter_And) Reset() {
 	*x = DocumentFilter_And{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[65]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5221,7 +5278,7 @@ func (x *DocumentFilter_And) String() string {
 func (*DocumentFilter_And) ProtoMessage() {}
 
 func (x *DocumentFilter_And) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[65]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5255,7 +5312,7 @@ type DocumentFilter_Or struct {
 
 func (x *DocumentFilter_Or) Reset() {
 	*x = DocumentFilter_Or{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[66]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5267,7 +5324,7 @@ func (x *DocumentFilter_Or) String() string {
 func (*DocumentFilter_Or) ProtoMessage() {}
 
 func (x *DocumentFilter_Or) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[66]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5301,7 +5358,7 @@ type DocumentFilter_Not struct {
 
 func (x *DocumentFilter_Not) Reset() {
 	*x = DocumentFilter_Not{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[67]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5313,7 +5370,7 @@ func (x *DocumentFilter_Not) String() string {
 func (*DocumentFilter_Not) ProtoMessage() {}
 
 func (x *DocumentFilter_Not) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[67]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5351,7 +5408,7 @@ type DocumentFilter_Comparison struct {
 
 func (x *DocumentFilter_Comparison) Reset() {
 	*x = DocumentFilter_Comparison{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[68]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5363,7 +5420,7 @@ func (x *DocumentFilter_Comparison) String() string {
 func (*DocumentFilter_Comparison) ProtoMessage() {}
 
 func (x *DocumentFilter_Comparison) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[68]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5411,7 +5468,7 @@ type DocumentFilter_Presence struct {
 
 func (x *DocumentFilter_Presence) Reset() {
 	*x = DocumentFilter_Presence{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[69]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5423,7 +5480,7 @@ func (x *DocumentFilter_Presence) String() string {
 func (*DocumentFilter_Presence) ProtoMessage() {}
 
 func (x *DocumentFilter_Presence) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[69]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5463,7 +5520,7 @@ type DocumentFilter_StringMatch struct {
 
 func (x *DocumentFilter_StringMatch) Reset() {
 	*x = DocumentFilter_StringMatch{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[70]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5475,7 +5532,7 @@ func (x *DocumentFilter_StringMatch) String() string {
 func (*DocumentFilter_StringMatch) ProtoMessage() {}
 
 func (x *DocumentFilter_StringMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[70]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5532,7 +5589,7 @@ type DocumentFilter_URLMatch struct {
 
 func (x *DocumentFilter_URLMatch) Reset() {
 	*x = DocumentFilter_URLMatch{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[71]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5544,7 +5601,7 @@ func (x *DocumentFilter_URLMatch) String() string {
 func (*DocumentFilter_URLMatch) ProtoMessage() {}
 
 func (x *DocumentFilter_URLMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[71]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5585,7 +5642,7 @@ type DocumentFilter_SpaceMatch struct {
 
 func (x *DocumentFilter_SpaceMatch) Reset() {
 	*x = DocumentFilter_SpaceMatch{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[72]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5597,7 +5654,7 @@ func (x *DocumentFilter_SpaceMatch) String() string {
 func (*DocumentFilter_SpaceMatch) ProtoMessage() {}
 
 func (x *DocumentFilter_SpaceMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[72]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5633,7 +5690,7 @@ type DocumentFilter_PathMatch struct {
 
 func (x *DocumentFilter_PathMatch) Reset() {
 	*x = DocumentFilter_PathMatch{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[73]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5645,7 +5702,7 @@ func (x *DocumentFilter_PathMatch) String() string {
 func (*DocumentFilter_PathMatch) ProtoMessage() {}
 
 func (x *DocumentFilter_PathMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[73]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5686,7 +5743,7 @@ type DocumentFilter_AuthorMatch struct {
 
 func (x *DocumentFilter_AuthorMatch) Reset() {
 	*x = DocumentFilter_AuthorMatch{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[74]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5698,7 +5755,7 @@ func (x *DocumentFilter_AuthorMatch) String() string {
 func (*DocumentFilter_AuthorMatch) ProtoMessage() {}
 
 func (x *DocumentFilter_AuthorMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[74]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5740,7 +5797,7 @@ type DocumentFilter_TimeRange struct {
 
 func (x *DocumentFilter_TimeRange) Reset() {
 	*x = DocumentFilter_TimeRange{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[75]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5752,7 +5809,7 @@ func (x *DocumentFilter_TimeRange) String() string {
 func (*DocumentFilter_TimeRange) ProtoMessage() {}
 
 func (x *DocumentFilter_TimeRange) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[75]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5806,7 +5863,7 @@ type DocumentChange_MoveBlock struct {
 
 func (x *DocumentChange_MoveBlock) Reset() {
 	*x = DocumentChange_MoveBlock{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[77]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5818,7 +5875,7 @@ func (x *DocumentChange_MoveBlock) String() string {
 func (*DocumentChange_MoveBlock) ProtoMessage() {}
 
 func (x *DocumentChange_MoveBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[77]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5831,7 +5888,7 @@ func (x *DocumentChange_MoveBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentChange_MoveBlock.ProtoReflect.Descriptor instead.
 func (*DocumentChange_MoveBlock) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{60, 0}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{61, 0}
 }
 
 func (x *DocumentChange_MoveBlock) GetBlockId() string {
@@ -5869,7 +5926,7 @@ type DocumentChange_SetMetadata struct {
 
 func (x *DocumentChange_SetMetadata) Reset() {
 	*x = DocumentChange_SetMetadata{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[78]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5881,7 +5938,7 @@ func (x *DocumentChange_SetMetadata) String() string {
 func (*DocumentChange_SetMetadata) ProtoMessage() {}
 
 func (x *DocumentChange_SetMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[78]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5894,7 +5951,7 @@ func (x *DocumentChange_SetMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentChange_SetMetadata.ProtoReflect.Descriptor instead.
 func (*DocumentChange_SetMetadata) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{60, 1}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{61, 1}
 }
 
 func (x *DocumentChange_SetMetadata) GetKey() string {
@@ -5937,7 +5994,7 @@ type DocumentChange_SetAttribute struct {
 
 func (x *DocumentChange_SetAttribute) Reset() {
 	*x = DocumentChange_SetAttribute{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[79]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5949,7 +6006,7 @@ func (x *DocumentChange_SetAttribute) String() string {
 func (*DocumentChange_SetAttribute) ProtoMessage() {}
 
 func (x *DocumentChange_SetAttribute) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[79]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5962,7 +6019,7 @@ func (x *DocumentChange_SetAttribute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentChange_SetAttribute.ProtoReflect.Descriptor instead.
 func (*DocumentChange_SetAttribute) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{60, 2}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{61, 2}
 }
 
 func (x *DocumentChange_SetAttribute) GetBlockId() string {
@@ -6063,7 +6120,7 @@ type RefTarget_Version struct {
 
 func (x *RefTarget_Version) Reset() {
 	*x = RefTarget_Version{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[80]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6075,7 +6132,7 @@ func (x *RefTarget_Version) String() string {
 func (*RefTarget_Version) ProtoMessage() {}
 
 func (x *RefTarget_Version) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[80]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6088,7 +6145,7 @@ func (x *RefTarget_Version) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefTarget_Version.ProtoReflect.Descriptor instead.
 func (*RefTarget_Version) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{62, 0}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{63, 0}
 }
 
 func (x *RefTarget_Version) GetGenesis() string {
@@ -6125,7 +6182,7 @@ type RefTarget_Redirect struct {
 
 func (x *RefTarget_Redirect) Reset() {
 	*x = RefTarget_Redirect{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[81]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6137,7 +6194,7 @@ func (x *RefTarget_Redirect) String() string {
 func (*RefTarget_Redirect) ProtoMessage() {}
 
 func (x *RefTarget_Redirect) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[81]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6150,7 +6207,7 @@ func (x *RefTarget_Redirect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefTarget_Redirect.ProtoReflect.Descriptor instead.
 func (*RefTarget_Redirect) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{62, 1}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{63, 1}
 }
 
 func (x *RefTarget_Redirect) GetAccount() string {
@@ -6182,7 +6239,7 @@ type RefTarget_Tombstone struct {
 
 func (x *RefTarget_Tombstone) Reset() {
 	*x = RefTarget_Tombstone{}
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[82]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6194,7 +6251,7 @@ func (x *RefTarget_Tombstone) String() string {
 func (*RefTarget_Tombstone) ProtoMessage() {}
 
 func (x *RefTarget_Tombstone) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_documents_proto_msgTypes[82]
+	mi := &file_documents_v3alpha_documents_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6207,7 +6264,7 @@ func (x *RefTarget_Tombstone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefTarget_Tombstone.ProtoReflect.Descriptor instead.
 func (*RefTarget_Tombstone) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{62, 2}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{63, 2}
 }
 
 var File_documents_v3alpha_documents_proto protoreflect.FileDescriptor
@@ -6522,7 +6579,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xe6\x06\n" +
+	"createTime\"\xbe\a\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -6543,9 +6600,12 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
 	"visibility\x128\n" +
 	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01\x12(\n" +
-	"\ris_collection\x18\x10 \x01(\bH\x01R\fisCollection\x88\x01\x01B\x19\n" +
+	"\ris_collection\x18\x10 \x01(\bH\x01R\fisCollection\x88\x01\x01\x12V\n" +
+	"\x10navigation_cards\x18\x11 \x01(\v2+.com.seed.documents.v3alpha.NavigationCardsR\x0fnavigationCardsB\x19\n" +
 	"\x17_first_image_in_contentB\x10\n" +
-	"\x0e_is_collection\"J\n" +
+	"\x0e_is_collection\"+\n" +
+	"\x0fNavigationCards\x12\x18\n" +
+	"\atargets\x18\x01 \x03(\tR\atargets\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +
@@ -6722,7 +6782,7 @@ func file_documents_v3alpha_documents_proto_rawDescGZIP() []byte {
 }
 
 var file_documents_v3alpha_documents_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_documents_v3alpha_documents_proto_msgTypes = make([]protoimpl.MessageInfo, 83)
+var file_documents_v3alpha_documents_proto_msgTypes = make([]protoimpl.MessageInfo, 84)
 var file_documents_v3alpha_documents_proto_goTypes = []any{
 	(ResourceVisibility)(0),                     // 0: com.seed.documents.v3alpha.ResourceVisibility
 	(SortAttribute)(0),                          // 1: com.seed.documents.v3alpha.SortAttribute
@@ -6783,78 +6843,79 @@ var file_documents_v3alpha_documents_proto_goTypes = []any{
 	(*ListRefsResponse)(nil),                    // 56: com.seed.documents.v3alpha.ListRefsResponse
 	(*DocumentChangeInfo)(nil),                  // 57: com.seed.documents.v3alpha.DocumentChangeInfo
 	(*DocumentInfo)(nil),                        // 58: com.seed.documents.v3alpha.DocumentInfo
-	(*GenerationInfo)(nil),                      // 59: com.seed.documents.v3alpha.GenerationInfo
-	(*ActivitySummary)(nil),                     // 60: com.seed.documents.v3alpha.ActivitySummary
-	(*Breadcrumb)(nil),                          // 61: com.seed.documents.v3alpha.Breadcrumb
-	(*Document)(nil),                            // 62: com.seed.documents.v3alpha.Document
-	(*BlockNode)(nil),                           // 63: com.seed.documents.v3alpha.BlockNode
-	(*Block)(nil),                               // 64: com.seed.documents.v3alpha.Block
-	(*Annotation)(nil),                          // 65: com.seed.documents.v3alpha.Annotation
-	(*DocumentChange)(nil),                      // 66: com.seed.documents.v3alpha.DocumentChange
-	(*Ref)(nil),                                 // 67: com.seed.documents.v3alpha.Ref
-	(*RefTarget)(nil),                           // 68: com.seed.documents.v3alpha.RefTarget
-	nil,                                         // 69: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
-	nil,                                         // 70: com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
-	(*DocumentFilter_And)(nil),                  // 71: com.seed.documents.v3alpha.DocumentFilter.And
-	(*DocumentFilter_Or)(nil),                   // 72: com.seed.documents.v3alpha.DocumentFilter.Or
-	(*DocumentFilter_Not)(nil),                  // 73: com.seed.documents.v3alpha.DocumentFilter.Not
-	(*DocumentFilter_Comparison)(nil),           // 74: com.seed.documents.v3alpha.DocumentFilter.Comparison
-	(*DocumentFilter_Presence)(nil),             // 75: com.seed.documents.v3alpha.DocumentFilter.Presence
-	(*DocumentFilter_StringMatch)(nil),          // 76: com.seed.documents.v3alpha.DocumentFilter.StringMatch
-	(*DocumentFilter_URLMatch)(nil),             // 77: com.seed.documents.v3alpha.DocumentFilter.URLMatch
-	(*DocumentFilter_SpaceMatch)(nil),           // 78: com.seed.documents.v3alpha.DocumentFilter.SpaceMatch
-	(*DocumentFilter_PathMatch)(nil),            // 79: com.seed.documents.v3alpha.DocumentFilter.PathMatch
-	(*DocumentFilter_AuthorMatch)(nil),          // 80: com.seed.documents.v3alpha.DocumentFilter.AuthorMatch
-	(*DocumentFilter_TimeRange)(nil),            // 81: com.seed.documents.v3alpha.DocumentFilter.TimeRange
-	nil,                                         // 82: com.seed.documents.v3alpha.Document.DetachedBlocksEntry
-	(*DocumentChange_MoveBlock)(nil),            // 83: com.seed.documents.v3alpha.DocumentChange.MoveBlock
-	(*DocumentChange_SetMetadata)(nil),          // 84: com.seed.documents.v3alpha.DocumentChange.SetMetadata
-	(*DocumentChange_SetAttribute)(nil),         // 85: com.seed.documents.v3alpha.DocumentChange.SetAttribute
-	(*RefTarget_Version)(nil),                   // 86: com.seed.documents.v3alpha.RefTarget.Version
-	(*RefTarget_Redirect)(nil),                  // 87: com.seed.documents.v3alpha.RefTarget.Redirect
-	(*RefTarget_Tombstone)(nil),                 // 88: com.seed.documents.v3alpha.RefTarget.Tombstone
-	(*structpb.Struct)(nil),                     // 89: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),               // 90: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                       // 91: google.protobuf.Empty
+	(*NavigationCards)(nil),                     // 59: com.seed.documents.v3alpha.NavigationCards
+	(*GenerationInfo)(nil),                      // 60: com.seed.documents.v3alpha.GenerationInfo
+	(*ActivitySummary)(nil),                     // 61: com.seed.documents.v3alpha.ActivitySummary
+	(*Breadcrumb)(nil),                          // 62: com.seed.documents.v3alpha.Breadcrumb
+	(*Document)(nil),                            // 63: com.seed.documents.v3alpha.Document
+	(*BlockNode)(nil),                           // 64: com.seed.documents.v3alpha.BlockNode
+	(*Block)(nil),                               // 65: com.seed.documents.v3alpha.Block
+	(*Annotation)(nil),                          // 66: com.seed.documents.v3alpha.Annotation
+	(*DocumentChange)(nil),                      // 67: com.seed.documents.v3alpha.DocumentChange
+	(*Ref)(nil),                                 // 68: com.seed.documents.v3alpha.Ref
+	(*RefTarget)(nil),                           // 69: com.seed.documents.v3alpha.RefTarget
+	nil,                                         // 70: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
+	nil,                                         // 71: com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
+	(*DocumentFilter_And)(nil),                  // 72: com.seed.documents.v3alpha.DocumentFilter.And
+	(*DocumentFilter_Or)(nil),                   // 73: com.seed.documents.v3alpha.DocumentFilter.Or
+	(*DocumentFilter_Not)(nil),                  // 74: com.seed.documents.v3alpha.DocumentFilter.Not
+	(*DocumentFilter_Comparison)(nil),           // 75: com.seed.documents.v3alpha.DocumentFilter.Comparison
+	(*DocumentFilter_Presence)(nil),             // 76: com.seed.documents.v3alpha.DocumentFilter.Presence
+	(*DocumentFilter_StringMatch)(nil),          // 77: com.seed.documents.v3alpha.DocumentFilter.StringMatch
+	(*DocumentFilter_URLMatch)(nil),             // 78: com.seed.documents.v3alpha.DocumentFilter.URLMatch
+	(*DocumentFilter_SpaceMatch)(nil),           // 79: com.seed.documents.v3alpha.DocumentFilter.SpaceMatch
+	(*DocumentFilter_PathMatch)(nil),            // 80: com.seed.documents.v3alpha.DocumentFilter.PathMatch
+	(*DocumentFilter_AuthorMatch)(nil),          // 81: com.seed.documents.v3alpha.DocumentFilter.AuthorMatch
+	(*DocumentFilter_TimeRange)(nil),            // 82: com.seed.documents.v3alpha.DocumentFilter.TimeRange
+	nil,                                         // 83: com.seed.documents.v3alpha.Document.DetachedBlocksEntry
+	(*DocumentChange_MoveBlock)(nil),            // 84: com.seed.documents.v3alpha.DocumentChange.MoveBlock
+	(*DocumentChange_SetMetadata)(nil),          // 85: com.seed.documents.v3alpha.DocumentChange.SetMetadata
+	(*DocumentChange_SetAttribute)(nil),         // 86: com.seed.documents.v3alpha.DocumentChange.SetAttribute
+	(*RefTarget_Version)(nil),                   // 87: com.seed.documents.v3alpha.RefTarget.Version
+	(*RefTarget_Redirect)(nil),                  // 88: com.seed.documents.v3alpha.RefTarget.Redirect
+	(*RefTarget_Tombstone)(nil),                 // 89: com.seed.documents.v3alpha.RefTarget.Tombstone
+	(*structpb.Struct)(nil),                     // 90: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),               // 91: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                       // 92: google.protobuf.Empty
 }
 var file_documents_v3alpha_documents_proto_depIdxs = []int32{
 	8,   // 0: com.seed.documents.v3alpha.BatchGetDocumentInfoRequest.requests:type_name -> com.seed.documents.v3alpha.GetDocumentInfoRequest
 	58,  // 1: com.seed.documents.v3alpha.BatchGetDocumentInfoResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	66,  // 2: com.seed.documents.v3alpha.PrepareChangeRequest.changes:type_name -> com.seed.documents.v3alpha.DocumentChange
+	67,  // 2: com.seed.documents.v3alpha.PrepareChangeRequest.changes:type_name -> com.seed.documents.v3alpha.DocumentChange
 	0,   // 3: com.seed.documents.v3alpha.PrepareChangeRequest.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
 	58,  // 4: com.seed.documents.v3alpha.ListRootDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
 	33,  // 5: com.seed.documents.v3alpha.ListAccountsRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
 	22,  // 6: com.seed.documents.v3alpha.ListAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.Account
-	69,  // 7: com.seed.documents.v3alpha.BatchGetAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
-	70,  // 8: com.seed.documents.v3alpha.BatchGetAccountsResponse.errors:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
+	70,  // 7: com.seed.documents.v3alpha.BatchGetAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
+	71,  // 8: com.seed.documents.v3alpha.BatchGetAccountsResponse.errors:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
 	23,  // 9: com.seed.documents.v3alpha.UpdateProfileRequest.profile:type_name -> com.seed.documents.v3alpha.Profile
-	89,  // 10: com.seed.documents.v3alpha.Account.metadata:type_name -> google.protobuf.Struct
-	60,  // 11: com.seed.documents.v3alpha.Account.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
+	90,  // 10: com.seed.documents.v3alpha.Account.metadata:type_name -> google.protobuf.Struct
+	61,  // 11: com.seed.documents.v3alpha.Account.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
 	23,  // 12: com.seed.documents.v3alpha.Account.profile:type_name -> com.seed.documents.v3alpha.Profile
 	58,  // 13: com.seed.documents.v3alpha.Account.home_document_info:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	90,  // 14: com.seed.documents.v3alpha.Profile.update_time:type_name -> google.protobuf.Timestamp
+	91,  // 14: com.seed.documents.v3alpha.Profile.update_time:type_name -> google.protobuf.Timestamp
 	31,  // 15: com.seed.documents.v3alpha.UpdateContactRequest.contact:type_name -> com.seed.documents.v3alpha.Contact
 	31,  // 16: com.seed.documents.v3alpha.ListContactsResponse.contacts:type_name -> com.seed.documents.v3alpha.Contact
-	90,  // 17: com.seed.documents.v3alpha.Contact.create_time:type_name -> google.protobuf.Timestamp
-	90,  // 18: com.seed.documents.v3alpha.Contact.update_time:type_name -> google.protobuf.Timestamp
-	89,  // 19: com.seed.documents.v3alpha.Contact.metadata:type_name -> google.protobuf.Struct
+	91,  // 17: com.seed.documents.v3alpha.Contact.create_time:type_name -> google.protobuf.Timestamp
+	91,  // 18: com.seed.documents.v3alpha.Contact.update_time:type_name -> google.protobuf.Timestamp
+	90,  // 19: com.seed.documents.v3alpha.Contact.metadata:type_name -> google.protobuf.Struct
 	33,  // 20: com.seed.documents.v3alpha.ListDirectoryRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
 	1,   // 21: com.seed.documents.v3alpha.SortOptions.attribute:type_name -> com.seed.documents.v3alpha.SortAttribute
 	58,  // 22: com.seed.documents.v3alpha.ListDirectoryResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
 	58,  // 23: com.seed.documents.v3alpha.ListDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	91,  // 24: com.seed.documents.v3alpha.AttributeValue.null_value:type_name -> google.protobuf.Empty
-	71,  // 25: com.seed.documents.v3alpha.DocumentFilter.and:type_name -> com.seed.documents.v3alpha.DocumentFilter.And
-	72,  // 26: com.seed.documents.v3alpha.DocumentFilter.or:type_name -> com.seed.documents.v3alpha.DocumentFilter.Or
-	73,  // 27: com.seed.documents.v3alpha.DocumentFilter.not:type_name -> com.seed.documents.v3alpha.DocumentFilter.Not
-	74,  // 28: com.seed.documents.v3alpha.DocumentFilter.comparison:type_name -> com.seed.documents.v3alpha.DocumentFilter.Comparison
-	75,  // 29: com.seed.documents.v3alpha.DocumentFilter.exists:type_name -> com.seed.documents.v3alpha.DocumentFilter.Presence
-	75,  // 30: com.seed.documents.v3alpha.DocumentFilter.missing:type_name -> com.seed.documents.v3alpha.DocumentFilter.Presence
-	76,  // 31: com.seed.documents.v3alpha.DocumentFilter.string_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.StringMatch
-	77,  // 32: com.seed.documents.v3alpha.DocumentFilter.url_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.URLMatch
-	78,  // 33: com.seed.documents.v3alpha.DocumentFilter.space_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.SpaceMatch
-	79,  // 34: com.seed.documents.v3alpha.DocumentFilter.path_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.PathMatch
-	80,  // 35: com.seed.documents.v3alpha.DocumentFilter.author_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.AuthorMatch
-	81,  // 36: com.seed.documents.v3alpha.DocumentFilter.time_range:type_name -> com.seed.documents.v3alpha.DocumentFilter.TimeRange
+	92,  // 24: com.seed.documents.v3alpha.AttributeValue.null_value:type_name -> google.protobuf.Empty
+	72,  // 25: com.seed.documents.v3alpha.DocumentFilter.and:type_name -> com.seed.documents.v3alpha.DocumentFilter.And
+	73,  // 26: com.seed.documents.v3alpha.DocumentFilter.or:type_name -> com.seed.documents.v3alpha.DocumentFilter.Or
+	74,  // 27: com.seed.documents.v3alpha.DocumentFilter.not:type_name -> com.seed.documents.v3alpha.DocumentFilter.Not
+	75,  // 28: com.seed.documents.v3alpha.DocumentFilter.comparison:type_name -> com.seed.documents.v3alpha.DocumentFilter.Comparison
+	76,  // 29: com.seed.documents.v3alpha.DocumentFilter.exists:type_name -> com.seed.documents.v3alpha.DocumentFilter.Presence
+	76,  // 30: com.seed.documents.v3alpha.DocumentFilter.missing:type_name -> com.seed.documents.v3alpha.DocumentFilter.Presence
+	77,  // 31: com.seed.documents.v3alpha.DocumentFilter.string_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.StringMatch
+	78,  // 32: com.seed.documents.v3alpha.DocumentFilter.url_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.URLMatch
+	79,  // 33: com.seed.documents.v3alpha.DocumentFilter.space_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.SpaceMatch
+	80,  // 34: com.seed.documents.v3alpha.DocumentFilter.path_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.PathMatch
+	81,  // 35: com.seed.documents.v3alpha.DocumentFilter.author_match:type_name -> com.seed.documents.v3alpha.DocumentFilter.AuthorMatch
+	82,  // 36: com.seed.documents.v3alpha.DocumentFilter.time_range:type_name -> com.seed.documents.v3alpha.DocumentFilter.TimeRange
 	2,   // 37: com.seed.documents.v3alpha.DocumentSort.attribute:type_name -> com.seed.documents.v3alpha.BuiltinSortAttribute
 	38,  // 38: com.seed.documents.v3alpha.QueryDocumentsRequest.filter:type_name -> com.seed.documents.v3alpha.DocumentFilter
 	39,  // 39: com.seed.documents.v3alpha.QueryDocumentsRequest.sort:type_name -> com.seed.documents.v3alpha.DocumentSort
@@ -6866,113 +6927,114 @@ var file_documents_v3alpha_documents_proto_depIdxs = []int32{
 	37,  // 45: com.seed.documents.v3alpha.DocumentAttributeValue.value:type_name -> com.seed.documents.v3alpha.AttributeValue
 	47,  // 46: com.seed.documents.v3alpha.ListDocumentAttributeValuesResponse.values:type_name -> com.seed.documents.v3alpha.DocumentAttributeValue
 	57,  // 47: com.seed.documents.v3alpha.ListDocumentChangesResponse.changes:type_name -> com.seed.documents.v3alpha.DocumentChangeInfo
-	68,  // 48: com.seed.documents.v3alpha.CreateRefRequest.target:type_name -> com.seed.documents.v3alpha.RefTarget
-	90,  // 49: com.seed.documents.v3alpha.CreateRefRequest.timestamp:type_name -> google.protobuf.Timestamp
+	69,  // 48: com.seed.documents.v3alpha.CreateRefRequest.target:type_name -> com.seed.documents.v3alpha.RefTarget
+	91,  // 49: com.seed.documents.v3alpha.CreateRefRequest.timestamp:type_name -> google.protobuf.Timestamp
 	0,   // 50: com.seed.documents.v3alpha.CreateRefRequest.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
-	67,  // 51: com.seed.documents.v3alpha.ListRefsResponse.refs:type_name -> com.seed.documents.v3alpha.Ref
-	90,  // 52: com.seed.documents.v3alpha.DocumentChangeInfo.create_time:type_name -> google.protobuf.Timestamp
-	89,  // 53: com.seed.documents.v3alpha.DocumentInfo.metadata:type_name -> google.protobuf.Struct
-	90,  // 54: com.seed.documents.v3alpha.DocumentInfo.create_time:type_name -> google.protobuf.Timestamp
-	90,  // 55: com.seed.documents.v3alpha.DocumentInfo.update_time:type_name -> google.protobuf.Timestamp
-	61,  // 56: com.seed.documents.v3alpha.DocumentInfo.breadcrumbs:type_name -> com.seed.documents.v3alpha.Breadcrumb
-	60,  // 57: com.seed.documents.v3alpha.DocumentInfo.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
-	59,  // 58: com.seed.documents.v3alpha.DocumentInfo.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	87,  // 59: com.seed.documents.v3alpha.DocumentInfo.redirect_info:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
+	68,  // 51: com.seed.documents.v3alpha.ListRefsResponse.refs:type_name -> com.seed.documents.v3alpha.Ref
+	91,  // 52: com.seed.documents.v3alpha.DocumentChangeInfo.create_time:type_name -> google.protobuf.Timestamp
+	90,  // 53: com.seed.documents.v3alpha.DocumentInfo.metadata:type_name -> google.protobuf.Struct
+	91,  // 54: com.seed.documents.v3alpha.DocumentInfo.create_time:type_name -> google.protobuf.Timestamp
+	91,  // 55: com.seed.documents.v3alpha.DocumentInfo.update_time:type_name -> google.protobuf.Timestamp
+	62,  // 56: com.seed.documents.v3alpha.DocumentInfo.breadcrumbs:type_name -> com.seed.documents.v3alpha.Breadcrumb
+	61,  // 57: com.seed.documents.v3alpha.DocumentInfo.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
+	60,  // 58: com.seed.documents.v3alpha.DocumentInfo.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	88,  // 59: com.seed.documents.v3alpha.DocumentInfo.redirect_info:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
 	0,   // 60: com.seed.documents.v3alpha.DocumentInfo.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
-	90,  // 61: com.seed.documents.v3alpha.ActivitySummary.latest_comment_time:type_name -> google.protobuf.Timestamp
-	90,  // 62: com.seed.documents.v3alpha.ActivitySummary.latest_change_time:type_name -> google.protobuf.Timestamp
-	89,  // 63: com.seed.documents.v3alpha.Document.metadata:type_name -> google.protobuf.Struct
-	63,  // 64: com.seed.documents.v3alpha.Document.content:type_name -> com.seed.documents.v3alpha.BlockNode
-	82,  // 65: com.seed.documents.v3alpha.Document.detached_blocks:type_name -> com.seed.documents.v3alpha.Document.DetachedBlocksEntry
-	90,  // 66: com.seed.documents.v3alpha.Document.create_time:type_name -> google.protobuf.Timestamp
-	90,  // 67: com.seed.documents.v3alpha.Document.update_time:type_name -> google.protobuf.Timestamp
-	59,  // 68: com.seed.documents.v3alpha.Document.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	0,   // 69: com.seed.documents.v3alpha.Document.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
-	64,  // 70: com.seed.documents.v3alpha.BlockNode.block:type_name -> com.seed.documents.v3alpha.Block
-	63,  // 71: com.seed.documents.v3alpha.BlockNode.children:type_name -> com.seed.documents.v3alpha.BlockNode
-	89,  // 72: com.seed.documents.v3alpha.Block.attributes:type_name -> google.protobuf.Struct
-	65,  // 73: com.seed.documents.v3alpha.Block.annotations:type_name -> com.seed.documents.v3alpha.Annotation
-	89,  // 74: com.seed.documents.v3alpha.Annotation.attributes:type_name -> google.protobuf.Struct
-	84,  // 75: com.seed.documents.v3alpha.DocumentChange.set_metadata:type_name -> com.seed.documents.v3alpha.DocumentChange.SetMetadata
-	83,  // 76: com.seed.documents.v3alpha.DocumentChange.move_block:type_name -> com.seed.documents.v3alpha.DocumentChange.MoveBlock
-	64,  // 77: com.seed.documents.v3alpha.DocumentChange.replace_block:type_name -> com.seed.documents.v3alpha.Block
-	85,  // 78: com.seed.documents.v3alpha.DocumentChange.set_attribute:type_name -> com.seed.documents.v3alpha.DocumentChange.SetAttribute
-	68,  // 79: com.seed.documents.v3alpha.Ref.target:type_name -> com.seed.documents.v3alpha.RefTarget
-	90,  // 80: com.seed.documents.v3alpha.Ref.timestamp:type_name -> google.protobuf.Timestamp
-	59,  // 81: com.seed.documents.v3alpha.Ref.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	86,  // 82: com.seed.documents.v3alpha.RefTarget.version:type_name -> com.seed.documents.v3alpha.RefTarget.Version
-	87,  // 83: com.seed.documents.v3alpha.RefTarget.redirect:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
-	88,  // 84: com.seed.documents.v3alpha.RefTarget.tombstone:type_name -> com.seed.documents.v3alpha.RefTarget.Tombstone
-	22,  // 85: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry.value:type_name -> com.seed.documents.v3alpha.Account
-	38,  // 86: com.seed.documents.v3alpha.DocumentFilter.And.filters:type_name -> com.seed.documents.v3alpha.DocumentFilter
-	38,  // 87: com.seed.documents.v3alpha.DocumentFilter.Or.filters:type_name -> com.seed.documents.v3alpha.DocumentFilter
-	38,  // 88: com.seed.documents.v3alpha.DocumentFilter.Not.filter:type_name -> com.seed.documents.v3alpha.DocumentFilter
-	4,   // 89: com.seed.documents.v3alpha.DocumentFilter.Comparison.operator:type_name -> com.seed.documents.v3alpha.DocumentFilter.Comparison.Operator
-	37,  // 90: com.seed.documents.v3alpha.DocumentFilter.Comparison.value:type_name -> com.seed.documents.v3alpha.AttributeValue
-	5,   // 91: com.seed.documents.v3alpha.DocumentFilter.TimeRange.field:type_name -> com.seed.documents.v3alpha.DocumentFilter.TimeRange.Field
-	90,  // 92: com.seed.documents.v3alpha.DocumentFilter.TimeRange.start:type_name -> google.protobuf.Timestamp
-	90,  // 93: com.seed.documents.v3alpha.DocumentFilter.TimeRange.end:type_name -> google.protobuf.Timestamp
-	63,  // 94: com.seed.documents.v3alpha.Document.DetachedBlocksEntry.value:type_name -> com.seed.documents.v3alpha.BlockNode
-	91,  // 95: com.seed.documents.v3alpha.DocumentChange.SetAttribute.null_value:type_name -> google.protobuf.Empty
-	6,   // 96: com.seed.documents.v3alpha.Documents.GetDocument:input_type -> com.seed.documents.v3alpha.GetDocumentRequest
-	8,   // 97: com.seed.documents.v3alpha.Documents.GetDocumentInfo:input_type -> com.seed.documents.v3alpha.GetDocumentInfoRequest
-	9,   // 98: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:input_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
-	11,  // 99: com.seed.documents.v3alpha.Documents.PrepareChange:input_type -> com.seed.documents.v3alpha.PrepareChangeRequest
-	13,  // 100: com.seed.documents.v3alpha.Documents.DeleteDocument:input_type -> com.seed.documents.v3alpha.DeleteDocumentRequest
-	16,  // 101: com.seed.documents.v3alpha.Documents.ListAccounts:input_type -> com.seed.documents.v3alpha.ListAccountsRequest
-	18,  // 102: com.seed.documents.v3alpha.Documents.GetAccount:input_type -> com.seed.documents.v3alpha.GetAccountRequest
-	19,  // 103: com.seed.documents.v3alpha.Documents.BatchGetAccounts:input_type -> com.seed.documents.v3alpha.BatchGetAccountsRequest
-	21,  // 104: com.seed.documents.v3alpha.Documents.UpdateProfile:input_type -> com.seed.documents.v3alpha.UpdateProfileRequest
-	24,  // 105: com.seed.documents.v3alpha.Documents.CreateAlias:input_type -> com.seed.documents.v3alpha.CreateAliasRequest
-	25,  // 106: com.seed.documents.v3alpha.Documents.CreateContact:input_type -> com.seed.documents.v3alpha.CreateContactRequest
-	26,  // 107: com.seed.documents.v3alpha.Documents.GetContact:input_type -> com.seed.documents.v3alpha.GetContactRequest
-	27,  // 108: com.seed.documents.v3alpha.Documents.UpdateContact:input_type -> com.seed.documents.v3alpha.UpdateContactRequest
-	28,  // 109: com.seed.documents.v3alpha.Documents.DeleteContact:input_type -> com.seed.documents.v3alpha.DeleteContactRequest
-	29,  // 110: com.seed.documents.v3alpha.Documents.ListContacts:input_type -> com.seed.documents.v3alpha.ListContactsRequest
-	32,  // 111: com.seed.documents.v3alpha.Documents.ListDirectory:input_type -> com.seed.documents.v3alpha.ListDirectoryRequest
-	35,  // 112: com.seed.documents.v3alpha.Documents.ListDocuments:input_type -> com.seed.documents.v3alpha.ListDocumentsRequest
-	14,  // 113: com.seed.documents.v3alpha.Documents.ListRootDocuments:input_type -> com.seed.documents.v3alpha.ListRootDocumentsRequest
-	40,  // 114: com.seed.documents.v3alpha.Documents.QueryDocuments:input_type -> com.seed.documents.v3alpha.QueryDocumentsRequest
-	43,  // 115: com.seed.documents.v3alpha.Documents.ListDocumentAttributeNames:input_type -> com.seed.documents.v3alpha.ListDocumentAttributeNamesRequest
-	46,  // 116: com.seed.documents.v3alpha.Documents.ListDocumentAttributeValues:input_type -> com.seed.documents.v3alpha.ListDocumentAttributeValuesRequest
-	49,  // 117: com.seed.documents.v3alpha.Documents.ListDocumentChanges:input_type -> com.seed.documents.v3alpha.ListDocumentChangesRequest
-	51,  // 118: com.seed.documents.v3alpha.Documents.GetDocumentChange:input_type -> com.seed.documents.v3alpha.GetDocumentChangeRequest
-	52,  // 119: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:input_type -> com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
-	53,  // 120: com.seed.documents.v3alpha.Documents.CreateRef:input_type -> com.seed.documents.v3alpha.CreateRefRequest
-	54,  // 121: com.seed.documents.v3alpha.Documents.GetRef:input_type -> com.seed.documents.v3alpha.GetRefRequest
-	55,  // 122: com.seed.documents.v3alpha.Documents.ListRefs:input_type -> com.seed.documents.v3alpha.ListRefsRequest
-	62,  // 123: com.seed.documents.v3alpha.Documents.GetDocument:output_type -> com.seed.documents.v3alpha.Document
-	58,  // 124: com.seed.documents.v3alpha.Documents.GetDocumentInfo:output_type -> com.seed.documents.v3alpha.DocumentInfo
-	10,  // 125: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:output_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
-	12,  // 126: com.seed.documents.v3alpha.Documents.PrepareChange:output_type -> com.seed.documents.v3alpha.PrepareChangeResponse
-	91,  // 127: com.seed.documents.v3alpha.Documents.DeleteDocument:output_type -> google.protobuf.Empty
-	17,  // 128: com.seed.documents.v3alpha.Documents.ListAccounts:output_type -> com.seed.documents.v3alpha.ListAccountsResponse
-	22,  // 129: com.seed.documents.v3alpha.Documents.GetAccount:output_type -> com.seed.documents.v3alpha.Account
-	20,  // 130: com.seed.documents.v3alpha.Documents.BatchGetAccounts:output_type -> com.seed.documents.v3alpha.BatchGetAccountsResponse
-	22,  // 131: com.seed.documents.v3alpha.Documents.UpdateProfile:output_type -> com.seed.documents.v3alpha.Account
-	91,  // 132: com.seed.documents.v3alpha.Documents.CreateAlias:output_type -> google.protobuf.Empty
-	31,  // 133: com.seed.documents.v3alpha.Documents.CreateContact:output_type -> com.seed.documents.v3alpha.Contact
-	31,  // 134: com.seed.documents.v3alpha.Documents.GetContact:output_type -> com.seed.documents.v3alpha.Contact
-	31,  // 135: com.seed.documents.v3alpha.Documents.UpdateContact:output_type -> com.seed.documents.v3alpha.Contact
-	91,  // 136: com.seed.documents.v3alpha.Documents.DeleteContact:output_type -> google.protobuf.Empty
-	30,  // 137: com.seed.documents.v3alpha.Documents.ListContacts:output_type -> com.seed.documents.v3alpha.ListContactsResponse
-	34,  // 138: com.seed.documents.v3alpha.Documents.ListDirectory:output_type -> com.seed.documents.v3alpha.ListDirectoryResponse
-	36,  // 139: com.seed.documents.v3alpha.Documents.ListDocuments:output_type -> com.seed.documents.v3alpha.ListDocumentsResponse
-	15,  // 140: com.seed.documents.v3alpha.Documents.ListRootDocuments:output_type -> com.seed.documents.v3alpha.ListRootDocumentsResponse
-	41,  // 141: com.seed.documents.v3alpha.Documents.QueryDocuments:output_type -> com.seed.documents.v3alpha.QueryDocumentsResponse
-	45,  // 142: com.seed.documents.v3alpha.Documents.ListDocumentAttributeNames:output_type -> com.seed.documents.v3alpha.ListDocumentAttributeNamesResponse
-	48,  // 143: com.seed.documents.v3alpha.Documents.ListDocumentAttributeValues:output_type -> com.seed.documents.v3alpha.ListDocumentAttributeValuesResponse
-	50,  // 144: com.seed.documents.v3alpha.Documents.ListDocumentChanges:output_type -> com.seed.documents.v3alpha.ListDocumentChangesResponse
-	57,  // 145: com.seed.documents.v3alpha.Documents.GetDocumentChange:output_type -> com.seed.documents.v3alpha.DocumentChangeInfo
-	91,  // 146: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:output_type -> google.protobuf.Empty
-	67,  // 147: com.seed.documents.v3alpha.Documents.CreateRef:output_type -> com.seed.documents.v3alpha.Ref
-	67,  // 148: com.seed.documents.v3alpha.Documents.GetRef:output_type -> com.seed.documents.v3alpha.Ref
-	56,  // 149: com.seed.documents.v3alpha.Documents.ListRefs:output_type -> com.seed.documents.v3alpha.ListRefsResponse
-	123, // [123:150] is the sub-list for method output_type
-	96,  // [96:123] is the sub-list for method input_type
-	96,  // [96:96] is the sub-list for extension type_name
-	96,  // [96:96] is the sub-list for extension extendee
-	0,   // [0:96] is the sub-list for field type_name
+	59,  // 61: com.seed.documents.v3alpha.DocumentInfo.navigation_cards:type_name -> com.seed.documents.v3alpha.NavigationCards
+	91,  // 62: com.seed.documents.v3alpha.ActivitySummary.latest_comment_time:type_name -> google.protobuf.Timestamp
+	91,  // 63: com.seed.documents.v3alpha.ActivitySummary.latest_change_time:type_name -> google.protobuf.Timestamp
+	90,  // 64: com.seed.documents.v3alpha.Document.metadata:type_name -> google.protobuf.Struct
+	64,  // 65: com.seed.documents.v3alpha.Document.content:type_name -> com.seed.documents.v3alpha.BlockNode
+	83,  // 66: com.seed.documents.v3alpha.Document.detached_blocks:type_name -> com.seed.documents.v3alpha.Document.DetachedBlocksEntry
+	91,  // 67: com.seed.documents.v3alpha.Document.create_time:type_name -> google.protobuf.Timestamp
+	91,  // 68: com.seed.documents.v3alpha.Document.update_time:type_name -> google.protobuf.Timestamp
+	60,  // 69: com.seed.documents.v3alpha.Document.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	0,   // 70: com.seed.documents.v3alpha.Document.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
+	65,  // 71: com.seed.documents.v3alpha.BlockNode.block:type_name -> com.seed.documents.v3alpha.Block
+	64,  // 72: com.seed.documents.v3alpha.BlockNode.children:type_name -> com.seed.documents.v3alpha.BlockNode
+	90,  // 73: com.seed.documents.v3alpha.Block.attributes:type_name -> google.protobuf.Struct
+	66,  // 74: com.seed.documents.v3alpha.Block.annotations:type_name -> com.seed.documents.v3alpha.Annotation
+	90,  // 75: com.seed.documents.v3alpha.Annotation.attributes:type_name -> google.protobuf.Struct
+	85,  // 76: com.seed.documents.v3alpha.DocumentChange.set_metadata:type_name -> com.seed.documents.v3alpha.DocumentChange.SetMetadata
+	84,  // 77: com.seed.documents.v3alpha.DocumentChange.move_block:type_name -> com.seed.documents.v3alpha.DocumentChange.MoveBlock
+	65,  // 78: com.seed.documents.v3alpha.DocumentChange.replace_block:type_name -> com.seed.documents.v3alpha.Block
+	86,  // 79: com.seed.documents.v3alpha.DocumentChange.set_attribute:type_name -> com.seed.documents.v3alpha.DocumentChange.SetAttribute
+	69,  // 80: com.seed.documents.v3alpha.Ref.target:type_name -> com.seed.documents.v3alpha.RefTarget
+	91,  // 81: com.seed.documents.v3alpha.Ref.timestamp:type_name -> google.protobuf.Timestamp
+	60,  // 82: com.seed.documents.v3alpha.Ref.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	87,  // 83: com.seed.documents.v3alpha.RefTarget.version:type_name -> com.seed.documents.v3alpha.RefTarget.Version
+	88,  // 84: com.seed.documents.v3alpha.RefTarget.redirect:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
+	89,  // 85: com.seed.documents.v3alpha.RefTarget.tombstone:type_name -> com.seed.documents.v3alpha.RefTarget.Tombstone
+	22,  // 86: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry.value:type_name -> com.seed.documents.v3alpha.Account
+	38,  // 87: com.seed.documents.v3alpha.DocumentFilter.And.filters:type_name -> com.seed.documents.v3alpha.DocumentFilter
+	38,  // 88: com.seed.documents.v3alpha.DocumentFilter.Or.filters:type_name -> com.seed.documents.v3alpha.DocumentFilter
+	38,  // 89: com.seed.documents.v3alpha.DocumentFilter.Not.filter:type_name -> com.seed.documents.v3alpha.DocumentFilter
+	4,   // 90: com.seed.documents.v3alpha.DocumentFilter.Comparison.operator:type_name -> com.seed.documents.v3alpha.DocumentFilter.Comparison.Operator
+	37,  // 91: com.seed.documents.v3alpha.DocumentFilter.Comparison.value:type_name -> com.seed.documents.v3alpha.AttributeValue
+	5,   // 92: com.seed.documents.v3alpha.DocumentFilter.TimeRange.field:type_name -> com.seed.documents.v3alpha.DocumentFilter.TimeRange.Field
+	91,  // 93: com.seed.documents.v3alpha.DocumentFilter.TimeRange.start:type_name -> google.protobuf.Timestamp
+	91,  // 94: com.seed.documents.v3alpha.DocumentFilter.TimeRange.end:type_name -> google.protobuf.Timestamp
+	64,  // 95: com.seed.documents.v3alpha.Document.DetachedBlocksEntry.value:type_name -> com.seed.documents.v3alpha.BlockNode
+	92,  // 96: com.seed.documents.v3alpha.DocumentChange.SetAttribute.null_value:type_name -> google.protobuf.Empty
+	6,   // 97: com.seed.documents.v3alpha.Documents.GetDocument:input_type -> com.seed.documents.v3alpha.GetDocumentRequest
+	8,   // 98: com.seed.documents.v3alpha.Documents.GetDocumentInfo:input_type -> com.seed.documents.v3alpha.GetDocumentInfoRequest
+	9,   // 99: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:input_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
+	11,  // 100: com.seed.documents.v3alpha.Documents.PrepareChange:input_type -> com.seed.documents.v3alpha.PrepareChangeRequest
+	13,  // 101: com.seed.documents.v3alpha.Documents.DeleteDocument:input_type -> com.seed.documents.v3alpha.DeleteDocumentRequest
+	16,  // 102: com.seed.documents.v3alpha.Documents.ListAccounts:input_type -> com.seed.documents.v3alpha.ListAccountsRequest
+	18,  // 103: com.seed.documents.v3alpha.Documents.GetAccount:input_type -> com.seed.documents.v3alpha.GetAccountRequest
+	19,  // 104: com.seed.documents.v3alpha.Documents.BatchGetAccounts:input_type -> com.seed.documents.v3alpha.BatchGetAccountsRequest
+	21,  // 105: com.seed.documents.v3alpha.Documents.UpdateProfile:input_type -> com.seed.documents.v3alpha.UpdateProfileRequest
+	24,  // 106: com.seed.documents.v3alpha.Documents.CreateAlias:input_type -> com.seed.documents.v3alpha.CreateAliasRequest
+	25,  // 107: com.seed.documents.v3alpha.Documents.CreateContact:input_type -> com.seed.documents.v3alpha.CreateContactRequest
+	26,  // 108: com.seed.documents.v3alpha.Documents.GetContact:input_type -> com.seed.documents.v3alpha.GetContactRequest
+	27,  // 109: com.seed.documents.v3alpha.Documents.UpdateContact:input_type -> com.seed.documents.v3alpha.UpdateContactRequest
+	28,  // 110: com.seed.documents.v3alpha.Documents.DeleteContact:input_type -> com.seed.documents.v3alpha.DeleteContactRequest
+	29,  // 111: com.seed.documents.v3alpha.Documents.ListContacts:input_type -> com.seed.documents.v3alpha.ListContactsRequest
+	32,  // 112: com.seed.documents.v3alpha.Documents.ListDirectory:input_type -> com.seed.documents.v3alpha.ListDirectoryRequest
+	35,  // 113: com.seed.documents.v3alpha.Documents.ListDocuments:input_type -> com.seed.documents.v3alpha.ListDocumentsRequest
+	14,  // 114: com.seed.documents.v3alpha.Documents.ListRootDocuments:input_type -> com.seed.documents.v3alpha.ListRootDocumentsRequest
+	40,  // 115: com.seed.documents.v3alpha.Documents.QueryDocuments:input_type -> com.seed.documents.v3alpha.QueryDocumentsRequest
+	43,  // 116: com.seed.documents.v3alpha.Documents.ListDocumentAttributeNames:input_type -> com.seed.documents.v3alpha.ListDocumentAttributeNamesRequest
+	46,  // 117: com.seed.documents.v3alpha.Documents.ListDocumentAttributeValues:input_type -> com.seed.documents.v3alpha.ListDocumentAttributeValuesRequest
+	49,  // 118: com.seed.documents.v3alpha.Documents.ListDocumentChanges:input_type -> com.seed.documents.v3alpha.ListDocumentChangesRequest
+	51,  // 119: com.seed.documents.v3alpha.Documents.GetDocumentChange:input_type -> com.seed.documents.v3alpha.GetDocumentChangeRequest
+	52,  // 120: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:input_type -> com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
+	53,  // 121: com.seed.documents.v3alpha.Documents.CreateRef:input_type -> com.seed.documents.v3alpha.CreateRefRequest
+	54,  // 122: com.seed.documents.v3alpha.Documents.GetRef:input_type -> com.seed.documents.v3alpha.GetRefRequest
+	55,  // 123: com.seed.documents.v3alpha.Documents.ListRefs:input_type -> com.seed.documents.v3alpha.ListRefsRequest
+	63,  // 124: com.seed.documents.v3alpha.Documents.GetDocument:output_type -> com.seed.documents.v3alpha.Document
+	58,  // 125: com.seed.documents.v3alpha.Documents.GetDocumentInfo:output_type -> com.seed.documents.v3alpha.DocumentInfo
+	10,  // 126: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:output_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
+	12,  // 127: com.seed.documents.v3alpha.Documents.PrepareChange:output_type -> com.seed.documents.v3alpha.PrepareChangeResponse
+	92,  // 128: com.seed.documents.v3alpha.Documents.DeleteDocument:output_type -> google.protobuf.Empty
+	17,  // 129: com.seed.documents.v3alpha.Documents.ListAccounts:output_type -> com.seed.documents.v3alpha.ListAccountsResponse
+	22,  // 130: com.seed.documents.v3alpha.Documents.GetAccount:output_type -> com.seed.documents.v3alpha.Account
+	20,  // 131: com.seed.documents.v3alpha.Documents.BatchGetAccounts:output_type -> com.seed.documents.v3alpha.BatchGetAccountsResponse
+	22,  // 132: com.seed.documents.v3alpha.Documents.UpdateProfile:output_type -> com.seed.documents.v3alpha.Account
+	92,  // 133: com.seed.documents.v3alpha.Documents.CreateAlias:output_type -> google.protobuf.Empty
+	31,  // 134: com.seed.documents.v3alpha.Documents.CreateContact:output_type -> com.seed.documents.v3alpha.Contact
+	31,  // 135: com.seed.documents.v3alpha.Documents.GetContact:output_type -> com.seed.documents.v3alpha.Contact
+	31,  // 136: com.seed.documents.v3alpha.Documents.UpdateContact:output_type -> com.seed.documents.v3alpha.Contact
+	92,  // 137: com.seed.documents.v3alpha.Documents.DeleteContact:output_type -> google.protobuf.Empty
+	30,  // 138: com.seed.documents.v3alpha.Documents.ListContacts:output_type -> com.seed.documents.v3alpha.ListContactsResponse
+	34,  // 139: com.seed.documents.v3alpha.Documents.ListDirectory:output_type -> com.seed.documents.v3alpha.ListDirectoryResponse
+	36,  // 140: com.seed.documents.v3alpha.Documents.ListDocuments:output_type -> com.seed.documents.v3alpha.ListDocumentsResponse
+	15,  // 141: com.seed.documents.v3alpha.Documents.ListRootDocuments:output_type -> com.seed.documents.v3alpha.ListRootDocumentsResponse
+	41,  // 142: com.seed.documents.v3alpha.Documents.QueryDocuments:output_type -> com.seed.documents.v3alpha.QueryDocumentsResponse
+	45,  // 143: com.seed.documents.v3alpha.Documents.ListDocumentAttributeNames:output_type -> com.seed.documents.v3alpha.ListDocumentAttributeNamesResponse
+	48,  // 144: com.seed.documents.v3alpha.Documents.ListDocumentAttributeValues:output_type -> com.seed.documents.v3alpha.ListDocumentAttributeValuesResponse
+	50,  // 145: com.seed.documents.v3alpha.Documents.ListDocumentChanges:output_type -> com.seed.documents.v3alpha.ListDocumentChangesResponse
+	57,  // 146: com.seed.documents.v3alpha.Documents.GetDocumentChange:output_type -> com.seed.documents.v3alpha.DocumentChangeInfo
+	92,  // 147: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:output_type -> google.protobuf.Empty
+	68,  // 148: com.seed.documents.v3alpha.Documents.CreateRef:output_type -> com.seed.documents.v3alpha.Ref
+	68,  // 149: com.seed.documents.v3alpha.Documents.GetRef:output_type -> com.seed.documents.v3alpha.Ref
+	56,  // 150: com.seed.documents.v3alpha.Documents.ListRefs:output_type -> com.seed.documents.v3alpha.ListRefsResponse
+	124, // [124:151] is the sub-list for method output_type
+	97,  // [97:124] is the sub-list for method input_type
+	97,  // [97:97] is the sub-list for extension type_name
+	97,  // [97:97] is the sub-list for extension extendee
+	0,   // [0:97] is the sub-list for field type_name
 }
 
 func init() { file_documents_v3alpha_documents_proto_init() }
@@ -7005,19 +7067,19 @@ func file_documents_v3alpha_documents_proto_init() {
 		(*DocumentFilter_TimeRange_)(nil),
 	}
 	file_documents_v3alpha_documents_proto_msgTypes[52].OneofWrappers = []any{}
-	file_documents_v3alpha_documents_proto_msgTypes[60].OneofWrappers = []any{
+	file_documents_v3alpha_documents_proto_msgTypes[61].OneofWrappers = []any{
 		(*DocumentChange_SetMetadata_)(nil),
 		(*DocumentChange_MoveBlock_)(nil),
 		(*DocumentChange_ReplaceBlock)(nil),
 		(*DocumentChange_DeleteBlock)(nil),
 		(*DocumentChange_SetAttribute_)(nil),
 	}
-	file_documents_v3alpha_documents_proto_msgTypes[62].OneofWrappers = []any{
+	file_documents_v3alpha_documents_proto_msgTypes[63].OneofWrappers = []any{
 		(*RefTarget_Version_)(nil),
 		(*RefTarget_Redirect_)(nil),
 		(*RefTarget_Tombstone_)(nil),
 	}
-	file_documents_v3alpha_documents_proto_msgTypes[79].OneofWrappers = []any{
+	file_documents_v3alpha_documents_proto_msgTypes[80].OneofWrappers = []any{
 		(*DocumentChange_SetAttribute_StringValue)(nil),
 		(*DocumentChange_SetAttribute_IntValue)(nil),
 		(*DocumentChange_SetAttribute_BoolValue)(nil),
@@ -7029,7 +7091,7 @@ func file_documents_v3alpha_documents_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_documents_v3alpha_documents_proto_rawDesc), len(file_documents_v3alpha_documents_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   83,
+			NumMessages:   84,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

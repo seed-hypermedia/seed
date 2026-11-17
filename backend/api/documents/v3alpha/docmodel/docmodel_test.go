@@ -124,6 +124,39 @@ func TestFirstContentImage(t *testing.T) {
 	})
 }
 
+func TestNavigationCards(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	card := must.Do2(structpb.NewStruct(map[string]any{"view": "Card"}))
+	content := must.Do2(structpb.NewStruct(map[string]any{"view": "Content"}))
+
+	doc := must.Do2(New("mydoc", cclock.New()))
+	blocks := []struct {
+		id, parent, left string
+		block            *documents.Block
+	}{
+		{"team", "", "", &documents.Block{Type: "Embed", Link: "hm://alice/team", Attributes: card}},
+		{"nested", "team", "", &documents.Block{Type: "Embed", Link: "hm://bob/notes?l", Attributes: card}},
+		{"latest", "", "team", &documents.Block{Type: "Embed", Link: "hm://carol?v=bafy1&l#block", Attributes: card}},
+		{"pinned", "", "latest", &documents.Block{Type: "Embed", Link: "hm://dave?v=bafy1", Attributes: card}},
+		{"content", "", "pinned", &documents.Block{Type: "Embed", Link: "hm://erin", Attributes: content}},
+		{"again", "", "content", &documents.Block{Type: "Embed", Link: "hm://alice/team/", Attributes: card}},
+		{"comment", "", "again", &documents.Block{Type: "Embed", Link: "hm://c/bafy2", Attributes: card}},
+		{"para", "", "comment", &documents.Block{Type: "Paragraph", Text: "hm://frank"}},
+		{"as written", "", "para", &documents.Block{Type: "Embed", Link: "hm://alice/plan%23draft?l", Attributes: card}},
+	}
+	for _, b := range blocks {
+		must.Do(doc.MoveBlock(b.id, b.parent, b.left))
+		b.block.Id = b.id
+		must.Do(doc.ReplaceBlock(b.block))
+	}
+
+	loaded := must.Do2(New("mydoc", cclock.New()))
+	c := must.Do2(doc.SignChange(alice))
+	must.Do(loaded.ApplyChange(c.CID, c.Decoded))
+	require.Equal(t, []string{"hm://alice/team", "hm://bob/notes", "hm://carol", "hm://alice/plan%23draft"}, loaded.NavigationCards(),
+		"latest Cards in reading order, nested included, once per document, escapes kept; pinned, Content, comment and text links excluded")
+}
+
 func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
 	t.Parallel()
 

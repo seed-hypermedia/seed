@@ -36,6 +36,21 @@ test('follows Card order and opens the latest whole document', async ({page}) =>
   expect(directoryRequests).toEqual([])
 })
 
+test('builds navigation from indexed document info without loading documents', async ({page}) => {
+  await page.goto('/?sidebar&indexed')
+  const sidebar = page.getByRole('complementary', {name: 'Document navigation'})
+  await expect(
+    sidebar
+      .getByRole('treeitem')
+      .getByRole('button')
+      .filter({hasText: /^(Guides|Install Seed)$/}),
+  ).toHaveText(['Guides', 'Install Seed'])
+  await sidebar.getByRole('button', {name: 'Expand Guides'}).click()
+  await expect(sidebar.getByRole('button', {name: 'Document Archive', exact: true})).toBeVisible()
+  await page.getByRole('button', {name: 'Inspect requests'}).click()
+  await expect(page.getByLabel('Resource requests')).toHaveText('[]')
+})
+
 test('updates navigation from the published latest cache and follows moved targets', async ({page}) => {
   const sidebar = page.getByRole('complementary', {name: 'Document navigation'})
   await expect(sidebar.getByRole('button', {name: 'Document Install Seed', exact: true})).toBeVisible()
