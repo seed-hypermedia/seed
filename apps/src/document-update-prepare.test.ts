@@ -110,8 +110,8 @@ function site(
           ],
         }),
       )
-    // The document's history, read before the site is asked to move a block: its one Change moves none.
-    if (href.includes('/api/GetCID')) return Response.json(serialize({value: {ts: headTs ?? 0, body: {ops: []}}}))
+    // The head Change, read for its time when ListChanges does not carry it.
+    if (href.includes('/api/GetCID')) return Response.json(serialize({value: {ts: headTs ?? 0}}))
     if (href.includes('/api/Resource'))
       return Response.json(
         serialize({
