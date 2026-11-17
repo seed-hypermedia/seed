@@ -62,6 +62,60 @@ export function resolveDocsUrl(url: string): string {
   return account ? url.replace(DOCS_URL, `hm://${account}`) : url
 }
 
+// The alias, not as the prefix of a longer domain (`hm://hyper.media.evil`).
+const ALIAS = `hm://${DOCS_AUTHORITY.replace('.', '\\.')}(?![\\w-]|\\.[\\w-])`
+const LINKED_DOCS_URL = new RegExp(`(\\]\\(\\s*<?|<)${ALIAS}`, 'g')
+const DOCS_ROOT = new RegExp(`${ALIAS}(?!/)`, 'g')
+
+/**
+ * The address to give a model for the knowledge base: the configured account, so the links it writes open in the
+ * space this server reads (a dev or staging server's docs are not the ones the `hyper.media` domain serves). The
+ * alias when no account is known.
+ */
+export function docsSpaceUrl(): string {
+  return resolveDocsUrl(`hm://${DOCS_AUTHORITY}`)
+}
+
+/**
+ * Names the knowledge base by its account wherever prompt text names its root (`hm://hyper.media`, as the Agent
+ * Guide does). `hm://hyper.media/<name>` is left alone: there it is a library type name.
+ */
+export function resolveDocsRootMentions(text: string): string {
+  const account = docsSpaceAccount()
+  return account ? text.replace(DOCS_ROOT, `hm://${account}`) : text
+}
+
+/**
+ * Resolves the knowledge base links in markdown an agent wrote (`[text](hm://hyper.media/…)`, `<hm://hyper.media/…>`),
+ * so the people reading it get links that open in the space this server reads: a client resolves the `hyper.media`
+ * domain to the production docs, whichever server the agent runs on. Only link destinations change. Code and prose
+ * are left alone, since `hm://hyper.media/<name>` there is a library type name.
+ */
+export function resolveDocsMarkdown(markdown: string): string {
+  if (!markdown.includes(`hm://${DOCS_AUTHORITY}`)) return markdown
+  const account = docsSpaceAccount()
+  if (!account) return markdown
+  let fence: string | null = null
+  return markdown
+    .split('\n')
+    .map((line) => {
+      const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
+      if (fence) {
+        if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null
+        return line
+      }
+      if (marker) {
+        fence = marker
+        return line
+      }
+      return line
+        .split(/(`+[^`]+`+)/)
+        .map((part, index) => (index % 2 ? part : part.replace(LINKED_DOCS_URL, `$1hm://${account}`)))
+        .join('')
+    })
+    .join('\n')
+}
+
 type LinkedBlockNode = {block: {link?: string; [key: string]: unknown}; children?: LinkedBlockNode[]}
 
 /** Resolves every block `link` that names the knowledge base, returning new nodes. */

@@ -21,16 +21,22 @@ import type {Thoroughness} from './delegation'
 export type SeedAssistantPromptOptions = {
   currentTime?: string
   contextLines?: string[]
+  /**
+   * Where the Hypermedia knowledge base is, for this runtime. A server passes the space it reads (its configured
+   * docs account), so the model links pages in that space. Defaults to the `hm://hyper.media` domain.
+   */
+  knowledgeBaseUrl?: string
 }
 
 /** Returns the shared Seed assistant instructions used by desktop chat and hosted agents. */
 export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = {}): string {
+  const docs = options.knowledgeBaseUrl || 'hm://hyper.media'
   const parts = [
     'You are the Seed Assistant. You are part of Seed, connected to the p2p Hypermedia (HM) network, an augmented web.',
     'Be nice but not overly friendly. Be concise. Answer what the user asked; do not offer generic follow-up help.',
     'There are many HM resource types: documents, profiles/accounts, comments, contacts, capabilities, and activity events. Documents have human-readable paths.',
     'Resources in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
-    'The Hypermedia knowledge base is at hm://hyper.media (start at hm://hyper.media, the Agent Guide is hm://hyper.media/app-environment/guide). When asked how Hypermedia, Seed, or Seed Agents work, read the relevant page there before answering instead of relying on memory.',
+    `The Hypermedia knowledge base is the space ${docs} (start at ${docs}, the Agent Guide is ${docs}/app-environment/guide). When asked how Hypermedia, Seed, or Seed Agents work, read the relevant page there before answering instead of relying on memory, and link its pages by the address a read returns.`,
     'When you mention an hm:// resource or view in your reply, format it as a Markdown link with a descriptive label, for example `[Project notes](hm://z6Mk.../notes)`.',
     "To mention a person or an agent in a comment or document so they are notified (and an agent is activated), write an inline mention: `[@](hm://ACCOUNT_UID/:profile)`. The link label is `@` and nothing else; any text after the `@` is ignored, and readers render the account's current name. Only that form (or the autolink `<hm://ACCOUNT_UID/:profile>`) is a mention. Plain `@Name` text, a link to one of their comments, or a link whose label does not start with `@` is NOT a mention and summons nobody. `[@](hm://…/some-document)` mentions a document inline the same way. Account UIDs are the `author` of comments you read and the uid in profile URLs; every comment in a read result prints its author's ready-made mention.",
     'When linking to a specific location inside a Seed document, use only an exact Seed block ID fragment copied from a read result, for example `#y3eQtxFk` from `<!-- id:y3eQtxFk -->`. Seed fragments are not HTML heading anchors: never invent heading slugs, title slugs, or URL-safe text fragments such as `#some-heading-text`.',

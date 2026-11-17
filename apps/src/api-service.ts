@@ -33,7 +33,13 @@ import {
 import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as protocol from '@seed-hypermedia/apps-protocol'
 import * as activityTriggers from '@/activity-triggers'
-import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
+import {
+  docsSpaceUrl,
+  resolveDocsLinks,
+  resolveDocsMarkdown,
+  resolveDocsRootMentions,
+  resolveDocsUrl,
+} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
 import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
@@ -8462,7 +8468,11 @@ export class Service {
     // The time is not part of the prompt: it reaches the model with each turn's input (see
     // `turnStateMessages`), so this text stays byte-stable from one turn to the next and the
     // provider's prompt cache survives.
-    const sharedPrompt = seedAssistantSystemPrompt()
+    // The model is told the knowledge base by the account this server reads, here and where the Agent Guide names
+    // its root, so the links it writes open in that space. Resolved on every turn, after the cache: a dev site's
+    // key can change.
+    systemPrompt = resolveDocsRootMentions(systemPrompt)
+    const sharedPrompt = seedAssistantSystemPrompt({knowledgeBaseUrl: docsSpaceUrl()})
     const memoryPrompt =
       '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
@@ -9018,7 +9028,10 @@ export class Service {
         // resumed after a restart asks again), the complete answer follows and the fragment is
         // not a message of its own.
         const stoppedPartial = message.stopReason === 'aborted'
-        const text = stoppedPartial && !(live && runningSession?.stopped) ? '' : piAssistantText(message)
+        // A link the model wrote to `hm://hyper.media` goes to the knowledge base this server reads: a client would
+        // resolve the domain to the production docs. The harness keeps the model's own wording.
+        const text =
+          stoppedPartial && !(live && runningSession?.stopped) ? '' : resolveDocsMarkdown(piAssistantText(message))
         if (text.trim()) {
           this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
           const appended = this.#appendSessionEvent(
@@ -19730,7 +19743,7 @@ function getDraftRow(context: WriteToolContext, draftId: string) {
 /** Invalid frontmatter YAML is the caller's mistake, so it is reported as a 400 rather than a crash. */
 export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof parseMarkdown> {
   try {
-    return parseMarkdown(content)
+    return parseMarkdown(resolveDocsMarkdown(content))
   } catch (error) {
     if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
     throw error
@@ -19814,7 +19827,9 @@ function commentMarkdownToBlocks(
       ],
       mentionedAccounts: [],
     }
-  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree))
+  const prepared = prepareCommentMentions(
+    markdownBlockNodesToHMBlockNodes(parseMarkdown(resolveDocsMarkdown(content)).tree),
+  )
   if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
     throw new APIError(400, plainMentionsError(prepared.plainMentions))
   }

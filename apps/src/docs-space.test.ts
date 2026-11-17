@@ -2,7 +2,14 @@ import {afterEach, describe, expect, test} from 'bun:test'
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {configureDocsSpace, resolveDocsLinks, resolveDocsUrl} from './docs-space'
+import {
+  configureDocsSpace,
+  docsSpaceUrl,
+  resolveDocsLinks,
+  resolveDocsMarkdown,
+  resolveDocsRootMentions,
+  resolveDocsUrl,
+} from './docs-space'
 
 const ACCOUNT = 'z6MkoAVbUvhqBBkJ8CU9aDhn13UUu4UePixQdPFYumn5gsW3'
 const OTHER = 'z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj'
@@ -57,5 +64,37 @@ describe('docs space', () => {
     expect(out[0]!.block.link).toBe(`hm://${ACCOUNT}/agent/guide`)
     expect(out[1]!.children![0]!.block.link).toBe(`hm://${ACCOUNT}/protocol/urls`)
     expect(blocks[0]!.block.link).toBe(AGENT_GUIDE_URL)
+  })
+
+  test('resolves knowledge base links in markdown, leaving code and other domains alone', () => {
+    const markdown = [
+      '- [Triggers](hm://hyper.media/app-environment/triggers#blk) and <hm://hyper.media>',
+      'Typed `hm://hyper.media/app`, see hm://hyper.media/apps/document-pages.',
+      '```json',
+      '{"type":"hm://hyper.media/struct"}',
+      '```',
+      '[x](hm://hyper.media.evil/x)',
+    ].join('\n')
+    expect(resolveDocsMarkdown(markdown)).toBe(markdown)
+    configureDocsSpace({account: ACCOUNT})
+    expect(resolveDocsMarkdown(markdown).split('\n')).toEqual([
+      `- [Triggers](hm://${ACCOUNT}/app-environment/triggers#blk) and <hm://${ACCOUNT}>`,
+      'Typed `hm://hyper.media/app`, see hm://hyper.media/apps/document-pages.',
+      '```json',
+      '{"type":"hm://hyper.media/struct"}',
+      '```',
+      '[x](hm://hyper.media.evil/x)',
+    ])
+  })
+
+  test('names the knowledge base by its account for the model, keeping library type names', () => {
+    const prose = 'The rest is at `hm://hyper.media`. Types such as hm://hyper.media/struct, not hm://hyper.media.evil.'
+    expect(docsSpaceUrl()).toBe('hm://hyper.media')
+    expect(resolveDocsRootMentions(prose)).toBe(prose)
+    configureDocsSpace({account: ACCOUNT})
+    expect(docsSpaceUrl()).toBe(`hm://${ACCOUNT}`)
+    expect(resolveDocsRootMentions(prose)).toBe(
+      `The rest is at \`hm://${ACCOUNT}\`. Types such as hm://hyper.media/struct, not hm://hyper.media.evil.`,
+    )
   })
 })
