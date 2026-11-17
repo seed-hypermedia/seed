@@ -466,7 +466,7 @@ function AddModelProviderForm({
             Cancel
           </Button>
         ) : null}
-        <Button variant="ghost" type="submit" disabled={!canSubmit}>
+        <Button variant="default" type="submit" disabled={!canSubmit}>
           {submitLabel}
         </Button>
       </div>
@@ -837,7 +837,7 @@ export function EditAgentAccountDialog({
           Cancel
         </Button>
         <Button
-          variant="ghost"
+          variant="default"
           onClick={() => void handleSave()}
           disabled={updateIdentity.isLoading || processingIcon || !label.trim()}
         >
@@ -1354,7 +1354,7 @@ export function CreateAgentDialog({
       {createError ? <Notice tone="error">{createError}</Notice> : null}
       <div className="flex justify-end gap-2">
         {input.location ? (
-          <Button variant="ghost" onClick={() => void createAtLocation()} disabled={!canSubmit || creating}>
+          <Button variant="default" onClick={() => void createAtLocation()} disabled={!canSubmit || creating}>
             {creating ? <Spinner /> : null}
             {preparedMount.current ? 'Retry' : 'Create Agent'}
           </Button>
@@ -1431,7 +1431,7 @@ export function EditAgentNameDialog({
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="ghost" type="submit" disabled={saving || !name.trim()}>
+        <Button variant="default" type="submit" disabled={saving || !name.trim()}>
           Save
         </Button>
       </div>

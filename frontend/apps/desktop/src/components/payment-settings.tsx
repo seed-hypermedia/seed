@@ -338,7 +338,7 @@ function WithdrawDialog({
             Cancel
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             className="flex-1"
             onClick={() => {
               payInvoice
@@ -375,7 +375,7 @@ function WithdrawDialog({
         <Button variant="ghost" className="flex-1" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="ghost" className="flex-1" disabled>
+        <Button variant="default" className="flex-1" disabled>
           Send Funds
         </Button>
       </div>
@@ -460,7 +460,7 @@ function AddFundsDialog({
               Cancel
             </Button>
 
-            <Button variant="ghost" type="submit" className="flex-1" onClick={submit}>
+            <Button variant="default" type="submit" className="flex-1" onClick={submit}>
               Create Invoice
             </Button>
           </div>

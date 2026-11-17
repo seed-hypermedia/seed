@@ -271,7 +271,7 @@ function PreviewStep({
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <Button variant="ghost" onClick={onContinue}>
+        <Button variant="default" onClick={onContinue}>
           Continue
         </Button>
       </div>
@@ -471,7 +471,7 @@ function OptionsStep({
         <Button variant="ghost" onClick={onBack}>
           Back
         </Button>
-        <Button variant="ghost" onClick={onStart} disabled={!canStart}>
+        <Button variant="default" onClick={onStart} disabled={!canStart}>
           {isLoading ? <Spinner size="small" /> : 'Start Import'}
         </Button>
       </div>

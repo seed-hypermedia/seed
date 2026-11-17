@@ -96,7 +96,7 @@ export function NotificationServerDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button variant="ghost" type="submit" disabled={isSaving || !hasChanges}>
+            <Button variant="default" type="submit" disabled={isSaving || !hasChanges}>
               {isSaving ? 'Saving…' : 'Save Notify Server URL'}
             </Button>
           </DialogFooter>

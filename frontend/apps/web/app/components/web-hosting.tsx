@@ -470,7 +470,7 @@ function HostingLogin({
             </Button>
           ) : null}
           <Button
-            variant="ghost"
+            variant="default"
             type="submit"
             loading={host.startEmailCode.isLoading || host.verifyEmailCode.isLoading}
             disabled={!!pending && (code.length !== 4 || pending.expireTime <= now)}
@@ -786,7 +786,7 @@ function HostingDialogContent({
             <p className="text-sm">Your hosting address is reserved. Retry to finish publishing your space.</p>
           ) : null}
           <DialogFooter>
-            <Button variant="ghost" type="submit" loading={busy}>
+            <Button variant="default" type="submit" loading={busy}>
               <UploadCloud className="size-4" />
               {setupUrl ? 'Finish Publishing' : 'Publish Space'}
             </Button>
@@ -819,7 +819,7 @@ function HostingDialogContent({
               />
             </label>
             <DialogFooter>
-              <Button variant="ghost" type="submit" loading={busy}>
+              <Button variant="default" type="submit" loading={busy}>
                 Publish to Domain
                 <UploadCloud className="size-4" />
               </Button>

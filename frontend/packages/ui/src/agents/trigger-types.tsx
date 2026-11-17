@@ -279,7 +279,7 @@ export function TriggerSourceFields({
             Cancel
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             onClick={save}
             disabled={!editing || !isTriggerSourceReady(editing.draft) || pendingFields.size > 0}
           >

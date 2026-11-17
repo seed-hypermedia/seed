@@ -1109,7 +1109,7 @@ function AccountKeys() {
               <Button type="button" variant="ghost" onClick={() => setIsExportDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="ghost" type="submit" disabled={exportKey.isPending}>
+              <Button variant="default" type="submit" disabled={exportKey.isPending}>
                 {exportKey.isPending ? 'Exporting…' : 'Export Key'}
               </Button>
             </div>

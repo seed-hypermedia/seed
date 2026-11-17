@@ -693,7 +693,7 @@ export function InspectIpfsPage({
                     Cancel
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="default"
                     onClick={async () => {
                       await publish()
                       setConfirmOpen(false)

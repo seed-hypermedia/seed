@@ -154,7 +154,7 @@ export function NotificationEmailSettings({
               <Button type="button" variant="outline" disabled={saving} onClick={() => setEmailDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="ghost" type="submit" disabled={disabled || saving || !emailInput.trim()}>
+              <Button variant="default" type="submit" disabled={disabled || saving || !emailInput.trim()}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </DialogFooter>

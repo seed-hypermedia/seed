@@ -72,7 +72,7 @@ export function ExportKeyDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
               Cancel
             </Button>
-            <Button variant="ghost" type="submit" disabled={busy}>
+            <Button variant="default" type="submit" disabled={busy}>
               {busy ? 'Exporting…' : 'Export Key'}
             </Button>
           </DialogFooter>
