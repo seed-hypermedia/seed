@@ -1757,9 +1757,7 @@ func syncResources(
 
 		keepGoing = true
 
-		if tier.idle == nil {
-			tier.idle = time.NewTimer(idleTimeout)
-		}
+		tier.startSlice(idleTimeout)
 
 	drain:
 		for {
@@ -2027,6 +2025,14 @@ type fetchTierState struct {
 	wants, downloaded int64
 	idleStrikes       int
 	idle              *time.Timer
+}
+
+func (tier *fetchTierState) startSlice(idleTimeout time.Duration) {
+	if tier.idle == nil {
+		tier.idle = time.NewTimer(idleTimeout)
+	} else {
+		tier.idle.Reset(idleTimeout)
+	}
 }
 
 // mediaTierQueryHead/Tail bucket blobs by the highest-priority (lowest-numbered)

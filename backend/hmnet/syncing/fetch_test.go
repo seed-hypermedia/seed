@@ -33,6 +33,29 @@ func TestSyncWithPeerBoundsWantlists(t *testing.T) {
 	testPeerFetch(t, "capped", 1025, 1025, []int{512, 512, 1})
 }
 
+func TestFetchSliceResetsIdle(t *testing.T) {
+	tier := fetchTierState{idleStrikes: 1}
+	tier.startSlice(0)
+	t.Cleanup(func() { tier.idle.Stop() })
+
+	// A persistence barrier can outlast the previous slice's idle window.
+	tier.startSlice(time.Hour)
+	select {
+	case <-tier.idle.C:
+		t.Fatal("next slice inherited an expired idle timer")
+	default:
+	}
+
+	require.Equal(t, 1, tier.idleStrikes)
+
+	tier.startSlice(0)
+	select {
+	case <-tier.idle.C:
+	default:
+		t.Fatal("next slice did not start its own idle window")
+	}
+}
+
 func TestSyncWithPeerFetchStops(t *testing.T) {
 	for _, tt := range []struct {
 		mode       string
