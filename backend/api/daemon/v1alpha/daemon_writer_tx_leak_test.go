@@ -42,7 +42,7 @@ func TestStoreBlobsAckMustBeDurable(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store("local", "", keyMaterial))
 
-	ks, err := vault.New(dataDir, secretStore)
+	ks, err := vault.New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	store, err := storage.Open(dataDir, u.Device.Libp2pKey(), ks, "debug")
