@@ -9,6 +9,7 @@ import (
 	"seed/backend/daemon/taskmanager"
 	daemonpb "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -34,7 +35,7 @@ func newSearchCorpus(tb testing.TB, n int) *Embedder {
 	rng := rand.NewChaCha8([32]byte{})
 
 	require.NoError(tb, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.Exec(conn, `INSERT INTO public_keys(id, principal) VALUES (1, 'author');`, nil); err != nil {
+		if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO public_keys(id, principal) VALUES (1, 'author');`)(), nil); err != nil {
 			return err
 		}
 
@@ -47,30 +48,30 @@ func newSearchCorpus(tb testing.TB, n int) *Embedder {
 				space = searchCorpusOtherSpace
 			}
 
-			if err := sqlitex.Exec(conn, `INSERT INTO blobs(id, multihash, codec, size) VALUES (?, ?, 85, 0);`, nil, id, fmt.Appendf(nil, "hash-%d", id)); err != nil {
+			if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO blobs(id, multihash, codec, size) VALUES (?, ?, 85, 0);`)(), nil, id, fmt.Appendf(nil, "hash-%d", id)); err != nil {
 				return err
 			}
 
-			if err := sqlitex.Exec(conn, `INSERT INTO resources(id, iri) VALUES (?, ?);`, nil, id, fmt.Sprintf("%s/doc-%d", space, doc)); err != nil {
+			if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO resources(id, iri) VALUES (?, ?);`)(), nil, id, fmt.Sprintf("%s/doc-%d", space, doc)); err != nil {
 				return err
 			}
 
-			if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs(id, type, resource, author) VALUES (?, 'Change', ?, 1);`, nil, id, id); err != nil {
+			if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO structural_blobs(id, type, resource, author) VALUES (?, 'Change', ?, 1);`)(), nil, id, id); err != nil {
 				return err
 			}
 
 			for block := range searchCorpusDocBlocks {
 				ftsID := int64(doc*searchCorpusDocBlocks + block + 1)
-				if err := sqlitex.Exec(conn, `INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, 'v1', 'document', 0);`, nil, ftsID, id, fmt.Sprintf("block-%d", block)); err != nil {
+				if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, 'v1', 'document', 0);`)(), nil, ftsID, id, fmt.Sprintf("block-%d", block)); err != nil {
 					return err
 				}
 
 				_, _ = rng.Read(vec)
-				if err := sqlitex.Exec(conn, `INSERT INTO embeddings(multilingual_minilm_l12_v2, fts_id) VALUES (vec_int8(?), ?);`, nil, vec, ftsID); err != nil {
+				if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO embeddings(multilingual_minilm_l12_v2, fts_id) VALUES (vec_int8(?), ?);`)(), nil, vec, ftsID); err != nil {
 					return err
 				}
 
-				if err := sqlitex.Exec(conn, `INSERT INTO embeddings_index(fts_id) VALUES (?);`, nil, ftsID); err != nil {
+				if err := sqlitex.Exec(conn, dqb.Str(`INSERT INTO embeddings_index(fts_id) VALUES (?);`)(), nil, ftsID); err != nil {
 					return err
 				}
 			}

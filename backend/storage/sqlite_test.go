@@ -700,7 +700,7 @@ func TestSqliteVecMetadataIn(t *testing.T) {
 	require.NoError(t, sqlitex.ExecScript(conn, `CREATE VIRTUAL TABLE vecs USING vec0(embedding float[2], meta int);`))
 	metas := []int64{math.MinInt64, -5, 0, 7, 1 << 40, math.MaxInt64}
 	for i, meta := range metas {
-		require.NoError(t, sqlitex.Exec(conn, `INSERT INTO vecs(rowid, embedding, meta) VALUES (?, ?, ?);`, nil,
+		require.NoError(t, sqlitex.Exec(conn, dqb.Str(`INSERT INTO vecs(rowid, embedding, meta) VALUES (?, ?, ?);`)(), nil,
 			i+1, fmt.Sprintf("[%d, 1]", i), meta))
 	}
 
@@ -713,8 +713,8 @@ func TestSqliteVecMetadataIn(t *testing.T) {
 
 	var got []int64
 
-	require.NoError(t, sqlitex.Exec(conn, `SELECT rowid FROM vecs
-		WHERE embedding MATCH ? AND k = 10 AND meta IN (?, ?, ?, ?, ?, ?);`, func(stmt *sqlite.Stmt) error {
+	require.NoError(t, sqlitex.Exec(conn, dqb.Str(`SELECT rowid FROM vecs
+		WHERE embedding MATCH ? AND k = 10 AND meta IN (?, ?, ?, ?, ?, ?);`)(), func(stmt *sqlite.Stmt) error {
 		got = append(got, stmt.ColumnInt64(0))
 		return nil
 	}, args...))
