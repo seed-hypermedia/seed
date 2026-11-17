@@ -211,9 +211,10 @@ export class UnpreparableDocumentUpdateError extends Error {
  *
  * An update that turns a block's descendant into its ancestor (a parent and child swapping places,
  * or any longer loop of that kind) is unpreparable: the daemon either refuses it ("cycle
- * detected") or, on versions deployed in 2026, never answers and keeps a CPU busy. Only the
- * document's current tree is known here. The same daemons also never answer for a document whose
- * HISTORY holds such a turn; {@link documentUpdateBlobs} checks the history for that.
+ * detected") or, without Seed PR #1375, never answers and keeps a CPU busy. Only the document's
+ * current tree is looked at here. A daemon without that fix also never answers a request that
+ * moves or deletes blocks in a document whose HISTORY holds such a turn; nothing reads the history
+ * to avoid that, and {@link documentUpdateBlobs} stops waiting after its timeout.
  */
 export function preparableDocumentChanges(
   ops: DocumentOperation[],
@@ -316,10 +317,10 @@ function edgesOf(parentOf: Map<string, string>): Array<[string, string]> {
 /**
  * A block that lies on a loop of `[parent, child]` edges, or null when there is none.
  *
- * The edges are every place a block has been put: under its parent in the document, under the
- * parent a request moves it to, and (when the history is known) under every parent it ever had.
- * The daemon keeps all of them, the ones a block has since left included, and walks them when it
- * writes a Change with moves. A loop makes that walk endless on the versions deployed in 2026.
+ * The edges are the places a block is put: under its parent in the document, and under the
+ * parent a request moves it to. The daemon keeps every place a block has been, the ones it has
+ * since left included, and walks them when it writes a Change with moves. A loop makes that walk
+ * endless in a daemon without Seed PR #1375.
  */
 function blockInLoop(edges: Array<[string, string]>): string | null {
   const children = new Map<string, string[]>()
@@ -790,9 +791,6 @@ export const DEFAULT_PREPARE_TIMEOUT_MS = 15_000
  */
 export const DEFAULT_MAX_PREPARED_CHANGE_BYTES = 1024 * 1024
 
-/** The most Changes of a document's history {@link documentUpdateBlobs} reads to check its moves. */
-export const DEFAULT_MAX_MOVE_HISTORY_CHANGES = 500
-
 /** What to update, for {@link documentUpdateBlobs}. */
 export type DocumentUpdateBlobsInput = {
   /** Any client that reaches a Seed API (`PrepareDocumentChange`, `GetCID`). */
@@ -840,16 +838,6 @@ export type DocumentUpdateBlobsInput = {
   prepareTimeoutMs?: number
   /** The largest prepared Change to sign. Defaults to {@link DEFAULT_MAX_PREPARED_CHANGE_BYTES}. */
   maxPreparedChangeBytes?: number
-  /**
-   * Whether to read the document's history before a request that moves or deletes blocks, and
-   * build the Change here when a block was ever put inside one of its own descendants. Daemons
-   * deployed in 2026 never answer such a request and keep a CPU busy for good, so this is on by
-   * default. It costs one `GetCID` per Change of the history the first time a document is updated
-   * by this process (they are remembered). Turn it off only for daemons known to be fixed.
-   */
-  checkMoveHistory?: boolean
-  /** The most Changes to read for that check; a longer history is built here. Defaults to {@link DEFAULT_MAX_MOVE_HISTORY_CHANGES}. */
-  maxMoveHistoryChanges?: number
 }
 
 /** The outcome of {@link documentUpdateBlobs}. */
@@ -873,8 +861,6 @@ export type DocumentUpdateBlobsResult =
  * - `content` is not the content at the heads (`documentVersion` differs from `state.version`);
  * - the ops cannot be put in a request the daemon applies correctly
  *   ({@link preparableDocumentChanges}), or hold an attribute value the request cannot carry;
- * - the request moves or deletes blocks and the document's history shows a block put inside one
- *   of its own descendants, cannot be read, or is too long to read (`checkMoveHistory`);
  * - the daemon does not answer within `prepareTimeoutMs` (the document is then built here for
  *   the next ten minutes without asking again);
  * - the site refuses the request as too large (413) or does not know `PrepareDocumentChange`;
@@ -934,17 +920,6 @@ export async function documentUpdateBlobs(input: DocumentUpdateBlobsInput): Prom
   if (silentUntil !== undefined) {
     if (silentUntil > Date.now()) return local('the server did not answer an earlier request for this document')
     unansweredDocuments.delete(documentKey)
-  }
-
-  const movesBlocks = changes.some(({op}) => op.case === 'moveBlock' || op.case === 'deleteBlock')
-  if (movesBlocks && input.checkMoveHistory !== false) {
-    const hazard = await moveHistoryHazard(
-      input.client,
-      state.changeIds,
-      changes,
-      input.maxMoveHistoryChanges ?? DEFAULT_MAX_MOVE_HISTORY_CHANGES,
-    )
-    if (hazard) return local(hazard)
   }
 
   const timeoutMs = input.prepareTimeoutMs ?? DEFAULT_PREPARE_TIMEOUT_MS
@@ -1139,64 +1114,6 @@ export function implausiblePreparedChange(
   if (placed > moves) return `it places blocks ${placed} times for ${moves} requested`
   if (replaces > replaced.size) return `it replaces blocks ${replaces} times for ${replaced.size} requested`
   return null
-}
-
-/** `[parent, child]` for every block placement of each Change already read, by Change CID. */
-const moveHistoryCache = new Map<string, Array<[string, string]>>()
-const MOVE_HISTORY_CACHE_SIZE = 20_000
-
-/**
- * Why a request that moves or deletes blocks must not be sent for this document, or null when it
- * can be.
- *
- * Reads the Changes of the document's history (`GetCID`, eight at a time, remembered by CID) and
- * collects every place a block was ever put. The request is refused when those, together with the
- * request's own moves, hold a loop: see {@link blockInLoop}. A history that cannot be read is a
- * reason too, because the answer to a wrong guess is a daemon that never answers.
- */
-async function moveHistoryHazard(
-  client: Pick<SeedClient, 'request'>,
-  changeIds: string[] | undefined,
-  changes: DocumentChanges,
-  maxChanges: number,
-): Promise<string | null> {
-  if (!changeIds) return "the document's history is not known, so its moves cannot be checked"
-  const unread = changeIds.filter((cid) => !moveHistoryCache.has(cid))
-  if (unread.length > maxChanges) {
-    return `the document's history is ${changeIds.length} changes long, too long to check its moves`
-  }
-  try {
-    let next = 0
-    const worker = async () => {
-      while (next < unread.length) {
-        const cid = unread[next++]!
-        const {value} = await client.request('GetCID', {cid})
-        // An answer without the Change in it says nothing about its moves.
-        if (!value || typeof value !== 'object') throw new Error(`the site did not return change ${cid}`)
-        const ops = (value as {body?: {ops?: unknown} | null}).body?.ops
-        const edges: Array<[string, string]> = []
-        for (const op of Array.isArray(ops) ? (ops as Array<Record<string, unknown>>) : []) {
-          if (op.type !== 'MoveBlocks' || !Array.isArray(op.blocks)) continue
-          const parent = typeof op.parent === 'string' ? op.parent : ''
-          for (const block of op.blocks) edges.push([parent, String(block)])
-        }
-        if (moveHistoryCache.size >= MOVE_HISTORY_CACHE_SIZE) moveHistoryCache.clear()
-        moveHistoryCache.set(cid, edges)
-      }
-    }
-    await Promise.all(Array.from({length: Math.min(8, unread.length)}, worker))
-  } catch (error) {
-    return `the document's history could not be read to check its moves (${errorText(error).slice(0, 200)})`
-  }
-  const edges: Array<[string, string]> = []
-  for (const cid of changeIds) edges.push(...(moveHistoryCache.get(cid) ?? []))
-  for (const {op} of changes) {
-    if (op.case === 'moveBlock') edges.push([op.value.parent ?? '', op.value.blockId])
-  }
-  const loop = blockInLoop(edges)
-  return loop === null
-    ? null
-    : `block ${loop} was once inside a block that is now inside it, which this server cannot prepare a move for`
 }
 
 /** The latest timestamp among the head Changes, read from the Changes themselves; undefined when they cannot be read. */

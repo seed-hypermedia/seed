@@ -83,7 +83,6 @@ describe('autoLinkChildToParent', () => {
           ],
         }
       }
-      if (key === 'GetCID') return {value: {body: {ops: []}}}
       if (key === 'PrepareDocumentChange') {
         if (prepareError) throw prepareError
         return {
@@ -122,9 +121,9 @@ describe('autoLinkChildToParent', () => {
     expect(await autoLinkChildToParent({client: seedClient, ...options})).toBe(true)
 
     const keys = seedClient.request.mock.calls.map((call: unknown[]) => call[0])
-    // The parent, its heads, its history (checked before a request that moves a block), the change.
-    expect(keys).toEqual(['Resource', 'ListChanges', 'GetCID', 'GetCID', 'PrepareDocumentChange'])
-    const prepare = seedClient.request.mock.calls[4][1]
+    // The parent, its heads, the change.
+    expect(keys).toEqual(['Resource', 'ListChanges', 'PrepareDocumentChange'])
+    const prepare = seedClient.request.mock.calls[2][1]
     expect(prepare).toMatchObject({account, path: '/notes', baseVersion: head})
     expect(prepare.changes).toHaveLength(2)
     expect(prepare.changes[0].op.value).toMatchObject({type: 'Embed', link: options.childHmUrl})

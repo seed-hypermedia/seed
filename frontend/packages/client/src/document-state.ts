@@ -27,8 +27,6 @@ export type DocumentState = {
    * did not report the heads' times.
    */
   headTs?: number
-  /** CIDs of every change in the document's history, the heads included. */
-  changeIds?: string[]
 }
 
 /**
@@ -111,7 +109,6 @@ export async function resolveDocumentState(
     headDepth: maxHeadDepth,
     version,
     headTs,
-    changeIds: changesResp.changes.map((change) => change.id!).filter(Boolean),
   }
 }
 
