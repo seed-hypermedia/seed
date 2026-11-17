@@ -29,6 +29,10 @@ func TestSyncWithPeerContinuesFetch(t *testing.T) {
 	testPeerFetch(t, "progress", 3, 3, []int{3, 2, 1})
 }
 
+func TestSyncWithPeerBoundsWantlists(t *testing.T) {
+	testPeerFetch(t, "capped", 1025, 1025, []int{512, 512, 1})
+}
+
 func TestSyncWithPeerFetchStops(t *testing.T) {
 	for _, tt := range []struct {
 		mode       string
@@ -95,7 +99,7 @@ func testPeerFetch(t *testing.T, mode string, count, downloaded int, requestSize
 	require.NoError(t, svc.syncWithPeer(ctx, peer.ID("remote"), map[string]entityScope{"hm://test": {}}, store, prog, nil, nil, fetcher, &claimed, pf))
 	require.EqualValues(t, downloaded, prog.BlobsDownloaded.Load())
 	require.EqualValues(t, count-downloaded, prog.BlobsFailed.Load())
-	require.Len(t, fetcher.requests, len(requestSizes))
+	require.Equal(t, len(requestSizes), len(fetcher.requests))
 	for i, size := range requestSizes {
 		require.Len(t, fetcher.requests[i], size)
 
@@ -156,6 +160,22 @@ func (f *slicedFetcher) GetBlocks(ctx context.Context, wants []cid.Cid) (<-chan 
 	ch := make(chan blocks.Block)
 	go func() {
 		defer close(ch)
+
+		if f.mode == "capped" {
+			for _, id := range wants[:min(len(wants), 1024)] {
+				select {
+				case ch <- f.blocks[id]:
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			if len(wants) > 1024 {
+				<-ctx.Done()
+			}
+
+			return
+		}
 
 		if stall {
 			<-ctx.Done()

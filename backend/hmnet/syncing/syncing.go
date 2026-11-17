@@ -1759,7 +1759,6 @@ func syncResources(
 
 		if tier.idle == nil {
 			tier.idle = time.NewTimer(idleTimeout)
-			tier.wants = int64(len(wants))
 		}
 
 	drain:
@@ -1831,7 +1830,7 @@ func syncResources(
 	}
 
 	fetchTier := func(wants []cid.Cid, idleTimeout time.Duration) bool {
-		var tier fetchTierState
+		tier := fetchTierState{wants: int64(len(wants))}
 
 		defer func() {
 			if tier.idle != nil {
@@ -1844,17 +1843,26 @@ func syncResources(
 				return false
 			}
 
+			// Boxo servers truncate wantlists at 1024 entries. Leave room for
+			// other sessions without discarding any of this tier's wants.
+			batchEnd := min(512, len(wants))
 			sliceCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
-			remaining, progressed, keepGoing := fetchSlice(sliceCtx, wants, idleTimeout, &tier)
+			remaining, progressed, keepGoing := fetchSlice(sliceCtx, wants[:batchEnd], idleTimeout, &tier)
 			expired := errors.Is(sliceCtx.Err(), context.DeadlineExceeded)
 			cancel()
 
-			if bitswapOutcome != "ctx_done" || !expired || !progressed || ctx.Err() != nil {
-				return keepGoing
+			if bitswapOutcome == "ctx_done" && expired && progressed && ctx.Err() == nil {
+				bitswapOutcome = ""
+				wants = append(remaining, wants[batchEnd:]...)
+
+				continue
 			}
 
-			bitswapOutcome = ""
-			wants = remaining
+			if !keepGoing {
+				return false
+			}
+
+			wants = wants[batchEnd:]
 		}
 
 		return true
