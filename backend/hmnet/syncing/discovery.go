@@ -92,7 +92,8 @@ func NewDiscoveryProgress() *Progress {
 // (e.g. ["Profile", "Ref", "Change"]). When nil/empty, all blob types are
 // discovered (default). Filtering avoids pulling unrelated blobs (e.g.
 // Capability/Comment/Contact) when the caller only needs a subset — useful
-// for "render an avatar" use-cases.
+// for "render an avatar" use-cases. Authority and linked dependencies are
+// included even when their types are not in the allowlist.
 //
 // recursive and depthOne are mutually exclusive: recursive walks the entire
 // subtree below entityID, depthOne only its direct children.
@@ -955,6 +956,11 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 
 func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
+	authorityResources := make(map[blob.IRI]struct{}, len(dkeys))
+	for key := range dkeys {
+		authorityResources[key.IRI] = struct{}{}
+	}
+
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 		return err
 	}
@@ -1076,6 +1082,43 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 		}
 		if err := fillTables(conn, linkIRIs, true); err != nil {
 			return err
+		}
+		for key := range linkIRIs {
+			authorityResources[key.IRI] = struct{}{}
+		}
+	}
+
+	// Collect resource identities before adding authority blobs: a capability's
+	// own anchor must not expand discovery to unrelated content in its issuer's
+	// space. Include selected descendants and linked/cited resources, plus the
+	// explicit requests above even when their content has not arrived locally.
+	const qAuthorityResources = `
+		SELECT iri FROM resources WHERE id IN rbsr_iris
+		UNION
+		SELECT r.iri
+		FROM rbsr_blobs rb
+		JOIN structural_blobs sb ON sb.id = rb.id
+		JOIN resources r ON r.id = sb.resource;`
+
+	if err := sqlitex.Exec(conn, qAuthorityResources, func(stmt *sqlite.Stmt) error {
+		authorityResources[blob.IRI(stmt.ColumnText(0))] = struct{}{}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// AuthorityBlobIDs may open a savepoint, so no cached statement may still
+	// be active here. Evaluate once per resource, independently of type filters.
+	for resource := range authorityResources {
+		ids, err := blob.AuthorityBlobIDs(context.Background(), conn, resource)
+		if err != nil {
+			return err
+		}
+
+		for _, id := range ids {
+			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_blobs (id) VALUES (?)`, nil, id); err != nil {
+				return err
+			}
 		}
 	}
 

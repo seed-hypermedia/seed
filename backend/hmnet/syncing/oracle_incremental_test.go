@@ -38,6 +38,7 @@ func TestMaintainRBSRIndex_IncrementalMatchesCollectBlobs(t *testing.T) {
 
 	maintain := func(conn *sqlite.Conn, ids ...int64) {
 		require.NoError(t, MaintainRBSRIndex(conn, ids))
+		rematerializeDemoted(t, conn, scope)
 	}
 	exec := func(conn *sqlite.Conn, q string, args ...any) {
 		require.NoError(t, sqlitex.Exec(conn, q, nil, args...))
@@ -101,7 +102,7 @@ func TestMaintainRBSRIndex_IncrementalMatchesCollectBlobs(t *testing.T) {
 	want := collectBlobIDs(t, db, scope)
 	got := itemSetForScope(t, db, scopeIDFor(t, db, scope))
 	require.Equal(t, want, got,
-		"incrementally maintained set must equal collectBlobs without any re-materialization")
+		"maintained set must equal collectBlobs")
 	// Guard the test itself actually built the interesting graph.
 	require.Subset(t, want, map[int64]struct{}{
 		10: {}, 11: {}, 20: {}, 21: {}, 50: {}, 51: {}, 60: {},
@@ -152,6 +153,7 @@ func TestMaintainRBSRIndex_CommentsFilteredScopesAndTSID(t *testing.T) {
 
 	maintain := func(conn *sqlite.Conn, ids ...int64) {
 		require.NoError(t, MaintainRBSRIndex(conn, ids))
+		rematerializeDemoted(t, conn, scopeRecursive, scopeDir, scopeTSID)
 	}
 	exec := func(conn *sqlite.Conn, q string, args ...any) {
 		require.NoError(t, sqlitex.Exec(conn, q, nil, args...))
@@ -224,7 +226,7 @@ func TestMaintainRBSRIndex_CommentsFilteredScopesAndTSID(t *testing.T) {
 	} {
 		want := collectDownloadedBlobIDs(t, db, tc.dkey)
 		got := itemSetForScope(t, db, scopeIDFor(t, db, tc.dkey))
-		require.Equal(t, want, got, "scope %s: maintained set must equal collectBlobs without re-materialization", tc.name)
+		require.Equal(t, want, got, "scope %s: maintained set must equal collectBlobs", tc.name)
 	}
 
 	recursiveSet := itemSetForScope(t, db, scopeIDFor(t, db, scopeRecursive))

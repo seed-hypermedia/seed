@@ -3,10 +3,12 @@ package documents
 import (
 	"context"
 	"seed/backend/api/apitest"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/util/cclock"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -85,6 +87,71 @@ func TestPrivateDocSecurity_ServerModeRequiresRootCapabilityForPrivateRead(t *te
 	})
 	require.NoError(t, err)
 	require.Equal(t, privateDoc.Version, got.Version)
+
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		code codes.Code
+	}{
+		{name: "anonymous", ctx: ctx, code: codes.PermissionDenied},
+		{name: "path-scoped writer", ctx: pathScopedCtx, code: codes.PermissionDenied},
+		{name: "root writer", ctx: rootScopedCtx, code: codes.OK},
+		{name: "owner", ctx: blob.WithAuthenticatedCaller(ctx, alice.me.Account.Principal()), code: codes.OK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := alice.GetDocument(tc.ctx, &documents.GetDocumentRequest{
+				Account: account,
+				Path:    "/secret",
+				Version: privateDoc.Version,
+			})
+			require.Equal(t, tc.code, status.Code(err))
+
+			prepared, err := alice.PrepareChange(tc.ctx, &documents.PrepareChangeRequest{
+				Account:     account,
+				Path:        "/secret",
+				BaseVersion: privateDoc.Version,
+				Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Updated Secret"},
+				}}},
+			})
+			require.Equal(t, tc.code, status.Code(err))
+
+			if tc.code == codes.OK {
+				require.NotEmpty(t, prepared.UnsignedChange)
+			} else {
+				require.Nil(t, prepared)
+			}
+		})
+	}
+
+	// A public replacement must not make the older private base readable or preparable.
+	publicDoc, err := docmodel.New(blob.IRI("hm://"+account+"/secret"), cclock.New())
+	require.NoError(t, err)
+	require.NoError(t, publicDoc.SetMetadata("title", "Public replacement"))
+	publicChange, err := publicDoc.SignChange(alice.me.Account)
+	require.NoError(t, err)
+	publicRef, err := publicDoc.Ref(alice.me.Account, blob.VisibilityPublic)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, publicChange))
+	require.NoError(t, alice.idx.Put(ctx, publicRef))
+	got, err = alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/secret"})
+	require.NoError(t, err)
+	require.Equal(t, publicChange.CID.String(), got.Version)
+
+	for _, version := range []string{privateDoc.Version, publicChange.CID.String()} {
+		expected := codes.OK
+		if version == privateDoc.Version {
+			expected = codes.PermissionDenied
+		}
+
+		_, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/secret", Version: version})
+		require.Equal(t, expected, status.Code(err))
+		_, err = alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account: account, Path: "/secret", BaseVersion: version,
+			Changes: appendBlockChange("update", "Update", ""),
+		})
+		require.Equal(t, expected, status.Code(err), "%v", err)
+	}
 }
 
 func TestPrivateDocumentCreationIsDisabled(t *testing.T) {

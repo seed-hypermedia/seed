@@ -290,7 +290,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	// If we've got a Ref but this member is not valid yet/anymore, we don't want to populate our indexes.
-	ok, err := isValidWriter(conn, memberID, iri, ictx.writerCache)
+	ok, err := isValidWriter(conn, memberID, iri, ictx.batch)
 	if err != nil {
 		return err
 	}

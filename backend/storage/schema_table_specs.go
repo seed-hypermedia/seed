@@ -52,6 +52,10 @@ var tableSpecs = []TableSpec{
 	// this list).
 	{Name: T_CommentLive, Kind: TableKindDerived},
 	{Name: T_DocumentCommentStats, Kind: TableKindDerived},
+	{Name: T_KeylineMembers, Kind: TableKindDerived},
+	{Name: T_KeylineRevocations, Kind: TableKindDerived},
+	{Name: T_KeylineDelegations, Kind: TableKindDerived},
+	{Name: T_KeylineNodes, Kind: TableKindDerived},
 	{Name: T_Resources, Kind: TableKindDerived},
 	{Name: T_Spaces, Kind: TableKindDerived},
 	{Name: T_DocumentGenerations, Kind: TableKindDerived},

@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"seed/backend/ipfs"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/syncperf"
 	"slices"
@@ -65,8 +66,12 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		// Single-blob path: a fresh per-call cache (no cross-blob reuse to exploit).
-		return indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache(), &hookIDs)
+		batch := newIndexBatch()
+		if err := indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, batch, &hookIDs); err != nil {
+			return err
+		}
+
+		return batch.flush(opts, conn, idx.bs, idx.log, &hookIDs)
 	}); err != nil {
 		return err
 	}
@@ -122,12 +127,9 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 			opts.ObservedAt = time.Now()
 		}
 
-		// One writer-validity cache per batch transaction: shared across this
-		// batch's blobs and the reindex cascade they trigger, so a late capability
-		// that unstashes many same-writer Refs runs the costly transitive query
-		// once instead of per blob. Safe because the batch tx is single-threaded
-		// over a consistent snapshot. See writerValidityCache.
-		wc := newWriterValidityCache()
+		// One indexing state per batch transaction, shared with the unstash
+		// cascades it triggers. See indexBatch.
+		wc := newIndexBatch()
 		// hookIDs captures every blob indexed in this batch — including ones
 		// re-indexed by the unstash cascade (which self-propagate visibility,
 		// so they're not in `indexed`) — for the asynchronous RBSR index hook.
@@ -150,7 +152,10 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 			// one coalesced visibility propagation pass at the end instead of
 			// N separate recursive CTE walks (one per blob).
 			indexed := make([]int64, 0, len(batch))
-			for _, blk := range batch {
+			// Capabilities go first, so the members cache is refreshed once
+			// for the whole batch before other blobs are authorized against it.
+			// Capabilities depend on no other blob, and the rest keep their order.
+			index := func(blk blocks.Block) error {
 				codec, hash := ipfs.DecodeCID(blk.Cid())
 				id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
 				if err != nil {
@@ -174,13 +179,31 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				}
 
 				if exists || !indexable {
-					continue
+					return nil
 				}
 
 				if err := indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs); err != nil {
 					return err
 				}
 				indexed = append(indexed, id)
+				return nil
+			}
+
+			for _, capabilities := range []bool{true, false} {
+				for _, blk := range batch {
+					codec, _ := ipfs.DecodeCID(blk.Cid())
+					if mayBeCapability(multicodec.Code(codec), blk.RawData()) != capabilities {
+						continue
+					}
+
+					if err := index(blk); err != nil {
+						return err
+					}
+				}
+
+				if err := wc.flush(opts, conn, idx.bs, idx.log, &hookIDs); err != nil {
+					return err
+				}
 			}
 
 			return propagateVisibilityBatch(conn, indexed)
@@ -202,10 +225,35 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	return nil
 }
 
-// DeleteBlock removes a block from the blockstore.
+// DeleteBlock removes a block and rebuilds authority if it contributed indexed
+// facts or mentions. The deletion and projection update commit atomically.
 func (idx *Index) DeleteBlock(ctx context.Context, c cid.Cid) error {
-	return idx.bs.DeleteBlock(ctx, c)
+	mCallsTotal.WithLabelValues("DeleteBlock").Inc()
+
+	return idx.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		structural, err := sqlitex.QueryOne[int](conn, qDeleteBlockIsStructural(), c.Hash())
+		if err != nil {
+			return err
+		}
+
+		if _, err := idx.bs.deleteBlock(conn, c); err != nil {
+			return err
+		}
+
+		if structural != 0 {
+			return idx.rebuildAuthority(conn)
+		}
+
+		return nil
+	})
 }
+
+var qDeleteBlockIsStructural = dqb.Str(`
+	SELECT EXISTS (
+		SELECT 1 FROM structural_blobs sb JOIN blobs b ON b.id = sb.id
+		WHERE b.multihash = ?
+	)
+`)
 
 // Has checks if a block is in the blockstore.
 func (idx *Index) Has(ctx context.Context, c cid.Cid) (bool, error) {

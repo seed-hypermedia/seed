@@ -82,11 +82,11 @@ A [profile](../profile.md) is a small signed blob. It gives an account a display
 Most people end up with more than one key. A desktop app holds one, a phone holds one, and so does every browser origin where you write a [comment](./comments.md). Linking them uses the same blobs as everything else: <!-- id:s4Q12SkD -->
   1. The main account signs a [capability](../capability.md) with role `AGENT` and an empty path, naming the other key as delegate. The other key may then write anywhere in the main space and sign profiles for it. <!-- id:sJu7Yxyi -->
   2. The other key publishes a profile whose only field is `alias`, pointing at the main account. The daemon accepts this alias only if step 1 exists. Otherwise it holds the profile aside until the capability arrives. <!-- id:zXvsLIj4 -->
-  3. Optionally the other key signs a reverse `AGENT` capability back to the main account. The web sign-in flow publishes this reverse capability so the record goes both ways, but nothing reads it. <!-- id:ed9cZE0G -->
+  3. Optionally the other key signs a reverse `AGENT` capability back to the main account. The web sign-in flow publishes this reverse capability so the record goes both ways. It lets the main account write as the other key, so the two keys can act for each other. <!-- id:ed9cZE0G -->
 
 Once an alias exists, the apps show anything the delegated key signs under the main account. A request for the delegated account returns only the alias. This is what happens when you [sign in](../build/sign-in.md) to a site with the vault. The vault signs an AGENT capability to a session key. The site's callback page then publishes that capability, the reverse capability and the alias profile together. <!-- id:CTSx5Z9h -->
 
-The [Permissions](./permissions.md) page has the exact rule for how far a delegated key's authority reaches. In brief: an AGENT key does what the issuer can do in the issuer's own space. It also inherits the issuer's direct grants elsewhere, but only one hop. <!-- id:b5LpEOdJ -->
+The [Permissions](./permissions.md) page has the exact rule for how far a delegated key's authority reaches. In brief: an AGENT key writes wherever the issuer can, in the issuer's own space and in spaces the issuer was granted, and chains of AGENT keys compose. It never gets the issuer's ownership. <!-- id:b5LpEOdJ -->
 
 A session key is a full AGENT delegation. There is no narrower grant that limits a session to one target.
 

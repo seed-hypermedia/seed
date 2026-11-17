@@ -15,12 +15,10 @@ import (
 
 // TestMaintainRBSRIndex_WriterCapsAfterMaterialize is the unit-level guard for
 // the field regression where write capabilities stopped syncing: WRITER
-// capabilities (and a Contact) granted AFTER a subscriber-facing scope has been
-// materialized must join the maintained set incrementally, with no
-// re-materialization and no stale-marking. Before the fix, affectedScopes
-// reported these blobs incomplete, the flag was discarded, and no targeted edge
-// claimed the non-AGENT capability case — the inserts happened to be sound, but
-// nothing enforced it, and any drift served short forever.
+// capabilities granted AFTER a subscriber-facing scope has been materialized
+// must reach the set the scope serves next. A capability demotes the scope, so
+// its next serve re-materializes it; a Contact joins incrementally and must not
+// demote it.
 func TestMaintainRBSRIndex_WriterCapsAfterMaterialize(t *testing.T) {
 	t.Parallel()
 	db := storage.MakeTestDB(t)
@@ -34,6 +32,13 @@ func TestMaintainRBSRIndex_WriterCapsAfterMaterialize(t *testing.T) {
 
 	maintain := func(conn *sqlite.Conn, ids ...int64) {
 		require.NoError(t, MaintainRBSRIndex(conn, ids))
+	}
+	demotedThenServed := func(conn *sqlite.Conn, ids ...int64) {
+		maintain(conn, ids...)
+		_, materialized, err := resolveScope(conn, scope)
+		require.NoError(t, err)
+		require.False(t, materialized, "a capability must demote the scope instead of rebuilding it")
+		rematerializeDemoted(t, conn, scope)
 	}
 	exec := func(conn *sqlite.Conn, q string, args ...any) {
 		require.NoError(t, sqlitex.Exec(conn, q, nil, args...))
@@ -63,12 +68,12 @@ func TestMaintainRBSRIndex_WriterCapsAfterMaterialize(t *testing.T) {
 		// space root, exactly where indexCapability puts a path-"" grant.
 		exec(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (40, X'40', 113, 1)`)
 		exec(conn, `INSERT INTO structural_blobs (id, type, resource, author, extra_attrs) VALUES (40, 'Capability', 100, 1, '{"role":"WRITER","del":2}')`)
-		maintain(conn, 40)
+		demotedThenServed(conn, 40)
 
 		// Stage 2: a sub-document WRITER capability.
 		exec(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (41, X'41', 113, 1)`)
 		exec(conn, `INSERT INTO structural_blobs (id, type, resource, author, extra_attrs) VALUES (41, 'Capability', 101, 1, '{"role":"WRITER","del":2}')`)
-		maintain(conn, 41)
+		demotedThenServed(conn, 41)
 
 		// Stage 3: a Contact whose subject is alice (the "Member" row), and one
 		// with no subject at all — neither may trigger the coarse stale-mark.
@@ -85,12 +90,12 @@ func TestMaintainRBSRIndex_WriterCapsAfterMaterialize(t *testing.T) {
 	want := collectDownloadedBlobIDs(t, db, scope)
 	got := itemSetForScope(t, db, scopeIDFor(t, db, scope))
 	require.Equal(t, want, got,
-		"late WRITER caps and contacts must reach the maintained set incrementally")
+		"late WRITER caps and contacts must reach the served set")
 	require.Subset(t, got, map[int64]struct{}{40: {}, 41: {}, 60: {}},
 		"both WRITER caps and the subject contact must be advertised")
 
-	// The consume-or-stale-mark contract: every stage above is a case the
-	// targeted edges provably cover, so nothing may have been demoted.
+	// The consume-or-stale-mark contract: the Contacts are cases the targeted
+	// edges provably cover, so they must not have demoted the scope.
 	require.True(t, scopeStillMaterialized(t, db, scopeIDFor(t, db, scope)),
 		"covered cases must not trip the coarse stale-mark fail-safe")
 }
@@ -136,6 +141,7 @@ func TestMaintainRBSRIndex_StaleStashMarkerStillAdvertised(t *testing.T) {
 		exec(conn, `INSERT INTO structural_blobs (id, type, author, extra_attrs) VALUES (50, 'Capability', 2, '{"role":"AGENT","del":1}')`)
 		exec(conn, `INSERT INTO stashed_blobs (id, reason, extra_attrs) VALUES (50, 'permission-denied', '{}')`)
 		require.NoError(t, MaintainRBSRIndex(conn, []int64{50}))
+		rematerializeDemoted(t, conn, scope)
 		return nil
 	}))
 

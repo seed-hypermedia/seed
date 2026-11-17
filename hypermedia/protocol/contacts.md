@@ -18,7 +18,7 @@ The Seed apps use the two flags in `subscribe` to record how you relate to an ac
 
 To join a site, you publish a contact with `site: true`. To leave, you remove the flag or the contact. The People and Members views of a site list the accounts that published a joining contact. A [writer](./permissions.md) who joins appears as a member with their role. Membership gives no permission.
 
-The indexer does not check who signs a contact for whom. The daemon's own contact RPCs do check the writer rule first. The daemon never turns a contact into a sync [subscription](./network.md). The apps do that. See [Contact](../contact.md) and [Contact subscription](../contact/subscribe.md). <!-- id:9D0UX8Nq -->
+A contact speaks for an account, so the indexer accepts it only when its signer may write the root of that account's [space](./spaces.md): the account's key, a key that writes as it through AGENT capabilities, or a holder of a root WRITER capability. Otherwise the contact is stashed and retried when a capability arrives, like a [Ref](../ref.md). The daemon's own contact RPCs check the same rule first, so you get a clear error. The daemon never turns a contact into a sync [subscription](./network.md). The apps do that. See [Contact](../contact.md) and [Contact subscription](../contact/subscribe.md). <!-- id:9D0UX8Nq -->
 
 # Identity and visibility
 
