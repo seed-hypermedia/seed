@@ -51,7 +51,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
 
     if (blocksToInsert.length > 0 && node.attrs.id === idOfFirstBlock) {
       const oldDocSize = tr.doc.nodeSize
-      tr = tr.insert(pos, nodesToInsert)
+      tr = tr.insert(pos - removedSize, nodesToInsert)
       const newDocSize = tr.doc.nodeSize
 
       removedSize += oldDocSize - newDocSize
