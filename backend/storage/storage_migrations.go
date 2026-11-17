@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"seed/backend/core"
+	"seed/backend/keyline/keylinesqlite"
 	"slices"
 
 	"seed/backend/util/sqlite"
@@ -62,6 +63,28 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Initialize the derived authority graph with earliest-mention provenance
+	// and its membership cache. MaybeReindex backfills them from validated
+	// structural blobs before startup completes, without a full reindex or
+	// recomputing embeddings.
+	{Version: "2026-11-03.104504", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := keylinesqlite.Init(context.Background(), conn); err != nil {
+			return err
+		}
+
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS keyline_members (
+				subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				member INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+				PRIMARY KEY (subject, member)
+			) WITHOUT ROWID;
+			CREATE INDEX IF NOT EXISTS keyline_members_by_member ON keyline_members (member, subject);
+			UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;
+			DELETE FROM kv WHERE key = 'keyline_projection_version';
+		`))
+	}},
+
 	// Give the feed an index holding only redirecting Refs, so resolving moved
 	// documents for a page no longer walks every blob sharing a genesis. Index
 	// only: one scan of structural_blobs at startup, no reindex.

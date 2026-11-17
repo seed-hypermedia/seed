@@ -22,7 +22,7 @@ A capability has these fields. `type`, `signer`, `sig` and `ts` are the signed [
 
 `path` limits the grant by whole path segments, and always covers everything under it. A grant at `/team` covers `/team/notes` but not `/teammates`. An `AGENT` capability must have an empty path. The role name does not mean an AI [agent](./agent.md). `audience` appears only on short-lived capabilities that are never stored. Peers and HTTP clients sign those to prove they hold an account. <!-- id:Q9nzk6HJ -->
 
-A capability does not expire, and nothing revokes it. [Permissions](./protocol/permissions.md) explains the authorization rule, the one-hop AGENT chain, and what happens to a Ref that arrives before its grant. <!-- id:bbIv8daq -->
+A capability does not expire, and nothing revokes it. An AGENT delegate writes wherever the issuer can, in the issuer's own space and in spaces the issuer was granted, and AGENT chains compose. It never gets the issuer's ownership. [Permissions](./protocol/permissions.md) explains the authorization rule, how AGENT chains compose, and what happens to a Ref that arrives before its grant. <!-- id:bbIv8daq -->
 
 # See also <!-- id:JzIvRXS3 -->
 

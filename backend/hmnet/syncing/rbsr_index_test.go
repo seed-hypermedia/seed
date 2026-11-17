@@ -59,6 +59,29 @@ func TestRbsrIndex_BuildMatchesLoadRBSRStore(t *testing.T) {
 	require.Equal(t, fingerprintOf(t, want), fingerprintOf(t, got), "fingerprints must match")
 }
 
+// servedItemSet serves scope through the maintained index, which
+// re-materializes it if a capability demoted it, and returns its persisted set.
+func servedItemSet(t *testing.T, db *sqlitex.Pool, scope DiscoveryKey) map[int64]struct{} {
+	t.Helper()
+	_, err := loadIndexedScopes(t.Context(), db, colx.HashSet[DiscoveryKey]{scope: {}}, newAuthorizedTreeStore())
+	require.NoError(t, err)
+	return itemSetForScope(t, db, scopeIDFor(t, db, scope))
+}
+
+// rematerializeDemoted does on conn what the next serve of each scope does
+// after a capability demoted it.
+func rematerializeDemoted(t *testing.T, conn *sqlite.Conn, scopes ...DiscoveryKey) {
+	t.Helper()
+	for _, scope := range scopes {
+		id, materialized, err := resolveScope(conn, scope)
+		require.NoError(t, err)
+
+		if !materialized {
+			require.NoError(t, materializeScope(conn, id, scope))
+		}
+	}
+}
+
 func itemSetForScope(t *testing.T, db *sqlitex.Pool, scopeID int64) map[int64]struct{} {
 	t.Helper()
 	out := map[int64]struct{}{}

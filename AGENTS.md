@@ -24,6 +24,7 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 - `backend/AGENTS.md` for `backend/**`.
 - `backend/storage/AGENTS.md` for `backend/storage/**`.
+- `backend/keyline/AGENTS.md` for `backend/keyline/**`.
 - `frontend/AGENTS.md` for `frontend/**`.
 - `proto/AGENTS.md` for `proto/**`.
 - `vault/AGENTS.md` for `vault/**`.

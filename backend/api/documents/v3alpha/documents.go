@@ -1229,21 +1229,7 @@ func (srv *Server) loadDocumentForChange(ctx context.Context, identity blob.IRI,
 	for hop := 0; ; hop++ {
 		state, err := srv.idx.ResolveLatest(ctx, source)
 		if err == nil {
-			if source != identity && state.Visibility == blob.VisibilityPrivate {
-				// A redirect must not become a read primitive for a private document. The prepared
-				// change would carry the target's genesis and heads, which no read RPC on a
-				// server-mode node discloses to anonymous callers.
-				targetNS, targetPath, err := source.SpacePath()
-				if err != nil {
-					return nil, err
-				}
-
-				if err := srv.denyPrivateDocument(ctx, targetNS, targetPath); err != nil {
-					return nil, err
-				}
-			}
-
-			break // A readable document: build the change on it.
+			break // Found the source; authorize the loaded base below.
 		}
 
 		if status.Code(err) == codes.NotFound {
@@ -1289,6 +1275,19 @@ func (srv *Server) loadDocumentForChange(ctx context.Context, identity blob.IRI,
 	doc, err := srv.loadDocumentFrom(ctx, identity, source, heads, true)
 	if err != nil {
 		return nil, err
+	}
+
+	// Preparation exposes the base's genesis and dependencies. Check the loaded generation's
+	// visibility, just as GetDocument does, including pinned bases and redirect targets.
+	if doc.Visibility() == blob.VisibilityPrivate {
+		sourceNS, sourcePath, err := source.SpacePath()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := srv.denyPrivateDocument(ctx, sourceNS, sourcePath); err != nil {
+			return nil, err
+		}
 	}
 
 	if redirectGeneration >= 0 {

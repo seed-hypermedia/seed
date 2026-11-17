@@ -179,7 +179,13 @@ func indexProfile(ictx *indexingCtx, id int64, eb Encoded[*Profile]) error {
 			}
 
 			if !ok {
-				return fmt.Errorf("delegated profile signer must have a valid agent capability")
+				// The agent capability may arrive later, as for alias profiles.
+				return stashError{
+					Reason: stashReasonPermissionDenied,
+					Metadata: stashMetadata{
+						DeniedSigners: []core.Principal{v.Signer},
+					},
+				}
 			}
 		}
 

@@ -514,6 +514,82 @@ const (
 	C_FtsIndexVersion     = "fts_index.version"
 )
 
+// Table keyline_delegations.
+const (
+	KeylineDelegations         sqlitegen.Table  = "keyline_delegations"
+	KeylineDelegationsAudience sqlitegen.Column = "keyline_delegations.audience"
+	KeylineDelegationsBlobID   sqlitegen.Column = "keyline_delegations.blob_id"
+	KeylineDelegationsID       sqlitegen.Column = "keyline_delegations.id"
+	KeylineDelegationsIssuer   sqlitegen.Column = "keyline_delegations.issuer"
+	KeylineDelegationsPower    sqlitegen.Column = "keyline_delegations.power"
+	KeylineDelegationsSubject  sqlitegen.Column = "keyline_delegations.subject"
+)
+
+// Table keyline_delegations. Plain strings.
+const (
+	T_KeylineDelegations         = "keyline_delegations"
+	C_KeylineDelegationsAudience = "keyline_delegations.audience"
+	C_KeylineDelegationsBlobID   = "keyline_delegations.blob_id"
+	C_KeylineDelegationsID       = "keyline_delegations.id"
+	C_KeylineDelegationsIssuer   = "keyline_delegations.issuer"
+	C_KeylineDelegationsPower    = "keyline_delegations.power"
+	C_KeylineDelegationsSubject  = "keyline_delegations.subject"
+)
+
+// Table keyline_members.
+const (
+	KeylineMembers        sqlitegen.Table  = "keyline_members"
+	KeylineMembersMember  sqlitegen.Column = "keyline_members.member"
+	KeylineMembersPower   sqlitegen.Column = "keyline_members.power"
+	KeylineMembersSubject sqlitegen.Column = "keyline_members.subject"
+)
+
+// Table keyline_members. Plain strings.
+const (
+	T_KeylineMembers        = "keyline_members"
+	C_KeylineMembersMember  = "keyline_members.member"
+	C_KeylineMembersPower   = "keyline_members.power"
+	C_KeylineMembersSubject = "keyline_members.subject"
+)
+
+// Table keyline_nodes.
+const (
+	KeylineNodes        sqlitegen.Table  = "keyline_nodes"
+	KeylineNodesBlobID  sqlitegen.Column = "keyline_nodes.blob_id"
+	KeylineNodesBlobKey sqlitegen.Column = "keyline_nodes.blob_key"
+	KeylineNodesID      sqlitegen.Column = "keyline_nodes.id"
+	KeylineNodesName    sqlitegen.Column = "keyline_nodes.name"
+	KeylineNodesTs      sqlitegen.Column = "keyline_nodes.ts"
+)
+
+// Table keyline_nodes. Plain strings.
+const (
+	T_KeylineNodes        = "keyline_nodes"
+	C_KeylineNodesBlobID  = "keyline_nodes.blob_id"
+	C_KeylineNodesBlobKey = "keyline_nodes.blob_key"
+	C_KeylineNodesID      = "keyline_nodes.id"
+	C_KeylineNodesName    = "keyline_nodes.name"
+	C_KeylineNodesTs      = "keyline_nodes.ts"
+)
+
+// Table keyline_revocations.
+const (
+	KeylineRevocations       sqlitegen.Table  = "keyline_revocations"
+	KeylineRevocationsBlobID sqlitegen.Column = "keyline_revocations.blob_id"
+	KeylineRevocationsID     sqlitegen.Column = "keyline_revocations.id"
+	KeylineRevocationsIssuer sqlitegen.Column = "keyline_revocations.issuer"
+	KeylineRevocationsTarget sqlitegen.Column = "keyline_revocations.target"
+)
+
+// Table keyline_revocations. Plain strings.
+const (
+	T_KeylineRevocations       = "keyline_revocations"
+	C_KeylineRevocationsBlobID = "keyline_revocations.blob_id"
+	C_KeylineRevocationsID     = "keyline_revocations.id"
+	C_KeylineRevocationsIssuer = "keyline_revocations.issuer"
+	C_KeylineRevocationsTarget = "keyline_revocations.target"
+)
+
 // Table kv.
 const (
 	KV      sqlitegen.Table  = "kv"
@@ -904,6 +980,24 @@ var Schema = sqlitegen.Schema{
 		FtsIndexTs:                              {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexType:                            {Table: FtsIndex, SQLType: "TEXT"},
 		FtsIndexVersion:                         {Table: FtsIndex, SQLType: "TEXT"},
+		KeylineDelegationsAudience:              {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsBlobID:                {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsID:                    {Table: KeylineDelegations, SQLType: "TEXT"},
+		KeylineDelegationsIssuer:                {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsPower:                 {Table: KeylineDelegations, SQLType: "TEXT"},
+		KeylineDelegationsSubject:               {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineMembersMember:                    {Table: KeylineMembers, SQLType: "INTEGER"},
+		KeylineMembersPower:                     {Table: KeylineMembers, SQLType: "TEXT"},
+		KeylineMembersSubject:                   {Table: KeylineMembers, SQLType: "INTEGER"},
+		KeylineNodesBlobID:                      {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineNodesBlobKey:                     {Table: KeylineNodes, SQLType: "TEXT"},
+		KeylineNodesID:                          {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineNodesName:                        {Table: KeylineNodes, SQLType: "TEXT"},
+		KeylineNodesTs:                          {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineRevocationsBlobID:                {Table: KeylineRevocations, SQLType: "INTEGER"},
+		KeylineRevocationsID:                    {Table: KeylineRevocations, SQLType: "TEXT"},
+		KeylineRevocationsIssuer:                {Table: KeylineRevocations, SQLType: "INTEGER"},
+		KeylineRevocationsTarget:                {Table: KeylineRevocations, SQLType: "TEXT"},
 		KVKey:                                   {Table: KV, SQLType: "TEXT"},
 		KVValue:                                 {Table: KV, SQLType: "TEXT"},
 		PeersAddresses:                          {Table: Peers, SQLType: "TEXT"},
