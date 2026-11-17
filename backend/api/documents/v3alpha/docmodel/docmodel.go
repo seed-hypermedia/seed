@@ -46,8 +46,8 @@ type Document struct {
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
 
-	dirtyBlocks   map[string]mvRegValue[blob.Block]
-	dirtyMetadata *btree.Map[[]string, mvRegValue[metadataValue]]
+	dirtyBlocks   map[string]blob.Block
+	dirtyMetadata *btree.Map[[]string, metadataValue]
 
 	Generation maybe.Value[int64]
 
@@ -224,11 +224,10 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = btree.New[[]string, mvRegValue[metadataValue]](8, slices.Compare)
+		dm.dirtyMetadata = btree.New[[]string, metadataValue](8, slices.Compare)
 	}
 
 	exactKey := slices.Clone(keyPath)
-
 	// Writes of the same mutation apply in the order they are made, and a write to a key
 	// replaces everything below it. So the pending writes below this key are superseded,
 	// no matter whether this write ends up being stored or not.
@@ -239,9 +238,9 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	for k := range dm.dirtyMetadata.Keys() {
 		switch {
-		case isKeyAncestor(exactKey, k):
+		case isMetadataAncestor(exactKey, k):
 			superseded = append(superseded, k)
-		case isKeyAncestor(k, exactKey):
+		case isMetadataAncestor(k, exactKey):
 			hasPendingParent = true
 		}
 	}
@@ -250,7 +249,6 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 		dm.dirtyMetadata.Delete(k)
 	}
 
-	var preds []opID
 	if reg := dm.crdt.stateMetadata.GetMaybe(exactKey); reg != nil {
 		latest := reg.GetLatest()
 
@@ -259,24 +257,17 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 		//
 		// Unless there's a pending write above this key: it removes the committed value,
 		// so this one is not redundant (see pendingAttributes for how those are reduced).
-		if !hasPendingParent && attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
+		// Also, a tombstone left above newer child attributes compares equal to a
+		// deletion, but the deletion still has to replace those children.
+		if !hasPendingParent && attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) && !dm.crdt.hasLiveMetadataDescendant(exactKey) {
 			dm.dirtyMetadata.Delete(exactKey)
 			return nil
 		}
-		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyMetadata.Set(exactKey, mvRegValue[metadataValue]{
-		Value: metadataValue{Key: slices.Clone(keyPath), Value: newValue},
-		Preds: preds,
-	})
+	dm.dirtyMetadata.Set(exactKey, metadataValue{Key: slices.Clone(keyPath), Value: newValue})
 
 	return nil
-}
-
-// isKeyAncestor reports whether key path a is a strict prefix of key path b.
-func isKeyAncestor(a, b []string) bool {
-	return len(a) < len(b) && slices.Equal(a, b[:len(a)])
 }
 
 // pendingAttributes returns the attribute writes to store for the current mutation.
@@ -297,7 +288,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 
 	pending := make([]blob.KeyValue, 0, dm.dirtyMetadata.Len())
 	for _, v := range dm.dirtyMetadata.Items() {
-		pending = append(pending, blob.KeyValue{Key: v.Value.Key, Value: v.Value.Value})
+		pending = append(pending, blob.KeyValue{Key: v.Key, Value: v.Value})
 	}
 
 	// Keys are sorted, so the writes below a key directly follow it.
@@ -305,7 +296,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		parent := pending[i].Key
 
 		end := i + 1
-		for end < len(pending) && isKeyAncestor(parent, pending[end].Key) {
+		for end < len(pending) && isMetadataAncestor(parent, pending[end].Key) {
 			end++
 		}
 
@@ -318,7 +309,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		// So there's nothing left for the parent write to remove, and the writes below it
 		// repeat nothing: they all stay, and only the parent write goes.
 		// Writes above the parent were already looked at, so those still pending are stored.
-		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, parent) }) {
+		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isMetadataAncestor(other.Key, parent) }) {
 			pending = slices.Delete(pending, i, i+1)
 			i--
 
@@ -332,11 +323,11 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		var nRedundant int
 
 		for j, kv := range below {
-			if j+1 < len(below) && isKeyAncestor(kv.Key, below[j+1].Key) {
+			if j+1 < len(below) && isMetadataAncestor(kv.Key, below[j+1].Key) {
 				continue
 			}
 
-			if slices.ContainsFunc(below[:j], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, kv.Key) }) {
+			if slices.ContainsFunc(below[:j], func(other blob.KeyValue) bool { return isMetadataAncestor(other.Key, kv.Key) }) {
 				continue
 			}
 
@@ -345,7 +336,9 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 				continue
 			}
 
-			if latest, ok := reg.GetLatestOK(); ok && attrValuesEqual(kv.Value, latest.Value) {
+			// A tombstone left above newer child attributes compares equal to a deletion,
+			// but the deletion still has to replace those children.
+			if latest, ok := reg.GetLatestOK(); ok && attrValuesEqual(kv.Value, latest.Value) && !dm.crdt.hasLiveMetadataDescendant(kv.Key) {
 				redundant[j] = true
 				nRedundant++
 			}
@@ -355,7 +348,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		var cleared []blob.KeyValue
 
 		for k, reg := range dm.crdt.stateMetadata.Items() {
-			if !isKeyAncestor(parent, k) {
+			if !isMetadataAncestor(parent, k) {
 				continue
 			}
 
@@ -364,7 +357,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 			}
 
 			replaced := slices.ContainsFunc(below, func(kv blob.KeyValue) bool {
-				return slices.Equal(kv.Key, k) || isKeyAncestor(kv.Key, k) || isKeyAncestor(k, kv.Key)
+				return slices.Equal(kv.Key, k) || isMetadataAncestor(kv.Key, k) || isMetadataAncestor(k, kv.Key)
 			})
 			if !replaced {
 				cleared = append(cleared, blob.KeyValue{Key: slices.Clone(k), Value: nil})
@@ -426,7 +419,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	}
 
 	if dm.dirtyBlocks == nil {
-		dm.dirtyBlocks = make(map[string]mvRegValue[blob.Block])
+		dm.dirtyBlocks = make(map[string]blob.Block)
 	}
 
 	blk, err := BlockFromProto(blkpb)
@@ -436,17 +429,15 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
-	var preds []opID
 	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
 		if ok && blocksEqual(oldValue, blk) {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
-		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyBlocks[blk.ID()] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
+	dm.dirtyBlocks[blk.ID()] = blk
 
 	if _, ok := dm.crdt.tree.sublists.Get(blk.ID()); !ok {
 		dm.crdt.tree.sublists.Set(blk.ID(), newRGAList[string]())
@@ -669,7 +660,7 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 		if !ok {
 			panic("BUG: dirty block not found")
 		}
-		addOp(blob.NewOpReplaceBlock(blk.Value), 1)
+		addOp(blob.NewOpReplaceBlock(blk), 1)
 	}
 
 	return out, nil

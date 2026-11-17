@@ -64,6 +64,15 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Rebuild document_attributes with order-independent structural resolution.
+	// Changes reach the index across separate Refs in any order, and a write to a
+	// key path (theme) racing writes to its children (theme.Color) used to leave
+	// a result that depended on that order. A full reindex recomputes every row
+	// under the corrected rules.
+	{Version: "2026-11-16.163739", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
+
 	// Drop the unreferenced-document index. Its writes and its RPC were disabled
 	// on 2026-09-15 and the tables have stayed empty since; sidebar navigation now
 	// comes from Card embeds on the client. Nothing reads them, so no reindex.

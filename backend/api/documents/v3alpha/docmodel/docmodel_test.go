@@ -152,7 +152,39 @@ func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
 
 	doc = load(parent, child, deletedChild)
 	require.Empty(t, doc.crdt.GetMetadata(), "deleting a child must not resurrect the scalar parent it replaced")
-	require.Equal(t, 1, doc.crdt.stateMetadata.Len(), "only the winning child tombstone must remain")
+	require.Zero(t, valueEntries(doc.crdt), "only tombstones may remain")
+}
+
+func TestMetadataDeletingReplacedScalarRemovesChildren(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account
+	load := func(changes ...blob.Encoded[*blob.Change]) *Document {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		for _, change := range changes {
+			must.Do(doc.ApplyChange(change.CID, change.Decoded))
+		}
+
+		return doc
+	}
+
+	doc := load()
+	must.Do(doc.SetAttribute("", []string{"obj"}, "scalar"))
+	scalar := must.Do2(doc.SignChange(alice))
+
+	// The children replace the scalar, which leaves a tombstone at obj.
+	doc = load(scalar)
+	must.Do(doc.SetAttribute("", []string{"obj", "a"}, "1"))
+	must.Do(doc.SetAttribute("", []string{"obj", "b"}, "2"))
+	must.Do(doc.SetAttribute("", []string{"obj", "c"}, "3"))
+	children := must.Do2(doc.SignChange(alice))
+
+	doc = load(scalar, children)
+	must.Do(doc.SetAttribute("", []string{"obj"}, nil))
+	deleted := must.Do2(doc.SignChange(alice))
+
+	doc = load(scalar, children, deleted)
+	require.Empty(t, doc.crdt.GetMetadata(), "deleting obj must remove the children that replaced its scalar")
 }
 
 func TestBug_RedundantReplaces(t *testing.T) {

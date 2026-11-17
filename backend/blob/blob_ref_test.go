@@ -168,7 +168,10 @@ func TestDocIndexedAttrsStructuralLWWIsOrderIndependent(t *testing.T) {
 				attrs.setOrdered("theme", "Legacy", 1, 0, 1)
 			}
 
+			// The replaced parent stays as a tombstone at its own order, so it can
+			// still supersede older children indexed later.
 			require.Equal(t, DocIndexedAttrs{
+				"theme":       {Key: "theme", Value: nil, Ts: 1, Actor: 1, Kind: documentAttributeNull},
 				"theme.Color": {Key: "theme.Color", Value: nil, Ts: 2, Actor: 1, Kind: documentAttributeNull},
 			}, attrs)
 			require.Empty(t, attrs.PublicMap())

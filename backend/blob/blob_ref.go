@@ -1206,75 +1206,99 @@ func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 	m.setOrdered(k, v, ts, 0, 0)
 }
 
+// setOrdered applies a write to an attribute key path. Key paths are dotted, and
+// they form a tree: a write replaces everything above and below it that is
+// older. The result must equal applying every write sorted by
+// (ts, operation, actor) — the same order as docmodel's op IDs — whatever order
+// the writes are indexed in, because changes reach the index across separate
+// Refs and transactions in any order. The map holds at most one entry per path,
+// a value or a tombstone (kind null), and a write follows these rules:
+//
+//  1. If the path itself or any ancestor has an entry at least as new, the
+//     write is superseded and ignored. An exact tie on the same path falls back
+//     to comparing the encoded values, so the winner stays deterministic.
+//  2. Otherwise it replaces the path's entry and deletes every older descendant.
+//  3. If a newer descendant exists, the write was already replaced by it, so it
+//     is stored as a tombstone instead of a value.
+//  4. Older ancestors holding a value become tombstones at their own order.
+//
+// A tombstone keeps its order because it still supersedes older writes below it
+// that arrive later. Readers skip tombstones. This mirrors docmodel's
+// setMetadata exactly; the two must agree.
 func (m DocIndexedAttrs) setOrdered(k string, v any, ts int64, operation int, actor uint64) {
 	kind, _, err := documentAttributeValue(v)
 	if err != nil {
 		panic(fmt.Errorf("BUG: invalid indexed attribute value %T: %w", v, err))
 	}
 	vNew := IndexedValue{Key: k, Value: v, Ts: ts, Operation: operation, Actor: actor, Kind: kind}
-	vOld, ok := m[k]
-	accepted := false
-	if !ok {
-		m[k] = vNew
-		accepted = true
-	} else {
-		switch order := compareIndexedOrder(vOld, vNew); {
-		case order < 0:
-			m[k] = vNew
-			accepted = true
-		case order == 0:
-			// When timestamps are equal, we use values as tie-breaker.
-			// To deterministically compare unknown values we simply encode them as deterministic CBOR,
-			// and compare the resulting byte slices. If new value is greater — it wins.
 
-			newValue, err := cbornode.DumpObject(vNew.Value)
-			if err != nil {
-				panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", v, err))
-			}
+	// Decide everything before mutating the map, so the outcome doesn't depend
+	// on map iteration order.
+	var olderDescendants, olderAncestors []string
 
-			oldValue, err := cbornode.DumpObject(vOld.Value)
-			if err != nil {
-				panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", v, err))
-			}
-
-			if bytes.Compare(newValue, oldValue) > 0 {
-				m[k] = vNew
-				accepted = true
-			}
-		case order > 0:
-			break // Leaving the old value.
-		default:
-			panic("BUG: unreachable")
-		}
-	}
-	if !accepted {
-		return
-	}
-
-	// Keep only the structural LWW frontier. Tombstones participate so an old
-	// parent or child cannot reappear when the replacing path is later deleted.
+	newerDescendant := false
 	for otherKey, other := range m {
-		if otherKey == k {
-			continue
-		}
-
-		otherIsAncestor := len(otherKey) < len(k) &&
-			k[len(otherKey)] == '.' &&
-			k[:len(otherKey)] == otherKey
-		otherIsDescendant := len(k) < len(otherKey) &&
-			otherKey[len(k)] == '.' &&
-			otherKey[:len(k)] == k
-		if !otherIsAncestor && !otherIsDescendant {
-			continue
-		}
-
 		order := compareIndexedOrder(other, vNew)
-		if order > 0 || order == 0 && otherIsDescendant {
-			delete(m, k)
-			return
+		switch {
+		case otherKey == k:
+			if order > 0 || order == 0 && !indexedValueWinsTie(vNew, other) {
+				return
+			}
+		case isAttrAncestor(otherKey, k):
+			if order >= 0 {
+				return
+			}
+
+			olderAncestors = append(olderAncestors, otherKey)
+		case isAttrAncestor(k, otherKey):
+			if order > 0 {
+				newerDescendant = true
+			} else {
+				olderDescendants = append(olderDescendants, otherKey)
+			}
 		}
+	}
+
+	if newerDescendant {
+		vNew.Value = nil
+		vNew.Kind = documentAttributeNull
+	}
+
+	m[k] = vNew
+
+	for _, otherKey := range olderDescendants {
 		delete(m, otherKey)
 	}
+
+	for _, otherKey := range olderAncestors {
+		ancestor := m[otherKey]
+		if ancestor.Value != nil {
+			ancestor.Value = nil
+			ancestor.Kind = documentAttributeNull
+			m[otherKey] = ancestor
+		}
+	}
+}
+
+// indexedValueWinsTie breaks an exact order tie between two writes to the same
+// path by their deterministic CBOR encoding: the greater encoding wins.
+func indexedValueWinsTie(vNew, vOld IndexedValue) bool {
+	newValue, err := cbornode.DumpObject(vNew.Value)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", vNew.Value, err))
+	}
+
+	oldValue, err := cbornode.DumpObject(vOld.Value)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", vOld.Value, err))
+	}
+
+	return bytes.Compare(newValue, oldValue) > 0
+}
+
+// isAttrAncestor reports whether dotted path a is a strict ancestor of b.
+func isAttrAncestor(a, b string) bool {
+	return len(a) < len(b) && b[len(a)] == '.' && b[:len(a)] == a
 }
 
 func compareIndexedOrder(a, b IndexedValue) int {

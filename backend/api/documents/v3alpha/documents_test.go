@@ -1861,7 +1861,10 @@ func TestDocumentAttributesDoNotResurrectStructurallyReplacedValues(t *testing.T
 		discard(&discardErr)
 		require.NoError(t, discardErr)
 		release()
-		require.Equal(t, []string{"theme.Color:n"}, stored, "SQLite must remove the replaced parent instead of hiding it in a view")
+		// The replaced parent stays only as a null tombstone row, like the deleted
+		// child: no view, and every reader skips null rows. The tombstone keeps
+		// its order so it still supersedes older children indexed later.
+		require.Equal(t, []string{"theme:n", "theme.Color:n"}, stored, "the replaced parent must only remain as a tombstone")
 	}
 
 	inverse, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed-inverse", "", "main").
