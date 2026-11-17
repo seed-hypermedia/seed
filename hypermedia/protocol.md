@@ -40,3 +40,31 @@ These pages describe the protocol that ships as of September 2026. The team is e
 - [Building on Hypermedia](./build.md) for guides and APIs. <!-- id:OMjhUehm -->
 - [Seed Agents](./agent.md) for the hosted agent runtime. <!-- id:UjXhbUbP -->
 - The schema library at the root of this site: [blob](./blob.md), [change](./change.md), [ref](./ref.md), [document](./document.md), [block](./block.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md). <!-- id:vfkXYqOT -->
+
+# The concept pages <!-- id:ewlCv2eS attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./protocol/blobs.md> <!-- id:Nwt5jnEa type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/blocks.md> <!-- id:Mtx5JGhF type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/comments.md> <!-- id:xCiios40 type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/documents.md> <!-- id:GqBOIYgV type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/files.md> <!-- id:J4SJgcHp type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/identity.md> <!-- id:yk1R1BrY type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/integrity.md> <!-- id:J6VSQpag type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/network.md> <!-- id:XAYk3kV5 type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/permissions.md> <!-- id:Kh3G7q1W type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/privacy.md> <!-- id:RdFW0L9y type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/roadmap.md> <!-- id:YV7Yoy4x type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/sites.md> <!-- id:KaKtv42U type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/urls.md> <!-- id:PP78EgZu type:Embed attrs:{"view":"Card"} -->

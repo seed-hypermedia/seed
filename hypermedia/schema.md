@@ -115,3 +115,77 @@ The library's tools live in `scripts/hypermedia/` in the Seed repository. The re
 - [Blobs](./protocol/blobs.md): the signed DAG-CBOR objects the network stores. <!-- id:CjHSu5e6 -->
 - [Documents](./protocol/documents.md): the pages schemas are published as. <!-- id:Qdt4-Z3B -->
 - [URLs](./protocol/urls.md): the `hm://` names schemas use. <!-- id:UM9fUhzV -->
+
+# Every Hypermedia Schemas page <!-- id:56hyyNVX attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./schema/anyof.md> <!-- id:9dlizr93 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/blobs.md> <!-- id:N3NYvP91 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/canonical-encoding.md> <!-- id:N2Gd4M8r type:Embed attrs:{"view":"Card"} -->
+
+<./schema/closed-map.md> <!-- id:3pzNC9XR type:Embed attrs:{"view":"Card"} -->
+
+<./schema/dag-cbor.md> <!-- id:iD44hWEo type:Embed attrs:{"view":"Card"} -->
+
+<./schema/dag-json.md> <!-- id:QdJ1FwLR type:Embed attrs:{"view":"Card"} -->
+
+<./schema/data-model.md> <!-- id:TRqWA4sY type:Embed attrs:{"view":"Card"} -->
+
+<./schema/design.md> <!-- id:9dSFq4Sd type:Embed attrs:{"view":"Card"} -->
+
+<./schema/discriminated-union.md> <!-- id:h3tUjy2t type:Embed attrs:{"view":"Card"} -->
+
+<./schema/encoding.md> <!-- id:dDpiudv9 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/envelope.md> <!-- id:p9JdRLWd type:Embed attrs:{"view":"Card"} -->
+
+<./schema/extension.md> <!-- id:3Ob6je0Z type:Embed attrs:{"view":"Card"} -->
+
+<./schema/fixpoint-problem.md> <!-- id:rqcjFKXm type:Embed attrs:{"view":"Card"} -->
+
+<./schema/generic.md> <!-- id:rGG7Qany type:Embed attrs:{"view":"Card"} -->
+
+<./schema/how-it-works.md> <!-- id:OPAYtI0o type:Embed attrs:{"view":"Card"} -->
+
+<./schema/include-schema.md> <!-- id:lwayfgqc type:Embed attrs:{"view":"Card"} -->
+
+<./schema/ipld.md> <!-- id:IPLKr6FA type:Embed attrs:{"view":"Card"} -->
+
+<./schema/kind.md> <!-- id:IqmYfomq type:Embed attrs:{"view":"Card"} -->
+
+<./schema/link-schema.md> <!-- id:nf8sO13Q type:Embed attrs:{"view":"Card"} -->
+
+<./schema/list-schema.md> <!-- id:LUc4uULQ type:Embed attrs:{"view":"Card"} -->
+
+<./schema/literal-schema.md> <!-- id:6s12DKh0 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/map-schema.md> <!-- id:NocnWATv type:Embed attrs:{"view":"Card"} -->
+
+<./schema/primitive.md> <!-- id:BqFg8yGR type:Embed attrs:{"view":"Card"} -->
+
+<./schema/property.md> <!-- id:C6NHhVqa type:Embed attrs:{"view":"Card"} -->
+
+<./schema/quick-reference.md> <!-- id:BAwSqxU5 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/references.md> <!-- id:603ICTex type:Embed attrs:{"view":"Card"} -->
+
+<./schema/scalar-schema.md> <!-- id:uWiCvnoM type:Embed attrs:{"view":"Card"} -->
+
+<./schema/schema-language.md> <!-- id:6CLM8V3W type:Embed attrs:{"view":"Card"} -->
+
+<./schema/self-description.md> <!-- id:YEPNjy2x type:Embed attrs:{"view":"Card"} -->
+
+<./schema/struct-schema.md> <!-- id:gQdS7lnc type:Embed attrs:{"view":"Card"} -->
+
+<./schema/typed-documents.md> <!-- id:2Ehd3kO2 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/user-stories.md> <!-- id:NvzEEEHA type:Embed attrs:{"view":"Card"} -->
+
+<./schema/var-schema.md> <!-- id:qgcfHOYx type:Embed attrs:{"view":"Card"} -->
+
+<./schema/variant.md> <!-- id:AILFVvW3 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/why.md> <!-- id:UE8RS2f7 type:Embed attrs:{"view":"Card"} -->
+
+<./schema/world-builder.md> <!-- id:mbS7luSr type:Embed attrs:{"view":"Card"} -->

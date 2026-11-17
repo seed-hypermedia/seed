@@ -94,6 +94,8 @@ export const layout: SpaceLayout = {
   },
   schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
   selfAuthority: LIBRARY_AUTHORITY,
+  // No page without a parent page, no parent without a card of each child (scripts/hypermedia/tree.mjs fixes cards).
+  requireChildCards: true,
   fileForLinkPath(path) {
     if (path === '') return 'index.md'
     return `${path.replace(/^\//, '')}.md`

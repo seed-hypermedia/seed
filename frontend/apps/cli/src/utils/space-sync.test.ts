@@ -6,11 +6,16 @@ import {blocksToMarkdown, markdownBlockNodesToHMBlockNodes, parseMarkdown} from 
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {
   applySchemaMetadata,
+  checkTree,
+  defaultLayout,
   exportDocument,
   findMovedFrom,
+  findTreeViolations,
+  importSpace,
   listMarkdownFiles,
   markdownEquivalent,
   metadataDiffOp,
+  parentPath,
   swapAuthority,
 } from './space-sync'
 
@@ -307,5 +312,115 @@ describe('importSpace transient read errors', () => {
       globalThis.setTimeout = realSetTimeout
       rmSync(dir, {recursive: true, force: true})
     }
+  })
+})
+
+describe('the tree rule (requireChildCards)', () => {
+  const account = 'z6MkTree'
+  const page = (name: string, body = '') => `---\nname: ${name}\nsummary: A page.\n---\n${body}\n`
+  const card = (link: string, id: string) => `<${link}> <!-- id:${id} type:Embed attrs:{"view":"Card"} -->`
+  const write = async (dir: string, files: Record<string, string>) => {
+    const {mkdirSync} = await import('node:fs')
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(resolve(dir, file, '..'), {recursive: true})
+      writeFileSync(resolve(dir, file), text)
+    }
+  }
+  const layout = {...defaultLayout, requireChildCards: true}
+  const opts = (dir: string) => ({client: {} as never, signer: {} as never, account, dir, layout})
+
+  test('a whole tree passes: home cards its children, a landing cards its folder', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tree-ok-'))
+    try {
+      await write(dir, {
+        'index.md': page('Home', card('./guide.md', 'card0001')),
+        'guide.md': page(
+          'Guide',
+          `# Pages <!-- id:gridhead attrs:{"childrenType":"Grid","columnCount":3} -->\n\n${card(
+            './guide/start.md',
+            'card0002',
+          )}`,
+        ),
+        'guide/start.md': page('Start'),
+      })
+      expect(checkTree(opts(dir))).toEqual([])
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('a folder with no landing page is one no-parent problem, and nothing publishes', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tree-orphan-'))
+    try {
+      await write(dir, {
+        'index.md': page('Home'),
+        'plans/a.md': page('A'),
+        'plans/b.md': page('B'),
+      })
+      const found = checkTree(opts(dir))
+      expect(found.map((v) => [v.file, v.kind])).toEqual([['plans.md', 'no-parent']])
+      expect(found[0]!.message).toContain('plans/a.md')
+      await expect(importSpace({...opts(dir), dryRun: true})).rejects.toThrow(/1 tree problem[\s\S]*plans\.md: missing/)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('a parent that only links a child, or embeds it without the Card view, lacks its card', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tree-card-'))
+    try {
+      await write(dir, {
+        'index.md': page(
+          'Home',
+          `See [one](./one.md).\n\n<./two.md> <!-- id:embed001 type:Embed -->\n\n${card('./three.md', 'card0003')}`,
+        ),
+        'one.md': page('One'),
+        'two.md': page('Two'),
+        'three.md': page('Three'),
+      })
+      expect(checkTree(opts(dir)).map((v) => [v.file, v.kind, v.message])).toEqual([
+        ['index.md', 'no-child-card', 'no Card embed of its child one.md'],
+        ['index.md', 'no-child-card', 'no Card embed of its child two.md'],
+      ])
+      // Publishing only an unrelated file still refuses: the rule is about the whole directory.
+      await expect(importSpace({...opts(dir), dryRun: true, only: ['three.md']})).rejects.toThrow(/2 tree problems/)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('without the layout flag the rule does not apply', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tree-off-'))
+    try {
+      await write(dir, {'index.md': page('Home'), 'plans/a.md': page('A')})
+      expect(findTreeViolations(new Map(), (p) => p)).toEqual([])
+      expect(parentPath('/a/b')).toBe('/a')
+      expect(parentPath('/a')).toBe('')
+      expect(parentPath('')).toBeNull()
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('the checked-in documentation keeps the rule', async () => {
+    const {layout: docsLayout} = await import('../sync-hypermedia')
+    expect(docsLayout.requireChildCards).toBe(true)
+    const dir = resolve(import.meta.dir, '../../../../../hypermedia')
+    expect(checkTree({...opts(dir), layout: docsLayout})).toEqual([])
+  })
+
+  test('a Grid of cards written in attrs survives parsing', () => {
+    const {tree} = parseMarkdown(
+      page(
+        'P',
+        `# Pages <!-- id:gridhead attrs:{"childrenType":"Grid","columnCount":3} -->\n\n${card('./a.md', 'card000a')}`,
+      ),
+    )
+    const [heading] = markdownBlockNodesToHMBlockNodes(tree)
+    expect((heading!.block as {attributes: Record<string, unknown>}).attributes).toMatchObject({
+      childrenType: 'Grid',
+      columnCount: 3,
+    })
+    expect(heading!.children).toHaveLength(1)
   })
 })

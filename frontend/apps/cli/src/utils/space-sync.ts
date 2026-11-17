@@ -124,6 +124,12 @@ export type SpaceLayout = {
    * and metadata, and export writes it back, so the files never name a key.
    */
   selfAuthority?: string
+  /**
+   * The tree rule: every published page has a published parent page, up to the home document, and
+   * every parent carries a Card embed of each direct child. An import refuses to publish anything
+   * while the directory breaks the rule (see findTreeViolations).
+   */
+  requireChildCards?: boolean
 }
 
 /** Every `hm://<from>` URL in a value (a string, or strings nested in lists and maps) with its authority set to `to`. */
@@ -903,6 +909,85 @@ export function checkLinks(
   return broken
 }
 
+export type TreeViolation = {file: string; kind: 'no-parent' | 'no-child-card'; message: string}
+
+/** The paths a tree's Card embeds point at inside `account`: `<./child.md> <!-- type:Embed attrs:{"view":"Card"} -->`. */
+export function cardEmbedPaths(nodes: HMBlockNode[], account: string, out = new Set<string>()): Set<string> {
+  const own = new RegExp(`^hm://${account}(/[^#?]*)?([#?].*)?$`)
+  for (const node of nodes) {
+    const block = node.block as {type?: string; link?: string; attributes?: Record<string, unknown>}
+    if (block.type === 'Embed' && block.attributes?.view === 'Card' && typeof block.link === 'string') {
+      const m = own.exec(block.link)
+      if (m) out.add((m[1] || '').replace(/\/$/, ''))
+    }
+    if (node.children) cardEmbedPaths(node.children, account, out)
+  }
+  return out
+}
+
+/** The path one level up: '/a/b' is under '/a', '/a' under the home document (''), which has no parent. */
+export function parentPath(path: string): string | null {
+  if (path === '') return null
+  return path.slice(0, path.lastIndexOf('/'))
+}
+
+/**
+ * Where the directory breaks the tree rule (SpaceLayout.requireChildCards). `pages` maps every
+ * published path to its file and the paths its Card embeds name. A page with no page one level up
+ * is `no-parent` (reported once per missing parent); a parent that embeds no card of a direct child
+ * is `no-child-card`.
+ */
+export function findTreeViolations(
+  pages: Map<string, {file: string; cards: Set<string>}>,
+  fileForPath: (path: string) => string,
+): TreeViolation[] {
+  const violations: TreeViolation[] = []
+  const orphans = new Map<string, string[]>()
+  for (const [path, page] of pages) {
+    const parent = parentPath(path)
+    if (parent === null) continue
+    const parentPage = pages.get(parent)
+    if (!parentPage) {
+      orphans.set(parent, [...(orphans.get(parent) || []), page.file])
+    } else if (!parentPage.cards.has(path)) {
+      violations.push({
+        file: parentPage.file,
+        kind: 'no-child-card',
+        message: `no Card embed of its child ${page.file}`,
+      })
+    }
+  }
+  for (const [parent, children] of orphans) {
+    const shown = children.slice(0, 3).join(', ') + (children.length > 3 ? `, … (${children.length} pages)` : '')
+    violations.push({
+      file: fileForPath(parent),
+      kind: 'no-parent',
+      message: `missing: it is the parent page of ${shown}`,
+    })
+  }
+  return violations.sort((a, b) => a.file.localeCompare(b.file) || a.message.localeCompare(b.message))
+}
+
+/** The tree rule over the whole directory, whatever subset of files is being published. */
+export function checkTree(
+  opts: ImportOptions,
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): TreeViolation[] {
+  const layout = opts.layout || defaultLayout
+  const pages = new Map<string, {file: string; cards: Set<string>}>()
+  for (const file of listMarkdownFiles(opts.dir)) {
+    const path = layout.pathForFile(file)
+    if (path === null) continue
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    pages.set(path, {file, cards: cardEmbedPaths(prep.nodes, opts.account)})
+  }
+  return findTreeViolations(
+    pages,
+    (path) => layout.fileForLinkPath?.(path) ?? `${path.replace(/^\//, '') || 'index'}.md`,
+  )
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
   opts = {...opts, client: withResourceRetry(opts.client)}
   const layout = opts.layout || defaultLayout
@@ -923,6 +1008,18 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     throw new Error(
       `${broken.length} broken link${broken.length === 1 ? '' : 's'} in ${opts.dir}:\n${lines.join('\n')}`,
     )
+  }
+  // Nor while a page has no parent page, or a parent lacks the card of a child.
+  if (layout.requireChildCards) {
+    const violations = checkTree(opts, prepared)
+    if (violations.length) {
+      const lines = violations.slice(0, 50).map((v) => `  ${v.file}: ${v.message}`)
+      if (violations.length > 50) lines.push(`  … and ${violations.length - 50} more`)
+      throw new Error(
+        `${violations.length} tree problem${violations.length === 1 ? '' : 's'} in ${opts.dir} ` +
+          `(every page needs a parent page, and every parent a Card embed of each child):\n${lines.join('\n')}`,
+      )
+    }
   }
   // With --check, nothing is published while a document would violate its schema either.
   if (opts.check) {

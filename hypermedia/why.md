@@ -32,3 +32,15 @@ Most of this section describes what ships today: [signed blobs](./protocol/blobs
 - [Glossary](./glossary.md), every term in one line. <!-- id:a1Y3Grqo -->
 - [Building on Hypermedia](./build.md), when you are ready to write code. <!-- id:aBzbzMF3 -->
 - [The Seed software](./apps.md), the programs that implement the protocol. <!-- id:8jcw_LAc -->
+
+# The essays <!-- id:ieZVVTox attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./why/broken-links.md> <!-- id:dCQ9bsux type:Embed attrs:{"view":"Card"} -->
+
+<./why/inspirations.md> <!-- id:bFCRmxG7 type:Embed attrs:{"view":"Card"} -->
+
+<./why/network-for-thought.md> <!-- id:CEqFRHUi type:Embed attrs:{"view":"Card"} -->
+
+<./why/open-editing.md> <!-- id:v7hzCtan type:Embed attrs:{"view":"Card"} -->
+
+<./why/signed-content.md> <!-- id:5uvcGZcN type:Embed attrs:{"view":"Card"} -->

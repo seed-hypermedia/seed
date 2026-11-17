@@ -13,3 +13,13 @@ A **query** is a live document query: which spaces and paths to include, how to 
 - [Seed API](./build/web-api.md): the `Query` request. <!-- id:se_1Vo9V -->
 - [Query grammar](./build/query-grammar.md): attribute filters and `QueryDocuments`. <!-- id:2jWXGkNg -->
 - [Blocks](./protocol/blocks.md): query blocks in documents. <!-- id:qyGfS0vL -->
+
+# Pages in this section <!-- id:W8ssg6Wl attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./query/inclusion.md> <!-- id:uBSicOPZ type:Embed attrs:{"view":"Card"} -->
+
+<./query/sort.md> <!-- id:gOJbHsNy type:Embed attrs:{"view":"Card"} -->
+
+<./query/style.md> <!-- id:6TzQWJje type:Embed attrs:{"view":"Card"} -->
+
+<./query/table-config.md> <!-- id:FcxdHcQk type:Embed attrs:{"view":"Card"} -->

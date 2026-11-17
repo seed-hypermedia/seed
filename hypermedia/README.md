@@ -10,6 +10,13 @@ The pages are markdown in the lossless dialect of `@seed-hypermedia/client` (`bl
 
 A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. A folder's landing page sits beside the folder: `protocol.md` is the landing for `protocol/`.
 
+Two rules keep the tree whole, and both `check.mjs` and the sync fail when either is broken:
+
+- **Every page has a parent page.** A folder must have its landing page: `plans/speed.md` needs `plans.md`. Root pages have `index.md`. Without the landing, the children publish under an address that holds no document.
+- **Every parent shows a card of each child.** The parent carries one Card embed block per direct child, written `<./protocol/documents.md> <!-- id:… type:Embed attrs:{"view":"Card"} -->`. Group the cards under a heading; a heading with `attrs:{"childrenType":"Grid","columnCount":3}` lays them out as a grid.
+
+After adding a page, run `node scripts/hypermedia/tree.mjs --fix`. It appends the missing cards to the end of each parent; move them into the right group. It does not write a missing parent page.
+
 | Path | What lives there |
 | --- | --- |
 | `index.md` | the home page |
@@ -21,7 +28,8 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `apps.md`, `apps/` | one map page per piece of Seed software |
 | `schema.md`, `schema/` | Hypermedia Schemas: the meta-schema, the chapters, one page per term |
 | `example.md`, `example/` | example schemas and instances |
-| `agent.md`, `app-environment/` | Seed Agents: reference pages, one page per term, the live roadmap and plans |
+| `agent.md` | Seed Agents, the introduction to the runtime (and the `agent` type) |
+| `app-environment.md`, `app-environment/` | the app environment reference: one page per term, the live roadmap, and `plans.md` with `plans/` |
 | `glossary.md` | one entry per term |
 | `schemas.lock.json` | not published: every schema's CID |
 
@@ -41,13 +49,14 @@ The home icon is `assets/HyperMedia_IconInverse.png`, referenced by its `ipfs://
 
 ```sh
 node scripts/hypermedia/check.mjs            # everything below, run by CI before publishing
+node scripts/hypermedia/tree.mjs [--fix]     # the tree rule: a parent page for every page, a child card in every parent
 node scripts/hypermedia/validate.mjs         # the reference validator
 node scripts/hypermedia/publish.mjs          # recompute schemas.lock.json after a schema change
 node scripts/hypermedia/gen-registry.mjs     # the schema registry bundled into the SDK
 node scripts/hypermedia/typegen.mjs          # TypeScript types for every schema
 ```
 
-`check.mjs` fails when a schema is invalid, a schema has no page, the lockfile or generated files are stale, an instance page doesn't satisfy its type, or a page is missing a `name` or a whole `summary`. Page summaries feed the generated files, so run `gen-registry.mjs` and `typegen.mjs` after changing a summary on a schema page.
+`check.mjs` fails when a schema is invalid, a schema has no page, the lockfile or generated files are stale, an instance page doesn't satisfy its type, a page is missing a `name` or a whole `summary`, a page has no parent page, or a parent has no Card embed of a child. Page summaries feed the generated files, so run `gen-registry.mjs` and `typegen.mjs` after changing a summary on a schema page.
 
 ## Publishing
 
@@ -65,7 +74,7 @@ throwaway development space back into this folder.
 
 The folder never names a key. Absolute links to the docs space and schema bindings in frontmatter use `hm://hyper.media/…`, and the layout's `selfAuthority` makes `push` swap `hyper.media` for the signing key's account and `pull` swap it back. Schema blobs publish unchanged. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (planned), so published documents carry the resolved key. `push` needs a signing key: `main`, `--key <name>`, or `SEED_CLI_KEYFILE` in CI. A dry run without a key takes `--space <uid>`.
 
-`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
+`push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken, a page has no parent page, or a parent lacks the card of a child.
 
 `./dev hm-sync` (the `hm-sync` pane of `./dev up`) publishes the folder into the desktop dev app's daemon under a throwaway key in `hypermedia/.dev/`, and writes every document you publish in the app straight back to its file. While it runs, the app is the writer and git is where you commit. See [Publish a folder](./build/publish-a-folder.md).
 

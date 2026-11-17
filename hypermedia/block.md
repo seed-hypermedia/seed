@@ -14,3 +14,53 @@ This is the shape a block has inside a signed Change, in a [ReplaceBlock](./chan
 - [block/node](./block/node.md): a block with its children. <!-- id:rXgTp-k9 -->
 - [block/annotation](./block/annotation.md): inline formatting. <!-- id:AXeXs2am -->
 - [ReplaceBlock](./change/op/replace-block.md): the op that writes a block. <!-- id:knP1vDLw -->
+
+# Block types and their parts <!-- id:GbRpPFth attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./block/annotation.md> <!-- id:6KFOhUEF type:Embed attrs:{"view":"Card"} -->
+
+<./block/base.md> <!-- id:TiohkpPO type:Embed attrs:{"view":"Card"} -->
+
+<./block/button-alignment.md> <!-- id:fXnt6em7 type:Embed attrs:{"view":"Card"} -->
+
+<./block/button.md> <!-- id:4LSnLYFA type:Embed attrs:{"view":"Card"} -->
+
+<./block/children-type.md> <!-- id:i5jyYusH type:Embed attrs:{"view":"Card"} -->
+
+<./block/code.md> <!-- id:AKw3JqX9 type:Embed attrs:{"view":"Card"} -->
+
+<./block/comment.md> <!-- id:ImjKKEIY type:Embed attrs:{"view":"Card"} -->
+
+<./block/core.md> <!-- id:ALW28rr0 type:Embed attrs:{"view":"Card"} -->
+
+<./block/embed-view.md> <!-- id:KyrERPbK type:Embed attrs:{"view":"Card"} -->
+
+<./block/embed.md> <!-- id:EJ3WrJA1 type:Embed attrs:{"view":"Card"} -->
+
+<./block/file.md> <!-- id:RjpjGID3 type:Embed attrs:{"view":"Card"} -->
+
+<./block/heading.md> <!-- id:CoBvjELN type:Embed attrs:{"view":"Card"} -->
+
+<./block/image.md> <!-- id:nJGHU3fO type:Embed attrs:{"view":"Card"} -->
+
+<./block/math.md> <!-- id:TunjPmCo type:Embed attrs:{"view":"Card"} -->
+
+<./block/node.md> <!-- id:eudEQr2D type:Embed attrs:{"view":"Card"} -->
+
+<./block/nostr.md> <!-- id:pe4Cl5Jv type:Embed attrs:{"view":"Card"} -->
+
+<./block/paragraph.md> <!-- id:dqKDGqpK type:Embed attrs:{"view":"Card"} -->
+
+<./block/query.md> <!-- id:b0abUk3m type:Embed attrs:{"view":"Card"} -->
+
+<./block/table-column.md> <!-- id:R5AQftvn type:Embed attrs:{"view":"Card"} -->
+
+<./block/table-row.md> <!-- id:sPvpGiUf type:Embed attrs:{"view":"Card"} -->
+
+<./block/table.md> <!-- id:2tDeyJvg type:Embed attrs:{"view":"Card"} -->
+
+<./block/text-alignment.md> <!-- id:669tvA4F type:Embed attrs:{"view":"Card"} -->
+
+<./block/video.md> <!-- id:o9fTQvl3 type:Embed attrs:{"view":"Card"} -->
+
+<./block/web-embed.md> <!-- id:UT8DA1w8 type:Embed attrs:{"view":"Card"} -->

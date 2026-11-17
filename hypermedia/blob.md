@@ -19,3 +19,7 @@ The [daemon](./apps/daemon.md) computes CIDs with BLAKE2b-256, and the [SDK](./b
 - [Network blobs](./schema/blobs.md): how the envelope is expressed as a schema extension. <!-- id:SMx3d91O -->
 - The types that extend it: [change](./change.md), [ref](./ref.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md). <!-- id:rpxouCRj -->
 - [blob/any](./blob/any.md): the union of all six types. <!-- id:Fm0x_ZKU -->
+
+# Pages in this section <!-- id:JqQS5rdh attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./blob/any.md> <!-- id:qyiJNOWh type:Embed attrs:{"view":"Card"} -->
