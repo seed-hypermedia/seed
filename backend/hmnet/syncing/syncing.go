@@ -1368,6 +1368,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		return fmt.Errorf("can't sync with self")
 	}
 	prog.PeersFound.Add(1)
+	fetchCtx := ctx
 	{
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
@@ -1425,7 +1426,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
 
-	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, eids, blobTypes, filteredStore, prog, claimedBlocks, &s.inflight, &lastPhase, connCachedBefore, pf)
+	return syncResources(ctx, fetchCtx, s.cfg.TimeoutPerPeer, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, eids, blobTypes, filteredStore, prog, claimedBlocks, &s.inflight, &lastPhase, connCachedBefore, pf)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -1461,6 +1462,8 @@ func classifySyncOutcome(phase string, err error) string {
 
 func syncResources(
 	ctx context.Context,
+	fetchCtx context.Context,
+	fetchTimeout time.Duration,
 	pid peer.ID,
 	c p2p.SyncingClient,
 	idx Index,
@@ -1591,6 +1594,12 @@ func syncResources(
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	ctx = blob.ContextWithUnreadsTracking(fetchCtx)
+
 	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
 	// Diagnostic tally: record this peer's reconciled want-count (raw, pre-preflight
 	// = "what this peer has that we lack"). The straggler watcher reads the
@@ -1678,15 +1687,11 @@ func syncResources(
 	var downloadedTotal int64
 	var bitswapOutcome string
 
-	// fetchTier downloads one priority tier's wants, streaming batches to a
-	// per-tier persist worker and indexing them before it returns — so the next
-	// tier's media classification sees this tier's blob_links. It returns false
-	// when the caller should stop (the per-peer ctx was cancelled, or the
-	// download stalled past idleTimeout); whatever landed is already banked and
-	// the next discovery cycle resumes the rest.
-	fetchTier := func(wants []cid.Cid, idleTimeout time.Duration) (keepGoing bool) {
+	// Each slice releases its claims and persists received blocks before a
+	// continuation re-checks Has or the next tier classifies media links.
+	fetchSlice := func(ctx context.Context, wants []cid.Cid, idleTimeout time.Duration, tier *fetchTierState) (remaining []cid.Cid, progressed, keepGoing bool) {
 		if len(wants) == 0 {
-			return true
+			return nil, false, true
 		}
 		// Two guards right before we pull a tier over the network — this is what
 		// closes the re-fetch (`exists`) waste. The single up-front preflight Has
@@ -1715,13 +1720,25 @@ func syncResources(
 			}
 		}()
 		if len(claimed) == 0 {
-			return true
+			return nil, false, true
 		}
 		wants = claimed
+		pending := make(map[cid.Cid]struct{}, len(wants))
+		for _, w := range wants {
+			pending[w] = struct{}{}
+		}
+
+		defer func() {
+			for _, w := range wants {
+				if _, ok := pending[w]; ok {
+					remaining = append(remaining, w)
+				}
+			}
+		}()
 		ch, gerr := sess.GetBlocks(ctx, wants)
 		if gerr != nil {
 			bitswapOutcome = "ctx_done"
-			return false
+			return nil, false, false
 		}
 
 		// This tier's barrier: persistWG counts the batches we hand to the shared
@@ -1738,14 +1755,20 @@ func syncResources(
 			batch = make([]blocks.Block, 0, persistBatchSize)
 		}
 
-		var tierDownloaded int64
-		idleStrikes := 0
 		keepGoing = true
-		t := time.NewTimer(idleTimeout)
-		defer t.Stop()
+
+		if tier.idle == nil {
+			tier.idle = time.NewTimer(idleTimeout)
+			tier.wants = int64(len(wants))
+		}
+
 	drain:
 		for {
 			select {
+			case <-ctx.Done():
+				bitswapOutcome = "ctx_done"
+				keepGoing = false
+				break drain
 			case blk, ok := <-ch:
 				if !ok {
 					// Channel closed: ctx cancellation tore down the session, or
@@ -1756,8 +1779,14 @@ func syncResources(
 					}
 					break drain
 				}
-				t.Reset(idleTimeout)
-				idleStrikes = 0
+				tier.idle.Reset(idleTimeout)
+				tier.idleStrikes = 0
+
+				if _, ok := pending[blk.Cid()]; ok {
+					delete(pending, blk.Cid())
+					progressed = true
+				}
+
 				if _, dup := claimedBlocks.LoadOrStore(string(blk.Cid().Hash()), struct{}{}); dup {
 					// Another peer goroutine already claimed this block for this
 					// task and owns its single PutMany. A block did arrive (real
@@ -1771,12 +1800,12 @@ func syncResources(
 				prog.BlobsDownloaded.Add(1)
 				prog.BytesDownloaded.Add(int64(len(blk.RawData())))
 				downloadedTotal++
-				tierDownloaded++
+				tier.downloaded++
 				batch = append(batch, blk)
 				if len(batch) >= persistBatchSize {
 					flush()
 				}
-			case <-t.C:
+			case <-tier.idle.C:
 				// No block arrived for idleTimeout. A gap with a large tier backlog
 				// still owed is a transient delivery gap (real-app delivery is bursty),
 				// not the end of the data — keep waiting for our blocks; abandon only
@@ -1784,9 +1813,9 @@ func syncResources(
 				// windows (a genuine stall). The persist feeder removed persist-induced
 				// false-idles, but network gaps remain, so this gate still earns its
 				// keep (without it, a >grace gap loses ~11-15k blobs to refetch cycles).
-				idleStrikes++
-				if shouldKeepDrainingTier(int64(len(wants))-tierDownloaded, int64(len(wants)), idleStrikes) {
-					t.Reset(idleTimeout)
+				tier.idleStrikes++
+				if shouldKeepDrainingTier(tier.wants-tier.downloaded, tier.wants, tier.idleStrikes) {
+					tier.idle.Reset(idleTimeout)
 					continue
 				}
 				bitswapOutcome = "idle_timeout"
@@ -1798,7 +1827,37 @@ func syncResources(
 		flush()
 		persistWG.Wait() // barrier: the shared feeder has persisted this tier before the next
 
-		return keepGoing
+		return nil, progressed, keepGoing
+	}
+
+	fetchTier := func(wants []cid.Cid, idleTimeout time.Duration) bool {
+		var tier fetchTierState
+
+		defer func() {
+			if tier.idle != nil {
+				tier.idle.Stop()
+			}
+		}()
+		for len(wants) > 0 {
+			if ctx.Err() != nil {
+				bitswapOutcome = "ctx_done"
+				return false
+			}
+
+			sliceCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+			remaining, progressed, keepGoing := fetchSlice(sliceCtx, wants, idleTimeout, &tier)
+			expired := errors.Is(sliceCtx.Err(), context.DeadlineExceeded)
+			cancel()
+
+			if bitswapOutcome != "ctx_done" || !expired || !progressed || ctx.Err() != nil {
+				return keepGoing
+			}
+
+			bitswapOutcome = ""
+			wants = remaining
+		}
+
+		return true
 	}
 
 	// Fetch in render-priority order. Structure (dag-cbor) carries the document
@@ -1955,6 +2014,12 @@ func (s *trySem) release() {
 // 3 = inline content images, 4 = bulk file payloads (the default). It may be
 // nil (e.g. in tests), in which case the caller fetches media as one tier.
 type mediaTierFunc func(ctx context.Context, cids []cid.Cid) (map[cid.Cid]int, error)
+
+type fetchTierState struct {
+	wants, downloaded int64
+	idleStrikes       int
+	idle              *time.Timer
+}
 
 // mediaTierQueryHead/Tail bucket blobs by the highest-priority (lowest-numbered)
 // tier among their incoming blob_links. A blob with no known incoming link (or
