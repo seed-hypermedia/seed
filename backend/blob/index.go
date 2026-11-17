@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"net/url"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
@@ -1258,8 +1259,8 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 // capabilities changed. Indexing a capability only stores its delegation;
 // flushAuthority later refreshes the keyline_members cache once for all
 // pending subjects, drops the memoized writer results, and retries blobs that
-// were denied before the grants arrived. Callers must flush before relying on
-// the index and before committing.
+// were denied before the grants arrived. It also defers per-space comment
+// totals. Callers must flush before relying on the index and before committing.
 type indexBatch struct {
 	writers map[string]bool
 
@@ -1268,6 +1269,9 @@ type indexBatch struct {
 	// authorityDelegates are key nodes that received a grant. Blobs they, or
 	// keys acting for them, signed may now be authorized.
 	authorityDelegates map[keyline.Node]bool
+
+	// commentSpaces are spaces whose comment totals are stale.
+	commentSpaces map[string]bool
 }
 
 func newIndexBatch() *indexBatch {
@@ -1275,13 +1279,26 @@ func newIndexBatch() *indexBatch {
 		writers:            make(map[string]bool),
 		authoritySubjects:  make(map[keyline.Node]bool),
 		authorityDelegates: make(map[keyline.Node]bool),
+		commentSpaces:      make(map[string]bool),
 	}
 }
 
 // flush finishes the batch's deferred work before the caller relies on the
-// index or commits: the authority refresh with its unstash cascade.
+// index or commits: the authority refresh with its unstash cascade, then the
+// comment totals of every space a settled comment touched.
 func (b *indexBatch) flush(opts indexOpts, conn *sqlite.Conn, bs *blockStore, log *zap.Logger, hookIDs *[]int64) error {
-	return b.flushAuthority(opts, conn, bs, log, hookIDs)
+	if err := b.flushAuthority(opts, conn, bs, log, hookIDs); err != nil {
+		return err
+	}
+
+	for _, space := range slices.Sorted(maps.Keys(b.commentSpaces)) {
+		if err := updateSpaceCommentStats(conn, space); err != nil {
+			return err
+		}
+	}
+
+	clear(b.commentSpaces)
+	return nil
 }
 
 // writerCacheKey builds the memoized writer-validity key from the exact inputs
