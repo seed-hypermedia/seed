@@ -1,31 +1,33 @@
 ---
 name: Running Seed
-summary: The hub for people who run Seed software for others, saying what can be run, the order to read in, and what each operations page is for.
+summary: This is the starting page for people who run Seed software for others, and it says what you can run, which page to read first, and what each operations page is for.
 ---
-This section is for people who run Seed software for others: a site, an app environment, or the services beside them. It says what there is to run, gives a reading order, and lists the pages with one line each. If you only want to use Seed, you do not need any of this.
+Welcome. This section is for people who run Seed software for others: a site, an app environment, or the services beside them. It says what you can run, which page to read first, and what each page is for. If you only want to use Seed, you do not need any of this.
+
+Is something broken right now? Go to [troubleshooting](./operate/troubleshooting.md) for an app environment, to `seed-deploy doctor` in [self-hosting](./operate/self-hosting.md#day-to-day) for a site, or to [daemon operations](./operate/daemon-operations.md) for a slow daemon.
 
 # What can be run
 
-- **A site.** A [daemon](./software/daemon.md) and a [web app](./software/web.md) behind a reverse proxy, serving one [space](./protocol/spaces.md) at a domain. This is what most operators run. See [sites](./protocol/sites.md) for what a site is in the protocol.
-- **An app environment.** The server that runs [agents](./agent.md) and [apps](./app.md). It can run beside a site, on its own, or inside the desktop app. See the [app environment](./software/app-environment.md) program map.
-- **The vault.** The service that keeps people's account keys and signs them in. A site uses the hosted one unless it is an enterprise node. See the [vault](./software/vault.md) program map.
-- **Notify.** The service that keeps notification inboxes and sends email. A site uses the hosted one unless it is an enterprise node. See the [notify](./software/notify.md) program map.
+- **A site.** A site shows one [space](./protocol/spaces.md) at a web domain. It is a [daemon](./software/daemon.md) and a [web app](./software/web.md) behind a reverse proxy. This is what most operators run. [Sites](./protocol/sites.md) explains what a site is in the protocol.
+- **An app environment.** The server that runs [agents](./agent.md) and [apps](./app.md). It can run beside a site, alone, or inside the [desktop app](./software/desktop.md). See the [app environment](./software/app-environment.md) program map.
+- **The vault.** The service that keeps the keys of people's [accounts](./protocol/identity.md) and signs them in. A site uses the hosted vault, unless it is an enterprise node. See the [vault](./software/vault.md) program map.
+- **Notify.** The service that keeps notification inboxes and sends email. A site uses the hosted one, unless it is an enterprise node. See the [notify](./software/notify.md) program map.
 
-The [software](./software.md) section has one map page per program: where its code is, what it listens on, and how it is configured.
+The [software](./software.md) section has one map page for each program. It says where the code is, what the program listens on, and how you configure it.
 
 # Reading order
 
-1. [Self-hosting](./operate/self-hosting.md), to stand up a site and learn the `seed-deploy` command.
+1. [Self-hosting](./operate/self-hosting.md), to set up a site and learn the `seed-deploy` command.
 2. [Publishing a space to a domain](./operate/publishing-to-a-domain.md) and [custom domains](./operate/custom-domains.md), to give it an address.
-3. [Operations](./operate/operations.md), if the site runs an app environment or you run one on its own. It routes to every app environment page.
+3. [Operations](./operate/operations.md), if the site runs an app environment or you run one alone. It leads to every app environment page.
 4. [Troubleshooting](./operate/troubleshooting.md), when something is wrong.
 
-Read the [enterprise node](./operate/enterprise-node.md) page instead of step 2 if you are setting up a closed node for one organization.
+If you are setting up a closed node for one organization, read the [enterprise node](./operate/enterprise-node.md) page in place of step 2.
 
 # Sites
 
 - [Self-hosting](./operate/self-hosting.md): install a site with the deploy script, register a space, update and back up the node.
-- [Enterprise node](./operate/enterprise-node.md): the deploy script's second profile, invite-only and isolated from the public network.
+- [Enterprise node](./operate/enterprise-node.md): the deploy script's second setup, for invited people only and cut off from the public network.
 - [Running an invite-only vault](./operate/invite-only-vault.md): invitations and the admin API of the vault on an enterprise node.
 - [Publishing a space to a domain](./operate/publishing-to-a-domain.md): the owner's steps for giving a space a web address.
 - [Custom domains](./operate/custom-domains.md): the DNS side of serving a site at your own domain, and moving a node to a new hostname.
@@ -34,21 +36,21 @@ Read the [enterprise node](./operate/enterprise-node.md) page instead of step 2 
 
 # App environment
 
-- [Operations](./operate/operations.md): the overview, and the route to every page below.
-- [Environments](./operate/environments.md): the five kinds of deployment and the settings each one uses.
+- [Operations](./operate/operations.md): the overview, and the way to every page below.
+- [Environments](./operate/environments.md): the five setups and the settings each one uses.
 - [Self-hosting an app environment](./operate/self-hosted-app-environment.md): running the image on your own server.
 - [Configuration](./operate/configuration.md): every environment variable and flag.
 - [Deploying](./operate/deploying.md): the image, its version metadata, the CI workflows, and rollouts.
 - [Endpoints and health](./operate/endpoints-and-health.md): every path, and the health, version, timing and metrics endpoints.
-- [Web research backends](./operate/web-research-backends.md): the sidecars behind web search and browser-rendered reads.
+- [Web research backends](./operate/web-research-backends.md): the helper containers behind web search and web reads through a browser.
 - [Code execution backend](./operate/code-execution-backend.md): what the host needs for sandboxes, and how to check them.
-- [Run queue](./operate/run-queue.md): concurrency caps, restarts, retries, and when dispatch pauses.
-- [Startup and shutdown](./operate/startup-and-shutdown.md): the boot order, the background tasks, the stop order.
-- [Logs](./operate/logs.md): log levels and the catalogue of log lines.
+- [Run queue](./operate/run-queue.md): how many runs execute at once, restarts, retries, and when the queue pauses.
+- [Startup and shutdown](./operate/startup-and-shutdown.md): the start order, the background tasks, the stop order.
+- [Logs](./operate/logs.md): log levels and the list of log lines.
 - [Persistence](./operate/persistence.md): the database schema, table by table.
-- [Database retention](./operate/database-retention.md): what bounds the database's growth, and how to shrink it.
-- [Troubleshooting](./operate/troubleshooting.md): symptom first.
-- [Debugging runs](./operate/debugging-runs.md): runs that are stuck, orphaned or failing.
+- [Database retention](./operate/database-retention.md): what keeps the database from growing forever, and how to shrink it.
+- [Troubleshooting](./operate/troubleshooting.md): starts from what you see.
+- [Debugging runs](./operate/debugging-runs.md): runs that are stuck, lost or failing.
 - [Diagnosing a stalled server](./operate/stalled-server.md): a server that is up but does not answer.
 
 # See also

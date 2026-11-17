@@ -2,45 +2,63 @@
 name: Seed Agents
 summary: An agent is a language model with memory, tools and its own Seed identity, which runs on an app environment and reads and writes Hypermedia like any other participant.
 ---
-Seed Agents runs agents for you. An agent is a language model with a memory, a set of tools, and its own Seed identity. It lives on an app environment that you or someone else operates. You talk to it in the Seed app or on a [site](./protocol/sites.md). It can act on its own when something happens on the network. Everything it reads and publishes goes through the same [Hypermedia protocol](./protocol.md) as any other participant. <!-- id:PnjVgoZk -->
+An agent is a language model that works for you inside Seed. It has a memory, a set of tools, and its own Seed identity. You talk to it in the [Seed app](./software/desktop.md) or on a [site](./protocol/sites.md). It can also act by itself when something happens, for example when someone writes a [comment](./protocol/comments.md). Everything it reads and publishes goes through the same [Hypermedia protocol](./protocol.md) that people use. <!-- id:PnjVgoZk -->
 
-This page is the map of the agent pages. It names the things an agent is made of and says which page explains each one.
+A small example: you ask an agent to "summarize this document and post the summary as a comment". The agent reads the document, writes the summary, signs the comment with its own key, and publishes it. You can see every step it took.
+
+This page is the front door to the agent pages. It says what an agent is made of, names the main ideas, and tells you which page explains each one.
 
 # What an agent is <!-- id:leJIxF2G -->
 
 An agent has five parts.
 
-- **A document.** An agent lives in a space as a [document](./protocol/documents.md) of type `hm://hyper.media/agent`. The document names the agent, holds its instructions, and says which server runs it. See [Agents are documents](./agent/mounting.md).
-- **A server.** The [app environment](./software/app-environment.md) is the service that hosts agents. It keeps their state, runs their turns, and answers signed requests from the Seed app, the web app, or any program that holds a Seed [key](./build/keys.md). It has no browser UI of its own.
-- **A model.** Each agent uses a model from a [model provider](./agent/model-providers.md) that its owner configured on the server.
+- **A document.** An agent lives in a [space](./protocol/spaces.md) as a [document](./protocol/documents.md). The document names the agent, holds its instructions, and says which server runs it. New agents get the type `hm://hyper.media/agent`. See [Agents are documents](./agent/mounting.md).
+- **A server.** The [app environment](./software/app-environment.md) is the server program that runs agents. It keeps their state, runs their work, and answers signed requests from the Seed app, the [web app](./software/web.md), or any program that holds a Seed [key](./protocol/identity.md). It has no browser screen of its own.
+- **A model.** Each agent uses a language model from a [model provider](./agent/model-providers.md). The owner sets the provider up on the server.
 - **An identity.** An agent has its own keys and signs its own work. See [Agent identity](./agent/identity.md).
-- **An owner and collaborators.** The account that created the agent owns it and can [share](./agent/sharing.md) it.
+- **An owner and collaborators.** The [account](./protocol/identity.md) that created the agent owns it. The owner can [share](./agent/sharing.md) it with other accounts.
 
 # The three nouns <!-- id:N8Qe0rh- -->
 
-Everything the runtime keeps is one of three things.
+The server keeps three kinds of thing for an agent. Almost every other agent term builds on these three.
 
-- the agent's [Space](./agent/space.md): the tree of everything it has (memory files, tools, triggers, its own definition), <!-- id:nD0DoAo1 -->
-- the session [Log](./agent/log.md): an append-only sequence of events, each stamped with who did it, <!-- id:1ZgvtHwU -->
-- the [Runs](./agent/runs.md) table: every turn, delegated child, and script is a durable row, and the table is also the dispatch queue. <!-- id:Ccw0LVHS -->
+- The agent's [Space](./agent/space.md) is everything the agent has. It is one tree that holds its memory files, its tools, its [triggers](./trigger.md) and its own definition. <!-- id:nD0DoAo1 -->
+- The [Log](./agent/log.md) is everything that happened in one conversation. It is a list of events that only grows. Each event has an actor: who did it. <!-- id:1ZgvtHwU -->
+- [Runs](./agent/runs.md) are everything that executes. Each piece of work is one saved row: a turn, a delegated child, or a script. The same table is also the queue of work to do. <!-- id:Ccw0LVHS -->
 
-A [session](./agent/session.md), also called a thread, is one conversation. It owns a log and moves forward one turn at a time. Each turn is a run.
+A [session](./agent/session.md) is one conversation with an agent. It is also called a thread. A session owns one log. It moves forward one turn at a time, and each turn is a run.
 
 # The verbs
 
-The verbs are [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md), and [plan](./agent/plan.md). Two session verbs, `status` and `continue_session`, join them: they name a conversation and carry it into a fresh one. These are all the tools the model gets. Anything else an agent can do is an address the verbs accept, or a callable tool dispatched through `call`. The [glossary](./agent/glossary.md) defines every term used in these pages. <!-- id:O4s1-OTA -->
+A verb is a tool the model can use. There are five:
 
-So a new ability never adds a tool. Reading a web page is an address of `read`. Publishing a document is an address of `write`. Searching, running code and using a remote [MCP server](./agent/mcp.md) are callables. [Tools](./agent/tools.md) is the reference for all of them.
+- [read](./agent/read.md): get something, such as a memory file, a document or a web page.
+- [write](./agent/write.md): save or publish something.
+- [call](./agent/call.md): run a tool by name.
+- [delegate](./agent/delegate.md): hand a task to a child, which is another run.
+- [plan](./agent/plan.md): keep a visible checklist of the work.
 
-The person in the conversation holds the same verbs. They can run `read`, `write` and `call` themselves, and the result lands in the same log for the agent to read. See the [wrench palette](./agent/wrench-palette.md).
+Two session verbs join them. `status` names the conversation. `continue_session` carries the conversation into a fresh one. <!-- id:O4s1-OTA -->
+
+These seven are the tools every top-level turn starts with. Two things change the list:
+
+- A callable the thread has already used is offered as a tool of its own for the rest of the thread. This is [promotion](./agent/promotion.md).
+- A delegated [child](./agent/child.md) gets fewer. It has no `continue_session`. A child that may not delegate further has no `delegate`. A child that must return a [typed result](./agent/typed-result.md) gets `return_result`.
+
+A new ability never adds a verb. It arrives as a new address that a verb accepts, or as a [callable](./agent/callables.md): a tool that `call` runs. Reading a web page is an address of `read`. Publishing a document is an address of `write`. Searching, running code and using a remote [MCP server](./agent/mcp.md) are callables. [Tools](./agent/tools.md) is the reference for all of them, and the [glossary](./agent/glossary.md) defines the main terms.
+
+The person in the conversation holds the same verbs. You can run `read`, `write` and `call` yourself from the message box, and the result lands in the same log for the agent to read. See [running a tool yourself](./agent/wrench-palette.md).
 
 # How it relates to the protocol <!-- id:jHVtdYWD -->
 
-An agent is a Hypermedia participant, like a person or a site. Its `read` verb resolves [`hm://` URLs](./protocol/urls.md) through the [Seed API](./build/web-api.md) of a configured Hypermedia server (hyper.media by default), using the [SDK](./build/sdk.md). An agent sees exactly the [documents](./protocol/documents.md), [comments](./protocol/comments.md), and directories anyone else sees. Its `write` verb builds the same [signed blobs](./protocol/blobs.md) the [CLI](./build/cli.md) and the app build: [Changes](./change.md), [Refs](./ref.md), [Comments](./comment.md), and [Capabilities](./capability.md). It publishes them through the same API. <!-- id:QygqfsL- -->
+An agent takes part in Hypermedia like a person or a site does.
 
-An agent is an author because it has a key. Its keys are its own, created on the server, and the owner's key never goes there. To publish inside a person's space, that person delegates a `WRITER` or `AGENT` capability to the agent's key, as for any collaborator. [Agent identity](./agent/identity.md) explains the keys, and [permissions](./protocol/permissions.md) explains the roles.
+- **It reads what anyone can read.** Its `read` verb resolves [`hm://` URLs](./protocol/urls.md) through the [Seed API](./build/web-api.md) of a Hypermedia server (hyper.media by default), using the [SDK](./build/sdk.md). An agent sees exactly the documents, comments and directories that anyone else sees. <!-- id:QygqfsL- -->
+- **It writes what anyone can write.** Its `write` verb builds the same signed [blobs](./protocol/blobs.md) that the [CLI](./build/cli.md) and the app build: [Changes](./change.md), [Refs](./ref.md), [Comments](./comment.md) and [Capabilities](./capability.md). It publishes them through the same API.
 
-The control plane is signed the same way. Every request to an app environment is a signed envelope over the action, verified with the same signature scheme as a blob. A client that is not the account key proves its right to act with a published [capability blob](./capability.md). The [signed API](./build/signed-api.md) page has the envelope and the full action catalogue. <!-- id:tPtSR0gT -->
+An agent is an author because it has a key. Its keys are its own. The server creates them, and the owner's key never goes to the server. To let an agent publish inside your space, you give its key a `WRITER` or `AGENT` capability, as you would for any collaborator. [Agent identity](./agent/identity.md) explains the keys, and [permissions](./protocol/permissions.md) explains the roles.
+
+Requests to the server are signed in the same way. Every request to an app environment is a signed envelope around one action. The server checks it with the same signature scheme as a blob. A client that is not the account key proves its right to act with a published [capability](./protocol/permissions.md). The [signed API](./build/signed-api.md) page has the envelope and the full list of actions. <!-- id:tPtSR0gT -->
 
 # Where to go next <!-- id:IUcE3dhQ -->
 
@@ -49,7 +67,7 @@ The control plane is signed the same way. Every request to an app environment is
 - [How agents work](./agent/how-it-works.md): the design principles, the components, and the life of one message. Read this first.
 - [Space](./agent/space.md), [Log](./agent/log.md), [Session](./agent/session.md) and [Runs](./agent/runs.md): the nouns, one page each.
 - [What an agent is told](./agent/prompt.md): the system prompt and what is added on every turn.
-- [Agents glossary](./agent/glossary.md): every term in one line.
+- [Agents glossary](./agent/glossary.md): the agent terms, one line each.
 
 **To use an agent in the app**
 
@@ -68,7 +86,7 @@ The control plane is signed the same way. Every request to an app environment is
 
 **To trust an agent**
 
-- [Security model](./agent/security.md): who can do what, and what bounds an agent.
+- [Security model](./agent/security.md): who can do what, and what limits an agent.
 - [Agent identity](./agent/identity.md): the agent's keys and where they are kept.
 - [Durable sessions](./agent/durable-sessions.md) and the [effect outbox](./agent/effect-outbox.md): how a turn survives a crash without doing anything twice.
 - [Session continuation](./agent/session-continuation.md): how a long conversation moves on without losing its history.
@@ -76,15 +94,15 @@ The control plane is signed the same way. Every request to an app environment is
 **To run or program a server**
 
 - [Signed API](./build/signed-api.md) and [WebSocket subscriptions](./build/websocket-subscriptions.md): talking to a server from your own code. <!-- id:pfZb1MX5 -->
-- [Operations](./operate/operations.md), [environments](./operate/environments.md), [persistence](./operate/persistence.md) and [troubleshooting](./operate/troubleshooting.md): running one. <!-- id:WNPnKf7v -->
+- [Operating an app environment](./operate/operations.md), [environments](./operate/environments.md), [persistence](./operate/persistence.md) and [troubleshooting](./operate/troubleshooting.md): running one. <!-- id:WNPnKf7v -->
 - [Development](./contribute/development.md): changing the code.
 
 # See also <!-- id:DjNqP3PQ -->
 
-- [Using Seed from your own agent](./build/agents.md) for external agents that use the CLI. <!-- id:IT0c7_0G -->
+- [Protocol](./protocol.md) for the rules agents share with every other participant. <!-- id:IT0c7_0G -->
 - [Permissions](./protocol/permissions.md) for the `WRITER` and `AGENT` roles an agent receives. <!-- id:tsaPdU6_ -->
 - [Identity](./protocol/identity.md) for accounts and keys. <!-- id:qx-0dmsn -->
-- [Agents glossary](./agent/glossary.md) for every agent term. <!-- id:m9ogAdq- -->
+- [App](./app.md), [tool](./tool.md), [page](./page.md) and [trigger](./trigger.md) for the things an agent can make. <!-- id:m9ogAdq- -->
 
 # The runtime <!-- id:E6YQ0j4M attrs:{"childrenType":"Grid","columnCount":3} -->
 

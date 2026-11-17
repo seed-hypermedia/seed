@@ -1,15 +1,22 @@
 ---
 name: "Signed API: memory and uploads"
-summary: The signed API actions for an agent's memory files, session attachments, and chunked uploads.
+summary: This page lists the signed API actions that read and write an agent's memory files, session attachments, and chunked uploads.
 ---
-These are the actions of the [signed API](./signed-api.md) that move files: an agent's [memory](../agent/space.md), a session's [attachments](../agent/attachment.md), and the chunked upload that feeds both. The envelope, the endpoint, errors, [access levels](./signed-api.md#access-levels) and idempotency are on the [signed API](./signed-api.md) page.
+These actions of the [signed API](./signed-api.md) move files. They cover an agent's [memory](../agent/memory.md), the [attachments](../agent/attachment.md) of a [session](../agent/session.md), and the chunked upload that feeds both. The [signed API](./signed-api.md) page covers what every action shares: the endpoint, the envelope, errors, [access levels](./signed-api.md#access-levels) and idempotency.
 
 # Agent memory <!-- id:sl55O0AI -->
 
-Each agent owns a private memory filesystem at `<stateDir>/memory`. It is the `~/memory/` half of its [Space](../agent/space.md). The agent reaches it through the [`read`](../agent/read.md) and [`write`](../agent/write.md) verbs, and its owner sees it on the desktop Memory tab. `ListAgentMemory`, `ListAgentMemoryDir`, and `ReadAgentMemoryFile` need reader access to the agent; the writing actions need writer access. Every path is a sandboxed relative path: no absolute paths, no `..`, symlinks refused. Files can be UTF-8 text or binary. <!-- id:F4plBjdL -->
+Each [agent](../agent.md) has its own folder of files, called its memory. The agent reads and writes it with [`read`](../agent/read.md) and [`write`](../agent/write.md), under `~/memory/` in its [Space](../agent/space.md). Its owner sees it on the Memory tab of the [Seed app](../software/desktop.md). The server stores it in `<stateDir>/memory`, where `<stateDir>` is the agent's own state folder. <!-- id:F4plBjdL -->
+
+- To list or read files (`ListAgentMemory`, `ListAgentMemoryDir`, `ReadAgentMemoryFile`) you need reader access to the agent.
+- To change files you need writer access.
+- Paths are always relative to the memory folder: no leading `/`, no `..`, and no symlinks.
+- Files can be UTF-8 text or binary.
+
+One folder is different: `private/`. Only the agent's owner can list, read or write it. Everyone else gets a `403`, even a writer. The server stores it in `<stateDir>/private-memory`, outside the folder that code sandboxes can see.
 
 ```ts <!-- id:igtkULLY -->
-type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string}
+type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string; entryCount?: number}
 type AgentMemoryFile = {
   path: string
   size: number
@@ -22,28 +29,28 @@ type AgentMemoryFile = {
 ```
 
 Actions: <!-- id:dRAJrWd3 -->
-  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}` with files and directories sorted by path, capped at `MAX_MEMORY_LIST_ENTRIES` (2000) with `truncated: true` past that. `ListAgentMemoryDir {agentId, path?}` lists one level with `entryCount` and totals per entry, and is the call to browse a large memory. <!-- id:5oZzSBlu -->
-  - `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`. Small clean-UTF-8 files come back as text. Everything else comes back as raw bytes for preview and download in the Memory tab. <!-- id:gcXVifoW -->
-  - `WriteAgentMemoryFile {agentId, path, content}` returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}` after writing the full file content, creating parent directories as needed. `content` may be a string (UTF-8 text) or `Uint8Array` bytes (e.g. a local file uploaded from the Memory tab). Writes, downloads, and deletes emit an `account-change` event with reason `agent-memory-changed`, which is also fanned out to `agents/<agentId>` WebSocket subscribers so open Memory tabs refresh. <!-- id:Pf3XwaO2 -->
+  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes; truncated?}`. The files and folders are sorted by path. The list stops at `MAX_MEMORY_LIST_ENTRIES` (2000) entries, and `truncated` is then `true`. `ListAgentMemoryDir {agentId, path?}` lists one level and returns `{_: 'ListAgentMemoryDirResponse'; agentId; path; entries; totalBytes; totals?}`. Each folder in `entries` has an `entryCount`. `totalBytes` counts only the files at this level. `totals` (`{files, bytes, truncated}`) covers the whole memory and is sent only when you list the root. Use this action to browse a large memory. <!-- id:5oZzSBlu -->
+  - `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`. A file that is valid UTF-8 text comes back as text, whatever its size. Everything else comes back as raw bytes. <!-- id:gcXVifoW -->
+  - `WriteAgentMemoryFile {agentId, path, content}` writes the whole file, creates parent folders when needed, and returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}`. `content` is a string (UTF-8 text) or `Uint8Array` bytes. After a write, a download or a delete, the server sends an `account-change` event with reason `agent-memory-changed`. Subscribers to `agents/<agentId>` on the [WebSocket](./websocket-subscriptions.md) get it too, so an open Memory tab refreshes. <!-- id:Pf3XwaO2 -->
   - `DeleteAgentMemoryFile {agentId, path}` removes a file, or a directory recursively, and returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}`. `deleted` is false when nothing existed. <!-- id:hslyEoNq -->
-  - `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed, with a 60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting `path` stores the file under `downloads/`, named from the URL. Extension-less paths gain an extension from the response content type. <!-- id:iCJPpKHx -->
-  - `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as [UnixFS](../protocol/files.md) and publishes its blocks through the typed HM API's `PublishBlobs` action, then returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable. <!-- id:b7BdF2s4 -->
+  - `DownloadAgentMemoryFile {agentId, url, path?}` makes the server fetch a public http(s) URL into memory and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. The fetch stops if no data arrives for 60 seconds. Without `path`, the file goes under `downloads/`, named from the URL. A path with no extension gets one from the content type of the response. <!-- id:iCJPpKHx -->
+  - `UploadAgentMemoryFileToIpfs {agentId, path}` splits the file into [UnixFS](../protocol/files.md) pieces, publishes them through the `PublishBlobs` key of the [Seed API](./web-api.md), and returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, `url` is the `ipfs://<cid>` URL that Hypermedia content can use. After publishing, anyone can fetch the file. <!-- id:b7BdF2s4 -->
 
-Path limits (`apps/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file or per-agent size cap (only the listing is capped at 2000 entries). The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
+Limits: a path can be at most 512 bytes and 16 levels deep (`apps/src/agent-memory.ts`). Memory has no total size limit. One chunked upload into memory can be at most 2 GiB, and one [account](../protocol/identity.md) can have at most 8 uploads in progress at a time. A bigger upload gets a `413`, and a ninth upload gets a `429`. A single `WriteAgentMemoryFile` has no size check of its own. The 256 KiB limit `MAX_WRITE_CONTENT_BYTES` in `api-service.ts` applies only to Hypermedia content that the `write` verb publishes, not to memory files. <!-- id:eXN97pf8 -->
 
 # Session attachments <!-- id:2JNT-ocN -->
 
 <!-- id:yaivXodZ -->
-- `UploadSessionAttachment {sessionId, name, mimeType?, content}` → `{_: 'UploadSessionAttachmentResponse'; attachment: SessionAttachmentInfo}`. The attachment id is the SHA-256 hex of the bytes, so re-uploading the same file returns the same id. Caps: 100 MiB per attachment and 200 attachments per session (`apps/src/session-attachments.ts`), stored under `<stateDir>/session-attachments/<sessionId>/`. <!-- id:-ax7SDcO -->
-- `ReadSessionAttachment {sessionId, attachmentId}` → `{_: 'ReadSessionAttachmentResponse'; attachment; data}` for rendering an attachment back in the thread. <!-- id:GDrE1qlb -->
+- `UploadSessionAttachment {sessionId, name, mimeType?, content}` → `{_: 'UploadSessionAttachmentResponse'; attachment: SessionAttachmentInfo}`. The attachment id is the SHA-256 hash of the bytes, written in hex, so uploading the same file again returns the same id. Limits: 100 MiB per attachment and 200 attachments per session (`apps/src/session-attachments.ts`). The server stores them under `<stateDir>/session-attachments/<sessionId>/`. <!-- id:-ax7SDcO -->
+- `ReadSessionAttachment {sessionId, attachmentId}` → `{_: 'ReadSessionAttachmentResponse'; attachment; data}` so a client can show an attachment in the conversation. <!-- id:GDrE1qlb -->
 
 # Chunked uploads
 
-Large files upload in bounded chunks, so each signed action stays small and clients can show progress: <!-- id:NWuxtcq2 -->
-  - `BeginFileUpload {target, size}` → `{_: 'BeginFileUploadResponse'; uploadId; maxChunkBytes}`. `target` is `{kind: 'memory', agentId, path}` or `{kind: 'session-attachment', sessionId, name, mimeType?}`, validated up front so a long upload cannot fail at the very end. `maxChunkBytes` is 8 MiB. <!-- id:e80mVQU_ -->
-  - `AppendFileUploadChunk {uploadId, offset, content}` → `{_: 'AppendFileUploadChunkResponse'; uploadId; received}`. Chunks must arrive in order: `offset` must equal the bytes already staged. Oversized chunks return `413`. <!-- id:ta2EIYUV -->
-  - `CommitFileUpload {uploadId}` → `{_: 'CommitFileUploadResponse'; entry?; attachment?}`: `entry` for a memory target, `attachment` for a session attachment. The staged byte count must equal the declared `size`. <!-- id:xRZdKHtN -->
-  - `AbortFileUpload {uploadId}` → `{_: 'AbortFileUploadResponse'; uploadId}`. Staged uploads also expire after an hour. <!-- id:rBJMxIwS -->
+A large file is uploaded in chunks. Each signed action stays small, and a client can show progress: <!-- id:NWuxtcq2 -->
+  - `BeginFileUpload {target, size}` → `{_: 'BeginFileUploadResponse'; uploadId; maxChunkBytes}`. `target` is `{kind: 'memory', agentId, path}` or `{kind: 'session-attachment', sessionId, name, mimeType?}`, The server checks it at the start, so a long upload does not fail at the end. `maxChunkBytes` is 8 MiB. <!-- id:e80mVQU_ -->
+  - `AppendFileUploadChunk {uploadId, offset, content}` → `{_: 'AppendFileUploadChunkResponse'; uploadId; received}`. Chunks must arrive in order: `offset` must equal the bytes already received. A wrong offset returns `409`. A chunk over `maxChunkBytes` returns `413`. An empty chunk, or one that goes past the declared `size`, returns `400`. <!-- id:ta2EIYUV -->
+  - `CommitFileUpload {uploadId}` → `{_: 'CommitFileUploadResponse'; entry?; attachment?}`: `entry` for a memory target, `attachment` for a session attachment. The bytes received must equal the declared `size`. <!-- id:xRZdKHtN -->
+  - `AbortFileUpload {uploadId}` → `{_: 'AbortFileUploadResponse'; uploadId}`. An upload that receives no chunk for one hour is thrown away. <!-- id:rBJMxIwS -->
 
 # See also
 

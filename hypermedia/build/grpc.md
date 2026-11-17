@@ -1,10 +1,10 @@
 ---
 name: Daemon gRPC
-summary: How to call the Seed daemon's gRPC services directly, the conventions they share, and what every RPC of every service does.
+summary: The Seed daemon answers a gRPC API, and this page shows how to call it, the rules its services share, and what each RPC does.
 ---
-Underneath every Seed [site](../protocol/sites.md) and every Seed app is one process, the [Seed daemon](../software/daemon.md). It holds the [blobs](../protocol/blobs.md), indexes them, [syncs](../protocol/network.md) with [peers](../protocol/network.md), and answers a [gRPC](https://grpc.io/docs/what-is-grpc/introduction/) API. The [web server](../software/web.md), the [desktop app](../software/desktop.md) and the [CLI](./cli.md)'s local development mode are all clients of that API. <!-- id:AtdDkP_3 -->
+Every Seed [site](../protocol/sites.md) and every Seed app runs on one program, the [Seed daemon](../software/daemon.md). The daemon stores the [blobs](../protocol/blobs.md), indexes them, and [syncs](../protocol/network.md) them with [peers](../protocol/network.md). Other programs talk to it through a [gRPC](https://grpc.io/docs/what-is-grpc/introduction/) API, which is a set of named calls (RPCs) grouped into services. The [web server](../software/web.md), the [desktop app](../software/desktop.md) and the [CLI](./cli.md)'s local development mode are all clients of that API. <!-- id:AtdDkP_3 -->
 
-Most builders never need it. The [Seed API](./web-api.md) over HTTP and the [SDK](./sdk.md) cover reading, searching and publishing, and they work against any site on the network without running anything. Use gRPC when you run a daemon yourself and want what only it can do: manage [keys](./keys.md), subscribe to [spaces](../protocol/spaces.md), drive sync and [discovery](../protocol/network.md), list peers, or query the index in ways the HTTP keys do not expose. <!-- id:armhSvIl -->
+Most builders never need gRPC. The [Seed API](./web-api.md) over HTTP and the [SDK](./sdk.md) read, search and publish, and they work with any site without running anything. Use gRPC when you run a daemon yourself and want what only the daemon can do: manage [keys](./keys.md), subscribe to [spaces](../protocol/spaces.md), start sync and [discovery](../protocol/network.md), list peers, or query the index in ways the Seed API does not offer. <!-- id:armhSvIl -->
 
 # Connecting <!-- id:RAt1sPiu -->
 
@@ -56,9 +56,9 @@ The HTTP port also serves a few plain routes, such as `/ipfs/<cid>` and the `/de
 
 # Trust <!-- id:3Nue2Gcl -->
 
-By default the daemon admits only loopback callers, and an admitted caller is trusted with everything: keys, signing, and all stored content. Server mode trusts the deployment network instead, so both API ports must stay private. The [daemon page](../software/daemon.md) has the admission rules. The plain gRPC port ignores bearer tokens; [authentication](./web-api.md#authentication) says where they apply.
+By default the daemon only answers programs on the same machine. Any program it answers can do everything: read keys, sign, and read all stored content. In [server mode](../protocol/privacy.md), which a site's daemon uses, it answers the whole private network it is deployed on, so both API ports must stay private. The [daemon page](../software/daemon.md) has the exact rules. The plain gRPC port ignores [bearer tokens](../protocol/privacy.md). [Authentication](./web-api.md#authentication) says where they apply.
 
-Write RPCs check the **signing key**. Every write takes a `signing_key_name`. The daemon loads that key from its own store and checks that it may write to the target space and path. It never asks whether the caller may write. [Comments](../protocol/comments.md) skip even that check: anyone may comment on anything. <!-- id:azQnlNR4 -->
+Write RPCs check the **signing key**, not the caller. Every write takes a `signing_key_name`. The daemon loads that key from its own store and checks that the key may write to the target space and path. [Comments](../protocol/comments.md) skip even that check: anyone may comment on anything. <!-- id:azQnlNR4 -->
 
 # Conventions <!-- id:Vz0vDuSz -->
 
@@ -84,11 +84,11 @@ Write RPCs check the **signing key**. Every write takes a `signing_key_name`. Th
 
 # Service catalogue <!-- id:g173tksb -->
 
-The daemon registers fourteen services, plus gRPC reflection. Each table lists every RPC with one line. Unimplemented RPCs still appear in the proto files and in reflection. Calling them returns `Unimplemented`. <!-- id:Hyqerhp3 -->
+The daemon registers fourteen services, plus gRPC reflection. Together the tables name every RPC of those fourteen services, as the files under `proto/` define them. Some RPCs are not implemented. They still appear in the proto files and in reflection, and calling them returns `Unimplemented`. <!-- id:Hyqerhp3 -->
 
 ## Daemon <!-- id:wJpLuWCE -->
 
-Node management, keys, authentication, the vault connection, and the domain tracker. <!-- id:EPAP0JCA -->
+Node management, keys, authentication, the [vault](../software/vault.md) connection, and the domain tracker. <!-- id:EPAP0JCA -->
 
 <!-- id:wYFE4qLl -->
 | RPC <!-- col:TxDtVoZt --> | What it does <!-- col:i6AnQcPl --> <!-- id:HjcmfJsc --> |
@@ -104,12 +104,12 @@ Node management, keys, authentication, the vault connection, and the domain trac
 | `Authenticate` | prove an account key and receive a thirty-day bearer token; the principal must already appear in some blob the daemon holds <!-- id:OCk7HIdK --> |
 | `ForceReindex` | rebuild every derived table from the stored blobs, synchronously <!-- id:4GS93KkB --> |
 | `ForceSync` | **Unimplemented** <!-- id:AdsoyRhN --> |
-| `GetVaultStatus`, `StartVaultConnection`, `DisconnectVault`, `GetVaultEmail`, `ChangeVaultEmailStart`, `ChangeVaultEmailVerify`, `GetVaultPasswordStatus`, `SetVaultMasterPassword`, `GetVaultNotificationServer`, `SetVaultNotificationServer` | the connection between this daemon and a remote vault that holds the user's keys; see [identity](../protocol/identity.md) <!-- id:vU-8B5FH --> |
+| `GetVaultStatus`, `StartVaultConnection`, `DisconnectVault`, `GetVaultEmail`, `GetVaultEmailPrevalidation`, `ChangeVaultEmailStart`, `ChangeVaultEmailVerify`, `GetVaultPasswordStatus`, `SetVaultMasterPassword`, `GetVaultNotificationServer`, `SetVaultNotificationServer` | the connection between this daemon and a remote vault that holds the user's keys; see [identity](../protocol/identity.md) <!-- id:vU-8B5FH --> |
 | `GetDomain`, `ListDomains`, `AddDomain`, `RemoveDomain`, `CheckDomain` | the tracker that polls `https://<domain>/hm/api/config` and caches each site's peer id, registered account and gateway flag <!-- id:a8QmL8Y2 --> |
 
 ## Documents <!-- id:DonHOwN8 -->
 
-The document model: reading, preparing changes, refs, accounts, profiles, contacts, listings and attribute queries. The proto file itself warns that this service is a kitchen sink. <!-- id:WC2edTjV -->
+The document model: reading, preparing changes, refs, accounts, [profiles](../profile.md), contacts, listings and attribute queries. This service holds many unrelated things, and the proto file says so itself. <!-- id:WC2edTjV -->
 
 <!-- id:f2kan-mC -->
 | RPC <!-- col:BW57KBHI --> | What it does <!-- col:VhuwMmiJ --> <!-- id:ZTSCeuQW --> |
@@ -179,8 +179,8 @@ There is no `RevokeCapability`. [Permissions](../protocol/permissions.md) explai
 <!-- id:9TdMm-Zq -->
 | RPC <!-- col:U5a3duSq --> | What it does <!-- col:p8Qq1TGs --> <!-- id:V8QZe8tr --> |
 | --- | --- |
-| `ActivityFeed.ListEvents` | new blobs and mentions this node has seen, filtered by author, event type or resource, ordered by claimed or observed time <!-- id:VzyvSewi --> |
-| `Subscriptions.Subscribe` | subscribe to a space or path so the node keeps it synced; also triggers discovery and, unless `async`, blocks until the resource is local <!-- id:M8zbQXUm --> |
+| `ActivityFeed.ListEvents` | new blobs and [mentions](../protocol/links-and-citations.md) this node has seen, filtered by author, event type or resource, ordered by claimed or observed time <!-- id:VzyvSewi --> |
+| `Subscriptions.Subscribe` | subscribe to a space or path so the node keeps it synced; also starts discovery and, unless `async`, waits until the resource is local <!-- id:M8zbQXUm --> |
 | `Subscriptions.Unsubscribe` | stop <!-- id:TgCNvNzf --> |
 | `Subscriptions.ListSubscriptions` | everything subscribed; paging ignored <!-- id:vYABPl1d --> |
 
@@ -209,11 +209,11 @@ These are the RPCs peers exchange over libp2p. The [network page](../protocol/ne
 
 ## Wallets and Invoices <!-- id:n0RpN6o- -->
 
-Lightning wallets through a hosted [lndhub](https://github.com/getAlby/lndhub.go) at `ln.seed.hyper.media` (or the testnet host without `-lndhub.mainnet`): `CreateWallet`, `ImportWallet`, `ExportWallet`, `RemoveWallet`, `ListWallets`, `GetWallet`, `GetWalletBalance`, `UpdateWalletName`, `GetDefaultWallet`, `SetDefaultWallet`; `CreateInvoice`, `PayInvoice`, `DecodeInvoice`, `ListPaidInvoices`, `ListReceivedInvoices`. An `LNURL` service exists in the proto files but is never registered. <!-- id:ElgAttOY -->
+Lightning wallets through a hosted [lndhub](https://github.com/getAlby/lndhub.go) at `ln.seed.hyper.media` (or the testnet host without `-lndhub.mainnet`): `CreateWallet`, `ImportWallet`, `ExportWallet`, `RemoveWallet`, `ListWallets`, `GetWallet`, `GetWalletBalance`, `UpdateWalletName`, `GetDefaultWallet`, `SetDefaultWallet`; `CreateInvoice`, `PayInvoice`, `DecodeInvoice`, `ListPaidInvoices`, `ListReceivedInvoices`. An `LNURL` service (`RequestLud6Invoice`, `GetLnAddress`, `UpdateLNAddress`) exists in the proto files, but the daemon never registers it, so you cannot call it. <!-- id:ElgAttOY -->
 
 ## Telemetry <!-- id:lyJqnO5U -->
 
-`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. It shares the ordinary API admission policy rather than a separate service-specific gate. <!-- id:I_r7KSmW -->
+`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. The same access rules apply to it as to the rest of the API. <!-- id:I_r7KSmW -->
 
 # Working with it <!-- id:9QCz8_20 -->
 

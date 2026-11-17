@@ -1,39 +1,46 @@
 ---
 name: What an agent is told
-summary: Everything the model reads besides the conversation itself, from the system prompt and the blocks added on every turn to the first message of a triggered session and of a delegated child, and which of that text is not trusted.
+summary: Everything the model reads besides the conversation itself, from the system prompt and the text added on every turn to the first message of a triggered session and of a delegated child, and which of that text is not trusted.
 ---
-An [agent](../agent.md) is a language model, and a model does what its text tells it. This page lists every piece of text the app environment puts in front of the model: the system prompt, the blocks added on each turn, the messages the server writes, and the first message of a session that a [trigger](./triggers.md) or a parent run started. It then ranks the text that comes from other people, which the model must treat as data.
+An [agent](../agent.md) is a language model, and a model does what its text tells it. So to know how an agent behaves, you need to know what text it reads. This page lists every piece of text the [app environment](../software/app-environment.md) gives the model:
 
-To see the result for a real session, open the **system prompt** button in the session header. It shows exactly what would be sent if the session continued now. `GetSession` returns the same text as `systemPromptMarkdown`: the assembled prompt followed by the current [Space index](./space-index.md).
+- the system prompt, the fixed instructions at the start of every request;
+- the per-turn blocks, short pieces of tagged text added on each turn;
+- the messages the server writes;
+- the first message of a session that a [trigger](../trigger.md) or a parent run started.
+
+It then ranks the text that comes from other people. The model must treat that text as data, not as instructions.
+
+To see the result for a real session, open the **system prompt** button in the session header. It shows exactly what the server would send if the session went on at this moment. `GetSession` returns the same text as `systemPromptMarkdown`: the assembled prompt followed by the current [Space index](./space-index.md).
 
 # The system prompt
 
-The server assembles the system prompt from these parts, in this order.
+The server builds the system prompt from these parts, in this order.
 
-1. **The agent's instructions.** For a mounted agent this is its [document](./mounting.md): the latest published version, read at the start of each turn. The blocks other than card embeds are the instructions, with embedded documents inlined. An agent whose document has no instructions, or that has no document, uses the prompt stored in its definition. Any writer of the agent's document can change what the agent is told.
+1. **The agent's instructions.** For a mounted agent this is its [document](./mounting.md): the latest published version, read at the start of each turn. The blocks other than [card embeds](../block/embed-view.md) are the instructions, with embedded documents inlined. An agent whose document has no instructions, or that has no document, uses the prompt stored in its definition. Any writer of the agent's document can change what the agent is told.
 2. **A note about that document**, for a mounted agent: its id and version, the server the agent runs on, and a list of what the agent made under it (its tools, pages, triggers and apps, with their `hm://` URLs).
 3. **The write scope**, for a mounted agent: where its keys may publish in the space of its document. See [what the agent can write](./mounting.md).
-4. **The shared Seed instructions**, the same for every agent: the kinds of Hypermedia resource, how to format [`hm://` links](../protocol/urls.md), the rule that a block link must quote an exact block id, how to read a [profile](../protocol/identity.md), attributes and the activity feed, how to explore a directory before its children, and where the knowledge base is. <!-- id:56_qVS9y -->
+4. **The shared Seed instructions**, the same for every agent: the kinds of Hypermedia resource, how to format [`hm://` links](../protocol/urls.md), the rule that a block link must quote an exact block id, how to read a [profile](../profile.md), attributes and the activity feed, how to explore a directory before its children, and where the knowledge base is. <!-- id:56_qVS9y -->
 5. **The memory prompt.** It is always included, because memory is a [read](./read.md) and [write](./write.md) address and belongs to no tool group. It describes `~/memory/`, the habit of checking memory first, whole-file rewrites, downloads from a URL, `read ipfs://`, `write ipfs://`, and that chat attachments are private to the session and read with `read attachment:<id>`. <!-- id:g-QiS7CE -->
 6. **The model choice**, only when the owner enabled more than one model: which models a delegated child may be given.
 7. **The delegation paragraph**: where this run sits in its tree and how far it may delegate.
 8. **The user-actions prompt**: "Your user holds the same verbs you do… entries tagged `<user_action>`/`<user_action_result>` are actions the user ran themselves — read their results as shared ground truth". <!-- id:g-pL5KLj -->
-9. **The session continuation prompt**: what a [continuation](./session-continuation.md) is, that transcripts are never compacted, and when to continue.
+9. **The session continuation instructions**: what a [session continuation](./session-continuation.md) is, that transcripts are never compacted, and when to continue.
 10. **The conversation members**, only for a [shared](./sharing.md) agent: the accepted members, their roles, and their profile names.
 11. **The signing identities**, only when the agent has keys: an `<available_signing_identities>` list of profile names and public keys, primary first, with the recipe for publishing a document. See [agent identity](./identity.md). <!-- id:J0uQfOR5 -->
 
-Nothing in this prompt depends on the clock, on what the session has done, or on the state of the agent's Space. So every request of a session starts with the same bytes, and the provider's prompt cache keeps working from one turn to the next. Everything that changes is sent as a per-turn block, described below.
+Nothing in this prompt depends on the clock, on what the session has done, or on what is in the agent's [Space](./space.md). So the prompt stays the same from turn to turn, unless someone edits the agent's document, its members or its identities. That lets the provider's prompt cache keep working. Everything that changes often is sent as a per-turn block, described below.
 
 ## The default instructions
 
-A new agent's document holds one [Embed](../protocol/blocks.md) block of the [Agent Guide](./guide.md), at `hm://hyper.media/agent/guide`. When the server resolves the prompt it maps `hm://hyper.media` to the knowledge base account it is configured with, and inlines the page. So anyone who can publish to the knowledge base space shapes the prompt of every agent that keeps the default.
+A new agent's document holds one [Embed](../protocol/blocks.md) block of the [Agent Guide](./guide.md), at `hm://hyper.media/agent/guide`. When the server resolves the prompt it maps `hm://hyper.media` to the knowledge base account it is configured with, and inlines the page. So anyone who can publish to the knowledge base space changes the prompt of every agent that keeps the default.
 
 ## A delegated child
 
 A model [child](./child.md) does not start from the agent's conversation.
 
 - Its [brief](./brief.md) becomes its first user message **word for word**. A brief that is not a string is sent as a fenced JSON block, so nothing is reworded or hidden. The brief is the interface, and the parent model writes it. <!-- id:LZnMX5Dg -->
-- A persona prompt in the spawn (`spec.prompt`) replaces the child's system prompt entirely. It is an anonymous worker persona that the parent model writes. <!-- id:66rAYyWF -->
+- A persona is a role the parent model writes for a child, as the `systemPrompt` of the `delegate` call. The child then works under that persona and not under the agent's own instructions. <!-- id:66rAYyWF -->
 - A typed child's `return_result` parameters are the schema the spawner declared. See [typed result](./typed-result.md). <!-- id:GyEs2UEP -->
 
 # What each request holds
@@ -42,14 +49,14 @@ The provider receives, in order: <!-- id:HJOieZI9 -->
 
 1. the system prompt above;
 2. the session's conversation: user messages, verbs a person ran as `<user_action>` blocks, and every earlier model response and tool result exactly as it was recorded;
-3. this turn's input: the newest user message, or one of the stand-ins below when there is no new message to answer;
-4. the per-turn blocks, right behind the input.
+3. this turn's input: the newest user message, or one of the stand-ins below when there is no new message to answer (a stand-in is a short text the server writes in place of a message);
+4. the per-turn blocks, right after the input.
 
 [Durable sessions](./durable-sessions.md) explains how the conversation is kept and when it is rebuilt from the [log](./log.md).
 
 # Per-turn blocks <!-- id:q72Nkpnm -->
 
-These carry the state that changes. They are rendered once when a turn starts, sent with every request of that turn, and never stored: not as events in the log, and not in the session's durable store.
+A per-turn block is a short piece of text inside a tag, such as `<space>`. These blocks carry the state that changes. The server builds them once when a turn starts, sends them with every request of that turn, and never stores them: not as events in the log, and not in the session's durable store.
 
 - **`<space>`**: the [Space index](./space-index.md), as it stands when the turn starts. <!-- id:uCVRRc7s -->
 - **`<delegation_budget>`**: how many children the run may still start. <!-- id:0ivQFy1q -->
@@ -59,7 +66,7 @@ These carry the state that changes. They are rendered once when a turn starts, s
 - **`<current_time>`**: the time the turn started. <!-- id:9MNLj56N -->
 - **`<user_time>`**: the same moment in the user's time zone, when the server knows it, so "8:00" and "tonight" mean what the user means.
 
-A reader's turn in a session that used the browser or private memory does not get the owner's plan or status text.
+One exception: when a reader takes a turn in a session that used the browser or [private memory](./memory.md#private-memory), the turn does not get the owner's plan or status text.
 
 Three more blocks are attached to a message:
 
@@ -78,13 +85,13 @@ The rule behind the split: a per-turn block is for current state, and a durable 
 
 These are real events in the [log](./log.md) with the [actor](./actor.md) `system`, so they are part of the record: <!-- id:oK0tadif -->
 
-- the **continuation prompt**, which lists every open obligation at once when a turn ends still owing something; <!-- id:bBmYlE_Q -->
-- the **unmet-obligations notice**, the closing notice when the run has no continuations left; <!-- id:HSV_XHMi -->
+- the **obligation reminder**, which lists everything a turn still owes when it tries to end (see [obligations](./obligations.md)); <!-- id:bBmYlE_Q -->
+- the **unmet-obligations notice**, written when the run has used all its reminders; <!-- id:HSV_XHMi -->
 - the **projection** that opens a successor session after [`continue_session`](./session-continuation.md).
 
 # A triggered session <!-- id:MTzbxedf -->
 
-The first user message of a session that a [trigger](../trigger.md) started carries three things: the trigger's prompt as resolved markdown, a `<trigger_context>` JSON block with the trigger, the [firing](./firing.md) and the activity, and a `<trigger_instructions>` block. The instructions tell the agent to reply as a threaded comment with the write verb, and say where in the context to find the target [document](../protocol/documents.md) and the comment to reply to.
+The first user message of a session that a [trigger](../trigger.md) started carries three things: the trigger's prompt as resolved markdown, a `<trigger_context>` JSON block with the trigger, the [firing](./firing.md) and the activity, and a `<trigger_instructions>` block. The instructions tell the agent to reply as a threaded [comment](../protocol/comments.md) with the write verb, and say where in the context to find the target [document](../protocol/documents.md) and the comment to reply to.
 
 This is not a system prompt. It is prompt text built from activity that other people wrote. <!-- id:CDpgBhXZ -->
 
@@ -92,7 +99,7 @@ This is not a system prompt. It is prompt text built from activity that other pe
 
 A tool's description and the descriptions in its input schema are instructions to the model too. For the five verbs they are long: the [delegate](./delegate.md) description alone carries the rules for parallel work and the whole `ctx` surface of a script. [Contracts](./contract.md) also reach the model while it works, through `read ~/tools/<name>` and through the contract a wrong [call](./call.md) returns. <!-- id:mbfTk_xI -->
 
-The `execute` contract is narrowed to the runtimes the server can run. The model is never told about a capability that would fail. <!-- id:yl4AZkFa -->
+The [`execute`](./code-execution.md) contract lists only the runtimes the server can run. The model is never told about an ability that would fail. <!-- id:yl4AZkFa -->
 
 A remote [MCP](./mcp.md) tool's summary appears in the Space index, and its description reaches the model in full when the tool is expanded or [promoted](./promotion.md). That text is written by whoever runs the remote server.
 
@@ -100,7 +107,7 @@ Naming a session is a separate model call with its own fixed prompt and no tools
 
 # Untrusted text that reaches the model <!-- id:drzedXzu -->
 
-Ranked by exposure. Everything here is content that someone else wrote. <!-- id:u6Ry-9e7 -->
+The list goes from the most exposed to the least. Everything here is content that someone else wrote. <!-- id:u6Ry-9e7 -->
 
 1. **Fetched web pages** (`read https://…`, `web_search` results). This is the largest surface. A page the agent reads itself gets no escaping. It arrives as a tool result, which the model already treats as data. <!-- id:zLBbXLNy -->
 2. **Hypermedia content and comments** (`read hm://…`, the activity feed, trigger context). Other [accounts](../protocol/identity.md) write this. Triggered sessions are the sharpest case: the triggering comment is text an attacker controls, and it arrives in the session's first message next to instructions. <!-- id:OEICJZZ2 -->

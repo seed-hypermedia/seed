@@ -2,9 +2,11 @@
 name: IPFS URL
 summary: A reference to a content-addressed object held as an `ipfs://<cid>` string, which editors render as a file pill you can open, upload to, or paste into.
 ---
-An **IPFS URL** is a reference to a content-addressed [file](./protocol/files.md) on IPFS, held as an `ipfs://<cid>` string. `format: ipfs-url` tells an editor to render it as a file reference, a pill you can open and set by upload or paste, instead of a plain text box. <!-- id:NOsddoMm -->
+An **IPFS URL** is a reference to something stored by its content hash on IPFS: a [file](./protocol/files.md), or a [DAG-CBOR](./schema/dag-cbor.md) object such as a schema. It is held as an `ipfs://<cid>` string, where `<cid>` is the [CID](./cid.md) of the content. <!-- id:NOsddoMm -->
 
-This page describes the **ipfs-url** type, a value type of [Hypermedia Schemas](./schema.md). Its formal schema is attached as the `schemaDefinition` in this document's metadata, so the app can show it and create values of this type. <!-- id:yxkmJOet -->
+`format: ipfs-url` tells an editor to show it as a file reference, not a plain text box. The reference is a pill. You can open it, and you can set it by upload or by paste.
+
+This page defines the **ipfs-url** type, a value type of [Hypermedia Schemas](./schema.md). The type's formal schema is attached to this page as the `schemaDefinition` in its [metadata](./metadata.md). So the app can show the schema and create values of this type. <!-- id:yxkmJOet -->
 
 # See also <!-- id:7sagQBpD -->
 

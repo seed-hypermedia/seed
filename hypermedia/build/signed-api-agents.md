@@ -1,8 +1,8 @@
 ---
 name: "Signed API: agents"
-summary: The signed API actions that create, read, update, share and delete an agent, list its tools, and the AgentDefinition type.
+summary: This page lists the signed API actions that create, read, update, share and delete an agent and list its tools, and it defines the AgentDefinition type.
 ---
-These are the actions of the [signed API](./signed-api.md) that create, read, change, share and delete an [agent](../agent.md), plus the `AgentDefinition` type they carry. The envelope, the endpoint, errors, [access levels](./signed-api.md#access-levels) and idempotency are on the [signed API](./signed-api.md) page.
+These actions of the [signed API](./signed-api.md) create, read, change, share and delete an [agent](../agent.md). The page also defines `AgentDefinition`, the type that describes an agent. The [signed API](./signed-api.md) page covers what every action shares: the endpoint, the envelope, errors, [access levels](./signed-api.md#access-levels) and idempotency.
 
 # Agents
 
@@ -22,7 +22,7 @@ Response: <!-- id:7zadqKbL -->
 {_: 'ListAgentsResponse'; agents: AgentInfo[]}
 ```
 
-Lists agents owned by the verified account plus agents on which it is an accepted reader or writer, ordered by update time descending. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer`. An agent read through public access reports `reader`, or `chatter` when public chat is on. Pending invitations are not returned here, on purpose. <!-- id:f9TOEq_f -->
+Lists the agents that the signing [account](../protocol/identity.md) owns, plus the agents where it is an accepted reader or writer. The most recently updated agent comes first. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer`. Pending invitations are not in this list; `ListAgentInvites` returns them. <!-- id:f9TOEq_f -->
 
 ## `CreateAgent` <!-- id:DeLxhuvH -->
 
@@ -39,11 +39,11 @@ Request: <!-- id:JSY487AM -->
 
 Response: `{_: 'CreateAgentResponse'; agentId: string}`.
 
-Creates a new agent. Checks that the referenced provider exists for the account. Creates a per-agent state directory. <!-- id:UpqB-RM_ -->
+Creates a new agent. The server checks that the account has the model provider the definition names, and creates a state folder for the agent. <!-- id:UpqB-RM_ -->
 
-When the definition's primary `signingKey` resolves to an `hm-account-key` secret, the server also creates a default enabled activity [trigger](../agent/triggers.md), "Mentions, replies, and comments for \<name>", for that signing identity's account uid: a `user-mention`, a `comment-reply`, and a `document-author-comment` condition (prompt: "Respond to the mention, reply, or comment on your document, performing any action requested."). [Mentioning](../protocol/comments.md) the agent's account, replying to one of its comments, or commenting on a document it authored then starts one session in which it responds. This is best-effort and never blocks agent creation. Agents without a signing key get no default trigger. <!-- id:wKRI3r0c -->
+When the agent has at least one signing identity, the server also creates one enabled `activity` [trigger](../trigger.md) named "Mentions, replies, and comments for \<name>". It has three conditions: a `user-mention`, a `comment-reply` and a `document-author-comment`. Each one names the account `self`, which means whichever accounts the agent signs as at the time, so the trigger keeps working if the agent's account changes. Its prompt is "Respond to the mention, reply, or comment on your document, performing any action requested." So when someone [mentions](../protocol/links-and-citations.md) the agent's account, replies to one of its [comments](../protocol/comments.md), or comments on a [document](../protocol/documents.md) it wrote, one session starts and the agent responds in it. If creating this trigger fails, the agent is still created. An agent with no signing identity gets no default trigger. [Agent triggers](../agent/triggers.md) has the details. <!-- id:wKRI3r0c -->
 
-Idempotent when `clientRequestId` is supplied. <!-- id:jGg7N_6g -->
+With a `clientRequestId`, the action is [idempotent](./signed-api.md#idempotency). <!-- id:jGg7N_6g -->
 
 ## `GetAgent` <!-- id:c6cK3cIm -->
 
@@ -62,7 +62,7 @@ Response: <!-- id:Kw8EAjk_ -->
 {_: 'GetAgentResponse'; agent: AgentInfo; sessionCount: number}
 ```
 
-Requires reader access. `sessionCount` counts top-level sessions. The sessions themselves come from `ListSessions {agentId, includeChildren: false}`. A protocol 1 client also receives a `sessions` array holding the newest 50. <!-- id:5OveoAaK -->
+Needs reader access. `sessionCount` counts top-level [sessions](../agent/session.md). To get the sessions themselves, send `ListSessions {agentId, includeChildren: false}`. A protocol 1 client also receives a `sessions` array with the newest 50. If you read the agent through public access, `agent.accessRole` is `reader`, or `chatter` when public chat is on. <!-- id:5OveoAaK -->
 
 ## `UpdateAgent` <!-- id:YMWNoJDM -->
 
@@ -76,7 +76,9 @@ Request: <!-- id:6hWqBlwi -->
 }
 ```
 
-Updates the definition for the owner or an accepted writer after validating the owning account's provider and signing identities. <!-- id:ki1fJPuP -->
+Replaces the definition. The owner or an accepted writer can send it. The server first checks the model provider and the signing identities against the owner's account. <!-- id:ki1fJPuP -->
+
+Response: `GetAgentResponse`, the agent as it is after the change. If the agent is mounted on a document, its name comes from the document and the `name` you send is ignored. Only the owner can change `signingKeys`; a writer who changes them gets a `403`.
 
 ## `DeleteAgent` <!-- id:7jJan3SL -->
 
@@ -98,7 +100,7 @@ Response: <!-- id:OIZXPeTZ -->
 }
 ```
 
-Deletes the agent after validating ownership, including its triggers, sessions, session events, trigger firings, drafts, and per-agent state directory. Live runs of the agent are canceled first, cascading through their trees. Run history survives, detached: `runs.agent_id`, `runs.session_id`, and `runs.trigger_firing_id` are nulled inside the delete transaction. Sub-sessions of _other_ agents hanging off this agent's sessions promote to top level. <!-- id:A1zp81Vg -->
+Deletes the agent. Only the owner can do this. The server deletes the agent's triggers, sessions, session events, trigger firings, drafts and state folder. Its tool documents, collaborators, pending invitations and webhook secrets are deleted too. The server first cancels the agent's live [runs](../agent/runs.md) and every run below them. The history of runs stays, but no longer points at the agent: `runs.agent_id`, `runs.session_id` and `runs.trigger_firing_id` are set to null in the same transaction. A sub-session of another agent that hung under one of this agent's sessions becomes a top-level session. <!-- id:A1zp81Vg -->
 
 ## `MountAgent` and `UnmountAgent`
 
@@ -107,7 +109,7 @@ Deletes the agent after validating ownership, including its triggers, sessions, 
 {_: 'UnmountAgent'; agentId: string} // the agent's current hm:// id
 ```
 
-`MountAgent` gives an existing agent the identity of a published [agent document](../agent.md): `documentId` becomes its id. `blobs` are the signed document blobs, so the server finds the document at once. `UnmountAgent` takes the agent out of its document. It gets back the server id it had before the mount, or a fresh one, and keeps its sessions, memory and triggers. Both are owner-only, answer `GetAgentResponse` for the agent under its new id, and return 409 while a memory upload for the agent is in progress.
+`MountAgent` gives an existing agent the identity of a published [agent document](../agent.md): `documentId` becomes its id. `blobs` are the signed [blobs](../protocol/blobs.md) of the document, so the server has the document at once. `UnmountAgent` takes the agent out of its document. The agent gets back the server id it had before the mount, or a new one, and keeps its sessions, memory and triggers. Only the owner can send either action. Both answer with `GetAgentResponse` for the agent under its new id, and both return 409 while a memory upload for the agent is in progress. [Mounting](../agent/mounting.md) explains the idea.
 
 # Invitations and collaborators <!-- id:XeJ06-b- -->
 
@@ -118,10 +120,10 @@ Deletes the agent after validating ownership, including its triggers, sessions, 
 - `RemoveAgentCollaborator {agentId, accountId}` revokes an accepted member or cancels a pending invitation. Owner-only. <!-- id:AFxP1gCb -->
 - `AcceptAgentInvite {agentId}` accepts the signed account's pending invitation and returns the now-accessible agent. <!-- id:hwpaVx_z -->
 - `DeclineAgentInvite {agentId}` deletes the signed account's pending invitation. <!-- id:y1o0tauS -->
-- `SetAgentPublicRead {agentId, publicRead}` turns public read access on or off. Owner-only. While on, every signed account that knows the agent id is treated as a `reader` (the same view an invited reader gets, including live subscriptions). The agent is still never returned from `ListAgents` or account-wide `ListSessions` for accounts that are not owner or collaborator. `AgentInfo.publicRead` reports the flag. Turning it off also clears `publicChat`. <!-- id:elsEgXJK -->
-- `SetAgentPublicChat {agentId, publicChat}` turns public chat on or off. Owner-only, and enabling requires `publicRead` to already be on (400 otherwise). While on, every signed account that reads the agent publicly is a `chatter`: it may `CreateSession`, `MessageSession`, `UploadSessionAttachment` (and the chunked-upload actions targeting a session), `StopSession`, and `RetrySession` on any of the agent's sessions. It still cannot do anything writer-level: `UpdateAgent`, memory, tool, or trigger writes, `UpdateSession`, `DeleteSession`, `InvokeSessionTool`, `CancelRun`, `SignalRun`. `AgentInfo.publicChat` reports the flag. <!-- id:K_uUcnRP -->
+- `SetAgentPublicRead {agentId, publicRead}` turns public read access on or off. Owner-only. While it is on, every signed account that knows the agent id is a `reader`. It sees what an invited reader sees, including live subscriptions. `ListAgents` and the account-wide `ListSessions` still never return the agent to an account that is not the owner or a collaborator. `AgentInfo.publicRead` reports the flag. Turning it off also turns `publicChat` off. Turning it on disconnects any [session browser](./signed-api-sessions.md#session-browser). <!-- id:elsEgXJK -->
+- `SetAgentPublicChat {agentId, publicChat}` turns public chat on or off. Owner-only. You can turn it on only when `publicRead` is already on; otherwise the answer is 400. While it is on, every signed account that reads the agent publicly is a `chatter`: it may `CreateSession`, `MessageSession`, `UploadSessionAttachment` (and the chunked-upload actions targeting a session), `StopSession`, and `RetrySession` on any of the agent's sessions. It still cannot do anything writer-level: `UpdateAgent`, memory, tool, or trigger writes, `UpdateSession`, `DeleteSession`, `InvokeSessionTool`, `CancelRun`, `SignalRun`. `AgentInfo.publicChat` reports the flag. <!-- id:K_uUcnRP -->
 
-The roles and what each may do are in [access levels](./signed-api.md#access-levels). How sharing works for the people involved is in [agent sharing](../agent/sharing.md). An agent role never grants changes to the owner's providers or secrets.
+[Access levels](./signed-api.md#access-levels) lists the roles and what each may do. [Agent sharing](../agent/sharing.md) explains sharing for the people involved. No role on an agent lets you change the owner's providers or secrets.
 
 # Tools
 
@@ -142,7 +144,7 @@ Response: <!-- id:Z80S3kNI -->
 {_: 'ListAgentToolsResponse'; agentId: string; tools: AgentToolInfo[]}
 ```
 
-Lists every [tool document](../agent/tool-document.md) in the agent's `~/tools` from the `tool_documents` table. It rebuilds the builtin rows first if the registry contract has changed. This is the reader's view of the same documents the agent sees when it reads `~/tools/`. See [tools](../agent/tools.md). <!-- id:ckP2uqGJ -->
+Lists every [tool document](../agent/tool-document.md) in the agent's `~/tools`. These are the same documents the agent sees when it reads `~/tools/`. Before it answers, the server rewrites any built-in tool document whose definition in the code has changed. See [tools](../agent/tools.md). <!-- id:ckP2uqGJ -->
 
 ```ts <!-- id:9UmcWORw -->
 type AgentToolInfo = {
@@ -172,7 +174,7 @@ type AgentToolInfo = {
   → {_: 'DeleteAgentToolResponse'; agentId: string; name: string; deleted: boolean}
 ```
 
-`SaveAgentTool` is refused with 410. An agent does not hold private code tools: a [tool](../tool.md) is a document published under an app or an agent. `DeleteAgentTool` deletes one authored tool document that is still stored. `deleted` is false when it was already absent.
+The server refuses `SaveAgentTool` with 410. An agent does not hold private code tools: a [tool](../tool.md) is a document published under an app or an agent. `DeleteAgentTool` deletes one authored tool document that the server still stores. `deleted` is false when there was nothing to delete.
 
 # Agent definition <!-- id:MQfS-lax -->
 
@@ -184,7 +186,7 @@ type AgentDefinition = {
   model: string
   reasoningLevel?: ReasoningLevel
   thoroughness?: Thoroughness // delegation preset: quick, normal, deep
-  enabledModels?: AgentModelRef[] // models a delegate child may pick
+  enabledModels?: AgentModelRef[] // extra models the user ticked: shown in the model switcher, and allowed for delegate children
   tools?: string[]
   mcpServers?: string[]
   signingKey?: string
@@ -198,13 +200,13 @@ type AgentPromptBlock = {
 }
 ```
 
-The agent as a concept is on the [agent](../agent.md) page. The rules the server applies to the fields:
+The [agent](../agent.md) page explains what an agent is. The server applies these rules to the fields:
 
-- `systemPrompt` is stored as Seed [block nodes](../block/node.md). A string is parsed as markdown. <!-- id:lhfIMIOl -->
-- `reasoningLevel` applies to reasoning-capable models and must be one of the levels `modelReasoningSupport` reports for the model (`apps/protocol/src/reasoning.ts`). Absent means off, or the provider default where reasoning cannot be disabled. <!-- id:MeW0UZKi -->
-- `tools` is a grant list. It does not define the tool surface: the verbs are never granted or revoked. An omitted array grants every callable tool and the right to publish. An explicit array keeps only the names it lists, and `publish` is the name that allows signed public writing. See [grants](../agent/grants.md). <!-- id:69h9HRvq -->
-- `AgentDefinition.mcpServers?: string[]` (≤ 16 names) is the per-agent [grant](../agent/grants.md), accepted by `CreateAgent` and `UpdateAgent`. <!-- id:O34ZBJJq -->
-- `signingKeys` holds the secret names of the [signing identities](./signed-api-providers.md#signing-identities) the agent may sign with. `signingKey` is the single-key form, accepted for older clients. Only the owner may change the set. <!-- id:U9fN8wVf -->
+- `systemPrompt` is stored as a tree of [blocks](../protocol/blocks.md), in the [block node](../block/node.md) shape. The server parses a string as markdown. <!-- id:lhfIMIOl -->
+- `reasoningLevel` applies to models that can reason. It must be one of the levels that `modelReasoningSupport` reports for the model (`apps/protocol/src/reasoning.ts`). Without it, reasoning is off, or at the provider's default where reasoning cannot be turned off. <!-- id:MeW0UZKi -->
+- `tools` is a list of [grants](../agent/grants.md). It does not decide which verbs the agent has: the verbs are never granted or taken away. With no array, the agent may call every tool and may publish. With an array, the agent keeps only the names in it, and `publish` is the name that allows signed public writing. <!-- id:69h9HRvq -->
+- `mcpServers` lists the account's [MCP servers](../agent/mcp.md) this agent may call, at most 16 names. <!-- id:O34ZBJJq -->
+- `signingKeys` holds the secret names of the [signing identities](./signed-api-providers.md#signing-identities) the agent may sign with. `signingKey` is the form with one key, accepted for older clients. Only the owner may change the set. <!-- id:U9fN8wVf -->
 
 # See also
 

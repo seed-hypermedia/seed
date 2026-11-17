@@ -1,52 +1,60 @@
 ---
 name: Integrity
-summary: What Hypermedia verifies cryptographically end to end (content addressing, authorship, history, write authority) and what it trusts (timestamps, comments, servers, the local daemon API), so you know which guarantees you can build on.
+summary: This page lists what you can check yourself about Hypermedia content (the bytes, the author, the history, the right to publish) and what you have to trust (times, comments, servers, the local daemon API).
 ---
-When you read a Hypermedia [document](./documents.md), you read bytes that came from somewhere: a [site](./sites.md), a [peer](./network.md), a cache. Integrity covers what you can check about those bytes yourself, without trusting whoever handed them to you. You can verify some things from the content alone. Other things are trusted, and you need to know which. <!-- id:1IPrLiS2 -->
+When you read a Hypermedia [document](./documents.md), the bytes came from somewhere: a [site](./sites.md), a [peer](./network.md) or a cache. **Integrity** is about what you can check in those bytes yourself, without trusting whoever gave them to you. Some things you can check from the content alone. Other things you have to trust. You need to know which is which. <!-- id:1IPrLiS2 -->
 
-This page lists both, as the [daemon](../software/daemon.md) implements them, and then the mitigations for the trusted parts. <!-- id:iirFiDsg -->
+This page lists both, as the [daemon](../software/daemon.md) does them. Then it says what to do about the trusted parts. <!-- id:iirFiDsg -->
 
-# What is verified end to end <!-- id:C8kii1Jw -->
+# What you can check <!-- id:C8kii1Jw -->
 
-**Content addressing.** Every [blob](../blob.md) is named by the hash of its bytes, a [CID](../cid.md). When a blob arrives with a CID attached, whether over the daemon's store RPC, over `POST /ipfs/<cid>`, or through [Bitswap](https://specs.ipfs.tech/bitswap-protocol/), the daemon recomputes the hash and refuses a mismatch. So a link to a CID is a link to exactly one sequence of bytes, forever, on any node. This makes [the end of broken links](../why/broken-links.md) possible. <!-- id:hse31DyN -->
+**The bytes.** The name of every [blob](./blobs.md) is the hash of its bytes, called a [CID](../cid.md). A blob can arrive with a CID over the daemon's store RPC, over `POST /ipfs/<cid>`, or through [Bitswap](https://specs.ipfs.tech/bitswap-protocol/). Each time, the daemon computes the hash again and refuses the blob if the hash does not match. So a link to a CID is a link to exactly one sequence of bytes, forever, on any node. This makes [the end of broken links](../why/broken-links.md) possible. <!-- id:hse31DyN -->
 
-**Authorship.** Every structural blob (Change, Ref, Comment, Capability, Contact, Profile) carries the signer's public [key](./identity.md) and a signature, [Ed25519](https://ed25519.cr.yp.to/) or ECDSA P-256 depending on the key, over its canonical [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/) encoding with the signature field zeroed. The daemon verifies the signature before interpreting the blob. A blob with a bad signature is at most stored as opaque bytes, and is never indexed. So you can re-check "signed by `z6Mk…`" anywhere, without asking a server. See [Blobs](./blobs.md) for the exact signing rule. <!-- id:6iqmmOty -->
+**The author.** Every signed blob (Change, Ref, Comment, Capability, Contact, [Profile](../profile.md)) carries the signer's public [key](./identity.md) and a [signature](../signature.md). The signature is [Ed25519](https://ed25519.cr.yp.to/) or ECDSA P-256, depending on the key. It covers the blob's [canonical](../schema/canonical-encoding.md) [DAG-CBOR](https://ipld.io/specs/codecs/dag-cbor/spec/) encoding with the signature field set to zeros. The daemon checks the signature before it reads the blob's meaning. It stores a blob with a bad signature as plain bytes at most, and never indexes it. So you can check "signed by `z6Mk…`" again anywhere, without asking a server. See [Blobs](./blobs.md) for the exact signing rule. <!-- id:6iqmmOty -->
 
-**History.** A document version is a set of [Change](../change.md) CIDs. Each Change links its dependencies and its genesis by CID, so a version pins its entire history as a [Merkle DAG](https://docs.ipfs.tech/concepts/merkle-dag/). Changing anything in the past changes every CID after it. Replay rejects changes whose declared depth or time runs backwards relative to their dependencies. It also rejects a Ref whose Changes do not share a genesis. See [Documents](./documents.md). <!-- id:UvL709j_ -->
+**The history.** A document version is a set of [Change](../change.md) CIDs. Each Change links by CID to the Changes it builds on and to its genesis, the first Change. So a version fixes its whole history, as a [Merkle DAG](https://docs.ipfs.tech/concepts/merkle-dag/). If anything in the past changes, every CID after it changes too. When the daemon rebuilds a document, it rejects a Change whose stated depth or time goes backwards compared with the Changes it builds on. It also rejects a Ref whose Changes do not share a genesis. See [Documents](./documents.md). <!-- id:UvL709j_ -->
 
-**Write authority.** The daemon indexes only [Refs](../ref.md) signed by the space owner or by a key holding a matching owner-signed [capability](../capability.md). Refs and capabilities are both signed and content-addressed. So a third party can re-verify the whole chain offline: this Ref, this capability, this owner. The rule is in [Permissions](./permissions.md). <!-- id:B-ct-P6Z -->
+**The right to publish.** The daemon indexes a [Ref](../ref.md) only if the owner of the [space](./spaces.md) signed it, or a key that holds a matching [capability](./permissions.md) signed by the owner. Refs and capabilities are both signed and named by their hash. So anyone can check the whole chain offline: this Ref, this capability, this owner. The rule is in [Permissions](./permissions.md). <!-- id:B-ct-P6Z -->
 
-Together, these let a reader who holds a version's CIDs verify three things with no network and no trusted party: who wrote each change, in what order, and that the person who published this version was allowed to. <!-- id:bkBhN46R -->
+Together, these let a reader who holds a version's CIDs check three things, with no network and no trusted party: who wrote each change, in what order, and that the key that published this version was allowed to. <!-- id:bkBhN46R -->
 
-# What is trusted <!-- id:m_bRAU2K -->
+# What you have to trust <!-- id:m_bRAU2K -->
 
-**Timestamps are self-declared.** Nothing checks a blob's `ts` against real time when it is ingested. Ordering inside a document is causal (dependencies). But last-writer-wins resolution of metadata, comment ordering, and [generation](./documents.md) numbers all read declared times, so a legitimate signer can back-date or forward-date. A capability issued after a Ref authorizes it retroactively. If you need a trustworthy time, anchor the CID externally. Nothing in the protocol anchors time. <!-- id:rZDXk-t2 -->
+**The signer states the time.** Nothing compares a blob's `ts`, its [timestamp](../timestamp.md), with real time when the blob arrives. Inside a document, order comes from which Change builds on which. But three things read the stated times: which write to a metadata key wins, the order of comments, and [generation](./documents.md) numbers. So a signer with the right to write can give a blob an earlier or a later time. A capability issued after a Ref also makes that Ref valid. If you need a time you can trust, record the CID somewhere outside the protocol that proves time. The protocol itself proves no time. <!-- id:rZDXk-t2 -->
 
-**Nothing checks authorization on Changes and comments.** The daemon stores any key's Change. The Change becomes part of a document only through an authorized Ref. Any key can attach a public [comment](./comments.md) to any document. No layer checks it: not the index, not the API. Moderation is left to clients and sites. <!-- id:TABAN6Hu -->
+**Nothing checks who may write a Change or a comment.** The daemon stores a Change from any key. The Change becomes part of a document only through an authorized Ref. Any key can attach a public [comment](./comments.md) to any document. Nothing checks it: not the index, and not the API. Moderation is left to clients and sites. <!-- id:TABAN6Hu -->
 
-**Capabilities never expire and cannot be revoked.** A grant is valid on every node that has it, forever. See [Permissions](./permissions.md) for the mitigation: grant narrowly, to keys you control. <!-- id:Ee5-riN- -->
+**A capability never ends and cannot be taken back.** A grant is valid on every node that has it, forever. [Permissions](./permissions.md) says what to do about it: grant narrowly, to keys you control. <!-- id:Ee5-riN- -->
 
-**Peer identity is separate from account identity.** A peer proves it holds an account only when it wants [private](./privacy.md) data, with a signed ephemeral capability fresh within one minute. Public data needs no peer-level trust, because public blobs verify themselves. <!-- id:K1wjcasf -->
+**A peer is not an account.** A peer proves it holds an account only when it wants [private](./privacy.md) data. It signs a short-lived capability that must be less than one minute old. Public data needs no trust in the peer, because anyone can check a public blob by itself. <!-- id:K1wjcasf -->
 
-**Site trust is DNS and HTTPS trust.** The peer that `https://<siteUrl>/hm/api/config` reports is granted the space's private blobs, because the home document says that host is the site. Whoever controls the domain and its certificate controls that trust. A space owner who points `siteUrl` at a hostile host hands that host their private content. <!-- id:lZ4F8fRe -->
+**Trust in a site is trust in DNS and HTTPS.** The peer that `https://<siteUrl>/hm/api/config` reports receives the space's private blobs, because the [home document](./spaces.md) says that host is the site. Whoever controls the domain and its certificate controls that trust. A space owner who points `siteUrl` at a hostile host gives that host their private content. <!-- id:lZ4F8fRe -->
 
-**The daemon trusts admitted API callers.** In default mode, gRPC and HTTP admit only loopback socket peers. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser fetch metadata and exact origins. `-api.allowed-origins` registers additional trusted origins without widening peer or Host admission. Admitted local tools can list keys, sign with stored keys, export keys, store blobs, create Refs and capabilities, or force a reindex. Write RPCs check whether the signing key may write, not the caller's identity. Hosted sites use server mode (`-server-mode`, or `SEED_SERVER_MODE=true`), which trusts the deployment network and hides private content from anonymous HTTP requests while allowing authorized bearer reads. Keep daemon API ports private and proxy only the public `/ipfs/*` routes; server mode does not disable writes. <!-- id:GCxyZk8- -->
+**The daemon trusts any program that can reach its API.** By default only programs on the same computer can. Such a program can sign with your keys, so keep the API ports private. <!-- id:GCxyZk8- -->
 
-**Bearer tokens are symmetric and daemon-local.** A token is sealed with a random per-daemon secret and lasts thirty days. The only way to invalidate it is to rotate that secret. Its only tie to state is that the daemon must still know the principal. It widens reads on server-mode nodes and never authorizes a write. <!-- id:O-MCJker -->
+- In default mode, gRPC and HTTP accept only connections from the same computer (loopback).
+- HTTP also requires the Host name to be exactly `localhost` or a loopback IP address. It checks the browser's fetch metadata and the exact origin.
+- `-api.allowed-origins` adds more trusted origins. It does not widen which connections or Host names the daemon accepts.
+- A program the daemon accepts can list keys, sign with stored keys, export keys, store blobs, create Refs and capabilities, and force a reindex.
+- A write RPC checks whether the signing key may write. It does not check who the caller is.
+- Hosted sites use server mode (`-server-mode`, or `SEED_SERVER_MODE=true`). Server mode trusts the network the server runs in. It hides private content from HTTP requests with no token, and serves it to requests with an authorized bearer token.
+- Server mode does not turn writes off. Keep the daemon's API ports private, and proxy only the public `/ipfs/*` routes.
 
-**Two CIDs for the same bytes.** The daemon hashes with BLAKE2b by default and the [SDK](../build/sdk.md) hashes with SHA-256. Both are valid CIDs of the same content. The daemon deduplicates by multihash, so a Ref naming the SHA-256 head and another naming the BLAKE2b head of identical bytes are two different documents. Always pass explicit CIDs for blobs that other blobs reference. See [Blobs](./blobs.md). <!-- id:NvliI770 -->
+**A bearer token works only on the daemon that made it.** The daemon seals each token with its own random secret. A token lasts thirty days. The only way to cancel it early is to change that secret. The daemon must also still know the token's [principal](../principal.md). A token lets its holder read more on a server-mode node. It never allows a write. [Identity](./identity.md) explains how a token is made. <!-- id:O-MCJker -->
 
-# Mitigations <!-- id:we0FdOvO -->
+**The same bytes can have two CIDs.** The daemon hashes with BLAKE2b by default, and the [SDK](../build/sdk.md) hashes with SHA-256. Both are valid CIDs of the same content. The daemon treats the two hashes as two blobs. So a Ref that names the SHA-256 head and a Ref that names the BLAKE2b head of the same bytes are two different documents. Always pass the CID yourself for a blob that another blob points at. See [Blobs](./blobs.md). <!-- id:NvliI770 -->
+
+# What to do about the trusted parts <!-- id:we0FdOvO -->
 
 <!-- id:9KFP54wS -->
 | Trusted part <!-- col:_8gmy-bk --> | What to do about it <!-- col:o8c578o6 --> <!-- id:C8M3OtL5 --> |
 | --- | --- |
-| trusted API callers | keep default-mode API access loopback-only; keep hosted daemon API ports private with `-server-mode`; see [Self-hosting](../operate/self-hosting.md) <!-- id:va4uXiFL --> |
-| unauthenticated comments | filter by author or by [contacts](./contacts.md) in the client <!-- id:_dNSAAI5 --> |
-| eternal capabilities | grant WRITER on a path to a key you control; give bots and servers their own keys; treat a lost delegate key as permanent <!-- id:E6SkAwMy --> |
-| self-declared time | treat `ts` as the author's claim; anchor externally if it matters <!-- id:hMxG5DQa --> |
+| trusted API callers | in default mode, keep API access to the same computer only; on a hosted daemon, keep the API ports private and use `-server-mode`; see [Self-hosting](../operate/self-hosting.md) <!-- id:va4uXiFL --> |
+| comments from any key | filter by author or by [contacts](./contacts.md) in the client <!-- id:_dNSAAI5 --> |
+| capabilities that never end | grant WRITER on a path to a key you control; give bots and servers their own keys; treat a lost delegate key as lost forever <!-- id:E6SkAwMy --> |
+| time stated by the signer | treat `ts` as the author's claim; if the time matters, record the CID somewhere outside the protocol that proves time <!-- id:hMxG5DQa --> |
 | site trust | keep control of the domain and certificate; the site's account and signer are visible in `/hm/api/config` <!-- id:1OYen0iH --> |
-| dual CIDs | always pass a `cid` with every blob you publish that another blob links to <!-- id:I5V7emo6 --> |
+| two CIDs for the same bytes | always pass a `cid` with every blob you publish that another blob links to <!-- id:I5V7emo6 --> |
 
 # Working with integrity <!-- id:rVRtYCG3 -->
 
@@ -54,16 +62,16 @@ Together, these let a reader who holds a version's CIDs verify three things with
 seed-cli blob get <cid>                 # fetch the raw signed blob
 seed-cli blob verify <cid>              # check the signature of a stored blob
 seed-cli document changes hm://…        # the change DAG with signers and times
-seed-cli document cid hm://…            # the CIDs behind a version
+seed-cli document cid <cid>             # fetch one raw block by its CID
 ```
 
-- See [the CLI guide](../build/cli.md). <!-- id:07MEld4- -->
-- `blobs.verify` checks a signature against the embedded signer. `signed-blob` handles the canonical encoding and the zeroed-signature rule so your own blob types verify the same way. Compute CIDs with `multiformats` and pass them explicitly on publish. See [SDK](../build/sdk.md). <!-- id:5C7ht3P2 -->
-- On the [Seed API](../build/web-api.md), `GET /api/GetCID?cid=…` returns a blob as DAG-JSON for inspection. `GET /api/ListChanges?targetId=…` walks a document's history with signers. `/ipfs/<cid>` on a site serves raw bytes whose hash you can recompute. On the read side you trust the site only to be available. <!-- id:wVT5ffrF -->
+- The CIDs behind a version come from `document changes`. See the [Seed CLI](../build/cli.md). <!-- id:07MEld4- -->
+- In the [SDK](../build/sdk.md), `blobs.verify` checks a signature against the signer inside the blob. `signed-blob` does the canonical encoding and the zeroed-signature rule, so your own blob types check the same way. Compute CIDs with `multiformats` and pass them yourself when you publish. <!-- id:5C7ht3P2 -->
+- On the [Seed API](../build/web-api.md), `GET /api/GetCID?cid=…` returns a blob as [DAG-JSON](../schema/dag-json.md) so you can inspect it. `GET /api/ListChanges?targetId=…` lists a document's history with signers. `/ipfs/<cid>` on a site serves raw bytes, and you can compute their hash yourself. When you read, you trust the site only to be online. <!-- id:wVT5ffrF -->
 
 # See also <!-- id:4Wlg7DZR -->
 
 - [Blobs](./blobs.md), [Documents](./documents.md), [Identity](./identity.md), [Permissions](./permissions.md), [Privacy](./privacy.md), [Network](./network.md) <!-- id:5FHwtieD -->
 - [CID](../cid.md), [Signature](../signature.md), [Timestamp](../timestamp.md) <!-- id:b4zleV6n -->
-- [Why signed content](../why/signed-content.md) for the comparison with ActivityPub, and [The end of broken links](../why/broken-links.md) <!-- id:EDttAXTg -->
+- [Why signed content](../why/signed-content.md) for a comparison with ActivityPub, and [The end of broken links](../why/broken-links.md) <!-- id:EDttAXTg -->
 - [Glossary](../glossary.md) <!-- id:--5qxReP -->

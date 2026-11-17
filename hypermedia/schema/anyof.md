@@ -2,11 +2,13 @@
 name: Union schema
 summary: The variant for a union, which accepts a value that matches any one of the schemas listed under anyOf.
 ---
-**`anyOf`**: the union keyword. It holds a list of [schemas](../schema.md), and a value is valid if it matches any of them. It is the one composite construct in [the schema language](./schema-language.md). A union whose arms are all [literals](./literal-schema.md) is a fixed set of choices, such as `{"anyOf": ["draft", "published", "archived"]}`, which the editors show as a dropdown. <!-- id:ppR9ujjo -->
+A **union** accepts a value that matches any one of several [schemas](../schema.md). You write it with the `anyOf` key, which holds the list of schemas. Each schema in the list is called an arm. For example, `{"anyOf": ["draft", "published", "archived"]}` accepts one of three words. <!-- id:ppR9ujjo -->
 
-This document describes the **schema/anyof** type, one [variant](./variant.md) of the [meta-schema](../schema.md). Its formal schema is attached as the `schemaDefinition` in this document's [metadata](../metadata.md), so the app can show it and create values of this type. [Typed documents](./typed-documents.md) explains how that works. <!-- id:C3PmGxab -->
+A union is the only way [the schema language](./schema-language.md) combines schemas. When every arm is a [literal](./literal-schema.md), as in the example, the union is a fixed set of choices. The editors show it as a dropdown.
 
-An empty union, `{"anyOf": []}`, accepts no values. The library names this schema [none](../none.md). It differs from the literal schema `null`, which accepts the single value `null`. <!-- id:54sH8-hG -->
+This page defines the **schema/anyof** type, one [variant](./variant.md) of the [meta-schema](../schema.md). The type's formal schema is attached to this page as the `schemaDefinition` in its [metadata](../metadata.md). So the app can show the schema and create values of this type. [Typed documents](./typed-documents.md) explains how that works. <!-- id:C3PmGxab -->
+
+An empty union, `{"anyOf": []}`, accepts no value at all. The library names this schema [none](../none.md). It is not the same as the literal schema `null`, which accepts the single value `null`. <!-- id:54sH8-hG -->
 
 # See also <!-- id:xg9bzB-w -->
 

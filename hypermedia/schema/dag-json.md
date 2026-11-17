@@ -1,8 +1,10 @@
 ---
 name: DAG-JSON
-summary: The JSON form of the IPLD data model, which is the form people read and edit, where DAG-CBOR is the form that is hashed and stored.
+summary: DAG-JSON is the JSON form of Hypermedia data that people read and edit, and DAG-CBOR is the form that is hashed and stored.
 ---
-**dag-json**: the JSON form of the same [data model](./data-model.md) that [DAG-CBOR](./dag-cbor.md) encodes. It is the form people read and edit, and schema files are written in it. It writes [links](../link.md) as `{"/":"…"}` and bytes as `{"/":{"bytes":"…"}}`. Those reserved-key objects are [envelopes](./envelope.md). <!-- id:iFdzDAvy -->
+**dag-json** is the JSON form of Hypermedia data. It is the form people read and edit, and schema files are written in it. It holds the same [data model](./data-model.md) as [DAG-CBOR](./dag-cbor.md), the binary form that is hashed and stored. <!-- id:iFdzDAvy -->
+
+JSON has no way to write a link or raw bytes, so dag-json adds one. It writes a [link](../link.md) as `{"/":"…"}` and [bytes](../bytes.md) as `{"/":{"bytes":"…"}}`. These objects with the reserved `/` key are called [envelopes](./envelope.md).
 
 # See also <!-- id:HZxh7aJc -->
 

@@ -2,9 +2,11 @@
 name: Code Execution
 summary: The execute callable runs TypeScript, Python, or shell code in an isolated microVM with the agent's memory mounted as its working directory.
 ---
-The `execute` [callable](./callables.md) runs code for an agent. This page covers its input, the runtimes, the sandbox each call gets, queueing, networking, and its output. Operators set it up as described in [operations](../operate/code-execution-backend.md), and the threat model is in [security](./security.md).
+`execute` is the [callable tool](./callables.md) that runs code for an [agent](../agent.md). For example, an agent can run a short Python program to count the words in its notes. The code runs in a sandbox: a small virtual machine that is kept apart from the server and from other agents.
 
-Runs TypeScript, Python, or shell code in a hardware-isolated microVM with the agent's memory bind-mounted at `/workspace`, which is also the working directory (`apps/src/code-exec.ts`). <!-- id:nU6Y8gV3 -->
+`execute` runs TypeScript, Python or shell code. The agent's memory is mounted at `/workspace`, which is also the working directory (`apps/src/code-exec.ts`). <!-- id:nU6Y8gV3 -->
+
+This page covers the input, the languages, the sandbox each call gets, waiting in line, networking, and the output. Operators set it up as described in [Code execution backend](../operate/code-execution-backend.md), and the threat model is in [security](./security.md).
 
 # Input <!-- id:5dic_Cn3 -->
 
@@ -20,22 +22,25 @@ type ExecuteInput = {
 # Behavior
 
 <!-- id:EM9I864U -->
-- **`description` is required**, and it is what the user reads. Agents use `execute` constantly, and a row that says "Ran python code (exit 0, 812ms)" tells the user nothing. The contract demands the intent in one line ("Count words across the notes folder"). A call without one gets the contract back, like any other miss. The desktop row shows the description live while the sandbox runs, and afterwards as the summary. The summary leads with it and appends only what matters: a non-zero exit, or memory files touched. Runtime and duration stay in the expanded details. <!-- id:WtamqiDC -->
-- `ts` runs `bun -e`, `python` runs `python -c`, `shell` runs `/bin/sh -c`. Nothing goes through a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so code with quotes, newlines, or `$` needs no escaping (`code-exec.ts`). <!-- id:fSq8wN3B -->
-- **Two images.** The main rootfs is a Python image with no JavaScript runtime, so `ts` runs in its own image (`SEED_APPS_EXEC_TS_IMAGE`, default `oven/bun`). An operator can set it explicitly empty to withhold TypeScript. The runtime is then not offered at all, so it is never advertised and then fails (`code-exec.ts`, `executeToolForRuntimes`). <!-- id:ICMlkC26 -->
-- Each call gets a sandbox (`security: restricted`) with capped CPUs, memory, and lifetime (`timeout + 30s`). By default it is fresh and discarded afterwards, so the contract tells the model to save results as files and to `pip install --target /workspace/pylibs <pkg>`. With the **warm pool** on (`SEED_APPS_EXEC_WARM_POOL=1`), a VM is kept per principal (account, agent, session, image) and reused for that principal's next call: `SEED_APPS_EXEC_MAX_VMS` (3) bounds the pool, `SEED_APPS_EXEC_POOL_IDLE_TTL_SECS` (180) and `SEED_APPS_EXEC_POOL_MAX_AGE_SECS` (1800) retire a VM. A warm VM is never shared across principals. Only one sandbox may have an agent's memory mounted at a time: a call that arrives while another sandbox for the same agent is running (another session, a delegated child, a trigger firing) waits for it, first-in first-out, and answers 503 only after `SEED_APPS_EXEC_MEMORY_ROOT_WAIT_SECS` (300, the longest one execution can run), so such calls normally queue rather than fail. A host-wide cap, `SEED_APPS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1), queues calls the same way and answers 503 after `SEED_APPS_EXEC_ACQUIRE_WAIT_SECS` (30). <!-- id:iYhNTgqU -->
-- Networking is **on by default**, with explicit DNS resolvers and a non-local egress policy (`NetworkPolicy.fromProfiles(['public'])`, falling back to `nonLocal()` for older staged SDKs, `code-exec.ts`). <!-- id:V5Dky7AY -->
-- Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are bounded at 64 KiB each. `changedFiles` is a before/after listing diff of memory. Live progress streams a \~2000-char output tail at most every 250 ms. <!-- id:Zr_CQ4Uz -->
-- The SDK loads lazily and `availability()` is memoized. Hosts without virtualization run normally, and the tool is absent there instead of failing (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
+- **`description` is required**, and it is what the user reads. A row that says "Ran python code (exit 0, 812ms)" tells the user nothing. So the contract asks for the purpose in one line ("Count words across the notes folder"). A call without one gets the contract back, like any other miss. The [Seed app](../software/desktop.md) shows the description while the sandbox runs, and afterwards as the summary. The summary adds only what matters: an exit code that is not zero, or memory files that changed. The language and the duration stay in the expanded details. <!-- id:WtamqiDC -->
+- `ts` runs `bun -e`, `python` runs `python -c`, `shell` runs `/bin/sh -c`. Nothing goes through a shell unless the runtime _is_ the shell. The sandbox takes a list of arguments, so code with quotes, newlines, or `$` needs no escaping (`code-exec.ts`). <!-- id:fSq8wN3B -->
+- **Two images.** The main image is a Python image with no JavaScript runtime. So `ts` runs in its own image (`SEED_APPS_EXEC_TS_IMAGE`, default `oven/bun`). An operator can set that variable to an empty value to turn TypeScript off. The server then does not offer `ts` at all, so the model is never offered a language that fails (`code-exec.ts`, `executeToolForRuntimes`). <!-- id:ICMlkC26 -->
+- **A fresh sandbox.** Each call gets a sandbox (`security: restricted`) with limits on CPUs, memory, and lifetime (`timeout + 30s`). By default the sandbox is new and is thrown away afterwards. So the contract tells the model to save results as files, and to install Python packages with `pip install --target /workspace/pylibs <pkg>`. <!-- id:iYhNTgqU -->
+- **The warm pool.** With `SEED_APPS_EXEC_WARM_POOL=1`, the server keeps a VM and uses it again for the next call with the same [account](../protocol/identity.md), agent, [session](./session.md) and image. A warm VM is never shared outside that combination. `SEED_APPS_EXEC_MAX_VMS` (3) limits the pool. `SEED_APPS_EXEC_POOL_IDLE_TTL_SECS` (180) and `SEED_APPS_EXEC_POOL_MAX_AGE_SECS` (1800) retire a VM.
+- **One sandbox per agent memory.** Only one sandbox can have an agent's memory mounted at a time. A second call for the same agent waits in line, first in, first out. The second call can come from another session, a delegated child, or a [trigger](../trigger.md) firing. It fails with a 503 only after `SEED_APPS_EXEC_MEMORY_ROOT_WAIT_SECS` (300, the longest one execution can run). So such calls usually wait and do not fail.
+- **A limit for the whole host.** `SEED_APPS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1) limits how many sandboxes run at once. Calls past the limit wait the same way, and fail with a 503 after `SEED_APPS_EXEC_ACQUIRE_WAIT_SECS` (30).
+- Networking is **on by default**. The sandbox gets explicit DNS resolvers and can reach public addresses but not local ones (`NetworkPolicy.fromProfiles(['public'])`, or `nonLocal()` for older staged versions of the sandbox [SDK](../build/sdk.md), `code-exec.ts`). <!-- id:V5Dky7AY -->
+- Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are limited to 64 KiB each. `changedFiles` compares the list of memory files before and after. While the code runs, the server streams the last \~2000 characters of output, at most every 250 ms. <!-- id:Zr_CQ4Uz -->
+- The sandbox SDK is loaded only when first needed, and the result of `availability()` is remembered. A host without virtualization runs normally. The tool is simply absent there and does not fail (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
 
 # Files in /workspace
 
-`/workspace` is the agent's [memory](./memory.md). The `private/` part of memory is not mounted. Other runs of the same agent and the host side verbs reach the same files, so some kinds of file are unsafe there. Read [what not to keep in /workspace](./memory.md#what-not-to-keep-in-workspace).
+`/workspace` is the agent's [memory](./memory.md). The `private/` part of memory is not mounted. Other [runs](./runs.md) of the same agent, and the [read](./read.md) and [write](./write.md) [verbs](./tools.md) on the host, reach the same files. So some kinds of file are unsafe there. Read [what not to keep in /workspace](./memory.md#what-not-to-keep-in-workspace).
 
 # See also
 
 - [Callable tools](./callables.md)
 - [Memory](./memory.md)
 - [Security](./security.md)
-- [Operations: code execution backend](../operate/code-execution-backend.md)
+- [Code execution backend](../operate/code-execution-backend.md)
 - [Troubleshooting](../operate/troubleshooting.md)

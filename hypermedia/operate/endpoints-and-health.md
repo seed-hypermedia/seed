@@ -1,12 +1,19 @@
 ---
 name: Endpoints and health
-summary: The HTTP and WebSocket paths an app environment answers on, the base URL shapes a client may hold, and the health, version, timing and metrics endpoints an operator watches.
+summary: This page lists every HTTP and WebSocket path an app environment answers on, explains the two shapes of base URL a client may hold, and describes the health, version, timing and metrics endpoints an operator watches.
 ---
-An [app environment](../software/app-environment.md) is one HTTP server. This page lists every path it answers, says how a client turns one base URL into those paths, and documents the open endpoints an operator uses: health, version, timing counters and metrics. The signed actions themselves are in the [signed API](../build/signed-api.md), and live updates in [WebSocket subscriptions](../build/websocket-subscriptions.md).
+An [app environment](../software/app-environment.md) is one HTTP server. This page lists every path it answers. It also explains the endpoints you can call without a signature: health, version, timing counters and metrics.
+
+The first thing to check on any server is health: `curl <server>/api/health`. A `200` with `"status": "ok"` means the server is up and ready. The [Health](#health) section explains the rest of the answer.
+
+The signed actions themselves are in the [signed API](../build/signed-api.md), and live updates are in [WebSocket subscriptions](../build/websocket-subscriptions.md).
 
 # Paths <!-- id:oTx-eqES -->
 
-Every endpoint lives under the canonical prefix `/hm/api/apps`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The same routes answer under `/hm/api/agents`, the earlier prefix, which released clients, published bindings and webhook URLs already handed out name. The legacy paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered for clients that hold a bare origin. <!-- id:tYSO6ajj -->
+Every endpoint lives under one prefix, `/hm/api/apps`. So the server can sit on its own host, or on the origin of a [site](../protocol/sites.md) with one reverse-proxy rule. The server answers the same routes in two more spellings: <!-- id:tYSO6ajj -->
+
+- under `/hm/api/agents`, the older prefix. Released clients, published bindings and webhook URLs that were already handed out use it;
+- under the short paths `/api/*`, `/agents/api/*` and `/agents/ws`, for clients that hold only an origin.
 
 <!-- id:WyyD8vqE -->
 | Endpoint <!-- col:QqHnNcMC --> | Method <!-- col:0cPxyrJj --> | Purpose <!-- col:oVN2t9-G --> <!-- id:p8d1Mrxo --> |
@@ -25,25 +32,36 @@ Every endpoint lives under the canonical prefix `/hm/api/apps`, so the service c
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-The legacy forms of the other endpoints are `/api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`), `/api/metrics` and `/agents/api/metrics`, and `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>`. A [trigger](../agent/triggers.md)'s `endpointPath` names the canonical webhook form. This site writes the short forms `/api/health`, `/api/version`, `/api/perf` and `/api/metrics` when it talks about a server reached directly on its port; the same handler answers every spelling.
+The other endpoints have short forms too: `/api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`), `/api/metrics` and `/agents/api/metrics`, and `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>`. The `endpointPath` of a webhook [trigger](../trigger.md) names the `/hm/api/apps` form; see [triggers](../agent/triggers.md).
 
-Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+These pages write the short forms `/api/health`, `/api/version`, `/api/perf` and `/api/metrics` when they talk about a server you reach directly on its port. The same code answers every spelling.
+
+Everything else is a `404`. The server has no pages for a browser and no data routes that work without a signature. What an [account](../protocol/identity.md) owns ([agents](../agent.md), triggers, sessions, events, memory) can be reached only with a signed request, on the message endpoint and the WebSocket. The [signed API](../build/signed-api.md#signed-envelope) describes the envelope such a request travels in. To look inside a server, use the [desktop app](../software/desktop.md) or the signed actions `ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger` and `ListRuns`. <!-- id:cJBkT6iS -->
 
 # Base URL <!-- id:CJWNG9gR -->
 
-A client holds one base URL per app environment and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
+A client holds one base URL for each app environment. It works out the endpoint paths from the shape of that URL (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
   - **Canonical**: the path ends in `/hm/api/apps` or `/hm/api/agents`, for example `https://site.example/hm/api/apps`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`. <!-- id:p4SQmeaZ -->
   - **Legacy**: an origin only, for example `https://apps.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it. <!-- id:hS7cHZfj -->
 
-The hosted environments are reached in the canonical form on their gateway's origin, for example `https://hyper.media/hm/api/apps`, which is the desktop app's default (`frontend/apps/desktop/src/agents-defaults.ts`). A site may serve an app environment on its own origin in the same way: the reverse proxy routes `/hm/api/apps/*` and `/hm/api/agents/*` (API and WebSocket) to the app environment container, and the site advertises that URL as its app environment (`SEED_AGENT_SERVER_URL` on the [web app](../software/web.md), surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies this traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the app environment.
+Clients reach the hosted Seed servers in the canonical form, on the origin of their [gateway](../protocol/sites.md). An example is `https://hyper.media/hm/api/apps`, which is the default of the desktop app (`frontend/apps/desktop/src/agents-defaults.ts`).
 
-`SEED_APPS_PUBLIC_URL` tells the server the URL clients reach it at. It reports it as `publicUrl` in health, and an app run here names it as its `appEnvironmentUrl`.
+A site can serve an app environment on its own origin in the same way:
 
-On an [enterprise node](./enterprise-node.md), a members-only site, these paths sit behind the same sign-in gate as the rest of the site, except `POST …/webhooks/*`, which outside services call with the trigger secret and which stays open. The app environment reads its members-only site with the deployment's service secret (`SEED_APPS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `apps/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate. <!-- id:oNdAu6c9 -->
+1. The reverse proxy sends `/hm/api/apps/*` and `/hm/api/agents/*`, both the API and the WebSocket, to the app environment container.
+2. The site names that URL as its app environment. You set `SEED_AGENT_SERVER_URL` on the [web app](../software/web.md), and `/hm/api/config` reports it as `appEnvironmentUrl` (and as `agentServerUrl`, the older name).
+
+The web app never passes this traffic on itself. Do not give a client the bare origin of a site: `<origin>/api/message` is the site's own API, not the app environment.
+
+`SEED_APPS_PUBLIC_URL` tells the server the URL that clients reach it at. The server reports it as `publicUrl` in health, and an app that runs here names it as its `appEnvironmentUrl`.
+
+An [enterprise node](./enterprise-node.md) is a site for members only. There, these paths sit behind the same sign-in check as the rest of the site. One path stays open: `POST …/webhooks/*`, which outside services call with the trigger's secret. <!-- id:oNdAu6c9 -->
+
+The app environment itself must read that members-only site. It does so with the deployment's service secret, `SEED_APPS_HM_SERVER_SECRET`, which it sends as `X-Seed-Service-Secret` only to that site's origin (`apps/src/hm-server-auth.ts`). So triggers that react to mentions keep firing.
 
 # Health
 
-The health endpoints report what this server can actually do: <!-- id:15g_rrEQ -->
+The health endpoint reports what this server can do: <!-- id:15g_rrEQ -->
 
 ```json <!-- id:dv8IoP83 -->
 {
@@ -71,7 +89,16 @@ The health endpoints report what this server can actually do: <!-- id:15g_rrEQ -
 }
 ```
 
-`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_APPS_SEARXNG_URL` and `SEED_APPS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. `disk` is the free space where the database lives against the floor new runs require (`null` when the check is off), and `dispatch` says whether the queue is claiming runs; `{paused: true, reason}` names what stopped it. See the [effect outbox](../agent/effect-outbox.md). <!-- id:5FIU-ofh -->
+The fields, one by one: <!-- id:5FIU-ofh -->
+
+- `hmServerUrl` and `ipfsServerUrl` are where the server reads and writes. `ipfsServerUrl` is the same as `hmServerUrl` unless you set it, which is right when one origin serves both. A local desktop setup sets them apart, because the desktop app answers `/api/*` and the [daemon](../software/daemon.md) answers file reads under `/ipfs/*`. To publish a file, the server cuts it into [UnixFS](../protocol/files.md) pieces and sends them with `PublishBlobs` to `hmServerUrl`.
+- `webTools` comes from `SEED_APPS_SEARXNG_URL` and `SEED_APPS_CRAWLER_URL`. `search: false` means a `web_search` call fails. `readBrowser: false` means web reads cannot fall back to a browser.
+- `codeExec` comes from a probe of the sandbox backend. When it is `false`, agents are not offered `execute`, and `codeExecReason` and `codeExecReasonCode` say why.
+- `codeExecRuntimes` lists the runtimes this host offers. `ts` needs an image with bun, so this field shows whether TypeScript execution is on.
+- `disk` compares how much disk is free where the database lives with the least amount a new run needs. It is `null` when the check is off.
+- `dispatch` says whether the queue is taking runs. `{paused: true, reason}` names what stopped it. See the [run queue](./run-queue.md#when-dispatch-pauses) and the [effect outbox](../agent/effect-outbox.md).
+
+Clients read these fields to grey out what the server cannot do.
 
 The other fields:
 
@@ -86,7 +113,17 @@ The health payload carries no account data.
 
 ## While the server starts
 
-The server binds its port before it opens the database. Until it is ready, every health path answers `503` with `{"status": "starting", "phase": "…", "reason": "…"}` and a `Retry-After`, and every other path answers `503`. The phases are opening the database (migrations, planner statistics), starting the run queue (the boot sweeps), and starting monitors. Each step logs `[agents/boot] step finished` with its duration, and `App environment running` carries the total `bootMs`. A step is synchronous on the only thread, so a request that arrives during it is answered when it ends. The parked-run reconcile and receipt pruning run after the server is ready, one run at a time with the event loop given back in between; `bootRecovery` reports them as `pending`, `running`, `done` (with `ms`) or `failed` (with `error`). The container healthcheck allows a ten-minute start period for a cold boot on a large database.
+The server opens its port before it opens the database. Until it is ready, every health path answers `503` with `{"status": "starting", "phase": "…", "reason": "…"}` and a `Retry-After` header. Every other path answers `503` too.
+
+The phases are:
+
+1. opening the database: migrations and planner statistics;
+2. starting the run queue: the boot sweeps;
+3. starting the monitors.
+
+Each step logs `[agents/boot] step finished` with how long it took, and the line `App environment running` carries the total as `bootMs`. A step holds the only thread until it ends, so a request that arrives during a step is answered when the step ends.
+
+Two jobs run after the server is ready: the reconcile of parked runs, and the pruning of receipts. They work on one run at a time and let other work happen in between. `bootRecovery` reports them as `pending`, `running`, `done` (with `ms`) or `failed` (with `error`). The container's health check allows ten minutes for a first start on a large database.
 
 The `starting` body is served on `/hm/api/agents/health`, `/api/health` and `/agents/api/health`. During boot `/hm/api/apps/health` gets the plain `503` that every other path gets.
 
@@ -98,13 +135,20 @@ When the database fails the schema gate, every route answers `500` with `{"error
 
 # Timing counters and metrics
 
-`GET /api/perf` returns per-stage timing counters, the event-loop lag, the wall time of every signed action by name (`api.<ActionName>`) and the time inside every prepared statement by its first keyword (`sql.<keyword>`). `GET /api/perf/sessions/<sessionId>` returns one session's rollup: tool names, counts and milliseconds, never content. Both are open like health. The full session id is required, and an unknown one is a 404.
+`GET /api/perf` returns timing counters:
+
+- counters for each stage of a run;
+- the event-loop lag;
+- the time each signed action took, by name, as `api.<ActionName>`;
+- the time spent inside each prepared statement, by its first keyword, as `sql.<keyword>`.
+
+`GET /api/perf/sessions/<sessionId>` returns the totals of one session: tool names, counts and milliseconds, never content. Both endpoints are open, like health. You must give the full session id, and an unknown id is a `404`.
 
 `GET /api/metrics` serves the same aggregates and the exec canary in Prometheus text format, for a metrics collector and alert rules. [Diagnosing a stalled server](./stalled-server.md) and the [code execution backend](./code-execution-backend.md#is-code-execution-working) say how to read them.
 
 # CORS <!-- id:zUgG1bJ7 -->
 
-Health and CBOR API routes return permissive CORS headers. Security comes from [signatures](../signature.md) and account authorization. Browser origin plays no part. <!-- id:zx4dahLP -->
+The health routes and the API routes allow requests from any web origin. Security comes from [signatures](../signature.md) and from what each account is allowed to do. The origin of the browser page plays no part. <!-- id:zx4dahLP -->
 
 # See also
 

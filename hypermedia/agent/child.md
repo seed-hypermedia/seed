@@ -1,10 +1,17 @@
 ---
 name: Child
-summary: A child is a run spawned by the delegate verb, either a model child with its own session or a script child in the QuickJS engine.
+summary: A child is a helper run that an agent starts with the delegate verb, either a model with its own conversation or a script.
 ---
-A **child** is a [run](./runs.md) spawned by [delegate](./delegate.md). A model child gets its own session (thread) and starts from a [brief](./brief.md). A [script](./script.md) child runs in the QuickJS engine. <!-- id:QGIGEjGR -->
+A **child** is a helper [run](./runs.md) that an [agent](../agent.md) starts with [delegate](./delegate.md). The run that starts it is its parent. There are two kinds. A model child is a model with its own [session](./session.md) (its own conversation), and it starts from a [brief](./brief.md). A [script](./script.md) child is code that runs in the QuickJS engine. <!-- id:QGIGEjGR -->
 
-A child always runs as the agent that delegated, with grants that can only be narrower than its parent's. A model child returns `{text}`, or a [typed result](./typed-result.md) when the parent declared an `output` schema. While its children work, the parent [parks](./park.md). How many children a run may start, and how deep the tree may go, is the [delegation budget](./delegation-budgets.md). In a [plan](./plan.md), a child belongs to the step that was running when it was spawned (see [attachment](./attachment.md)).
+What is true of every child:
+
+- It runs as the agent that delegated, never as another agent.
+- Its [grants](./grants.md) can only be the same as its parent's or narrower.
+- A model child returns `{text}`. It returns a [typed result](./typed-result.md) when the parent gave an `output` schema.
+- While its children work, the parent [parks](./park.md): it waits and uses nothing.
+- The [delegation budget](./delegation-budgets.md) sets how many children a run may start, and how deep the tree may go.
+- In a [plan](./plan.md), a child belongs to the step that was running when it started (see [attachment](./attachment.md)).
 
 # See also <!-- id:lUkpI4p7 -->
 

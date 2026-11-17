@@ -1,46 +1,118 @@
 ---
 name: The Page Sandbox
-summary: How Seed isolates a custom HTML page as untrusted code, and how the viewer approves, narrows and revokes what the page may run, read, sign and publish.
+summary: Seed isolates a custom HTML page as untrusted code, and the viewer approves, narrows and takes back what the page may run, read, sign and publish.
 ---
-A [custom HTML page](../page.md) is code written by someone else that runs on the viewer's machine. This page describes what keeps it contained: the origin it runs in, the bridge it must go through, the approvals for running, reading, signing and publishing, and how a viewer takes them back. The calls themselves are in [the page SDK](./page-sdk.md).
+A [custom HTML page](../page.md) is code written by someone else that runs on the viewer's machine. So Seed runs it in a sandbox: a closed box that the page cannot leave. For example, a page cannot read the viewer's name until the viewer says yes.
+
+This page describes what keeps a page contained: the origin it runs in, the bridge it must go through, the approvals for running, reading, signing and publishing, and how a viewer takes them back. The calls themselves are in [the page SDK](./page-sdk.md).
 
 # What the page may do <!-- id:sEBfqfoQ -->
 
-The page is untrusted code: once a document is shared, someone else's page runs on the viewer's machine beside the viewer's data. So the page runs in an origin of its own, with no network, no access to the daemon or its secret, and no access to the Seed window. Desktop permits assets from the page folder. Web uses an opaque iframe and HTTP CSP sandbox on the same Seed origin; inline scripts/styles and embedded images are supported. Use self-contained HTML for both platforms. Sandboxing does not guarantee that data disclosed to page code cannot leave it through navigation. <!-- id:MyRnFAuR -->
-  - **Origin.** The desktop serves the folder at `seed-page://<host>/`, where the host is a fresh unpredictable value for each launch, bound to the canonical document, immutable bundle CID and selected viewer. Opening a different revision cannot replace assets served to an already-open revision. Native storage starts fresh on each launch and is cleared when the owning window closes or releases it; it cannot silently carry previously disclosed data into another launch. Optional device-local UI state uses `seed.storage.get/set`, whose host-managed namespace is `(viewer account, canonical document HMID)`, independent of the page revision. Different resources never share that state, even if their HTML is identical. <!-- id:qkgetBC6 -->
-  - **Bridge.** The page includes `<script src="/.seed/client.js"></script>`, which defines `window.seed`. Except for the synchronous display helper `seed.stringify`, each method posts a request to the Seed window that embeds the page and resolves with its answer; the Seed window answers the allowed calls. Web installs the API before page code runs and ignores the desktop bridge include. Both platforms allow reads within the page’s own space by default and gate other content, viewer identity and saved-state reads through Seed-owned approval UI. <!-- id:Q1Xrhos_ -->
+The page is untrusted code. Once a [document](../protocol/documents.md) is shared, someone else's page runs on the viewer's machine, beside the viewer's data. So the page runs in a web origin of its own: <!-- id:MyRnFAuR -->
 
-A `<form>` works on both hosts when its `submit` handler calls `preventDefault()`: the web sandbox allows the submit event (`allow-forms`) while `form-action 'none'` stops a form from navigating or posting anywhere.
+- It has no network access.
+- It cannot reach the [daemon](../software/daemon.md) or the daemon's secret.
+- It cannot reach the Seed window around it.
 
-State saved with `seed.storage` is local to the browser or device. It is not synced and not encrypted. Updated page code inherits the remembered rules of its document, and reading existing state requires read approval.
+The two hosts differ a little:
+
+- The desktop allows asset files from the page folder.
+- The web uses an opaque iframe and an HTTP CSP sandbox on the same Seed origin. It supports inline scripts, inline styles and embedded images.
+
+Use HTML that holds everything it needs, so it works on both. The sandbox does not promise that data the viewer gives to the page stays inside it. The page can still send it out by opening a link.
+
+## The origin
+
+On the desktop, each launch of a page gets a new address, `seed-page://<host>/`, that no other page can guess. The host part is tied to the page document, the fixed [CID](../cid.md) of its bundle and the selected viewer. Opening another version cannot replace the assets of a version that is already open. <!-- id:qkgetBC6 -->
+
+## Storage
+
+The browser's own storage starts empty on each launch. Seed clears it when the window that owns the page closes or lets it go. So data the viewer gave the page cannot quietly carry over to the next launch.
+
+For optional interface state on one device, a page uses `seed.storage.get` and `seed.storage.set`. The host keeps that state under the viewer's [account](../protocol/identity.md) and the page document's id, whatever the page's version. Two different documents never share that state, even if their HTML is the same.
+
+State saved with `seed.storage` stays in that browser or on that device. It is not synced and not encrypted. New page code gets the remembered rules of its document. Reading existing state needs read approval.
+
+## The bridge
+
+The page includes `<script src="/.seed/client.js"></script>`, which defines `window.seed`. Each method sends a request to the Seed window that holds the page, and resolves with the answer. The Seed window answers only the allowed calls. The one exception is `seed.stringify`, a display helper that runs inside the page. <!-- id:Q1Xrhos_ -->
+
+On the web, Seed installs the API before the page's code runs, and ignores the script include.
+
+Both hosts allow reads inside the page's own [space](../protocol/spaces.md) without asking. Other content, the viewer's identity and saved state each need an approval, in a dialog that Seed owns.
+
+## Forms
+
+A `<form>` works on both hosts when its `submit` handler calls `preventDefault()`. The web sandbox allows the submit event (`allow-forms`), and `form-action 'none'` stops a form from navigating or posting anywhere.
 
 # Running a page
 
-Running a page is separate from granting it access. Pages from joined sites, your own site or the current web site's identity run automatically. Other sites show **Run page**, explaining that code can mislead, consume resources and open links. Joining is optional. Seed remembers the approval for that page document, including later updates, for the selected account on this device. The prompt names the page's authors and offers **Always run pages by these authors**: after that, any page whose authors are all trusted runs without asking, so a page by fewer of them runs too, but a page with any other author asks again. **Page permissions** lists the page's run approval and its trusted authors under **Running**, each revocable; revoking stops the open page. Running permits reads of content within the page document’s own space, limited by the viewer’s existing protocol access. Viewer identity, other spaces and saved page state still require approval. <!-- id:srhIdCrl -->
+Letting a page run is separate from giving it access. <!-- id:srhIdCrl -->
+
+- A page runs at once when it comes from a [site](../protocol/sites.md) you joined, from your own site, or from the web site you are visiting.
+- A page from any other site shows **Run page**. The prompt explains that code can mislead, use resources and open links. You do not need to join the site.
+- Seed remembers the approval for that page document, including later updates, for the selected account on this device.
+- The prompt names the page's authors and offers **Always run pages by these authors**. After that, any page whose authors are all trusted runs without asking. A page by fewer of them runs too. A page with any other author asks again.
+- **Page permissions** lists the page's run approval and its trusted authors under **Running**. You can revoke each one. Revoking stops the open page.
+
+A running page may read content inside the page document's own space, as far as the viewer's own protocol access allows. The viewer's identity, other spaces and saved page state still need approval.
 
 # Access reviews
 
-The first operation needing access opens a Seed-owned review, defaulting to **Allow once**. **Allow more like this** offers narrower remembered rules alongside all-reading, any-signing or all-publishing, independently. A plain-text explanation below the choices describes the selected policy; broad permissions need no extra confirmation checkbox. Comment reviews show the text and target site; exact payload details and a SHA-256 fingerprint are available. Rules are remembered for `(selected viewer, canonical page document ID)` on this device, including future code updates. <!-- id:SDHt-XnV -->
-  - **Reading:** documents, the space profile and queries confined to the page document’s own space are allowed by default, including after resetting additional permissions. Other spaces require approval for a resource, a site, or all reads. Identity/profile/public-key access and saved page data need their own read approval. Search, comments and queries with an unbounded cross-site footprint currently offer once or all-reading; they cannot silently inherit a site grant. Resolved document targets are checked again before disclosure. <!-- id:Jm0jcobp -->
-  - **Signing:** approve one signature, an established signature type on one site, that type everywhere, or any signing. Comment creation, comment edits/deletions, document changes, references, contact changes and lasting capabilities are distinct. Classification validates the canonical signing bytes and actual signing principal against the protocol schema; the page cannot choose a label to obtain broader access. Types without a provable site binding have no site option. Unrecognized payloads offer only once or any-signing. <!-- id:0RMtjjbQ -->
-  - **Publishing:** exact recognized envelopes signed and approved in this launch may be published without another prompt. Modified blobs, extra attachments and previously signed/imported payloads need publication consent. Generic `PublishBlobs` requests use the same check. <!-- id:qZL-0mVf -->
+The first operation that needs access opens a review, in a dialog that Seed owns. <!-- id:SDHt-XnV -->
 
-A call to one of the app's tools (`seed.app.call`) is reviewed too: the viewer allows it once, for that tool, or for every tool of the app. Pages of one app share their permissions.
+- The default choice is **Allow once**.
+- **Allow more like this** offers narrower rules that Seed remembers. It also offers all reading, any signing or all publishing. Each of the three is chosen on its own.
+- A plain text below the choices explains the selected rule. A broad permission needs no extra checkbox.
+- The review of a [comment](../protocol/comments.md) shows the text and the target site. The exact payload and a SHA-256 fingerprint are available.
+- Seed remembers rules on this device for the selected viewer and the page document, or for the app when the page belongs to one. The rules cover future code updates.
+
+## Reading
+
+- Documents, the space's [profile](../profile.md) and queries that stay inside the page document's own space are allowed without asking. This stays true after a reset of additional permissions. <!-- id:Jm0jcobp -->
+- Other spaces need approval: for one resource, for one site, or for all reads.
+- The viewer's identity, profile and public key, and saved page data, each need their own read approval.
+- Search, comments and queries that can reach any site offer only "once" or "all reading". They cannot quietly use a grant for one site.
+- When a read resolves to a document, Seed checks that document again before it gives the data to the page.
+
+## Signing
+
+- The viewer can approve one signature, a known signature type on one site, that type everywhere, or any signing. <!-- id:0RMtjjbQ -->
+- These are separate types: creating a comment, editing or deleting a comment, document changes, references, [contact](../protocol/contacts.md) changes and lasting [capabilities](../protocol/permissions.md).
+- Seed looks at the real bytes being signed, and at the [principal](../principal.md) that really signs, to decide what kind of signature it is. The page cannot label a request as something safer.
+- A type that cannot be tied to one site for certain has no site option.
+- A payload that Seed does not recognize offers only "once" or "any signing".
+
+## Publishing
+
+- A page may publish, without another prompt, exactly the recognized envelopes that were signed and approved in this launch. <!-- id:qZL-0mVf -->
+- Changed [blobs](../protocol/blobs.md), extra attachments, and payloads that were signed earlier or imported need consent to publish.
+- Generic `PublishBlobs` requests go through the same check.
+
+## Tool calls
+
+Seed reviews a call to one of the host's tools (`seed.app.call`) too. The viewer allows it once, for that tool, or for every tool of the app. Pages of one app share their permissions.
 
 # Inspecting and revoking
 
-`seed.permissions.request()` returns `{grants}` without granting anything. **Page permissions** in the breadcrumb menu lets the viewer inspect, revoke individual rules or reset additional permissions; `seed.permissions.revoke()` resets the page's rules too. Revocation also aborts active/queued calls and propagates to other open views on the same origin. Closing, changing account or changing code cancels in-flight calls while keeping remembered rules. Allow-once approvals never coalesce different operations. <!-- id:__iSnD5h -->
+`seed.permissions.request()` returns `{grants}` and grants nothing. <!-- id:__iSnD5h -->
 
-A page can exfiltrate data after you disclose it: the sandbox limits ambient browser authority, not what the page can do with data it receives. Reading and signing are therefore independent. Keys remain in Seed. Revocation cannot recall disclosed information, completed signatures, publications or lasting protocol capabilities already issued. <!-- id:ICIxoM5i -->
+- **Page permissions** in the breadcrumb menu lets the viewer inspect the rules, revoke single rules, or choose **Reset additional permissions**.
+- `seed.permissions.revoke()` resets the page's rules too.
+- Revoking also stops calls that are running or waiting, and reaches other open views of the same page.
+- Closing the page, changing the account or changing the code cancels calls in progress. The remembered rules stay.
+- An **Allow once** approval covers one operation. Seed never joins different operations under it.
 
-Permissions are not pinned to a version of the page: a rule covers later versions of the same page document. There is no undo for a signature or a publication.
+A page can send data away after you give it. The sandbox limits what the page can reach by itself. It does not limit what the page does with data it receives. This is why reading and signing are approved separately. Keys stay in Seed. Revoking cannot take back information the page already has, finished signatures, publications, or lasting protocol capabilities that were already issued. <!-- id:ICIxoM5i -->
+
+A permission is not tied to one version of the page. A rule covers later versions of the same page document. A signature or a publication cannot be undone.
 
 # Where the pieces are <!-- id:wbK6irDo -->
 
-- **Daemon.** `GET /ipfs/{cid}/{path}` walks a UnixFS directory the way an IPFS gateway does, types entries by extension, and serves a folder as its `index.html` (`backend/hmnet/filemanager.go`). The web page's `/hm/api/file/<cid>/<path>` proxies the same. <!-- id:pHJnvTPq -->
-- **Shared.** `@shm/shared/document-page` holds the scheme, bridge, `DocumentPageSDK` TypeScript interface and message guard. `document-page-content` uses the HM SDK for block helpers and permission-controlled account requests and SDK signing; `document-page-permissions` classifies actual bytes and manages revocable scoped rules; `directoryToIpfsBlobs` in `@seed-hypermedia/client` builds the folder's blocks. <!-- id:9Pr7yzT- -->
-- **Desktop.** `page-document-pages.ts` registers the scheme and serves page files from the daemon; `page-window-policy.ts` admits page frames; `DocumentPageView` in `@shm/ui/document-page` embeds the page and answers the bridge. <!-- id:WPSC9ID0 -->
-- **Web.** Normal document URLs render pages using `/hm/page-runner` on the same hostname/port. `/hm/api/page` checks that the requested bundle belongs to the readable document revision, then returns HTML as inert data. The parent transfers it through a launch-bound MessageChannel into the opaque sandbox. No wildcard DNS, per-page domains or separate runtime service are required. Raw `/hm/api/file` responses are sandboxed without scripts to prevent direct navigation from executing uploads with Seed authority. <!-- id:FbM8tviL -->
+- **Daemon.** `GET /ipfs/{cid}/{path}` walks a UnixFS directory the way an IPFS gateway does. It sets each entry's type by its extension, and serves a folder as its `index.html` (`backend/hmnet/filemanager.go`). On the web, `/hm/api/file/<cid>/<path>` passes the same request on. <!-- id:pHJnvTPq -->
+- **Shared.** `@shm/shared/document-page` holds the scheme, the bridge, the `DocumentPageSDK` TypeScript interface and the message guard. `document-page-content` uses [the SDK](./sdk.md) for the [block](../protocol/blocks.md) helpers, for account requests that need permission, and for signing. `document-page-permissions` classifies the real bytes and manages the rules. `directoryToIpfsBlobs` in `@seed-hypermedia/client` builds the folder's IPFS blocks. <!-- id:9Pr7yzT- -->
+- **Desktop.** `app-document-pages.ts` registers the scheme and serves page files from the daemon. `app-window-policy.ts` admits page frames. `DocumentPageView` in `@shm/ui/document-page` embeds the page and answers the bridge. <!-- id:WPSC9ID0 -->
+- **Web.** Normal document URLs show pages through `/hm/page-runner` on the same host name and port. `/hm/api/page` checks that the requested bundle belongs to a document version the viewer can read. Then it returns the HTML as plain data. The parent window passes it into the opaque sandbox through a MessageChannel made for that launch. This needs no wildcard DNS, no domain per page and no separate service. Raw `/hm/api/file` responses are sandboxed without scripts. So opening an uploaded file directly cannot run it with Seed's rights. <!-- id:FbM8tviL -->
 
 # See also
 

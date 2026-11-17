@@ -1,24 +1,26 @@
 ---
 name: Catalogue of Types
-summary: Every type in the Hypermedia Schemas library with one line each, grouped into value types, protocol types, the meta-schema and the examples.
+summary: This page lists every type in the Hypermedia Schemas library with one line each, grouped into value types, protocol types, the meta-schema and the examples.
 ---
-This page lists every type in the [Hypermedia Schemas](../schema.md) library. Each type has a page at the address of its name: the type `change/body` is `hm://hyper.media/change/body`, and its page is [change/body](../change/body.md). The name in backticks after each link is that library name. [References and naming](./references.md) explains the names, and [the schema language](./schema-language.md) explains how the types are written.
+This page lists every type in the [Hypermedia Schemas](../schema.md) library, with one line for each. A type is a named schema, such as `string` or `change`. Each type has a page, and the address of the page is the name of the type. For example, the type `change/body` is `hm://hyper.media/change/body`, and its page is [change/body](../change/body.md).
+
+The name in backticks after each link is the name of the type in the library. [References and naming](./references.md) explains the names. [The schema language](./schema-language.md) explains how the types are written.
 
 # Value types
 
-These are the types of plain values. [The data model](./data-model.md) explains the kinds they are built from.
+These are the types of plain values, such as text, numbers and lists. [The data model](./data-model.md) explains the kinds they are built from.
 
 ## Kinds
 
-One [primitive](./primitive.md) per [kind](./kind.md), plus `struct`, the second type the schema language gives to the `map` kind.
+The library has one [primitive](./primitive.md) for each [kind](./kind.md). It also has `struct`, the second type that the schema language gives to the `map` kind.
 
 - [Null](../null.md) (`null`): The null value.
 - [Boolean](../boolean.md) (`boolean`): A true or false value.
-- [Integer](../integer.md) (`integer`): A whole number, which DAG-CBOR encodes distinctly from floats.
+- [Integer](../integer.md) (`integer`): A whole number, which [DAG-CBOR](./dag-cbor.md) encodes distinctly from floats.
 - [Float](../float.md) (`float`): A floating-point number.
 - [String](../string.md) (`string`): UTF-8 text.
 - [Bytes](../bytes.md) (`bytes`): Raw binary data (a byte string).
-- [Link](../link.md) (`link`): The IPLD link kind, a CID inside a value that points at another block by its content, encoded as CBOR tag 42 and spelled with a slash key in DAG-JSON.
+- [Link](../link.md) (`link`): The [IPLD](./ipld.md) link kind, a CID inside a value that points at another block by its content, encoded as CBOR tag 42 and spelled with a slash key in [DAG-JSON](./dag-json.md).
 - [List](../list.md) (`list`): An ordered sequence, which is List\<Any> until it is parameterized with items.
 - [Map](../map.md) (`map`): A map of string keys to values of one type (Map\<Any> until `values` constrains it); use a struct when the field names are known.
 - [Struct](../struct.md) (`struct`): A map with known, named fields, the type behind every record-like value from an address to a signed Change.
@@ -31,38 +33,38 @@ One [primitive](./primitive.md) per [kind](./kind.md), plus `struct`, the second
 
 ## Refined strings
 
-Each is a string with a `format` that tells an editor which control to show.
+Each of these is a string with a `format`. The format tells an editor which control to show.
 
 - [Date](../date.md) (`date`): A calendar date held as an ISO 8601 `YYYY-MM-DD` string, with `format: date` so editors show a date picker and validators can check the shape.
 - [Date-Time](../date-time.md) (`date-time`): An instant held as an RFC 3339 string such as `2026-08-26T14:30:00Z`, with `format: date-time` so editors show a date-and-time picker.
-- [URL](../url.md) (`url`): A string holding a URL of any scheme, which `format: url` tells an editor to render as a link and to validate as one.
-- [Hypermedia URL](../hm-url.md) (`hm-url`): A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
+- [URL](../url.md) (`url`): A string holding a URL of any scheme, marked with `format: url`.
+- [Hypermedia URL](../hm-url.md) (`hm-url`): A reference to a Hypermedia [document](../protocol/documents.md) held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
 - [IPFS URL](../ipfs-url.md) (`ipfs-url`): A reference to a content-addressed object held as an `ipfs://<cid>` string, which editors render as a file pill you can open, upload to, or paste into.
-- [Account](../account.md) (`account`): A reference to an account, held as the bare `hm://<principal>` URL, with `format: hm-profile` so editors offer an account search and accept a pasted principal.
+- [Account](../account.md) (`account`): A reference to an [account](../protocol/identity.md), held as the bare `hm://<principal>` URL, with `format: hm-profile` so editors offer an account search and accept a pasted principal.
 
 ## Aliases used inside blobs
 
-Plain names for the kinds the signed blobs carry.
+These are plain names for the kinds that the signed [blobs](../protocol/blobs.md) carry.
 
 - [CID](../cid.md) (`cid`): A content identifier, the self-describing hash that names a blob by its bytes, written in Hypermedia as CIDv1 with the dag-cbor codec and either a SHA-256 or a BLAKE2b-256 multihash.
-- [Principal](../principal.md) (`principal`): A public key that identifies an account or space, stored in blobs as the raw bytes of a multicodec prefix plus the key and shown to people as a base58 string starting with z6Mk.
+- [Principal](../principal.md) (`principal`): A public key that identifies an account or [space](../protocol/spaces.md), stored in blobs as the raw bytes of a multicodec prefix plus the key and shown to people as a base58 string starting with z6Mk.
 - [Signature](../signature.md) (`signature`): The 64 raw bytes of an Ed25519 or P-256 signature over a blob's canonical CBOR encoding taken with this very field set to zeros.
 - [Timestamp](../timestamp.md) (`timestamp`): A point in time as an integer of Unix milliseconds, issued by a causal clock when a blob is signed and never checked against wall-clock time on arrival.
 
 # Protocol types
 
-These type the data the Hypermedia Network stores and the documents it computes. [Network blobs](./blobs.md) explains how they fit together.
+These types describe the data that the Hypermedia Network stores, and the documents it builds from that data. [Network blobs](./blobs.md) explains how they fit together.
 
 ## The envelope and the six blobs
 
 - [Blob](../blob.md) (`blob`): The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
-- [Any Blob](../blob/any.md) (`blob/any`): Any Hypermedia CBOR blob: the discriminated union of the six blob types, tagged on the type field.
+- [Any Blob](../blob/any.md) (`blob/any`): Any Hypermedia CBOR blob: the [discriminated union](./discriminated-union.md) of the six blob types, tagged on the type field.
 - [Change](../change.md) (`change`): A signed delta on a document that links the changes it depends on into a causal graph and carries the operations that mutate the document's content and metadata.
 - [Ref](../ref.md) (`ref`): A signed claim, like a Git ref, that a path in a space points at the current head Changes of a document, or that the path is deleted or redirects elsewhere.
-- [Comment](../comment.md) (`comment`): A signed comment on a document version, threaded through threadRoot and replyParent, with a body that is a tree of comment blocks.
-- [Capability](../capability.md) (`capability`): A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional path scope, and nothing that expires or revokes it.
-- [Contact](../contact.md) (`contact`): A public address-book entry: one account's name for another account, with flags that say whether it joined that account's site or follows its profile.
-- [Profile](../profile.md) (`profile`): A snapshot blob giving an account its display name, avatar and description, or an alias that redirects one key to another; readers merge every profile for an account field by field.
+- [Comment](../comment.md) (`comment`): A signed [comment](../protocol/comments.md) on a document version, threaded through threadRoot and replyParent, with a body that is a tree of comment blocks.
+- [Capability](../capability.md) (`capability`): A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional [path scope](../protocol/permissions.md), and nothing that expires or revokes it.
+- [Contact](../contact.md) (`contact`): A public address-book entry: one account's name for another account, with flags that say whether it joined that account's [site](../protocol/sites.md) or follows its profile.
+- [Profile](../profile.md) (`profile`): A [snapshot blob](../protocol/blobs.md) giving an account its display name, avatar and description, or an alias that redirects one key to another; readers merge every profile for an account field by field.
 
 ## Parts of blobs
 
@@ -75,13 +77,13 @@ These type the data the Hypermedia Network stores and the documents it computes.
 - [SetKey Op](../change/op/set-key.md) (`change/op/set-key`): The deprecated flat form of SetAttributes that sets a single top-level metadata key, still accepted so old Changes replay.
 - [Key/Value](../key-value.md) (`key-value`): One attribute assignment in a SetAttributes op: a key path (a list of segments) and a scalar value.
 - [Redirect Target](../ref/redirect-target.md) (`ref/redirect-target`): The destination carried by a redirect Ref, a space and path to send readers to, with a republish flag that keeps the content showing under the old address.
-- [Contact Subscription](../contact/subscribe.md) (`contact/subscribe`): The two follow flags on a contact: site means the account joined the subject's site, profile means it follows the subject as a person.
-- [Role](../role.md) (`role`): The kind of capability being granted: WRITER may publish under a path, AGENT may act as the issuing account; no other role exists in data.
+- [Contact Subscription](../contact/subscribe.md) (`contact/subscribe`): The two follow flags on a [contact](../protocol/contacts.md): site means the account joined the subject's site, profile means it follows the subject as a person.
+- [Role](../role.md) (`role`): The kind of [capability](../protocol/permissions.md) being granted: WRITER may publish under a path, AGENT may act as the issuing account; no other role exists in data.
 - [Visibility](../visibility.md) (`visibility`): The visibility of a Ref or Comment, empty for public and "Private" for private, from which every Change and file it links inherits its own visibility.
 
 ## Documents
 
-- [Document](../document.md) (`document`): The read model of a Hypermedia document, the metadata and block tree that result from replaying its Changes, and the base every typed document's attributes are folded into.
+- [Document](../document.md) (`document`): The read model of a Hypermedia document, the metadata and block tree that result from replaying its Changes, and the base every [typed document](./typed-documents.md)'s attributes are folded into.
 - [Document Metadata](../metadata.md) (`metadata`): The attributes of a document, merged from its Changes: the keys Seed understands, the three schema-binding keys, and any custom keys a typed document adds.
 - [Navigation item](../metadata/navigation-item.md) (`metadata/navigation-item`): One entry of a site's navigation menu: a Link block with display text and a link, stored as a child of the detached navigation block.
 - [Query](../query.md) (`query`): A live document query: which spaces and paths to include, how to sort, and an optional limit; the payload of a Query block and of the Query request.
@@ -92,11 +94,11 @@ These type the data the Hypermedia Network stores and the documents it computes.
 
 ## Resource types
 
-Types a document takes on when it is more than a page of text.
+A document takes one of these types when it is more than a page of text.
 
 - [Page](../page.md) (`page`): A page is a document typed hm://hyper.media/page that carries an HTML bundle and an input schema, runs sandboxed in the viewer's client, and acts as the viewer under approvals the viewer gives step by step.
 - [Page Input](../page-input.md) (`page-input`): A page takes typed input from its URL, declared by the struct schema its inputSchema names, and this closed, empty struct is the default for a page that takes none.
-- [Seed Agents](../agent.md) (`agent`): An agent is a language model with memory, tools and its own Seed identity, which runs on an app environment and reads and writes Hypermedia like any other participant.
+- [Seed Agents](../agent.md) (`agent`): An agent is a language model with memory, tools and its own Seed identity, which runs on an [app environment](../software/app-environment.md) and reads and writes Hypermedia like any other participant.
 
 ## Blocks
 
@@ -136,7 +138,7 @@ The [block](../block.md) page lists the block model in reading order.
 
 # The meta-schema
 
-These type schemas themselves. [The schema language](./schema-language.md) is the reference for all of them.
+These types describe schemas themselves. [The schema language](./schema-language.md) is the reference for all of them.
 
 - [Schema](../schema.md) (`schema`): The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, and the starting point for every page about Hypermedia Schemas.
 - [Struct schema](./struct-schema.md) (`schema/struct-schema`): The variant for a struct, with known fields under properties and optionally extra keys of one type under values.
@@ -152,7 +154,7 @@ These type schemas themselves. [The schema language](./schema-language.md) is th
 
 # Examples
 
-The library also holds thirty-two teaching schemas and five instance documents under `example/`. [Examples](../example.md) lists them, grouped by the feature each one shows.
+The library also holds thirty-two schemas for learning and five instance documents under `example/`. [Examples](../example.md) lists them, grouped by the feature each one shows.
 
 # See also
 
@@ -161,4 +163,4 @@ The library also holds thirty-two teaching schemas and five instance documents u
 - [Network blobs](./blobs.md): how the protocol types fit together.
 - [Blocks](../protocol/blocks.md): the block tree as a protocol concept.
 - [Examples](../example.md): the example schemas and instances.
-- [The schema library pipeline](./library-pipeline.md): how the library is validated, pinned and published.
+- [The schema library pipeline](./library-pipeline.md): how the library is checked, recorded in the lockfile and published.

@@ -47,7 +47,10 @@ This folder is for long-lived content: concepts, the ontology, reference and wor
 - Hubs route, leaves teach. A landing page says what the area is and lists its pages with a line each.
 - Each fact has one home. Other pages link to it; they do not restate it.
 - State what is true now, in the present tense: no dates, no "as of", no PR numbers, no "not yet".
-- There is little hierarchy on purpose. Link every concept the first time it appears.
+- There is little hierarchy on purpose. Link every concept the first time it appears, to the page that defines it.
+- Write in very simple language: short sentences, everyday words, one idea per sentence. Say what a thing is before how it works.
+
+**Concepts and the glossaries.** `glossary.md` and `agent/glossary.md` are the registry of every term. Each entry links the page that defines the term. `check.mjs` fails when a page uses a registered term and does not link its defining page; `node scripts/hypermedia/concepts.mjs --fix` links the first mention. When you introduce a concept, add it to a glossary with the page that defines it. Everyday words (file, page, key, tool) are not checked by the script, so link those by hand.
 
 ## Writing pages
 
@@ -62,13 +65,14 @@ This folder is for long-lived content: concepts, the ontology, reference and wor
 ```sh
 node scripts/hypermedia/check.mjs            # everything below, run by CI before publishing
 node scripts/hypermedia/tree.mjs [--fix]     # the tree rule: a parent page for every page, a child card in every parent
+node scripts/hypermedia/concepts.mjs [--fix] # the concept rule: a page that names a term links the page that defines it
 node scripts/hypermedia/validate.mjs         # the reference validator
 node scripts/hypermedia/publish.mjs          # recompute schemas.lock.json after a schema change
 node scripts/hypermedia/gen-registry.mjs     # the schema registry bundled into the SDK
 node scripts/hypermedia/typegen.mjs          # TypeScript types for every schema
 ```
 
-`check.mjs` fails when a schema is invalid, a schema has no page, the lockfile or generated files are stale, an instance page doesn't satisfy its type, a page is missing a `name` or a whole `summary`, a page has no parent page, or a parent has no Card embed of a child. Page summaries feed the generated files, so run `gen-registry.mjs` and `typegen.mjs` after changing a summary on a schema page.
+`check.mjs` fails when a schema is invalid, a schema has no page, the lockfile or generated files are stale, an instance page doesn't satisfy its type, a page is missing a `name` or a whole `summary`, a page has no parent page, a parent has no Card embed of a child, or a page uses a glossary term without linking the page that defines it. Page summaries feed the generated files, so run `gen-registry.mjs` and `typegen.mjs` after changing a summary on a schema page.
 
 ## Publishing
 

@@ -1,46 +1,80 @@
 ---
 name: Run queue
-summary: The operator's view of the run queue, covering its two queues and concurrency caps, what happens to runs across a restart, how failures are retried, and when dispatch pauses.
+summary: This page explains the run queue from the operator's side, covering how many runs execute at once, what happens to runs across a restart, which failures are retried, and when the queue stops taking work.
 ---
-Every agent execution in an [app environment](../software/app-environment.md) is a [run](../agent/runs.md), a durable row in the `runs` table, and that table is also the dispatch queue (`apps/src/runs.ts`). The concept, the statuses and the run tree are explained in [runs](../agent/runs.md). This page covers what an operator sets and watches: how many runs execute at once, what a restart does, what is retried, and what stops the queue.
+Every piece of work an [agent](../agent.md) does in an [app environment](../software/app-environment.md) is a [run](../agent/runs.md). A run is a row in the `runs` table, and that table is also the queue the server takes work from (`apps/src/runs.ts`). This page covers what an operator sets and watches: how many runs execute at once, what a restart does, what is retried, and what stops the queue.
+
+The first thing to check when runs do not start: `curl <server>/api/health` and read `dispatch`. `{"paused": true, "reason": …}` means the queue has stopped; see [When dispatch pauses](#when-dispatch-pauses).
+
+The idea of a run, its statuses and the tree of runs are explained in [runs](../agent/runs.md).
 
 # Queues and concurrency <!-- id:jIKj9Ovy -->
 
-- **Queues**: interactive user turns are claimed inline by `MessageSession`, so a person's message does not wait behind background work. Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at `SEED_APPS_MAX_CONCURRENT_MODEL_RUNS` (default 8, flag `--max-concurrent-model-runs`) concurrent provider streams. Script runs get their own pool, `SEED_APPS_MAX_CONCURRENT_WORKFLOWS` (default 32, `--max-concurrent-workflows`; they hold no provider stream), so a script awaiting its children can never starve them. `SEED_APPS_WORKFLOW_WORKER=1` runs scripts in a separate worker process instead of on the server's thread. <!-- id:db3BA2As -->
-- **One live agent run per session** is enforced at claim time (lease-based). <!-- id:ST5DHKVV -->
-- **Leases** are recorded for 60 seconds on claim but not enforced: with one service process, the boot sweep requeues every run the previous process left claimed or running. <!-- id:YD2c9GyO -->
+- **Interactive turns go first.** `MessageSession` claims the turn for a person's message itself, so the message does not wait behind background work. <!-- id:db3BA2As -->
+- **Everything else uses the `background` queue.** That is [trigger](../trigger.md) firings, sessions an agent starts, delegated model children and script children.
+- **Agent runs have a limit.** At most `SEED_APPS_MAX_CONCURRENT_MODEL_RUNS` agent runs hold a provider stream at once. The default is 8, and the flag is `--max-concurrent-model-runs`.
+- **Script runs have their own limit.** At most `SEED_APPS_MAX_CONCURRENT_WORKFLOWS` scripts run at once. The default is 32, and the flag is `--max-concurrent-workflows`. Scripts hold no provider stream. Because the two limits are separate, a script that waits for its children can never hold them up.
+- **Scripts can run on a worker thread.** `SEED_APPS_WORKFLOW_WORKER=1` runs scripts on a worker thread instead of on the server's main thread.
+- **One live agent run per session.** The server enforces this when it claims a run. <!-- id:ST5DHKVV -->
+- **Leases are recorded and not enforced.** A claim writes a lease of 60 seconds. Nothing reads it. There is one server process, so at startup the boot sweep puts back in the queue every run the last process left claimed or running. <!-- id:YD2c9GyO -->
 
-Everything shares one thread, so size the caps to the host. [Diagnosing a stalled server](./stalled-server.md) shows how to see whether the thread is saturated.
+Almost everything shares one thread, so choose limits that fit the host. [Diagnosing a stalled server](./stalled-server.md) shows how to see whether the thread is too busy.
 
 # Across a restart
 
-- **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` is answered from the [effect outbox](../agent/effect-outbox.md): the receipt when the effect finished, an interrupted result naming the effect when it did not, so the provider request is well-formed and the model knows what to check. The same sweep marks every effect the dead process left running as interrupted. Script runs resume by [journal](../agent/journal.md) replay. <!-- id:fGRoe2ad -->
+Restarting the server is always safe. At startup the **boot sweep** does this: <!-- id:fGRoe2ad -->
 
-After the server is ready, a reconcile pass replays any child that finished without resolving its [parked](../agent/park.md) parent, and settled receipts are pruned. The health endpoint reports that pass as `bootRecovery`; see [endpoints and health](./endpoints-and-health.md#while-the-server-starts). Restarting the service is always safe.
+1. It puts back in the queue every run that a dead process left `claimed` or `running`. Runs that were already queued continue.
+2. An agent run continues by replaying the stored events of its session.
+3. A crash can happen between a stored `tool_call` and its `tool_result`. The [effect outbox](../agent/effect-outbox.md) answers such a call. If the effect finished, the answer is its receipt. If it did not, the answer says the call was interrupted and names the effect. So the request to the provider is complete, and the model knows what to check.
+4. It marks every effect the dead process left running as interrupted.
+5. A script run continues by replaying its [journal](../agent/journal.md).
+
+After the server is ready, a second pass handles any child that finished without waking its [parked](../agent/park.md) parent, and removes old receipts. Health reports that pass as `bootRecovery`; see [endpoints and health](./endpoints-and-health.md#while-the-server-starts).
 
 # Retries
 
-- **Retry classification**: provider 5xx and network failures are retryable with exponential backoff (base 5s, cap 5min). Validation and config errors fail immediately. `maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, agent-started sessions, delegated model children. It is 1 for interactive turns, which have a person waiting, and for script runs, which resume from their journal and never restart. <!-- id:it4z5p55 -->
+The server decides from the kind of failure whether to try again: <!-- id:it4z5p55 -->
+
+- **Retried:** a provider answer in the 500 range, and network failures. The wait doubles each time, from 5 seconds up to 5 minutes.
+- **Not retried:** validation errors and configuration errors. They fail at once.
+
+`maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, sessions an agent starts, delegated model children. It is 1 for interactive turns, because a person is waiting. It is also 1 for script runs, which continue from their journal and never start again.
 
 # Parked runs
 
-A parked run holds no resources and no concurrency slot. [Park](../agent/park.md) lists the four reasons a run parks and [wake source](../agent/wake-source.md) what wakes each. The dispatcher's 1-second interval wakes due timers.
+A parked run uses no resources and takes no place under the limits. [Park](../agent/park.md) lists the four reasons a run parks, and [wake source](../agent/wake-source.md) says what wakes each. The dispatcher looks once a second for timers that are due.
 
 # When dispatch pauses
 
-The queue claims a run only while the file system that holds the database has at least `SEED_APPS_MIN_FREE_DISK_MIB` free (default 512 MiB). Below it, runs stay `queued`, runs already in flight finish, and health reports `dispatch: {paused: true, reason}` with the figures in `disk`. Dispatch resumes on its own once space is free. The log says `[agents/runs] dispatch paused` and `[agents/runs] dispatch resumed`. The [effect outbox](../agent/effect-outbox.md) explains why a turn must not start on a full disk.
+The queue takes a run only while the file system that holds the database has at least `SEED_APPS_MIN_FREE_DISK_MIB` free. The default is 512 MiB. Below it:
+
+- queued runs stay `queued`;
+- runs that are already executing finish;
+- health reports `dispatch: {paused: true, reason}`, with the numbers in `disk`;
+- the log says `[agents/runs] dispatch paused`.
+
+The queue starts again by itself once there is room, and the log says `[agents/runs] dispatch resumed`. The [effect outbox](../agent/effect-outbox.md) explains why a turn must not start on a full disk.
 
 # Script limits
 
-[Script](../agent/script.md) execution bounds (see `apps/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s pure-compute fuel between awaits, 256 KiB source cap, and journal caps of 5,000 entries / 8 MiB per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` / `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`). A long-lived loop escapes the journal cap with [`ctx.continueAsNew`](../agent/continue-as-new.md), which ends the run and starts a successor carrying only the declared state. <!-- id:4CrPGBii -->
+A [script](../agent/script.md) runs inside these limits (see `apps/src/workflow-host.ts`): <!-- id:4CrPGBii -->
+
+- one QuickJS-WASM realm per run;
+- 64 MiB of memory;
+- 2 seconds of pure computing between two awaits;
+- 256 KiB of source;
+- 5,000 journal entries or 8 MiB of journal per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` and `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`).
+
+A loop that must run for a long time gets around the journal limit with [`ctx.continueAsNew`](../agent/continue-as-new.md). It ends the run and starts a new one that carries only the state the script names.
 
 # See also
 
 - [Runs](../agent/runs.md), the concept: kinds, statuses, the run tree
 - [Park](../agent/park.md) and [wake source](../agent/wake-source.md)
-- [Journal](../agent/journal.md), how a script run resumes
+- [Journal](../agent/journal.md), how a script run continues
 - [Effect outbox](../agent/effect-outbox.md), how interrupted tool calls are answered
-- [Debugging runs](./debugging-runs.md), symptom first
+- [Debugging runs](./debugging-runs.md), starts from what you see
 - [Persistence](./persistence.md#runs), the `runs` table
 - [Configuration](./configuration.md), the settings named here
 - [Testing the app environment](../contribute/testing-the-app-environment.md), how tests wait for the queue

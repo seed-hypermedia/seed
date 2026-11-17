@@ -2,13 +2,22 @@
 name: Webhooks
 summary: A webhook trigger fires when a sender POSTs JSON to its delivery URL with the trigger's secret, and the posted body reaches the tool or session the trigger starts.
 ---
-A webhook is one of the [sources](./triggers.md) of a [trigger](../trigger.md). It lets something outside Hypermedia, such as a form service, a build system or a payment provider, start a tool call or an agent session by sending an HTTP request. This page covers the delivery URL, the secret, the responses, deduplication, and how the posted body reaches the action.
+A **webhook** lets a program outside Hypermedia start a [trigger](../trigger.md) by sending an HTTP request. For example, a form service can POST each new answer to a webhook URL, and the trigger then calls a [tool](../tool.md) with that answer or starts an [agent](../agent.md) [session](./session.md).
+
+A webhook is one of the [sources](./triggers.md) of a trigger. This page covers the delivery URL, the secret, the responses, how repeats are detected, and how the posted body reaches the action. Some rules differ between a trigger document and a trigger stored on the server. Each such rule says which form it is about.
 
 # Delivering
 
-The HTTP server delivers **webhooks** synchronously. A request to `POST /hm/api/agents/webhooks/<triggerId>/<secret>`, or to `POST /hm/api/agents/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, with a JSON body answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and under the webhook body cap. The secret is 43 URL-safe characters. It is generated with the trigger and shown on its page to accounts that can edit the agent. The client builds the delivery URL from the server's base. <!-- id:30W5TAHJ -->
+The HTTP server handles a webhook at once, inside the request. There are two ways to send one: <!-- id:30W5TAHJ -->
 
-The same two routes also answer under `/hm/api/apps/webhooks/…`. The secret rides in the URL because many senders can only POST to a URL they are given; a sender that can set headers can keep it out of the URL with the `Authorization` form.
+- `POST /hm/api/agents/webhooks/<triggerId>/<secret>`
+- `POST /hm/api/agents/webhooks/<triggerId>` with the header `Authorization: Bearer <secret>`
+
+With a JSON body, the server answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and no larger than 64 KiB.
+
+The secret is 43 URL-safe characters. The server makes it with the trigger. It is shown on the trigger's page to [accounts](../protocol/identity.md) that can write the host's space. The client builds the delivery URL from the server's base address.
+
+The same two routes also answer under `/hm/api/apps/webhooks/…`. The secret can be in the URL because many senders can only POST to a URL they are given. A sender that can set headers can keep the secret out of the URL with the `Authorization` form.
 
 | Response | Meaning |
 | --- | --- |
@@ -21,29 +30,45 @@ The same two routes also answer under `/hm/api/apps/webhooks/…`. The secret ri
 
 # The secret
 
-The server creates the secret when a trigger becomes a webhook trigger, and keeps it across edits. The secret is never in the trigger document: the server stores it encrypted, with a hash for checking deliveries. It is shown to accounts that can edit the host: `GetAgentTrigger` returns `webhookSecret` to editors of the agent, and `ListHostTriggers` returns it to writers of the host's space. An agent that reads its own webhook trigger at `~/triggers/<name>` gets the delivery URL.
+The server creates the secret when a trigger becomes a webhook trigger, and keeps it across edits. The secret is never in the trigger [document](../protocol/documents.md). The server stores it encrypted, with a hash for checking deliveries.
 
-A trigger cannot change between a webhook source and any other source, so the way to get a new secret is a new trigger.
+The secret is shown to accounts that can edit the host:
+
+- `GetAgentTrigger` returns `webhookSecret` to editors of the agent.
+- `ListHostTriggers` returns it to writers of the host's space.
+- An agent that reads its own webhook trigger at `~/triggers/<name>` gets the delivery URL.
+
+How to get a new secret depends on the form of the trigger:
+
+- A trigger stored on the server cannot change between a webhook source and any other source. So make a new trigger.
+- For a trigger document, publish a version with another source, then a version with `webhook` again. The server makes a new secret.
 
 # Deduplication
 
-A delivery's [firing](./firing.md) key is `webhook:<Idempotency-Key>` when the sender supplies the header. A repeated delivery with the same key and the same body is answered as a duplicate and does not fire again; the same key with a different body is refused with 409. Without the header every delivery is new. The key is 1 to 128 characters: letters, digits, `.`, `_`, `:` and `-`, starting with a letter or digit.
+A sender can mark a delivery with an `Idempotency-Key` header, so that a repeat does not fire twice. The delivery's [firing](./firing.md) key is then `webhook:<Idempotency-Key>`.
+
+- A repeated delivery with the same key and the same body is answered as a duplicate. It does not fire again.
+- The same key with a different body is refused with 409.
+- Without the header, every delivery is new.
+- The key is 1 to 128 characters: letters, digits, `.`, `_`, `:` and `-`. It starts with a letter or digit.
 
 # Using the posted body
 
-The event of a webhook firing carries the posted JSON as `payload`. In a trigger's input template, the string `"$event.payload"` is replaced by it, and `"$event.payload.<path>"` by one value inside it.
+The event of a webhook firing carries the posted JSON as `payload`. In a trigger's input template, the server replaces the string `"$event.payload"` with it, and `"$event.payload.<path>"` with one value inside it.
 
 - A trigger document that names a `tool` calls that tool with the template as input. The call needs no model.
-- A trigger that starts a session shows the event to the model in its `<trigger_context>` block.
+- A trigger that starts a session shows the event to the model in its `<trigger_context>` [block](../protocol/blocks.md).
 
-A common pattern: an agent publishes a [tool](../tool.md) under its own document and wires a webhook to it with `continuation: {kind: 'tool', tool, input: {payload: '$event.payload'}, onFailure: 'thread'}`. From then on, deliveries run its code directly. A model starts only when the code fails. <!-- id:7kDY3C-p -->
+A common pattern uses a trigger document. An agent publishes a tool under its own document. Then it publishes a trigger document beside the tool, with `options.trigger: {source: {type: 'webhook'}, tool: '<the tool's hm:// URL>', input: {payload: '$event.payload'}}`. From then on, deliveries run the tool's code directly, with no model. A failed call is recorded on the firing. A trigger document has no `onFailure`, so no session starts when the code fails. <!-- id:7kDY3C-p -->
 
-Webhook triggers need no polling. They do keep the [activity monitor](./triggers.md) polling for their account, like any enabled trigger that is not a schedule.
+The posted body becomes tool input, and the server records it in the tool's call record. Call records are not private, so a sender must not post secrets to such a webhook. See [tool](../tool.md).
+
+The server does not poll for webhooks. Webhook triggers do keep the [activity monitor](./triggers.md) polling for their account, like any enabled trigger that is not a schedule.
 
 # See also
 
 - [Trigger reference](./triggers.md) for the other sources and the continuations.
 - [Trigger](../trigger.md) for the concept.
 - [Firing](./firing.md) for how deliveries are recorded.
-- [Signed API](../build/signed-api.md) for `GetAgentTrigger` and `ListHostTriggers`.
+- [The signed API for triggers](../build/signed-api-triggers.md) for `GetAgentTrigger` and `ListHostTriggers`.
 - [Security](./security.md) for the standing authority a trigger holds.

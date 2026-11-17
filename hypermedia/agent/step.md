@@ -1,10 +1,14 @@
 ---
 name: Step
-summary: A plan step is one checklist item with a stable id that persists and a human label that models may rename.
+summary: A step is one item on a plan's checklist, with an id that never changes and a label that a model may reword.
 ---
-A **step** is one checklist item in a [plan](./plan.md), with a stable `id` and a human `label`. Models rename labels freely, and ids persist. <!-- id:fv9UhrFE -->
+A **step** is one item on the checklist of a [plan](./plan.md). It has an `id` that never changes and a `label` that people read, such as "Write the draft". A model may reword a label freely. The id stays the same, so the runtime always knows which step is meant. <!-- id:fv9UhrFE -->
 
-A step's `status` is `pending`, `running`, `done`, `failed` or `skipped`. `failed` and `skipped` are terminal: they write the step off. The runtime marks a running step `done` itself when every [child](./child.md) attached to it succeeds (see [plan](./plan.md#runtime-settlement)). A step left `pending` or `running` when a turn ends is an [obligation](./obligations.md), unless children are still working on it.
+A step also has a state, in its `status` field (this is not the [`status` verb](./tools.md#status)). The state is `pending`, `running`, `done`, `failed` or `skipped`.
+
+- `failed` and `skipped` are final. They write the step off.
+- The runtime marks a running step `done` itself when every [child](./child.md) attached to it succeeds (see [plan](./plan.md#runtime-settlement)).
+- A step left `pending` or `running` when a turn ends is an [obligation](./obligations.md), unless children are still working on it.
 
 # See also <!-- id:1UuYF0qj -->
 

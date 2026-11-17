@@ -1,10 +1,10 @@
 ---
 name: Signed API
-summary: "The signed HTTP API of an app environment: the endpoint, the signed envelope and how the server checks it, protocol versions, errors, access levels, idempotency, and a table of every action."
+summary: "The signed API is how a program talks to an app environment: this page covers the endpoint, the signed envelope, protocol versions, errors, access levels, idempotency, and a table of every action."
 ---
-The [Seed Agents](../agent.md) HTTP API is a signed action API encoded as [DAG-CBOR](../protocol/blobs.md). Every request is signed with a Seed [account](../protocol/identity.md) key, or with a key that account has authorized. Canonical protocol types live in `apps/protocol/src/index.ts` and are re-exported from `apps/src/api.ts`. Dispatch lives in `apps/src/api-service.ts`. HTTP routing lives in `apps/src/main.ts`. <!-- id:g-EvU-a4 -->
+An [app environment](../software/app-environment.md) is the server that runs [agents](../agent.md) and [apps](../app.md). You talk to it by sending signed actions. Each request is one action, such as `CreateSession`. The client packs it as [DAG-CBOR](../schema/dag-cbor.md) and signs it with a Seed [account](../protocol/identity.md) key, or with a key that account has authorized. The types are in `apps/protocol/src/index.ts`. The server code that handles them is in `apps/src/api-service.ts`, and the HTTP routes are in `apps/src/main.ts`. <!-- id:g-EvU-a4 -->
 
-This page covers what every request shares: the endpoint, the envelope and how the server checks it, protocol versions, errors, access levels and idempotency. The request and response of each action are on six pages, one per kind of resource, listed under [Actions](#actions). Live updates use the same envelope over a socket and are described in [WebSocket subscriptions](./websocket-subscriptions.md).
+This page covers what every request shares: the endpoint, the envelope and how the server checks it, protocol versions, errors, access levels and idempotency. The request and response of each action are on six pages, one per kind of thing. [Actions](#actions) lists them. Live updates use the same envelope over a socket. [WebSocket subscriptions](./websocket-subscriptions.md) describes them.
 
 # Endpoint <!-- id:pbaO7izF -->
 
@@ -14,15 +14,21 @@ Content-Type: application/cbor
 Accept: application/cbor
 ```
 
-`/hm/api/apps` is the canonical prefix of the API, on the app environment's own host or on a site's origin. The same routes answer under `/hm/api/agents`, the prefix that released clients, published bindings and handed-out webhook URLs name. Both prefixes serve `message`, `ws`, `webhooks/<triggerId>`, `health`, `version`, `perf` and `metrics`.
+`/hm/api/apps` is the main prefix of the API. It works on the app environment's own host and on the address of a [site](../protocol/sites.md) that forwards to it. The same routes answer under `/hm/api/agents`. Released clients, published bindings and webhook URLs that were already handed out use that second prefix. Both prefixes serve `message`, `ws`, `webhooks/<triggerId>`, `health`, `version`, `perf` and `metrics`.
 
-Three more paths are accepted for older clients and for a server on its own host: `POST /api/message`, `POST /agents/api/message`, and the socket at `/agents/ws`. [Operations](../operate/endpoints-and-health.md#base-url) says where the service is mounted.
+Older paths are accepted too, for older clients and for a server on its own host. The ones a client of this API needs are `POST /api/message`, `POST /agents/api/message`, and the socket at `/agents/ws`. [Endpoints and health](../operate/endpoints-and-health.md#base-url) says where the service is mounted.
 
-Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the `X-Agents-Protocol` header (also in the `version` and `health` routes as `protocol` and `minClientProtocol`). <!-- id:bhXf9yiI -->
+A response is an `AgentResponse` value, encoded as DAG-CBOR. Every response to a signed action carries the server's protocol version in the `X-Agents-Protocol` header. The `version` and `health` routes report it too, as `protocol` and `minClientProtocol`. <!-- id:bhXf9yiI -->
 
 # Protocol versioning <!-- id:XZricGGS -->
 
-Clients and servers are deployed independently, so the wire surface is versioned by a single integer, `AGENTS_PROTOCOL_VERSION` in `apps/protocol/src/version.ts`. A client declares the version it speaks in `envelope.protocol`. The server answers in that version's shape (shims in `apps/src/protocol-compat.ts`). Below `MIN_CLIENT_PROTOCOL` it refuses with HTTP 426 and `{_: 'Error', code: 'protocol_too_old'}`. The current version is 3 and `MIN_CLIENT_PROTOCOL` is 1. An envelope with no `protocol` field is read as version 1. <!-- id:PAx965qL -->
+Clients and servers are updated at different times. So the API has a version: one whole number, `AGENTS_PROTOCOL_VERSION` in `apps/protocol/src/version.ts`. <!-- id:PAx965qL -->
+
+- A client says which version it speaks in `envelope.protocol`. An envelope with no `protocol` field is read as version 1.
+- The server answers in the shape of that version. The code that converts is in `apps/src/protocol-compat.ts`.
+- The server's version is 3, and `MIN_CLIENT_PROTOCOL` is 1.
+- Below `MIN_CLIENT_PROTOCOL` the server refuses with HTTP 426 and `{_: 'Error', code: 'protocol_too_old'}`.
+- A client below protocol 3 also gets this `426` when it tries to read or change a [trigger](../trigger.md) that needs protocol 3.
 
 # Signed envelope <!-- id:gGou4ap_ -->
 
@@ -43,23 +49,25 @@ type AgentAction = UnsignedAgentAction & {
 }
 ```
 
-`signer` and `account` are [principals](../principal.md), and `sig` is an Ed25519 [signature](../signature.md), the same scheme used to sign [blobs](../protocol/blobs.md). Server validation: <!-- id:8LJhY3ZT -->
+`signer` and `account` are [principals](../principal.md), and `sig` is an Ed25519 [signature](../signature.md), the same scheme used to sign [blobs](../protocol/blobs.md). The server checks, in this order: <!-- id:8LJhY3ZT -->
   1. envelope shape and `type`; <!-- id:75XviWi8 -->
   2. principal/signature byte shapes; <!-- id:_v8P7UA3 -->
   3. signed action timestamp is within five minutes of server local time; <!-- id:Zr6E8UHr -->
   4. Ed25519 signature through `verify()` from `@seed-hypermedia/client` (imported through the `@shm/shared/blobs` re-export); <!-- id:qOVjsEhi -->
-  5. signer is the account, or a locally authorized signer for it, or presents a delegation: `capability` names a [Capability](../capability.md) blob whose bytes come from `capabilityBlob`, from a delegation this server verified before, or from the HM network; the blob must be issued by `account`, delegate to `signer`, carry role `AGENT` or `WRITER`, not be self-issued, and be under 64 KiB; <!-- id:84U_5iGK -->
+  5. signer is the account, or a locally authorized signer for it, or presents a delegation: `capability` names a [Capability](../capability.md) blob whose bytes come from `capabilityBlob`, from a delegation this server verified before, or from the HM network; the blob must be issued by `account`, delegate to `signer`, carry role `AGENT` or `WRITER`, not be self-issued, be at most 64 KiB, and hash to the [CID](../cid.md) given in `capability`; <!-- id:84U_5iGK -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
 
-Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400. <!-- id:HxBosWOL -->
+Every failed check is HTTP 401. A body that is not `application/cbor` is 415. CBOR that cannot be decoded is 400. <!-- id:HxBosWOL -->
 
 # Never sign `undefined` <!-- id:asgFXeqf -->
 
-DAG-CBOR helpers encode `undefined` as `null` in some paths. The server then decodes `null`, the signed bytes differ, and signature verification fails. Leave an absent field out of the action object before signing. This includes `afterSeq` on `Subscribe`.
+Leave a field with no value out of the action object before you sign. Do not set it to `undefined`. The [SDK](./sdk.md)'s DAG-CBOR encoder writes `undefined` as `null`. The server then reads `null`, the bytes it checks differ from the bytes you signed, and the signature fails. This includes `afterSeq` on `Subscribe`.
 
 # Actions <!-- id:vqBlDC63 -->
 
-The `AgentAction` union is `UnsignedAgentAction` in `apps/protocol/src/index.ts` plus the signed `ts`. The tables list every action in it. Level is the [access level](#access-levels) the signer needs on the agent, session, trigger or run the action names. "account" means the action reads or changes the signer's own account and names no agent. "none" means any signed account may send it.
+An action is one member of the `UnsignedAgentAction` type in `apps/protocol/src/index.ts`, plus the signed `ts`. The tables list every action in that type.
+
+The Level column is the [access level](#access-levels) the signer needs on the agent, [session](../agent/session.md), trigger or [run](../agent/runs.md) that the action names. "account" means the action reads or changes the signer's own account and names no agent. "none" means any signed account may send it.
 
 ## Agents
 
@@ -72,7 +80,7 @@ Reference: [agents](./signed-api-agents.md).
 | `GetAgent` | reader | Returns one agent and its session count. |
 | `UpdateAgent` | writer | Replaces the agent definition. |
 | `DeleteAgent` | owner | Deletes the agent with its sessions, triggers and state. |
-| `MountAgent` | owner | Gives an agent the identity of a published document. |
+| `MountAgent` | owner | Gives an agent the identity of a published [document](../protocol/documents.md). |
 | `UnmountAgent` | owner | Takes a mounted agent out of its document. |
 | `ListAgentInvites` | account | Lists pending invitations sent to the account. |
 | `AcceptAgentInvite` | account | Accepts an invitation and returns the agent. |
@@ -88,7 +96,7 @@ Reference: [agents](./signed-api-agents.md).
 
 ## Providers, identities and secrets
 
-Reference: [providers and identities](./signed-api-providers.md). With an `agentId`, the three list actions resolve against the owner of an agent the signer can read.
+Reference: [providers and identities](./signed-api-providers.md). `ListModelProviders`, `ListProviderModels` and `ListSigningIdentities` take an optional `agentId`. With it, they answer for the owner of an agent the signer can read.
 
 | Action | Level | What it does |
 | --- | --- | --- |
@@ -103,10 +111,10 @@ Reference: [providers and identities](./signed-api-providers.md). With an `agent
 | `ListSigningIdentities` | account | Lists the account keys the server holds for signing. |
 | `CreateSigningIdentity` | account | Generates a new account key on the server. |
 | `ImportSigningIdentity` | account | Stores an existing account key for the server to sign with. |
-| `UpdateSigningIdentity` | account | Renames a signing identity and republishes its profile. |
+| `UpdateSigningIdentity` | account | Renames a signing identity and republishes its [profile](../profile.md). |
 | `DeleteSigningIdentity` | account | Deletes the stored key. |
 | `SetSecret` | account | Encrypts and stores a secret. |
-| `ListMcpServers` | account | Lists configured MCP servers, redacted. |
+| `ListMcpServers` | account | Lists configured [MCP servers](../agent/mcp.md), redacted. |
 | `SetMcpServer` | account | Creates or replaces an MCP server and discovers its tools. |
 | `RefreshMcpServer` | account | Discovers an MCP server's tools again. |
 | `DeleteMcpServer` | account | Deletes an MCP server and its secrets. |
@@ -125,7 +133,7 @@ Reference: [triggers](./signed-api-triggers.md).
 | `CombineAgentTriggers` | writer | Merges one activity trigger into another. |
 | `DeleteAgentTrigger` | writer | Deletes a trigger. |
 | `ListHostTriggers` | none | Lists the triggers that an app's or agent's trigger documents define on this server. |
-| `RunTriggerNow` | writer | Fires a schedule trigger once, now. |
+| `RunTriggerNow` | writer (of the agent, or of the space holding the trigger document) | Fires a schedule trigger once, now. |
 
 ## Sessions and runs
 
@@ -152,7 +160,7 @@ Reference: [sessions and runs](./signed-api-sessions.md).
 | `CancelRun` | writer | Cancels a run and its descendants. |
 | `SignalRun` | writer | Delivers a named signal to a parked run. |
 | `GetRunJournal` | reader | Returns a script run's journal entries. |
-| `Subscribe` | reader | Opens a live subscription. Accepted only over WebSocket. |
+| `Subscribe` | reader, or account for an `account/` key | Opens a live subscription. Accepted only over WebSocket. |
 
 ## Memory and uploads
 
@@ -190,7 +198,7 @@ Reference: [running apps](./signed-api-apps.md). "Space writer" means the signer
 
 # Responses <!-- id:P0ID1IyU -->
 
-Success responses are action-specific. Errors use: <!-- id:KFAyl_Mc -->
+Each action has its own success response. Every error has this shape: <!-- id:KFAyl_Mc -->
 
 ```ts <!-- id:ieerbWxp -->
 type ErrorResponse = {
@@ -200,19 +208,43 @@ type ErrorResponse = {
 }
 ```
 
-HTTP status is set on expected API errors (`APIError`, with an optional `code`). Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
+An error the server expects carries its own HTTP status and sometimes a `code`. An error the server does not expect is logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
 
-The status map: `401` any envelope or delegation failure; `415` a body that is not `application/cbor`; `400` undecodable CBOR, an unknown action, or invalid input; `403` the actor's access level is too low; `404` the resource does not exist or is not accessible (an agent you cannot read looks identical to one that does not exist); `409` an idempotency key reused with a different body, or a session with a live run; `413` an oversized upload chunk or attachment; `426` a client protocol the server no longer serves. <!-- id:G8F0XiUW -->
+What each status means: <!-- id:G8F0XiUW -->
+
+| Status | Meaning |
+| --- | --- |
+| `400` | CBOR that cannot be decoded, an unknown action, or invalid input |
+| `401` | the envelope or its delegation failed a check, or a provider sign-in has expired |
+| `403` | your access level is too low |
+| `404` | the thing does not exist or you may not see it (an agent you cannot read looks the same as one that does not exist) |
+| `409` | the request conflicts with the current state, such as an idempotency id reused with a different body, a session with a live run, or an upload chunk at the wrong offset |
+| `410` | an action that is no longer offered (`SaveAgentTool`) |
+| `413` | an upload, chunk or attachment that is too big |
+| `415` | a body that is not `application/cbor` |
+| `426` | a client protocol the server no longer serves |
+| `429` | too many uploads in progress |
+| `502` | something the server depends on failed, such as a model provider, an MCP server or the Hypermedia server |
+| `503` | the server is still starting; try again in a few seconds |
 
 # Access levels <!-- id:qBDeejBl -->
 
-An agent has an owner, accepted collaborators with role `reader` or `writer`, and, when `publicRead` or `publicChat` is on, every other signed account as a `reader` or `chatter`. Actions are gated by level: **reader** (any of those), **chat** (every role except `reader`: owner, writer, chatter), **writer** (owner or writer), and **owner**. Reading an agent, its sessions, triggers, memory, and tools is reader level; creating a session, messaging it, uploading an attachment, stopping or retrying a session is chat level; editing the agent, its triggers, memory, and tools, renaming or deleting a session, invoking a tool as the user, and cancelling or signalling a run is writer level; collaborators and public access are owner level. State is stored under the owner's account whatever the actor's role; `#actionAccountId` resolves the owner for every action that names an agent, session, trigger, or run. <!-- id:g6Rnpqgj -->
+An agent has one owner. It can have collaborators that accepted an invitation, each with the role `reader` or `writer`. When `publicRead` is on, every other signed account is a `reader`. When `publicChat` is on too, every other signed account is a `chatter`. Each action needs one of four levels: <!-- id:g6Rnpqgj -->
 
-What the roles mean to the people sharing an agent is in [agent sharing](../agent/sharing.md). These roles are separate from Hypermedia [roles](../protocol/permissions.md) on documents.
+| Level | Who has it | What it allows |
+| --- | --- | --- |
+| reader | owner, writer, reader, chatter | read the agent, its sessions, triggers, memory and tools |
+| chat | owner, writer, chatter (not a plain reader) | create a session, send it a message, upload an attachment, stop or retry a session |
+| writer | owner, writer | edit the agent, its triggers, memory and tools; rename or delete a session; run a verb as the user; cancel or signal a run |
+| owner | owner | manage collaborators and public access; mount, unmount and delete the agent; use the session browser |
+
+Whatever your role, the agent's data is stored under its owner's account.
+
+[Agent sharing](../agent/sharing.md) explains what the roles mean to the people who share an agent. These roles are separate from Hypermedia [roles](../protocol/permissions.md) on documents.
 
 # Idempotency <!-- id:86xaRurd -->
 
-Idempotency rows store: <!-- id:OOJlJzY7 -->
+Idempotency means a request you send twice is done once. Many actions take a client id (`clientRequestId` or `clientMessageId`) for this. For each id the server stores: <!-- id:OOJlJzY7 -->
   - account ID; <!-- id:goW-b9GO -->
   - action name; <!-- id:-a9nhdcq -->
   - client request or message ID; <!-- id:WBtePnRT -->
@@ -220,7 +252,7 @@ Idempotency rows store: <!-- id:OOJlJzY7 -->
   - response CBOR bytes; <!-- id:nVl8nX67 -->
   - creation timestamp. <!-- id:eo-O9tll -->
 
-Same ID and same request bytes replay the response. Same ID with different request bytes returns `409`. <!-- id:uVVixCG7 -->
+If you send the same id with the same request bytes, the server returns the stored response again. If you send the same id with different request bytes, it returns `409`. <!-- id:uVVixCG7 -->
 
 # See also <!-- id:P08ObkPt -->
 

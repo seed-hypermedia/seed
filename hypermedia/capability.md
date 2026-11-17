@@ -2,11 +2,11 @@
 name: Capability
 summary: "A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional path scope, and nothing that expires or revokes it."
 ---
-A **capability** is the blob that lets someone other than the space owner write into a [space](./protocol/spaces.md). The owner signs it, names the key that receives the grant (the `delegate`), picks a [role](./role.md), and optionally limits it to a path. Every node checks [Refs](./ref.md) against the capabilities it has stored, so the whole network enforces the grant. [Permissions](./protocol/permissions.md) has the full model, the exact authorization rule and a worked example. <!-- id:EoJZUC30 -->
+A **capability** is a signed grant. It lets a key other than the owner write into a [space](./protocol/spaces.md). The owner signs this [blob](./protocol/blobs.md), names the key that receives the grant (the `delegate`), picks a [role](./role.md), and can limit the grant to a path. Every node checks [Refs](./ref.md) against the capabilities it has stored, so the whole network enforces the grant. [Permissions](./protocol/permissions.md) has the full model, the exact rule and a worked example. <!-- id:EoJZUC30 -->
 
 # Fields
 
-A capability adds these fields to the signed [blob](./blob.md) envelope. The `signer` is both the issuer and the space.
+A capability has these fields. `type`, `signer`, `sig` and `ts` are the signed [blob](./blob.md) envelope. The `signer` is both the issuer and the space.
 
 <!-- id:FvURpw93 -->
 | Field <!-- col:XkxACv2l --> | Required <!-- col:Jiy7LkFM --> | Meaning <!-- col:Ws3UCr0G --> <!-- id:RMOQ2SHF --> |
@@ -20,9 +20,9 @@ A capability adds these fields to the signed [blob](./blob.md) envelope. The `si
 | `label` | no | a public, immutable note of at most 512 bytes <!-- id:D-mFB2aE --> |
 | `audience` | no | used only by ephemeral authentication capabilities, never on stored grants <!-- id:BgEzfNch --> |
 
-`path` scopes by segment and is always recursive: a grant at `/team` covers `/team/notes` but not `/teammates`. An `AGENT` capability must have an empty path. `audience` appears only on the short-lived, unstored capabilities that peers and HTTP clients sign to prove they hold an account. <!-- id:Q9nzk6HJ -->
+`path` limits the grant by whole path segments, and always covers everything under it. A grant at `/team` covers `/team/notes` but not `/teammates`. An `AGENT` capability must have an empty path. The role name does not mean an AI [agent](./agent.md). `audience` appears only on short-lived capabilities that are never stored. Peers and HTTP clients sign those to prove they hold an account. <!-- id:Q9nzk6HJ -->
 
-There is no expiry and no revocation. [Permissions](./protocol/permissions.md) explains the authorization rule, the one-hop AGENT chain, and what happens to a Ref that arrives before its grant. <!-- id:bbIv8daq -->
+A capability does not expire, and nothing revokes it. [Permissions](./protocol/permissions.md) explains the authorization rule, the one-hop AGENT chain, and what happens to a Ref that arrives before its grant. <!-- id:bbIv8daq -->
 
 # See also <!-- id:JzIvRXS3 -->
 

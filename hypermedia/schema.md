@@ -2,44 +2,57 @@
 name: Schema
 summary: The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, and the starting point for every page about Hypermedia Schemas.
 ---
-A **schema** is a value that constrains other values. It is either a map written with the [schema vocabulary](./schema/schema-language.md), or a bare [literal](./schema/literal-schema.md) (`"draft"`, `1`, `true`, `null`) that accepts exactly one value. Every schema is typed by the meta-schema and matches one of its variants. <!-- id:OzcV9e2b -->
+A **schema** is a description of what some data must look like. It says which fields the data has and what kind of value each field holds. Software uses a schema to check data and to draw forms for it. A schema is data too, so one schema can describe other schemas. <!-- id:OzcV9e2b -->
 
-The **meta-schema**, named `schema`, is the schema that describes what a schema is. It is a [discriminated union](./schema/discriminated-union.md) of nine map variants and four literal kinds. It [validates as an instance of itself](./schema/self-description.md). It is the one type in the system that is known without being looked up. <!-- id:bXl0LFcD -->
+Here is a small schema. It says: the data is a map with one required field, `surname`, and that field is a string.
 
-This page defines the meta-schema. Its formal schema is attached through the `schemaDefinition` key in this page's [metadata](./metadata.md), so the Seed app can show it and create values of this type. It is also the home of the Hypermedia Schemas pages, listed below. <!-- id:y93xpe-t -->
+```json
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "surname": {"value": {"type": "hm://hyper.media/string"}, "required": true}
+  }
+}
+```
+
+The value `{"surname": "Smith"}` matches this schema. The values `{}` and `{"surname": 7}` do not.
+
+The one schema that describes all schemas is the **meta-schema**. Its name is `schema`, and this page is its home. The meta-schema lists every shape a schema can take: nine shapes that are maps, and four kinds of plain value. Each shape is called a [variant](./schema/variant.md). A plain value such as `"draft"`, `1`, `true` or `null` is a [literal](./schema/literal-schema.md): a schema that accepts only that one value. The meta-schema is a [discriminated union](./schema/discriminated-union.md), which means it picks one variant for each schema it checks. It also [describes itself](./schema/self-description.md): it is a valid schema by its own rules. Software knows the meta-schema without looking it up. <!-- id:bXl0LFcD -->
+
+The formal schema of the meta-schema is attached to this page. The `schemaDefinition` key in this page's [metadata](./metadata.md) points at it, so the [Seed app](./software/desktop.md) can show it and create values of this type. This page is also the starting point for all the pages about Hypermedia Schemas. They are listed below. <!-- id:y93xpe-t -->
 
 # Hypermedia Schemas in brief <!-- id:sPmTq8Rq -->
 
-**Hypermedia Schemas are a type system for content-addressed data.** They type the [IPLD](./schema/ipld.md) and [DAG-CBOR](./schema/dag-cbor.md) values that Hypermedia [blocks](./protocol/blocks.md) and [blobs](./protocol/blobs.md) are built from. A schema is itself a DAG-CBOR object on IPFS, so schemas [reference](./schema/references.md) other schemas the same way data references data. <!-- id:YSBcigax -->
+**Hypermedia Schemas are a type system for content-addressed data.** Content-addressed data is data that is named by the hash of its bytes. The schemas type the [IPLD](./schema/ipld.md) and [DAG-CBOR](./schema/dag-cbor.md) values that Hypermedia [blocks](./protocol/blocks.md) and [blobs](./protocol/blobs.md) are built from. A schema is itself a DAG-CBOR object on IPFS. So a schema [references](./schema/references.md) another schema the same way data references data. <!-- id:YSBcigax -->
 
 - Every value is one of **nine [kinds](./schema/kind.md)**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. <!-- id:Zyqnpby8 -->
-- A **schema** names a kind or another schema with `type`, and every other key refines what it names: `properties` for the fields of a struct, `items` for a list, `values` for a map, `anyOf` for a union, and value constraints such as `minLength` and `pattern`. A fixed set of choices is a [union](./schema/anyof.md) of literals. <!-- id:Jb3Yvg3p -->
-- Schemas reference each other by **[hm:// URL](./protocol/urls.md)**. A name can take part in a cycle and a [content hash cannot](./schema/fixpoint-problem.md), so names let types recurse. <!-- id:KVkmtla5 -->
-- A schema can be published as a normal Hypermedia [document](./protocol/documents.md) whose [metadata](./metadata.md) has a `schemaDefinition` key pointing at the schema [blob](./protocol/blobs.md) as `ipfs://<cid>`. Other schemas and documents then reference it by name, and the [CID](./cid.md) pins the exact bytes. The type system is stored on the same network it types. <!-- id:lp-qJpvG -->
-- Validation is **advisory** in the editors, which warn and never block, and **strict** in the validator, the CLI's checks and an agent's blob writes. <!-- id:4a6RPK0p -->
+- A **schema** names a kind or another schema with `type`. The other keys narrow what it names: `properties` for the fields of a [struct](./struct.md), `items` for a list, `values` for a map, `anyOf` for a union, and value constraints such as `minLength` and `pattern`. A fixed set of choices is a [union](./schema/anyof.md) of literals. The words are all in [the schema language](./schema/schema-language.md). <!-- id:Jb3Yvg3p -->
+- Schemas reference each other by **[hm:// URL](./protocol/urls.md)**, which is a name. Two names can point at each other in a circle. Two [content hashes cannot](./schema/fixpoint-problem.md). So names let types refer to themselves and to each other. <!-- id:KVkmtla5 -->
+- You can publish a schema as a normal Hypermedia [document](./protocol/documents.md). The document's [metadata](./metadata.md) has a `schemaDefinition` key that points at the schema [blob](./protocol/blobs.md) as `ipfs://<cid>`. Other schemas and documents then reference the document by name, and the [CID](./cid.md) pins the exact bytes. The type system lives on the same network it types. <!-- id:lp-qJpvG -->
+- The editors only **warn** about data that breaks its schema, and never block a save. The validator, the checks of the [CLI](./build/cli.md) and the blob writes of an [agent](./agent.md) are **strict**: they refuse it. <!-- id:4a6RPK0p -->
 
 # Where to read next <!-- id:XQr4-lP- -->
 
 Read the concepts in this order: <!-- id:MLxtm7My -->
   1. [The data model](./schema/data-model.md): the nine kinds of value. Read it first. <!-- id:_5H16K85 -->
-  2. [The schema language](./schema/schema-language.md): the complete reference for the vocabulary, with closed structs, unions, generics, extension and value constraints, and how the language describes itself. <!-- id:dS1O-Jw6 -->
-  3. [References and naming](./schema/references.md): include, typed link and extend, `hm://` names, how a reference resolves, and why names make recursion possible where hashes cannot. <!-- id:W-7l34pY -->
-  4. [Encoding](./schema/encoding.md): DAG-CBOR, the dag-json form people read, canonical encoding and a schema's CID. <!-- id:zc8wCFCX -->
+  2. [The schema language](./schema/schema-language.md): the full reference for every key a schema can use, and how the language describes itself. <!-- id:dS1O-Jw6 -->
+  3. [References and naming](./schema/references.md): the ways one schema points at another, `hm://` names, and why names can form a circle where hashes cannot. <!-- id:W-7l34pY -->
+  4. [Encoding](./schema/encoding.md): DAG-CBOR, the dag-json form that people read, canonical encoding and a schema's CID. <!-- id:zc8wCFCX -->
 
 Then go to the page for what you want to do:
   - [Typed documents](./schema/typed-documents.md): how a [document](./protocol/documents.md) says what it is with `attributesSchema`, `childAttributesSchema` and `schemaDefinition`, and what the editor does with them. <!-- id:ejnPERZF -->
   - [Typing a blob](./schema/typing-a-blob.md): how a raw DAG-CBOR object links to its schema, with a worked example.
-  - [Schemas on the Hypermedia Network](./schema/blobs.md): how schemas type the signed blobs (Change, Ref, Profile and the rest) and the block model, and how to define a signed blob type or a block type of your own. <!-- id:SZlHsPnT -->
+  - [Schemas on the Hypermedia Network](./schema/blobs.md): how schemas type the signed blobs ([Change](./change.md), [Ref](./ref.md), [Profile](./profile.md) and the rest) and the block model. It also shows how to define a signed blob type or a block type of your own. <!-- id:SZlHsPnT -->
   - [The catalogue of types](./schema/types.md): every type in the library with one line each. Use it to find a type's page.
   - [Examples](./example.md): every example schema, grouped by the feature it shows. <!-- id:nslzTd6Z -->
-  - [Schema workflows](./schema/workflows.md) and [typed blob workflows](./schema/blob-workflows.md): the steps for each task in the Seed app, the CLI and through an agent, including what turns the schema menus on. <!-- id:xzhJgjsb -->
+  - [Schema workflows](./schema/workflows.md) and [typed blob workflows](./schema/blob-workflows.md): numbered steps for each task in the Seed app, with the CLI and through an agent. They also say how to turn the schema menus on. <!-- id:xzhJgjsb -->
   - [The World Builder](./schema/world-builder.md): a worked demo that builds a set of linked types, with date pickers, title pills and linked objects on every page. <!-- id:JKC7fUPx -->
-  - [Why Schemas](./schema/why.md): the problem they solve, the principles and decisions behind the language, and what it does not try to do. <!-- id:ASDj0A2q -->
-  - [The schema library pipeline](./schema/library-pipeline.md): for contributors, how the Seed repository validates, pins, publishes and bundles the library.
+  - [Why Schemas](./schema/why.md): the problem they solve, the reasons behind the language, and what it does not try to do. <!-- id:ASDj0A2q -->
+  - [The schema library pipeline](./schema/library-pipeline.md): for contributors. It shows how the Seed repository checks, pins, publishes and bundles the library.
 
-# Terms <!-- id:g0hNqX_Z -->
+# Words used in these pages <!-- id:g0hNqX_Z -->
 
-Each term has a short page of its own. <!-- id:lZdOYrQc -->
+Each word below links the page that defines it. <!-- id:lZdOYrQc -->
 
 - [Kind](./schema/kind.md) <!-- id:jAaKSJhR -->
 - [Discriminated union](./schema/discriminated-union.md) <!-- id:J59mZ_xm -->
@@ -58,7 +71,7 @@ Each term has a short page of its own. <!-- id:lZdOYrQc -->
 - [DAG-CBOR](./schema/dag-cbor.md) <!-- id:A-K8gv95 -->
 - [dag-json](./schema/dag-json.md) <!-- id:CSSu6CL3 -->
 - [Envelope](./schema/envelope.md), the dag-json spelling of a link or bytes <!-- id:CrT14VO3 -->
-- [`hm://` URL](./hm-url.md) <!-- id:pvOG8a9_ -->
+- [`hm://` URL](./protocol/urls.md) <!-- id:pvOG8a9_ -->
 - [Authority](./authority.md) <!-- id:lYfyQQFk -->
 - [Fixpoint problem](./schema/fixpoint-problem.md) <!-- id:RrdTbHMw -->
 - [Canonical encoding](./schema/canonical-encoding.md) <!-- id:usb9xHLx -->

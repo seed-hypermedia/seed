@@ -1,10 +1,12 @@
 ---
 name: Query grammar
-summary: The one query language that Explore, the CLI, the SDK and Seed Agents share for finding documents by their attributes, the DocumentFilter it compiles to, and the attribute listings that tell you which keys exist.
+summary: The query grammar is one short language for finding documents by their attributes, shared by Explore, the CLI, the SDK and Seed Agents.
 ---
-Every Hypermedia [document](../protocol/documents.md) carries attributes: its [metadata](../metadata.md), from `name` and `summary` to any key a [schema](../schema.md) or a person adds. The query grammar is one short string that says which documents you mean by those attributes, such as `status="In Progress" AND priority>=3`. The Explore surface in the [Seed app](../software/desktop.md), the [Seed CLI](./cli.md)'s `query --where`, the [SDK](./sdk.md) and the `query` tool of [Seed Agents](../agent.md) all read it the same way. Every surface compiles it to the same `DocumentFilter` that the [daemon](../software/daemon.md)'s `QueryDocuments` call evaluates. <!-- id:OYIudbfN -->
+The query grammar is a short way to say which [documents](../protocol/documents.md) you want. You write one line, such as `status="In Progress" AND priority>=3`, and you get the documents that match.
 
-This page is the reference for the grammar, the filter and the attribute listings. Full-text search is a different tool. `Search` ranks words, and a query matches attributes exactly. A directory listing is a different request too: the [Query](../query.md) type, with its includes, sort and limit, is what a query block stores, and it does not use this grammar. <!-- id:gCGe8JOf -->
+A query matches attributes. A document's attributes are its [metadata](../metadata.md): `name`, `summary`, and any key that a [schema](../schema.md) or a person adds. Four programs read the grammar the same way: Explore in the [Seed app](../software/desktop.md), `query --where` in the [Seed CLI](./cli.md), the [SDK](./sdk.md), and the `query` tool of [Seed Agents](../agent.md). Each one turns the line into the same `DocumentFilter`, and the [daemon](../software/daemon.md)'s `QueryDocuments` call runs it. <!-- id:OYIudbfN -->
+
+This page is the reference for the grammar, the filter and the attribute listings. Two other tools do different jobs. Full-text search (`Search`) ranks words, while a query matches attributes exactly. A directory listing uses the [Query](../query.md) type, with its includes, sort and limit. That is what a [query block](../block/query.md) stores, and it does not use this grammar. <!-- id:gCGe8JOf -->
 
 # The grammar <!-- id:ves_HELe -->
 
@@ -23,7 +25,18 @@ free words   "quoted phrases"                                           full-tex
 view:table   cols:title,status   sort:status,-priority                  presentation directives
 ```
 
-Keys are attribute names. Nested keys are dotted (`address.city:Berlin`). Values with spaces are quoted. A value made of digits compares as an integer and `true`/`false` as booleans, so `priority>=3` and `done=true` are typed comparisons. A quoted value is always a string: `version="3"` compares with the string `3`, `version=3` with the integer. Keys and exact (`=`) values are case-sensitive, so `Priority=High` does not match `priority: high`; `key:text` ignores case. `key!=value` matches only documents that have the key, while `NOT key=value` also matches documents without it. `empty:key` is shorthand for `(missing:key OR key="")`, which is what a blank field in a table usually is. Only scalar values (string, integer, boolean) are indexed: a list-valued attribute cannot be matched by its items. Parsing is forgiving. A malformed part becomes a diagnostic and never an error, and a query serializes back to a stable string. <!-- id:bSb7X1_H -->
+The rules:
+
+- Keys and exact (`=`) values are case-sensitive, so `Priority=High` does not match `priority: high`. `key:text` ignores case.
+- Keys are attribute names. Nested keys are dotted (`address.city:Berlin`).
+- Quote a value that has spaces.
+- A value made of digits compares as an integer, and `true`/`false` as booleans. So `priority>=3` and `done=true` are typed comparisons.
+- A quoted value is always a string: `version="3"` compares with the string `3`, and `version=3` with the integer.
+- `key!=value` matches only documents that have the key. `NOT key=value` also matches documents without it.
+- `empty:key` is short for `(missing:key OR key="")`, which is what a blank field in a table usually is.
+- Only single values (string, integer, boolean) are indexed. (These are metadata values, not [blocks](../protocol/blocks.md) of content.) You cannot match an attribute that holds a list by its items.
+- The parser never fails. A part it cannot read becomes a diagnostic, and the rest of the query still runs.
+- A parsed query writes back to the same string every time. <!-- id:bSb7X1_H -->
 
 Examples: <!-- id:pcdMQ6vr -->
 
@@ -37,7 +50,9 @@ Examples: <!-- id:pcdMQ6vr -->
 | `path:/specs/* AND NOT has:reviewedBy` | specs nobody has reviewed <!-- id:k12JoC5u --> |
 | `name^Draft OR summary:draft` | drafts by name or by summary <!-- id:1XxFmi5z --> |
 
-Two parts of the grammar belong to Explore alone. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search. The SDK compiler returns them separately as text terms. The CLI and the agents tool warn about them and ignore them, because `QueryDocuments` matches attributes only. The `view:`, `cols:` and `sort:` directives are presentation. Explore renders a table with those columns and sorts by `sort:`. The CLI and the agents tool ignore all three and take sorting from their own options (`--sort`, `--sort-by` and `--reverse`, or the `sort` input). <!-- id:2UmGW3On -->
+Two parts of the grammar work in Explore only. `type:` chooses what kind of result to show, and bare words are full-text terms that Explore sends to search. The SDK compiler returns them separately as text terms. The CLI and the agents tool warn about them and ignore them, because `QueryDocuments` matches attributes only.
+
+The `view:`, `cols:` and `sort:` directives say how to show the results. Explore draws a table with those columns and sorts by `sort:`. The CLI ignores all three and takes sorting from `--sort`, `--sort-by` and `--reverse`. The agents tool ignores `view:` and `cols:` but does read `sort:`, and it also takes a `sort` input. <!-- id:2UmGW3On -->
 
 # The filter it compiles to <!-- id:cvnAsOu2 -->
 
@@ -52,27 +67,31 @@ Two parts of the grammar belong to Explore alone. `type:` chooses what kind of r
 | `comparison` | `{comparison: {key, operator, value}}` | `operator` is `EQUAL`, `NOT_EQUAL`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`; `value` is `{stringValue}`, `{intValue}` or `{boolValue}` <!-- id:i_GTyQOR --> |
 | `exists`, `missing` | `{exists: {key}}`, `{missing: {key}}` | presence <!-- id:jW0HkeOY --> |
 | `stringMatch` | `{stringMatch: {key, value, prefix?, caseSensitive?}}` | contains, or starts-with with `prefix` <!-- id:BetumC9f --> |
-| `spaceMatch` | `{spaceMatch: {space}}` | one account <!-- id:nfztgjHb --> |
+| `spaceMatch` | `{spaceMatch: {space}}` | one [account](../protocol/identity.md) <!-- id:nfztgjHb --> |
 | `pathMatch` | `{pathMatch: {path, prefix?}}` | a path, or everything under it <!-- id:tnHfmVbm --> |
 | `urlMatch` | `{urlMatch: {url, prefix?}}` | an `hm://` URL, or its subtree <!-- id:7ldFCyWq --> |
+| `authorMatch` | `{authorMatch: {author}}` | any one of the document's authors |
+| `timeRange` | `{timeRange: {field, start?, end?}}` | `field` is `CREATE_TIME` or `UPDATE_TIME`; the time lies between two RFC 3339 instants; `start` is inclusive, `end` is exclusive |
 
-`sort` is a list of `{key, descending?}` for a user attribute or `{attribute, descending?}` for a built-in field: `NAME`, `PATH`, `CREATE_TIME`, `UPDATE_TIME`, `ACTIVITY_TIME`, `COMMENT_COUNT`. Pages are `pageSize` wide (the agents tool allows up to 100) and continue with the returned `nextPageToken`. <!-- id:tWlNXZJ7 -->
+A filter node holds exactly one of these twelve members.
 
-The grammar maps onto this directly. `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`. Built-in fields carry a `$` so they never clash with your own attributes: `$author:<account uid>` matches any one of a document's authors, and `$created` and `$updated` take `<`, `<=`, `>`, `>=` against an ISO date or date-time; a bare date covers its whole UTC day, so `$created<=2026-09-01` includes the 1st. In a shell, single-quote such a query, since `$` is expanded inside double quotes. When a query runs inside one [site](../protocol/sites.md), the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
+`sort` is a list of `{key, descending?}` for a user attribute or `{attribute, descending?}` for a built-in field. Over the Seed API and the SDK the built-in names are `BUILTIN_SORT_ATTRIBUTE_NAME`, `BUILTIN_SORT_ATTRIBUTE_PATH`, `BUILTIN_SORT_ATTRIBUTE_CREATE_TIME`, `BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME`, `BUILTIN_SORT_ATTRIBUTE_ACTIVITY_TIME` and `BUILTIN_SORT_ATTRIBUTE_COMMENT_COUNT`. The agents' `query` tool takes the short form: `NAME`, `PATH`, `CREATE_TIME`, `UPDATE_TIME`, `ACTIVITY_TIME`, `COMMENT_COUNT`. Pages are `pageSize` wide (the agents tool allows up to 100) and continue with the returned `nextPageToken`. <!-- id:tWlNXZJ7 -->
 
-Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the request as protobuf JSON. The answer is protobuf JSON too, unlike the superjson envelope the other keys use. The [Seed API](./web-api.md) page has the transport. The three query encodings matter only when you bypass the SDK. <!-- id:16VXvag6 -->
+The grammar maps onto this directly. `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`, `$author:` an `authorMatch`, and `$created` or `$updated` a `timeRange`. Built-in fields carry a `$` so they never clash with your own attributes: `$author:<account uid>` matches any one of a document's authors, and `$created` and `$updated` take `<`, `<=`, `>`, `>=` against an ISO date or date-time; a bare date covers its whole UTC day, so `$created<=2026-09-01` includes the 1st. In a shell, single-quote such a query, since `$` is expanded inside double quotes. When a query runs inside one [site](../protocol/sites.md), the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
+
+Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the request as protobuf JSON. The answer is protobuf JSON too, unlike the superjson envelope the other keys use. The [Seed API](./web-api.md) page explains how requests are sent. <!-- id:16VXvag6 -->
 
 # Attribute listings <!-- id:_42Wv7fB -->
 
-Before you query you usually want to know which keys exist and what values they take. Two calls answer that, and both are cheap: <!-- id:Ds06UUTK -->
-  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object. `recursive` lists complete dotted scalar paths instead. `account` puts one [space](../protocol/spaces.md) first. <!-- id:cJnLwzn0 -->
-  - `ListDocumentAttributeValues{path, kind, account?, prefix?, pageSize?, pageToken?}` lists the distinct values one key has been seen with, for one scalar kind. `account` restricts to a space. <!-- id:V8JW9oNO -->
+Before you query, you usually want to know which keys exist and what values they take. Two calls answer that, and both are fast: <!-- id:Ds06UUTK -->
+  - `ListDocumentAttributeNames{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` lists the attribute names in use, with the kinds seen for each (string, int, bool, object). `parentPath` lists the children of a nested object. `recursive` lists complete dotted scalar paths instead. `account` puts the names used in one [space](../protocol/spaces.md) first, and still lists the others. <!-- id:cJnLwzn0 -->
+  - `ListDocumentAttributeValues{path, kind, account?, prefix?, pageSize?, pageToken?}` lists the distinct values one key has been seen with, for one scalar kind. Here `account` limits the values to one space. <!-- id:V8JW9oNO -->
 
 # Working with it <!-- id:g0eWbGIb -->
 
 ## In the Seed app <!-- id:jtk9GYwo -->
 
-Explore is the query grammar with a UI. You type a query and get a list or a table. The table controls write the `view:`, `cols:` and `sort:` directives back into the string. [Query blocks](../protocol/blocks.md) inside documents use the older `Query` request (a directory listing with sort and limit) and do not use this grammar. See [Query](../query.md). <!-- id:PwG5nSTD -->
+Explore is the query grammar with a UI. You type a query and get a list or a table. The table controls write the `view:`, `cols:` and `sort:` directives back into the string. [Query blocks](../block/query.md) inside documents use the older `Query` request (a directory listing with sort and limit) and do not use this grammar. See [Query](../query.md). <!-- id:PwG5nSTD -->
 
 ## CLI <!-- id:tiibHzPs -->
 
@@ -92,7 +111,7 @@ seed-cli attributes <space> --values status --kind string --prefix In
 
 The grammar lives in `@seed-hypermedia/client/explore-query`: `parseExploreQuery(q)` returns `{ast, presentation, diagnostics}`, `serializeExploreQuery` writes it back, `quoteExploreValue` quotes a value, and `compileExploreQuery(parsed, {type: 'node'} | {type: 'site', url})` returns the `filter` (and the full-text terms it could not use). Then `client.request('QueryDocuments', {filter, sort, pageSize, pageToken})`, `client.request('ListDocumentAttributeNames', …)` and `client.request('ListDocumentAttributeValues', …)`. Import the grammar from the client package, never from the app's shared UI package, which wraps it in React state. See [SDK](./sdk.md). <!-- id:ca87XK9L -->
 
-## Web API <!-- id:HReYtQEH -->
+## Seed API <!-- id:HReYtQEH -->
 
 `POST /api/QueryDocuments`, `POST /api/ListDocumentAttributeNames`, `POST /api/ListDocumentAttributeValues` with protobuf-JSON bodies. `GET /api/Query?…` serves directory listings. See [Seed API](./web-api.md). <!-- id:-pLLMU5r -->
 

@@ -1,28 +1,34 @@
 ---
 name: The end of broken links
-summary: Why Hypermedia names content by a hash of its bytes, and how that lets a community archive and redistribute the things it links to.
+summary: Hypermedia names content by a hash of its bytes, so a link keeps working as long as anyone holds a copy, and a community can keep what it links to.
 ---
-Old links break. Browse anything written more than a few years ago and many of its references now point at nothing. The web ties every address to a server, and servers move, get sold, run out of money, or outlive their owners. Knowledge that spans many sites decays by default. <!-- id:4Aq3UJfx -->
+Old links break. Read anything written more than a few years ago, and many of its links lead nowhere. The web ties every address to a server. Servers move, get sold, run out of money, or outlive their owners. So knowledge that spans many sites slowly falls apart. <!-- id:4Aq3UJfx -->
 
-Hypermedia starts somewhere else. A document's history is a set of signed pieces of data, and each piece is named by a hash of its own bytes. Anyone who holds those bytes can serve them. Anyone who receives them can check that they are exactly what the author signed. <!-- id:5oY5zGxU -->
+Hypermedia works differently. A document's history is a set of signed pieces of data. Each piece is named by a hash, which is a short fingerprint computed from its own bytes. Anyone who holds those bytes can serve them. Anyone who receives them can check that they are exactly what the author signed. <!-- id:5oY5zGxU -->
 
 # Link rot is a protocol problem <!-- id:sfaEFuJ- -->
 
-A web address, a URL, names a location. The content at that location can change or vanish, and the address gives you no way to tell. Archives such as the Wayback Machine work around this from the outside. They are trusted third parties that copy what they can reach, when they can reach it. <!-- id:BcOEwRb6 -->
+A web address names a place. The content at that place can change or vanish, and the address cannot tell you. Archives such as the Wayback Machine work around this from the outside. They copy what they can reach, when they can reach it, and you have to trust them. <!-- id:BcOEwRb6 -->
 
-Hypermedia addresses differ in two ways. First, a document's address, an [hm:// URL](../protocol/urls.md), names an [account](../protocol/identity.md) and a path. The account is a public key, and no hostname appears in the address. Second, the data behind the address is a chain of [changes](../change.md). Each change is stored as an immutable [blob](../blob.md) named by its [CID](../cid.md), a content hash. Add a [version](../protocol/documents.md) to the URL and it names one exact state of the document forever. <!-- id:TOjaOR8X -->
+Hypermedia addresses differ in two ways. <!-- id:TOjaOR8X -->
 
-The address is a key and the data is content-addressed, so the document does not depend on any one server. The author's own node has it. A [site](../protocol/sites.md) that publishes it has it. Every reader who opened it has a copy in their node. If the author's site goes offline, the document is still there for anyone who saved it, and it can still be verified. <!-- id:Bf-qy4KW -->
+- The address of a document, an [hm:// URL](../protocol/urls.md), names an [account](../protocol/identity.md) and a path. The account is a public key. No server name appears in the address.
+- The data behind the address is a chain of [changes](../change.md). Each change is a [blob](../protocol/blobs.md), a piece of data that never changes, named by its [CID](../cid.md), a content hash. Add a [version](../protocol/documents.md) to the URL, and it names one exact state of the document forever.
 
-# Archival as a community act <!-- id:24CfeN5P -->
+So the document does not depend on any one server. The author's own computer has it. A [site](../protocol/sites.md) that publishes it has it. Every reader who opened it in the [Seed app](../software/desktop.md) has a copy. If the author's site goes offline, anyone who saved the document still has it, and anyone can still verify it. <!-- id:Bf-qy4KW -->
 
-When you reference something on the Hypermedia network, your node is encouraged to download and keep the source data. That keeps your reference working. If the destination is offline or will not share, you can redistribute what you hold. Your readers check the signatures and content hashes, so they do not have to trust you. <!-- id:BrKLWx1k -->
+# Archiving is something a community does <!-- id:24CfeN5P -->
 
-So archival becomes something a community does by default, where today a few institutions do it. Content that many people link becomes permanent in practice, because many nodes hold it. The limit is plain: the only way to guarantee permanence is to save it yourself. Nothing in the protocol forces anyone else to host your data. <!-- id:UNDT6Tav -->
+When you link to something on the Hypermedia network, your node downloads the source data and keeps it. A node is a computer that runs Seed. That keeps your link working. If the original site is offline or will not share, you can pass on what you hold. Your readers check the signatures and the hashes, so they do not have to trust you. <!-- id:BrKLWx1k -->
 
-# Limits today <!-- id:G-kzTMNL -->
+So a community archives by default, where on the web a few institutions do it. Content that many people link to stays available, because many nodes hold it. The limit is plain: the only way to be sure something lasts is to save it yourself. Nothing in the protocol makes anyone else host your data. <!-- id:UNDT6Tav -->
 
-Each node chooses what to keep, what to broadcast and what to block. Sync is scoped: a node fetches the sites it joined, the material they link, and the [comments](../protocol/comments.md) on them, and does not fetch everything it hears about. There is no pinning agreement, no incentive layer, and no guarantee that a [peer](../protocol/network.md) keeps serving a blob. Content that is linked often becomes permanent in effect because many nodes copy it. No rule makes it permanent.
+# Limits <!-- id:G-kzTMNL -->
+
+- Each node chooses what to keep, what to share and what to refuse.
+- A node does not fetch everything it hears about. It fetches the sites it joined, the material they link, and the [comments](../protocol/comments.md) on them.
+- Nobody promises to keep your data, and nobody is paid to. A [peer](../protocol/network.md) may stop serving a blob at any time.
+- Content that is linked often lasts in practice, because many nodes copy it. No rule makes it permanent.
 
 # See also <!-- id:ju5OzHnh -->
 

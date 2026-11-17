@@ -1,16 +1,21 @@
 ---
 name: Typed Result / return_result
-summary: A child spawned with an output schema must deliver its result through the return_result tool, which validates it and bounces errors back.
+summary: A typed result is a child's answer that must match a schema, delivered through the return_result tool, which checks it and sends errors back to the child.
 ---
-A **typed result** is a [child](./child.md)'s result that must match a schema. A child spawned by [delegate](./delegate.md) with an `output` schema must deliver its result through the `return_result` tool. The server validates it, and errors go back to the child so it can correct itself. A child spawned without `output` returns `{text}`. <!-- id:M9d2fPXp -->
+A **typed result** is a [child](./child.md)'s answer that must match a schema. The parent gives the schema as `output` when it calls [delegate](./delegate.md). For example, a parent can ask for `{dates: string[]}` and get exactly that shape back, not free text. <!-- id:M9d2fPXp -->
+
+The child delivers a typed result through the `return_result` tool. The server checks it against the schema. If it does not match, the errors go back to the child so it can try again. A child started without `output` returns `{text}`.
 
 # `return_result` <!-- id:yPsyH8z2 -->
 
-Exposed only inside typed delegate children. Its declared parameters ARE the spawner's `output` schema, swapped in at session start (`api-service.ts`). The server validates the payload, and failures return the error list to the child so it can correct itself. Delivering the result ends the child's turn immediately. Nothing else it might still owe is worth another turn (`api-service.ts`). <!-- id:Ng94MMwb -->
+Only a typed child has `return_result`. The tool's parameters ARE the parent's `output` schema, which the server puts in when the child's [session](./session.md) starts (`api-service.ts`). <!-- id:Ng94MMwb -->
 
-A child has 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`). A child that spends them fails with error code `output-schema`. A typed child whose turn ends without a delivered result is handed the turn back, and fails if it still does not deliver. See [obligations](./obligations.md).
+- The server checks what the child sends. If it fails, the child gets the list of errors.
+- Delivering the result ends the child's turn at once. Nothing else the child might still do is worth another turn.
+- A child can retry `return_result` 3 times (`MAX_RETURN_RESULT_RETRIES`). After that it fails with error code `output-schema`.
+- When a typed child's turn ends with no result delivered, the runtime hands the turn back. The child fails if it still does not deliver. See [obligations](./obligations.md).
 
-`return_result` is hidden from every other run. It is the third entry, with `status` and `continue_session`, that the registry holds beside the five verbs (see [tools](./tools.md#the-registry)).
+No other run can see `return_result`. The registry holds three entries beside [the five verbs](./read.md): `status`, [`continue_session`](./session-continuation.md), and `return_result` (see [tools](./tools.md#the-registry)).
 
 # See also <!-- id:l4MhYa6V -->
 

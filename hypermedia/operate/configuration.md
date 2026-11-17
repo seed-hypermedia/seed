@@ -1,12 +1,14 @@
 ---
 name: Configuration
-summary: Every environment variable and command-line flag the app environment reads, with its default and what it changes.
+summary: This page lists every environment variable and command-line flag the app environment reads, with the default of each and what it changes.
 ---
-The [app environment](../software/app-environment.md) takes its configuration from environment variables and command-line flags. All of it is read in one place, `apps/src/config.ts`. This page is the reference. [Environments](./environments.md) says which settings each kind of deployment uses, and [operations](./operations.md) routes to the task pages.
+You configure the [app environment](../software/app-environment.md) with environment variables and command-line flags. This page lists all of them. For example, `SEED_APPS_HTTP_PORT=3051` makes the server listen on port 3051, and so does the flag `--server-port 3051`.
+
+The first thing to check: `/api/health` reports several of the values in use, so you can see what a running server was started with. The code reads every setting in one file, `apps/src/config.ts`. [Environments](./environments.md) says which settings each setup uses, and [operations](./operations.md) sends you to the task pages.
 
 # Names
 
-Each setting is an environment variable named `SEED_APPS_<NAME>`. The earlier spelling `SEED_AGENTS_<NAME>` is still read for every setting, and the `SEED_APPS_` name wins when both are set. The [self-hosting](./self-hosting.md) compose files and the hosted deployments set the earlier spelling. This site writes the `SEED_APPS_` form.
+Each setting is an environment variable named `SEED_APPS_<NAME>`. The server also reads the older spelling `SEED_AGENTS_<NAME>` for every setting. When both are set, the `SEED_APPS_` name wins. The [self-hosting](./self-hosting.md) compose files and the hosted Seed servers set the older spelling. These pages write the `SEED_APPS_` form.
 
 # Environment variables
 
@@ -17,22 +19,22 @@ Each setting is an environment variable named `SEED_APPS_<NAME>`. The earlier sp
 | `SEED_APPS_HTTP_PORT` | `3050` | HTTP port. <!-- id:sJW1ZpvU --> |
 | `SEED_APPS_DB_PATH` | `./data/agents.sqlite` | SQLite DB path. <!-- id:dknRVRGp --> |
 | `SEED_APPS_DATA_DIR` | `./data` | Data directory. <!-- id:oMgwJJep --> |
-| `SEED_APPS_HM_SERVER_URL` | `https://hyper.media` | Seed DAG-CBOR `/api/*` endpoint ([Seed API](../build/web-api.md)) used for activity and HM reads and writes. <!-- id:-U_3_rUb --> |
-| `SEED_APPS_HM_SERVER_SECRET` | _(unset)_ | The service secret of a members-only site. It is sent as `X-Seed-Service-Secret` on requests to the HM server and IPFS origins only, in place of a session cookie. See the [enterprise node](./enterprise-node.md). It has no flag. |
-| `SEED_APPS_PUBLIC_URL` | _(unset)_ | Where clients reach this server, such as `https://hyper.media/hm/api/apps` when the web host proxies `/hm/api/apps` here. Reported as `publicUrl` in `/api/health`. An app an agent runs here is pointed at it (its `appEnvironmentUrl`). |
-| `SEED_APPS_IPFS_SERVER_URL` | HM server URL | Direct `/ipfs/*` [gateway](../protocol/files.md) origin for reads when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
-| `SEED_APPS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The document a new agent's system prompt embeds, the [Agent Guide](../agent/guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:ClWokX89 --> |
-| `SEED_APPS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…` go to this account, the system prompt names the knowledge base by it, and a link an agent writes to `hm://hyper.media/…` (in a reply, a document or a comment) is published with it. A client resolves the `hyper.media` domain to the production docs, so a dev or staging agent's links would otherwise open another space. <!-- id:dAKWdZ8N --> |
+| `SEED_APPS_HM_SERVER_URL` | `https://hyper.media` | The [Seed API](../build/web-api.md) the server reads and writes through: the `/api/*` endpoint that speaks [DAG-CBOR](../schema/dag-cbor.md). The server uses it for the activity feed and for every HM read and write. <!-- id:-U_3_rUb --> |
+| `SEED_APPS_HM_SERVER_SECRET` | _(unset)_ | The service secret of a members-only [site](../protocol/sites.md). It is sent as `X-Seed-Service-Secret` on requests to the HM server and IPFS origins only, in place of a session cookie. See the [enterprise node](./enterprise-node.md). It has no flag. |
+| `SEED_APPS_PUBLIC_URL` | _(unset)_ | Where clients reach this server, such as `https://hyper.media/hm/api/apps` when the web host proxies `/hm/api/apps` here. Reported as `publicUrl` in `/api/health`. An app an [agent](../agent.md) runs here is pointed at it (its `appEnvironmentUrl`). |
+| `SEED_APPS_IPFS_SERVER_URL` | HM server URL | The origin for direct `/ipfs/*` [file](../protocol/files.md) reads, when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
+| `SEED_APPS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The [document](../protocol/documents.md) a new agent's system prompt embeds, the [Agent Guide](../agent/guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:ClWokX89 --> |
+| `SEED_APPS_DOCS_ACCOUNT` | _(unset)_ | The [account](../protocol/identity.md) of the knowledge base [space](../protocol/spaces.md). Reads of `hm://hyper.media/…` go to this account. The system prompt names the knowledge base by it. A link an agent writes to `hm://hyper.media/…`, in a reply, a document or a [comment](../protocol/comments.md), is published with it. A client resolves the `hyper.media` domain to the production docs, so without this setting the links of a dev or staging agent would open another space. <!-- id:dAKWdZ8N --> |
 | `SEED_APPS_DOCS_ACCOUNT_FILE` | _(unset)_ | A file that names the knowledge base account, read on every use. Dev points it at the file `./dev hm-sync` writes. <!-- id:yRzkV4si --> |
-| `SEED_APPS_ACTIVITY_POLL_INTERVAL_MS` | `5000` | Activity and schedule trigger monitor poll interval. <!-- id:O4k599Ev --> |
+| `SEED_APPS_ACTIVITY_POLL_INTERVAL_MS` | `5000` | How often the activity monitor and the schedule monitor look for work. These are the tasks that fire [triggers](../trigger.md). <!-- id:O4k599Ev --> |
 | `SEED_APPS_ACTIVITY_PAGE_SIZE` | `50` | ActivityFeed page size. <!-- id:72cPVt59 --> |
 | `SEED_APPS_ACTIVITY_MAX_PAGES` | `5` | Max pages fetched per poll. <!-- id:AMt50Bbp --> |
-| `SEED_APPS_SEARXNG_URL` | _(unset)_ | Self-hosted SearXNG base URL. Enables the `web_search` tool. <!-- id:r7A0bkD3 --> |
-| `SEED_APPS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. Enables browser-render escalation for web reads. <!-- id:0R7M1OGu --> |
+| `SEED_APPS_SEARXNG_URL` | _(unset)_ | Self-hosted SearXNG base URL. It makes `web_search` work. Without it the tool is still offered, and a call fails. See [web research backends](./web-research-backends.md). <!-- id:r7A0bkD3 --> |
+| `SEED_APPS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. With it, a web read can fall back to a real browser for pages that need one. <!-- id:0R7M1OGu --> |
 | `SEED_APPS_CRAWLER_TOKEN` | _(unset)_ | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). <!-- id:ABE0a0Tv --> |
 | `SEED_APPS_SUBSCRIPTION_AUTH` | _(off)_ | Offer provider OAuth sign-in ("Sign in with ChatGPT"). Only `1`/`true`/`yes`/`on` enables it. <!-- id:Sv4pKPqe --> |
-| `SEED_APPS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. <!-- id:ED7y2rAF --> |
-| `SEED_APPS_EXEC_BACKEND` | `microsandbox` | [Code-execution backend](./code-execution-backend.md) for `execute`. Set empty/`off`/`none` to disable. <!-- id:81BYtsXO --> |
+| `SEED_APPS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. Use the environment variable to turn it off; the flag form does not. <!-- id:ED7y2rAF --> |
+| `SEED_APPS_EXEC_BACKEND` | `microsandbox` | [Code-execution backend](./code-execution-backend.md) for `execute`. Set empty/`off`/`none` to disable. When it is off, or the host cannot run sandboxes, agents are not offered `execute`. <!-- id:81BYtsXO --> |
 | `SEED_APPS_EXEC_IMAGE` | `python` | OCI image used for execution sandboxes. <!-- id:QRvggCQy --> |
 | `SEED_APPS_EXEC_TS_IMAGE` | `oven/bun` | OCI image for the `ts` runtime (needs bun). Set empty to withhold ts. <!-- id:yQbjzCnq --> |
 | `SEED_APPS_EXEC_CPUS` | `1` | Virtual CPUs per execution sandbox. <!-- id:QRuJer3f --> |
@@ -51,7 +53,7 @@ Each setting is an environment variable named `SEED_APPS_<NAME>`. The earlier sp
 | `SEED_APPS_MIN_FREE_DISK_MIB` | `512` | Free space the database's file system must have before the queue starts another run; below it runs stay queued and `/api/health` reports `dispatch.paused`. `0` disables the check. See the [effect outbox](../agent/effect-outbox.md). |
 | `SEED_APPS_MAX_CONCURRENT_MODEL_RUNS` | `8` | Agent runs that hold a provider stream at once. See the [run queue](./run-queue.md). |
 | `SEED_APPS_MAX_CONCURRENT_WORKFLOWS` | `32` | Script runs executed at once. They hold no provider stream. |
-| `SEED_APPS_WORKFLOW_WORKER` | off | Set `1` to run scripts in a separate worker process instead of on the server's thread. It has no flag. |
+| `SEED_APPS_WORKFLOW_WORKER` | off | Set `1` to run scripts on a worker thread instead of on the server's main thread. It has no flag. |
 | `SEED_APPS_SQLITE_CACHE_MIB` | `256` | SQLite page cache (private memory, counted against the container limit). See [persistence](./persistence.md#open-settings-and-planner-statistics). |
 | `SEED_APPS_SQLITE_MMAP_MIB` | `1024` | Memory-mapped reads (reclaimable page cache), capped by SQLite's compiled maximum; the value in effect is logged at startup. |
 | `SEED_APPS_SQLITE_WAL_LIMIT_MIB` | `64` | Size the WAL file is truncated back to after a checkpoint. |
@@ -64,11 +66,13 @@ Each setting is an environment variable named `SEED_APPS_<NAME>`. The earlier sp
 | `SEED_APPS_TOOL_OUTPUT_STORE_LIMIT_KIB` | `128` | Longest string (in thousands of characters) a stored tool output keeps; longer ones keep their head and a marker. The model never reads more than 32 KiB of a result either way. `0` disables. |
 | `SEED_APPS_LOG_LEVEL` | `info` | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines. <!-- id:5TX4N4wb --> |
 
-Two more variables are set by the build and not by an operator. The image build writes `SEED_APPS_VERSION`, `SEED_APPS_COMMIT`, `SEED_APPS_BRANCH` and `SEED_APPS_DATE`, which the version endpoint reports (see [deploying](./deploying.md#version-metadata)). The desktop build injects `SEED_APPS_STANDALONE` into the bundled binary so that it starts as a server.
+Five more variables are set by the build, not by an operator. The image build writes `SEED_APPS_VERSION`, `SEED_APPS_COMMIT`, `SEED_APPS_BRANCH` and `SEED_APPS_DATE`, which the version endpoint reports (see [deploying](./deploying.md#version-metadata)). The desktop build puts `SEED_APPS_STANDALONE` into the bundled binary so that it starts as a server.
+
+Where a row says what the hosted Seed servers set, it describes how those servers are run. That can change, and this repository cannot confirm it.
 
 # Command-line flags
 
-CLI flags override env vars and defaults: <!-- id:ZtCaYR7h -->
+A flag wins over the environment variable, and both win over the default: <!-- id:ZtCaYR7h -->
 
 ```bash <!-- id:VLKHNkHQ -->
 bun src/main.ts \
@@ -80,7 +84,9 @@ bun src/main.ts \
   --ipfs-server-url https://hyper.media
 ```
 
-Every environment variable in the table has a matching flag unless its row says otherwise (`--searxng-url`, `--exec-backend`, `--exec-ts-image`, `--subscription-auth`, `--session-title-generation`, `--max-concurrent-model-runs`, …); the full list is the `Flags` type in `config.ts`. An unknown flag or a flag with an empty value is a startup error, so a typo fails loudly and never runs with a default. <!-- id:9OIa8qFe -->
+Every environment variable in the table has a matching flag, unless its row says it has none. Examples are `--searxng-url`, `--exec-backend`, `--exec-ts-image`, `--subscription-auth`, `--session-title-generation` and `--max-concurrent-model-runs`. The full list is the `Flags` type in `config.ts`. <!-- id:9OIa8qFe -->
+
+An unknown flag, or a flag with an empty value, stops the server at startup. So a typing mistake fails at once, and the server never runs with a default you did not choose.
 
 # See also
 

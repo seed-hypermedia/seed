@@ -1,18 +1,28 @@
 ---
 name: Security model
-summary: "The Seed Agents security model: signed account-scoped actions, owner and collaborator checks, encrypted secrets, signed subscriptions, sandboxed code, and a fixed set of model-facing verbs."
+summary: The Seed Agents security model says who is trusted with what and what limits an agent, from signed requests and access checks to encrypted secrets, sandboxed code and a small fixed set of verbs.
 ---
-The [Seed Agents](../agent.md) security model rests on five things: signed account-scoped actions, server-side owner and collaborator checks, encrypted and redacted secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at a handful of verbs. For the Hypermedia side of trust, see [integrity](../protocol/integrity.md) and [permissions](../protocol/permissions.md). <!-- id:DmipMeA2 -->
+This page says who can do what with an agent, and what limits the agent itself. The [Seed Agents](../agent.md) security model rests on five things:
 
-This page is the model: who is trusted with what, and what bounds an agent. Two neighbours hold the detail. [Sharing an agent](./sharing.md) lists what each role may do, and [agent identity](./identity.md) covers the agent's keys and how secrets are stored.
+- **Signed requests.** Every request names one account and is signed by a key that may act for it.
+- **Access checks on the server.** The server checks on every action whether the caller is the owner or a collaborator.
+- **Encrypted secrets.** The server encrypts secrets and never returns them.
+- **Signed subscriptions.** A live connection gets no private data until it sends a signed request.
+- **A small, fixed set of verbs.** The model can only use the tools the server gives it.
+
+For the Hypermedia side of trust, see [integrity](../protocol/integrity.md) and [permissions](../protocol/permissions.md). <!-- id:DmipMeA2 -->
+
+Two other pages hold the detail. [Sharing an agent](./sharing.md) lists what each role may do, and [agent identity](./identity.md) covers the agent's keys and how secrets are stored.
 
 # Trust boundaries <!-- id:rNafV-CT -->
 
-- Desktop app ↔ app environment. <!-- id:29Vx2kId -->
+A trust boundary is a place where data passes between two parts that do not fully trust each other. There are six.
+
+- [Desktop app](../software/desktop.md) ↔ [app environment](../software/app-environment.md). <!-- id:29Vx2kId -->
 - App environment ↔ model providers. <!-- id:bWnYZ3vp -->
 - App environment ↔ Seed Hypermedia and content servers. <!-- id:aVxHgfoN -->
 - App environment ↔ SQLite storage. <!-- id:MvH0stZj -->
-- Desktop renderer ↔ desktop daemon signing API. <!-- id:zozDhJUY -->
+- Desktop renderer ↔ desktop [daemon](../software/daemon.md) signing API. <!-- id:zozDhJUY -->
 - Agent runtime ↔ sandbox microVM (the only place model-written code runs). <!-- id:-X9dRIVd -->
 
 # HTTP action authentication <!-- id:ydA7wq7B -->
@@ -25,20 +35,20 @@ Every HTTP action is a signed `SignedActionEnvelope`, described in the [signed A
 }
 ```
 
-The server verifies the [signature](../signature.md) and authorizes the signer for the [account](../protocol/identity.md). <!-- id:mJA0FdHP -->
+The server checks the [signature](../signature.md). Then it checks that the signer may act for the [account](../protocol/identity.md). <!-- id:mJA0FdHP -->
 
-A signer is authorized when: <!-- id:vI4I2YXO -->
+A signer may act for an account when one of these is true: <!-- id:vI4I2YXO -->
   - `signer === account`; or <!-- id:CoVjaoZS -->
   - the envelope carries `capability` (and usually `capabilityBlob`): a [Capability](../capability.md) issued by `account`, delegating to `signer`, role `AGENT` or `WRITER`, not self-issued, under 64 KiB; a verified delegation is recorded as an `AGENT` authorization; or <!-- id:MFXBbOw6 -->
   - `account_authorizations` has role `OWNER` or `AGENT` for `(account, signer)`. <!-- id:nwMz9Fv- -->
 
 ## Replay <!-- id:wDYh8XGZ -->
 
-Every signed action carries a signed `action.ts` timestamp in Unix milliseconds. HTTP and WebSocket envelopes are rejected when it is missing, invalid, or more than five minutes from the server's clock. The window bounds both clock skew and time spent queued behind a busy server. <!-- id:lPu7yc3v -->
+A replay is a captured request that someone sends again. Every signed action carries a signed `action.ts` timestamp in Unix milliseconds. The server rejects an HTTP or WebSocket envelope when the timestamp is missing, invalid, or more than five minutes from the server's clock. The five minutes allow for clocks that differ and for time spent waiting behind a busy server. <!-- id:lPu7yc3v -->
 
 Create and message actions accept a client id that makes a repeat harmless. <!-- id:wLMm9_EJ -->
 
-The server keeps no nonce cache, so a captured request can be replayed within the five-minute window. <!-- id:JO8PA4PF -->
+The server does not remember which requests it has seen. So a captured request can be replayed within the five-minute window. <!-- id:JO8PA4PF -->
 
 # WebSocket authentication <!-- id:bARrb-Xh -->
 
@@ -50,11 +60,11 @@ Server-to-client events are not individually signed. <!-- id:8RkjVN2M -->
 
 # Who may act on an agent <!-- id:kaRoiUoq -->
 
-An agent stays owned by the account that created it. Other signed accounts get access only through an accepted invitation as a `reader` or a `writer`, or through the owner's public read and public chat switches. Every action checks the caller's level on the server. [Sharing an agent](./sharing.md) lists the roles and what each may do.
+The account that created an agent owns it, and that never changes. Other signed accounts get access only through an accepted invitation as a `reader` or a `writer`, or through the owner's public read and public chat switches. Every action checks the caller's level on the server. [Sharing an agent](./sharing.md) lists the roles and what each may do.
 
 Provider, secret, sign-in and signing-identity changes stay scoped to the collaborator's own account. <!-- id:zN908Czj -->
 
-Agent, session, and run WebSocket subscriptions use the same access check. Revocation takes effect before the next request or subscription. <!-- id:MP2yCS2d -->
+Agent, [session](./session.md), and run WebSocket subscriptions use the same access check. When access is taken away, the next request or subscription is refused. <!-- id:MP2yCS2d -->
 
 Document permissions and agent access are separate. Being able to write an agent's [document](./mounting.md) changes what the agent is told, because the document is its instructions. It does not give access to the agent's sessions, memory or tools.
 
@@ -75,13 +85,13 @@ Session events do not store the account ID directly. The server verifies ownersh
 
 # Agent isolation <!-- id:KunfZIHl -->
 
-Agents of the same account do not read each other's state. The `thread:` address (reads and listings) and continuation `session_events` sources reach only the calling agent's own threads. Memory and tools are per-agent by construction (`state_dir`). Agents communicate over public interfaces: [documents](../protocol/documents.md) and [comments](../protocol/comments.md) on the hypermedia network. They never inspect one another's transcripts. <!-- id:NDvRam0b -->
+Agents of the same account do not read each other's threads, memory or tools. The `thread:` address (reads and listings) and continuation `session_events` sources reach only the calling agent's own threads. Each agent has its own memory and tools, in its own directory (`state_dir`). Agents talk to each other in public: through [documents](../protocol/documents.md) and [comments](../protocol/comments.md) on the Hypermedia network. They never read one another's transcripts. <!-- id:NDvRam0b -->
 
-One exception: `run:` reads are scoped by account alone. An agent can read the run records of every other agent on the same account, including their tool inputs and results. So agents on one account are not fully isolated from each other. <!-- id:aEUQngB8 -->
+One exception: `run:` reads are scoped by account alone. An agent can read the run records of every other agent on the same account, including a run's output and a script's source. So agents on one account are not fully isolated from each other. <!-- id:aEUQngB8 -->
 
 # Secrets <!-- id:SgQVhqL8 -->
 
-API keys, sign-in credentials, MCP header values and the agents' signing keys are encrypted at rest and never returned by any action. The client refuses to send a secret to a remote server over plain HTTP. The encryption key is stored in the same database as the secrets, so encryption prevents disclosure through the API and the logs, and does not protect against someone who has the whole database. [Agent identity](./identity.md) has the details, and the advice that follows from them: give an agent a key of its own, and self-host if a hosted server should not hold it.
+The server stores API keys, sign-in credentials, MCP header values and the agents' signing keys encrypted. No action ever returns them. The client refuses to send a secret to a remote server over plain HTTP. The encryption key is stored in the same database as the secrets. So encryption keeps secrets out of the API and the logs. It does not protect against someone who has the whole database. [Agent identity](./identity.md) has the details, and the advice that follows from them: give an agent a key of its own, and self-host if a hosted server should not hold it.
 
 # Provider endpoint safety <!-- id:LxjFNwif -->
 
@@ -95,18 +105,18 @@ A new pinned provider type inherits the pinned-URL policy automatically. <!-- id
 
 # The tool surface is the authority boundary <!-- id:ZUb7YijU -->
 
-The model sees the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) plus the two session verbs, `status` and `continue_session`, which touch only the session's own title and lineage. Only **[promotion](./promotion.md)** widens that set, and promotion has two bounds: <!-- id:jh9t4A6y -->
+The model can only do what its tools let it do. It starts with the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) plus the two session verbs, `status` and [`continue_session`](./session-continuation.md). The session verbs touch only the session's own title and its link to a successor. Only **[promotion](./promotion.md)** adds to that set, and promotion has two limits: <!-- id:jh9t4A6y -->
   - promotion is derived only from durable `tool_call` events in this session's own transcript, so it survives restarts and live state cannot inject it; <!-- id:LdBc3z4t -->
-  - the promoted list is intersected with the agent's enabled callables before it is offered to the provider. This filter is a security control. A hallucinated or injected `call {tool: 'bash'}` durably stores that name, and only names that pass the filter are installed as tools of the turn. <!-- id:q2b0tftt -->
+  - the server keeps only the promoted names that are also among the agent's enabled [callables](./callables.md), before it offers them to the provider. This filter is a security control. A hallucinated or injected `call {tool: 'bash'}` durably stores that name, and only names that pass the filter are installed as tools of the turn. <!-- id:q2b0tftt -->
 
 The turn's Pi Durable harness starts from an empty registry, and Seed installs one extension in it. Pi's coding tools (`read`, `write`, `edit`, `bash`) are a separate extension that is never installed, and no execution environment is configured. The only executable surface is the Seed-owned verbs. <!-- id:RMyDqBZn -->
 
-Events written by a user's own verb calls carry `actor: 'user'` and are explicitly skipped when computing promotion, so a user's palette activity never reshapes the agent's active toolset. <!-- id:ahkTiyN7 -->
+Events written by a person's own verb calls carry `actor: 'user'`. Promotion skips them. So a tool that a person runs never changes the agent's set of tools. <!-- id:ahkTiyN7 -->
 
 # Grants <!-- id:u27bF0_B -->
 
 Three things are [granted](./grants.md) per agent. The verbs themselves are never grants. <!-- id:c2iQDOLW -->
-  - **The callable set**: which of `search`, `web_search`, `execute` and `browser` the agent may dispatch. `query` and `attributes` are always on, because they only read what `read` already reaches. `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
+  - **The callable set**: which of `search`, `web_search`, `execute` and `browser` the agent may dispatch. `query` and `attributes` are always on, because they only read what `read` already reaches (`attributes` returns a document's [attributes](../metadata.md)). `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
   - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403. Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
   - **MCP servers**: `definition.mcpServers` names the account [MCP servers](./mcp.md) an agent may call. Enabling a server is a grant on par with `execute`: its tools run with whatever the remote server can do. The projected `mcp` tool documents only cache this grant. `executeMcpTool` re-checks `definition.mcpServers` before any call, so a stale document cannot reach a server the owner turned off. <!-- id:JAdshfOI -->
 
@@ -114,7 +124,7 @@ A [delegate](./delegate.md) child's `tools` narrowing intersects against the par
 
 The promotion filter admits the enabled callable set and the agent's own enabled MCP projections, derived again from the definition at run start. A promoted [tool document](./tool-document.md) executes through the same `call` dispatch and the same checks as an explicit `call`. <!-- id:Cqpe6uA3 -->
 
-Grants stop there. There is no policy per address or per destination.
+Grants stop there. There is no rule per address or per destination.
 
 # MCP server safety <!-- id:Vu4WkGXX -->
 
@@ -135,17 +145,17 @@ Mitigations present: <!-- id:PtUHslMF -->
 
 # Agent-managed triggers <!-- id:COfrFvPS -->
 
-Agents manage their own [triggers](./triggers.md) directly. `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a trigger, and `enabled` is honored exactly as written (defaulting to true). "Do this every morning" said in chat works, with no separate approval step. <!-- id:6xYSwts8 -->
+Agents manage their own [triggers](../trigger.md) directly (see [triggers](./triggers.md)). `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a trigger, and `enabled` is honored exactly as written (defaulting to true). "Do this every morning" said in chat works, with no separate approval step. <!-- id:6xYSwts8 -->
 
-The consequence for the threat model: a trigger is standing authority to act with nobody present. An agent can be steered by a prompt injection in content it reads, and it can grant that authority to itself. Nothing prevents this. What exists gives visibility and bounds the damage: <!-- id:Vb4QmNhC -->
-  - every trigger write is a durable, actor-stamped `tool_call` and `tool_result` pair on the session [Log](./log.md); <!-- id:AcgbWlNJ -->
+This has a cost. A trigger lets an agent act when nobody is present. Text that an agent reads can mislead it (a prompt injection), and a misled agent can create a trigger for itself. Nothing prevents this. What exists lets you see it and limits the damage: <!-- id:Vb4QmNhC -->
+  - every trigger write is a saved `tool_call` and `tool_result` pair on the session [Log](./log.md); <!-- id:AcgbWlNJ -->
   - trigger writes emit `trigger-updated` account events, so the desktop Triggers tab reflects changes live; <!-- id:TqGo-Ffe -->
-  - a trigger fires only what the agent could already do. Its callable set and publish grant still bound the blast radius, and delegation still only narrows authority; <!-- id:95IODWlx -->
+  - a trigger fires only what the agent could already do. Its callable set and publish grant still limit what a firing can do, and delegation still only narrows authority; <!-- id:95IODWlx -->
   - the firing-chain loop guard stops runaway trigger chains. <!-- id:arA2301Y -->
 
 # Verbs run by a person
 
-A person can run `read`, `write` and `call` on a session through the [wrench palette](./wrench-palette.md) (`InvokeSessionTool`). It is bounded: only those three verbs are accepted, the request is rejected while the session has a live run, and execution failures append to the log where anyone can see them. <!-- id:yQRuxww- -->
+A person can run `read`, `write` and `call` on a session from the composer's `/` menu (`InvokeSessionTool`). See [running a tool yourself](./wrench-palette.md). Three rules limit it: the server accepts only those three verbs, it rejects the request while the session has a live run, and a failed call is written to the log where anyone can see it. <!-- id:yQRuxww- -->
 
 Their calls and results are shown to the model inside `<user_action>` frames. Text in those frames, and in every other frame that carries text someone else wrote, is escaped so it cannot close the frame. See [untrusted text that reaches the model](./prompt.md).
 
@@ -163,7 +173,7 @@ Risks: <!-- id:JRXTM2Fl -->
 Mitigations present: <!-- id:hk5kfymg -->
   - address parsing rejects anything outside the supported forms; <!-- id:-tFNxcq6 -->
   - output size limit (256 KiB) on every tool result; <!-- id:qkRlir6U -->
-  - durable, actor-stamped tool events for everything the agent and user do; <!-- id:zreEIIiU -->
+  - saved tool events, each with its actor, for everything the agent and the user do; <!-- id:zreEIIiU -->
   - hypermedia-first resolution for `https://` addresses. It falls through to the web reader only on an explicit not-hypermedia marker or a 404, so scraped HTML never silently replaces document content; <!-- id:hhWC_Z3Z -->
   - no shelling out to the [CLI](../build/cli.md). <!-- id:RTT7AbCG -->
 
@@ -187,12 +197,12 @@ Mitigations present: <!-- id:bz47yFmI -->
 # Agent memory safety <!-- id:lSwfN2YZ -->
 
 Agent [memory](./memory.md) exposes a real filesystem directory to model-controlled input, so path handling is strict: <!-- id:APChYsrg -->
-  - every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth (16) and length (512 bytes) bounded, and the resolved absolute path re-verified to sit inside `<stateDir>/memory`; <!-- id:dC2437Id -->
+  - every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth (16) and length (512 bytes) bounded, and the resolved absolute path re-verified to sit inside `<stateDir>/memory`, or inside `<stateDir>/private-memory` for `~/memory/private/`; <!-- id:dC2437Id -->
   - symlinks are refused as read and write targets and skipped in listings, so memory operations cannot follow a planted link out of the sandbox; <!-- id:jjO2uEQq -->
   - ownership is checked through the agent row before any filesystem operation, so accounts cannot touch other accounts' memory; <!-- id:s6XqDvic -->
   - binary memory files are never sent to the model: a memory read returns only metadata for binary content. Their raw bytes are returned to the owning user over the signed API for preview and download; <!-- id:mVO90UmT -->
   - memory content is visible to the model and the user by design. Do not store secrets in agent memory; <!-- id:Gt-nn0ZR -->
-  - `write ipfs://` and `UploadAgentMemoryFileToIpfs` chunk files as [UnixFS](../protocol/files.md) and publish the blocks through the typed HM API. The daemon stores the blocks, but its gateway refuses them (`blob … is not public`) until public Hypermedia content links to the [CID](../protocol/blobs.md). [Visibility](../protocol/privacy.md) propagates from a referencing [Change](../change.md), [Comment](../comment.md), or [Profile](../profile.md). So a standalone `write ipfs://` is not retrievable. It becomes retrievable the moment any public blob references it. `SEED_APPS_IPFS_SERVER_URL` only selects the gateway for later reads. Treat publishing as irreversible disclosure anyway. Showing a memory file to the owner in chat does not go through IPFS: the transcript renders `![…](~/memory/path)` over the signed API; <!-- id:BArm8mQq -->
+  - `write ipfs://` and `UploadAgentMemoryFileToIpfs` store a memory file on the daemon as [UnixFS](../protocol/files.md) pieces. Nobody can fetch them (the answer is `blob … is not public`) until a public [Change](../change.md), [Comment](../comment.md) or [Profile](../profile.md) links to the file's [CID](../cid.md). See [privacy](../protocol/privacy.md). From that moment the file is public and cannot be taken back, so treat every upload as public. `SEED_APPS_IPFS_SERVER_URL` only selects the server used for later reads. Showing a memory file to the owner in chat does not use IPFS: the transcript renders `![…](~/memory/path)` over the signed API; <!-- id:BArm8mQq -->
   - a session's [durable store](./durable-sessions.md) is in the agents database. It holds the same conversation as the log, in the form the model reads it, including provider reasoning the log does not keep. It is not in the agent's state directory, so neither the model's verbs nor sandboxed code can reach it, and it is deleted with the session; <!-- id:MaQG6cw9 -->
   - session files (files dropped into the chat composer) are session-private: stored under `<stateDir>/session-attachments/<sessionId>/`, keyed by content SHA-256, capped at 100 MiB each, never auto-copied into cross-session memory or published, deleted with the session, and exposed to the model as metadata until it reads one by address. <!-- id:LnfnVLp1 -->
 
@@ -201,8 +211,8 @@ Agent [memory](./memory.md) exposes a real filesystem directory to model-control
 # Code execution safety <!-- id:mIs-6SHz -->
 
 [`execute`](./code-execution.md) runs model-written code, so isolation comes from hardware virtualization. Process sandboxing is not used: <!-- id:VPSYqRA7 -->
-  - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_APPS_EXEC_WARM_POOL=1`), one reused only by the same principal (account, agent, session, image); no VM is ever shared across principals. The VM runs on the embedded `microsandbox` runtime (libkrun on macOS and Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
-  - the only host filesystem exposure is the agent's own memory directory, bind-mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
+  - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_APPS_EXEC_WARM_POOL=1`), one reused only for the same account, agent, session and image; no VM is ever shared across those. The VM runs on the embedded `microsandbox` runtime (libkrun on macOS and Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
+  - the only part of the host's file system that code can see is the agent's own memory directory, without `~/memory/private/`, mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
   - guest-created symlinks inside the memory directory cannot trick host-side reads. Memory reads refuse symlinks and listings skip them; <!-- id:-VQDLseP -->
   - nothing is interpreted by a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so model code containing quotes, newlines, or `$` needs no escaping; <!-- id:oxwzfHCg -->
   - sandbox networking is on by default but constrained to a **non-local egress policy**. Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_APPS_EXEC_DNS`) and never the host's. `SEED_APPS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
@@ -211,25 +221,27 @@ Agent [memory](./memory.md) exposes a real filesystem directory to model-control
 
 # Script (workflow) safety <!-- id:fcE-ASsj -->
 
-[Script](./script.md) children are untrusted, model-authored JavaScript. The posture is defense in depth: <!-- id:Mi-PBDI- -->
+[Script](./script.md) children are JavaScript that the model wrote, so the server does not trust them. Several layers protect against them: <!-- id:Mi-PBDI- -->
   - **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers, `fetch`, imports, or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
   - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
-  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the thoroughness preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
+  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the [thoroughness](./delegation-budgets.md) preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
   - **Child outputs re-enter parents as data** (schema-validated when a [typed result](./typed-result.md) was declared), inside tool results. They are never trusted instructions. A prompt-injected child can corrupt only its own return value. <!-- id:_9Lz0w7L -->
   - **Kill switch**: `CancelRun` on any root cascades to every descendant. Queued runs never start, waiting runs never wake, live agent runs abort their durable conversation, live script VMs are interrupted. `StopSession` on the launching chat does the same for its whole tree. <!-- id:LvFiHHRo -->
   - **What is not bounded**: there are no cost budgets, in money or in tokens. Wall time, depth, fan-out and concurrency caps are the controls, and live usage is recorded per run and visible to clients. A script's `ctx.call` interrupted between execution and its journaled result runs again on resume (at-least-once). That is fine for idempotent tools, but a `write` that crashed at exactly that point could publish twice. A chat turn's tool calls are covered: the [effect outbox](./effect-outbox.md) records each effect before it runs and answers a rerun from its receipt. <!-- id:4HiLThr0 -->
 
 # Honest-record guarantees <!-- id:2PvmSscn -->
 
-Several behaviors keep the log from quietly disagreeing with reality. That is a security property and a product property: <!-- id:XS7PsjRR -->
+Several rules keep the log from quietly disagreeing with what really happened. That matters for security and for the product: <!-- id:XS7PsjRR -->
   - the runtime settles a [plan](./plan.md) step only on evidence (every attached child `succeeded`) and never derives anything from failure; <!-- id:lEfY3dmN -->
   - `resolvedBy: 'runtime'` cannot be forged from model input and is carried across rewrites only while the step stays done; <!-- id:MAH6svgu -->
-  - a run that exhausts its continuations leaves an actor-`system` notice naming exactly what was left open, and nothing is ticked off on the agent's behalf; <!-- id:0dfC_lVg -->
+  - a run that uses up its [obligation](./obligations.md) reminders leaves a `system` notice that names exactly what was left open, and nothing is ticked off for the agent; <!-- id:0dfC_lVg -->
   - a typed child that never delivered **fails**, because its parent is blocked on a result that is never coming. <!-- id:PyWycS8a -->
 
 # Logging <!-- id:cYDdWm8G -->
 
-Diagnostic logs carry ids (account, agent, session, run, partial), event counts, byte lengths, status codes, content types, durations, the names of active tools, and the model and provider. They never carry plaintext secrets, decrypted keys, provider secret config, signed request bodies, full prompts or responses, full session content, or large tool outputs.
+Diagnostic logs carry ids (account, agent, session, run, partial), event counts, byte lengths, status codes, content types, durations, the names of active tools, and the model and provider. They never carry plaintext secrets, decrypted keys, provider secret config, signed request bodies, full prompts, or large tool outputs.
+
+One thing is not a log line but lands in the same place. While a model writes a reply, the server also writes the reply text to standard output. So the output of the server process holds the text of replies. The server does not do this for a session that used the browser or [private memory](./memory.md#private-memory). An operator who keeps the server's output keeps that text too. See [logs](../operate/logs.md).
 
 # See also <!-- id:zMjUwvqz -->
 

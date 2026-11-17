@@ -2,9 +2,9 @@
 name: Block Node
 summary: "One node of a content tree: a block plus its ordered child nodes, recursively, which is how documents and comments nest content."
 ---
-A **block node** is one node of the document content tree: a [block](../block.md) plus its ordered child block nodes. The recursion (children of the same type) expresses any depth of nesting. A leaf omits children. <!-- id:_QEoHThv -->
+A **block node** is one node of the [document](../protocol/documents.md) content tree: a [block](../block.md) plus its ordered child block nodes. The recursion (children of the same type) expresses any depth of nesting. A leaf omits children. <!-- id:_QEoHThv -->
 
-A [document](../document.md)'s `content` and its detached blocks are lists of these nodes, and so is the resolved view of a [comment](../comment.md) body. The tree is derived. The daemon replays the [MoveBlocks](../change/op/move-blocks.md) and [ReplaceBlock](../change/op/replace-block.md) operations of a document's [Changes](../change.md) to place each block under its parent. The parent's `childrenType` attribute decides whether the children read as a plain group, a list, a quote or a grid; see [children type](./children-type.md) and [Blocks](../protocol/blocks.md). <!-- id:Z8bKkxGu -->
+A [document](../document.md)'s `content` and its detached blocks are lists of these nodes, and so is the resolved view of a [comment](../comment.md) body. The tree is derived. The [daemon](../software/daemon.md) replays the [MoveBlocks](../change/op/move-blocks.md) and [ReplaceBlock](../change/op/replace-block.md) operations of a document's [Changes](../change.md) to place each block under its parent. The parent's `childrenType` attribute decides whether the children read as a plain group, a list, a quote or a grid; see [children type](./children-type.md) and [Blocks](../protocol/blocks.md). <!-- id:Z8bKkxGu -->
 
 # See also <!-- id:OExXJw65 -->
 
@@ -12,4 +12,4 @@ A [document](../document.md)'s `content` and its detached blocks are lists of th
 - [document](../document.md): the read model whose `content` is a list of nodes. <!-- id:vEUalGFg -->
 - [block/children-type](./children-type.md): how children are laid out. <!-- id:jV8hVPzK -->
 - [MoveBlocks](../change/op/move-blocks.md): the op that builds the tree. <!-- id:5jhoS2z7 -->
-- [block/comment](./comment.md): the comment form of nested blocks. <!-- id:D1pCPvnr -->
+- [block/comment](./comment.md): the [comment](../protocol/comments.md) form of nested blocks. <!-- id:D1pCPvnr -->

@@ -1,8 +1,12 @@
 ---
 name: Primitive
-summary: 'One of the library schemas that is exactly `{ "type": <kind> }`, such as `string` or `boolean`.'
+summary: 'A primitive is the library''s ready-made schema for one kind, such as `string` or `boolean`, and it is exactly `{ "type": <kind> }`.'
 ---
-**Primitive**: one of the library schemas that is exactly `{ "type": <kind> }` (for example [string](../string.md) or [boolean](../boolean.md)). It is the canonical, content-addressed block for a [kind](./kind.md). A field says what it is by naming one: `{ "type": "hm://…/string" }` names the kind and references that block at once, with the same key that names any other schema. A primitive is an _instance_ of the [meta-schema](../schema.md). A [variant](./variant.md) is different: it is a _shape_ in the union that makes up the meta-schema. [The data model](./data-model.md) lists the kinds. <!-- id:3HfWQq4T -->
+A **primitive** is the library's ready-made schema for one [kind](./kind.md), such as [string](../string.md) or [boolean](../boolean.md). It is exactly `{ "type": <kind> }`. The library has one for each of the nine kinds, plus one for [struct](../struct.md). <!-- id:3HfWQq4T -->
+
+When a field says `{ "type": "hm://…/string" }`, it names the kind and points at this schema at the same time. It uses the same `type` key that names any other schema.
+
+Do not mix a primitive up with a [variant](./variant.md). A variant is a shape that a schema can take. A primitive is one finished schema: a value that matches the [meta-schema](../schema.md). [The data model](./data-model.md) lists the kinds.
 
 # See also <!-- id:z2W239gM -->
 

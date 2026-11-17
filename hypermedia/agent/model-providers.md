@@ -1,14 +1,18 @@
 ---
 name: Model providers
-summary: A model provider tells an app environment which language-model backend to call for an account, with its credentials stored encrypted and its base URL pinned for every hosted provider type.
+summary: A model provider tells an app environment which language-model service to call for an account, with its credentials stored encrypted and its address fixed for every hosted provider type.
 ---
-A model provider is a record, scoped to an [account](../protocol/identity.md), that tells the [Seed Agents](../agent.md) server how to call an LLM backend. Provider credentials are stored separately and encrypted. The record holds only a reference to them. <!-- id:F5iAgtU4 -->
+A **model provider** tells the [Seed Agents](../agent.md) server how to reach a language model, for example "OpenAI, with this API key". It is a record that belongs to one [account](../protocol/identity.md). The server stores the credentials separately and encrypted. The record holds only a reference to them. <!-- id:F5iAgtU4 -->
 
-An agent names one provider and one model on it. This page covers the provider record, the provider types, the actions that manage providers, and how to add one in the app. Two neighbours hold the rest: [reasoning levels](./reasoning-levels.md) says how much a model thinks, and [Sign in with ChatGPT](./chatgpt-sign-in.md) covers using a ChatGPT plan in place of an API key.
+An agent names one provider and one model on it. This page covers the provider record, the provider types, the actions that manage providers, and how to add one in the app. Two other pages hold the rest: [reasoning levels](./reasoning-levels.md) says how much a model thinks, and [Sign in with ChatGPT](./chatgpt-sign-in.md) covers using a ChatGPT plan in place of an API key.
 
 # Adding a provider in the app
 
-Open the **Settings** tab of an agent that runs on the server and choose **Model providers**. Only the owner sees it. The Create Agent dialog also asks for a provider when the server has none. In the dialog, pick a type, give the provider a name, and either paste an API key or choose **Sign in with ChatGPT**. `ollama` and `custom` also take a base URL, and their key is optional. The dialog refuses to send a key to a remote server over plain HTTP. Each provider shows an expandable list of its models and a **Refresh** button, and a failure to list shows inline. See [Agents in the Seed app](./in-the-app.md).
+1. Open the **Settings** tab of an agent that runs on the server and choose **Model providers**. Only the owner sees it. The Create Agent dialog also asks for a provider when the server has none.
+2. Pick a type and give the provider a name.
+3. Paste an API key, or choose **Sign in with ChatGPT**. `ollama` and `custom` also take a base URL, and their key is optional.
+
+The dialog refuses to send a key to a remote server over plain HTTP. Each provider shows a list of its models that you can open, and a **Refresh** button. If the list cannot be loaded, the error shows in the same place. See [Agents in the Seed app](./in-the-app.md).
 
 # Provider record <!-- id:y4bEdiBm -->
 
@@ -49,7 +53,7 @@ The credentials are [secrets](./identity.md) of the account, named by `secretRef
 
 # Supported provider types <!-- id:dO5T0qHa -->
 
-Most providers are OpenAI-compatible. They are called the same way and their models are listed the same way, and they differ only by base URL. <!-- id:0Licoykk -->
+Most providers are OpenAI-compatible: the server calls them the same way and lists their models the same way. They differ only by base URL, the address of the service. <!-- id:0Licoykk -->
 
 <!-- id:CaCYyomB -->
 | type <!-- col:rIZ8I7hq --> | Pi API <!-- col:y_MYituR --> | default base URL <!-- col:D3AxfQ-x --> | base URL editable <!-- col:5q6PJbaj --> | API key <!-- col:T-SLNGtx --> | model list <!-- col:VzlfocgI --> <!-- id:c7jSC36w --> |
@@ -66,23 +70,23 @@ Most providers are OpenAI-compatible. They are called the same way and their mod
 
 \* `openai` uses `openai-responses` for a model that reasons. See [reasoning levels](./reasoning-levels.md). <!-- id:sdsIpE0- -->
 
-`custom` is the generic OpenAI-compatible type. The user supplies the base URL, so it covers self-hosted servers (LM Studio, vLLM, llama.cpp, LocalAI) and any future OpenAI-compatible endpoint without a code change. It has no default base URL, so the user must supply one. <!-- id:Z8omQ1eO -->
+`custom` is the type for any other OpenAI-compatible service. You give the base URL. So it covers servers you host yourself (LM Studio, vLLM, llama.cpp, LocalAI) and any other OpenAI-compatible service, without a code change. It has no default base URL, so you must give one. <!-- id:Z8omQ1eO -->
 
-`ollama` and `custom` are the only two types that accept a custom base URL and need no API key. The other seven are the inverse: for them the default base URL always wins, so a stored API key cannot be redirected to an arbitrary host. `SetModelProvider` still validates and stores a `baseUrl` on a pinned provider, and execution ignores it, so the record can disagree with what runs. Because `custom` has no default, it is the only type that can fail with "Base URL is required for provider type: custom". The trust rationale is in the [security model](./security.md). <!-- id:tlog-XGz -->
+`ollama` and `custom` are the only two types that accept your own base URL and need no API key. For the other seven types the address is fixed. You can save a `baseUrl` on one of them, and `SetModelProvider` checks and stores it, but the server never uses it. This keeps a saved API key from being sent to another host. Because `custom` has no default, it is the only type that can fail with "Base URL is required for provider type: custom". The reasons are in the [security model](./security.md). <!-- id:tlog-XGz -->
 
-Anthropic and Google are not covered by tests against the real providers. `deepseek` and `openrouter` models run without reasoning control.
+No test runs against the real Anthropic and Google services. `deepseek` and `openrouter` models run without reasoning control.
 
 # API actions <!-- id:seQkEzEa -->
 
 These are [signed API](../build/signed-api.md) actions. <!-- id:oSxv44bd -->
-  - `ListModelProviders`: redacted provider metadata. <!-- id:obDhDqLd -->
-  - `ListProviderModels`: resolves credentials server-side and queries the provider's model-list endpoint. Optional `refresh: true` bypasses the server's cached Codex release lookup for subscription providers. <!-- id:emMglq7O -->
-  - `SetModelProvider`: upserts provider config. <!-- id:z3UJn0_5 -->
-  - `SetSecret`: encrypts and upserts a secret value. <!-- id:vEMVC60a -->
-  - `DeleteModelProvider`: removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
+  - `ListModelProviders`: the providers, without their secrets. <!-- id:obDhDqLd -->
+  - `ListProviderModels`: the server reads the credentials and asks the provider for its list of models. Optional `refresh: true` skips the server's cached Codex release lookup for subscription providers. <!-- id:emMglq7O -->
+  - `SetModelProvider`: creates or updates a provider. <!-- id:z3UJn0_5 -->
+  - `SetSecret`: encrypts a secret value and creates or updates it. <!-- id:vEMVC60a -->
+  - `DeleteModelProvider`: removes a provider record and its secrets (the API key or the ChatGPT sign-in), unless another provider still uses them. <!-- id:EPPvk15T -->
   - `StartProviderOAuth`, `SubmitProviderOAuthCode`, `GetProviderOAuthStatus`, `CancelProviderOAuth`: the subscription sign-in flow. <!-- id:c_F1btlK -->
 
-Returned provider shape: <!-- id:TaVAqOZZ -->
+A provider is returned in this shape: <!-- id:TaVAqOZZ -->
 
 ```ts <!-- id:tU03Do2h -->
 type RedactedModelProvider = {
@@ -98,7 +102,7 @@ type RedactedModelProvider = {
 }
 ```
 
-No provider action returns plaintext secrets. `ListProviderModels` returns only `{id, name}`: <!-- id:b3voFvPO -->
+No provider action returns a secret. `ListProviderModels` returns only `{id, name}`. How it gets the list depends on the type: <!-- id:b3voFvPO -->
   - **subscription providers** list the models of the ChatGPT plan, as [Sign in with ChatGPT](./chatgpt-sign-in.md) describes; <!-- id:3aP3RC_5 -->
   - **openai strategy** (`openai`, `openrouter`, `deepseek`, `groq`, `xai`, `ollama`, `custom`): `GET {base}/models`. The `Authorization: Bearer` header is added only when a key exists, so keyless Ollama and custom providers work. `name` is the id, and there is no display name; <!-- id:ICG7Fs4X -->
   - **anthropic**: `GET {base}/v1/models` with `x-api-key` and `anthropic-version: 2023-06-01` instead of Bearer. `name` is `display_name` when present; <!-- id:hr1emxf1 -->
@@ -108,14 +112,14 @@ Errors: a missing key on a `requireApiKey` provider fails with 400 before any fe
 
 # How a model is set up for a run <!-- id:qdW0mdOj -->
 
-Each run registers exactly one model, built from the agent's definition.
+Each run uses exactly one model, set up from the agent's definition.
 
   - **Image input.** Whether a model takes images decides whether an attached image reaches it as an image or as a line of metadata. <!-- id:KxXI7lQq -->
-  - **Context window.** It is known per model family, for example 400k tokens for gpt-5 and later, 200k or 1M for Claude, and 128k for gpt-4o. The context meter and the `<context_usage>` block use it; see [session continuation](./session-continuation.md). The reply is capped at 16384 tokens. <!-- id:jgZ3Sgim -->
+  - **Context window.** It is known per model family, for example 400k tokens for gpt-5 and later, 200k or 1M for Claude, and 128k for gpt-4o. The context meter and the `<context_usage>` text sent to the model use it; see [session continuation](./session-continuation.md). A model the server does not know gets 128k. The reply is limited to 16384 tokens, except on a ChatGPT-plan provider. <!-- id:jgZ3Sgim -->
   - **Usage.** Token counts are real. Cost is recorded as zero, so usage is counted in tokens and never in money.
   - **Reasoning.** See [reasoning levels](./reasoning-levels.md).
 
-Every request logs the session, agent, provider, model, reasoning level and tool names before it is sent. Read that line first when a provider rejects a call. <!-- id:yWv424ld -->
+Before the server sends a request, it logs the [session](./session.md), agent, provider, model, reasoning level and tool names. Read that line first when a provider rejects a call. <!-- id:yWv424ld -->
 
 What the provider receives on each request is described in [what an agent is told](./prompt.md).
 
@@ -129,4 +133,4 @@ What the provider receives on each request is described in [what an agent is tol
 - [What an agent is told](./prompt.md) <!-- id:WCT2M2dx -->
 - [Agents in the Seed app](./in-the-app.md) <!-- id:c78-tdP7 -->
 - [Troubleshooting](../operate/troubleshooting.md) <!-- id:bTwdA-Fh -->
-- [Operations](../operate/operations.md) <!-- id:m0u21V9S -->
+- [Operating an app environment](../operate/operations.md) <!-- id:m0u21V9S -->

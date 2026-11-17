@@ -1,10 +1,12 @@
 ---
 name: Authority
-summary: A public key that owns and signs everything published under its name.
+summary: An authority is the public key that owns an hm:// address and signs everything published under it.
 ---
-An **authority** is a public key that owns and signs everything published under its name. It is a [principal](./principal.md), the key of an [account](./protocol/identity.md). In an [`hm://` URL](./protocol/urls.md) the authority is the part after `hm://`, and the path names a document under it.
+An **authority** is the public key that owns an address. It signs everything published under its name. It is a [principal](./principal.md), the key of an [account](./protocol/identity.md). In an [`hm://` URL](./protocol/urls.md), the authority is the part right after `hm://`. The path after it names a [document](./protocol/documents.md) in that key's [space](./protocol/spaces.md).
 
-The [Hypermedia Schemas](./schema.md) library names its authority by domain: its schemas write `hm://hyper.media/<name>`. That is a name the [SDK](./build/sdk.md) and the docs sync resolve, and the network does not resolve domains. Published documents carry the key of the space they are published in, and schema blobs keep `hm://hyper.media` unchanged, so a schema has the same CID wherever the library is published. [References and naming](./schema/references.md#Mk1UgX6F) has the details. <!-- id:8jhx0qR- -->
+The network pages use the word in a second way. They call the site server of a space its authority, meaning the first peer to ask about that space. See [Network](./protocol/network.md).
+
+The [Hypermedia Schemas](./schema.md) library names its authority by domain: its schemas write `hm://hyper.media/<name>`. The [SDK](./build/sdk.md) and the docs sync know which key `hyper.media` stands for. The peer-to-peer network does not look up domain names. A published document carries the key of the space it is published in. A schema [blob](./protocol/blobs.md) keeps `hm://hyper.media` unchanged, so a schema has the same [CID](./cid.md) wherever the library is published. [References and naming](./schema/references.md#Mk1UgX6F) has the details. <!-- id:8jhx0qR- -->
 
 # See also <!-- id:4MlMjiz4 -->
 

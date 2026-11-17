@@ -1,27 +1,29 @@
 ---
 name: SDK
-summary: The @seed-hypermedia/client package reference, from installing it and reading a document to building, signing and publishing your own blobs.
+summary: The SDK is the TypeScript package @seed-hypermedia/client, and this page shows how to install it, read documents, and build, sign and publish your own.
 ---
-The SDK is the TypeScript package `@seed-hypermedia/client`. It is the one implementation of the Hypermedia data formats that the [Seed app](../software/desktop.md), the [Seed web app](../software/web.md), the [Seed CLI](./cli.md), the [vault](../software/vault.md) and [Seed Agents](../agent.md) all share. It covers how a [blob](../protocol/blobs.md) is encoded and signed, how a [document](../protocol/documents.md) [change](../change.md) is built, how [markdown](./markdown-dialect.md) round-trips, and how a [schema](../schema.md) is resolved. Nothing in it needs React, a [daemon](../software/daemon.md) or a network beyond plain `fetch`, so it runs in Node, Bun, browsers and React Native. <!-- id:GKERgZSz -->
+The SDK is the TypeScript package `@seed-hypermedia/client`. It reads [documents](../protocol/documents.md), builds and signs new ones, and publishes them. The [Seed app](../software/desktop.md), the [Seed web app](../software/web.md), the [Seed CLI](./cli.md), the [vault](../software/vault.md) and [Seed Agents](../agent.md) all use this same package, so what works here works in all of them.
 
-This page is the reference. If you have never published anything yet, start with [Getting started](./getting-started.md). If you only need to read public data, the [Seed API](./web-api.md) over plain HTTP may be enough. <!-- id:uMFhMR5F -->
+The package knows how to encode and sign a [blob](../protocol/blobs.md), how to build a document [change](../change.md), how to turn a document into [markdown](./markdown-dialect.md) and back, and how to look up a [schema](../schema.md). It does not need React or a [daemon](../software/daemon.md). It only needs `fetch`, so it runs in Node, Bun, browsers and React Native. <!-- id:GKERgZSz -->
+
+This page is the reference. If you have never published anything, start with [Getting started](./getting-started.md). If you only need to read public data, the [Seed API](./web-api.md) over plain HTTP may be enough. <!-- id:uMFhMR5F -->
 
 # Install and import <!-- id:abDQXJxO -->
 
 ```sh <!-- id:4E34K789 -->
-npm install @seed-hypermedia/client zod@^3
+npm install @seed-hypermedia/client zod@^4.6.6
 ```
 
 <!-- id:Y-oJftG2 -->
 | Fact <!-- col:FQJZD8im --> | Value <!-- col:rd5Y0WyZ --> <!-- id:v6ok3yak --> |
 | --- | --- |
 | Package | `@seed-hypermedia/client` on npm, ESM only <!-- id:1mgZ2PJd --> |
-| Peer dependencies | `zod` 3.x (required; zod 4 breaks the package at import time), `pdfjs-dist` (optional, only for `pdfToBlocks`) <!-- id:90a1wpUr --> |
+| Peer dependencies | `zod` `^4.6.6` (required), `pdfjs-dist` (optional, only for `pdfToBlocks`) <!-- id:90a1wpUr --> |
 | Entry points | the root barrel, plus every module as a subpath: `@seed-hypermedia/client/<module>` <!-- id:0gOFrB-S --> |
 | Runtime requirements | `fetch`; WebCrypto only for the browser sign-in module <!-- id:pjILNryS --> |
 | Versioning | CI publishes a new patch on every push to `main` that touches the package, so the npm version is always ahead of the repository's `package.json`. Pin the version you tested against <!-- id:ubGO5w0Y --> |
 
-The root barrel exports the client, the blob builders, the markdown dialect, the id helpers and the document-state helpers. Some modules are subpath-only and are imported by name: `auth` (browser sign-in), `hmauth` (the sign-in protocol), `blobs` (key pairs, profiles, low-level capability and signing primitives), `signed-blob` (user-defined signed blobs), `hm-types` (the zod schemas of every type), `explore-query` (the query grammar), `schema-engine` and `schema-resolve` (Hypermedia Schemas), `keyfile`, `vault-local`, `cbor`, `dag-json`, `base64`. <!-- id:ipJVKiXp -->
+The root barrel exports the client, the blob builders, the markdown dialect, the id helpers and the document-state helpers. Some modules are not in the root barrel. You import them by their subpath: `auth` (browser sign-in), `hmauth` (the sign-in protocol), `blobs` (key pairs, [profiles](../profile.md), low-level capability and signing primitives), `signed-blob` (user-defined signed blobs), `hm-types` (the zod schemas of every type), `explore-query` (the query grammar), `schema-engine` and `schema-resolve` (Hypermedia Schemas), `vault-local`, `cbor`, `dag-json`, `base64`. `keyfile` has a subpath and is also exported from the root as `keyfile`. <!-- id:ipJVKiXp -->
 
 ```ts <!-- id:X9UdU4Q6 -->
 import {createSeedClient, createDocumentBlobs, unpackHmId} from '@seed-hypermedia/client'
@@ -39,19 +41,23 @@ type SeedClient = {
   request<K extends HMRequest['key']>(key: K, input, options?: {signal?: AbortSignal}): Promise<output>
   publish(input: {blobs: {cid?: string; data: Uint8Array}[]}): Promise<{cids: string[]}>
   publishBlobs: same as publish
+  putBlob(blob: {cid: string; data: Uint8Array}, options?: {signal?: AbortSignal}): Promise<void>   // one blob through POST /ipfs/<cid>
+  daemonBlobCid(data: Uint8Array): string   // the CID the daemon gives a DAG-CBOR blob published without one
   publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<{version, genesis, generation}>
 }
 ```
 
-`baseUrl` is the origin of any Seed web server: `https://hyper.media`, your own site, or the desktop app's local bridge (`http://localhost:56004` in the installed app, `58004` in a dev build). The client speaks the [Seed API](./web-api.md) at `/api/<Key>`. It never talks to the daemon's [gRPC](./grpc.md) port. <!-- id:PZyny0Lq -->
+`baseUrl` is the address of any Seed web server: `https://hyper.media`, your own site, or the desktop app's local bridge (`http://localhost:56004` in the installed app, `58004` in a dev build). The client speaks the [Seed API](./web-api.md) at `/api/<Key>`. It never talks to the daemon's [gRPC](./grpc.md) port. <!-- id:PZyny0Lq -->
 
-`request(key, input)` validates the input against the zod schema for that key, sends it, and validates the output. Read keys go out as `GET /api/<Key>?…`. The five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`) go out as `POST /api/<Key>` with a DAG-CBOR body. Responses arrive superjson-wrapped and are unwrapped for you, except the three document passthroughs (`QueryDocuments` and the two attribute listings), which return the daemon's plain protobuf JSON. <!-- id:XhGgqBm0 -->
+`request(key, input)` validates the input against the zod schema for that key, sends it, and validates the output. Read keys go out as `GET /api/<Key>?…`. The five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`) go out as `POST /api/<Key>` with a [DAG-CBOR](../schema/dag-cbor.md) body. The client unwraps every response for you. Three keys (`QueryDocuments` and the two attribute listings) return the daemon's own JSON, so their field names follow the proto files.
+
+Some sites limit the size of an API body. When a site refuses a `publish` body as too large (`413`), the client sends the blobs one by one with `putBlob`. <!-- id:XhGgqBm0 -->
 
 `headers` can be an object or a function returning one, which is how you attach `Authorization: Bearer <token>` for [private](../protocol/privacy.md) reads. Errors are typed: `SeedValidationError` (bad input or unknown key), `SeedNetworkError` (fetch itself failed) and `SeedClientError` (a non-2xx status, with the server's `error` text folded into the message and the status and body kept on the error). <!-- id:6IVkEoy5 -->
 
 # Identity and signing <!-- id:aOnfRV6A -->
 
-Everything you publish is signed by an Ed25519 [key](./keys.md). The SDK does not care where that key lives. It needs a signer: <!-- id:zpT6PJkA -->
+Everything you publish is signed by an Ed25519 [key](../protocol/identity.md). The SDK does not care where that key lives. It needs a signer: <!-- id:zpT6PJkA -->
 
 ```ts <!-- id:FvwUSu0k -->
 type HMSigner = {getPublicKey(): Promise<Uint8Array>; sign(data: Uint8Array): Promise<Uint8Array>}
@@ -77,12 +83,12 @@ Ids first. `unpackHmId('hm://<uid>/<path>?v=<version>#<block>')` returns an `Unp
 
 ```ts <!-- id:QC9HsuXk -->
 const client = createSeedClient('https://hyper.media')
-const id = unpackHmId('hm://hyper.media/build/sdk')!
+const id = unpackHmId('hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/self-host-seed')!
 const resource = await client.request('Resource', id)
 if (resource.type === 'document') console.log(resource.document.metadata.name)
 ```
 
-Every key, with its input and output, is in the [Seed API key tables](./web-api.md#the-keys). Inputs that the tables show as an `hm://` string are an unpacked id here.
+The id must name an account by its `z6Mk…` id. The Seed API does not resolve a domain name inside an `hm://` URL. Every key, with its input and output, is in the [Seed API key tables](./web-api.md#the-keys). Inputs that the tables show as an `hm://` string are an unpacked id here.
 
 `HMResource` is a union on `type`: `document`, `comment`, `redirect` (with `redirectTarget` and `republish`), `not-found`, `tombstone`, `error`. `HMDocument` carries `content` (a tree of `{block, children?}`), `metadata`, `version`, `genesis`, `authors`, `generationInfo` and [`visibility`](../protocol/privacy.md). <!-- id:UBN1iThC -->
 
@@ -100,7 +106,7 @@ type DocumentOperation =
   | {type: 'DeleteBlocks'; blocks: string[]}
 ```
 
-**Create a document.** `createDocumentBlobs(signer, {space, path, ops, capability?, generation?, visibility?})` returns `{blobs, genesis, version, ts}` ready for `client.publish`. `path` is `''` for the account's home document and `/a/b` otherwise. <!-- id:Ne_vAKqX -->
+**Create a document.** `createDocumentBlobs(signer, {space, path, ops, capability?, generation?, visibility?})` returns `{blobs, genesis, version, ts}` ready for `client.publish`. `space` is the account id of the [space](../protocol/spaces.md) you write into. `path` is `''` for the account's [home document](../protocol/spaces.md) and `/a/b` otherwise. <!-- id:Ne_vAKqX -->
 
 ```ts <!-- id:2cLGvPZP -->
 const {blobs} = await createDocumentBlobs(signer, {
@@ -141,7 +147,7 @@ await client.publish({blobs: [{data: change.bytes, cid: change.cid.toString()}, 
 
 **Refs.** `createVersionRef` points a path at a [version](../protocol/documents.md) (this is also a fork: a new path on an existing genesis). `createTombstoneRef({space, path, genesis, generation, capability?})` deletes. `createRedirectRef({space, path, genesis, generation, targetSpace?, targetPath, republish?})` moves a path elsewhere, and with `republish: true` shows the target's content in place. A Ref with a higher [`generation`](../protocol/documents.md) supersedes the one at the path, so a takeover mints `Date.now()`. <!-- id:jhjnuaot -->
 
-**Writing into someone else's space.** Pass `capability: <cid>` on every Change-carrying Ref, tombstone and redirect. A [capability](../protocol/permissions.md) is what lets your key write there. `resolveCapability(client, targetAccount, signerAccount, path?)` finds a WRITER or AGENT capability the space published for your key and returns its CID, or `undefined` when you are the owner. See [Permissions](../protocol/permissions.md). <!-- id:83ddWDHQ -->
+**Writing into someone else's space.** Pass `capability: <cid>` on every Change-carrying Ref, tombstone and redirect. A [capability](../protocol/permissions.md) is what lets your key write there. `resolveCapability(client, targetAccount, signerAccount, path?)` finds a WRITER or AGENT capability the space published for your key. It returns the capability's [CID](../cid.md). It returns `undefined` when you are the owner, and also when no capability was found, so check for that before you publish into someone else's space. See [Permissions](../protocol/permissions.md). <!-- id:83ddWDHQ -->
 
 **The CID rule.** A blob that another blob references by CID must be published with its `cid` set. [Blobs](../protocol/blobs.md) has the rule and the two hashes behind it. The builders fill `cid` for you. Keep it when you assemble your own `publish` payload. <!-- id:0RkGAVtI -->
 
@@ -179,7 +185,7 @@ A comment pins the target `docVersion` it was written against. `quoting: {blockI
 
 The Hypermedia Schemas library ships inside the package. `schema-engine` bundles every schema and its published CID (`HM_SCHEMAS`, `HM_SCHEMA_MANIFEST`) and validates values offline: `load(ref)`, `validate(value, schema, registry)`, `structFields`, `requiredFieldNames`, `resolveSchema`. `schema-resolve` does the parts that need a client: `resolveSchemaRef(client, ref)` for a CID, a library URL or a type document's URL, `effectiveSchemaRef` (a document's own `attributesSchema`, else its parent's `childAttributesSchema`) and `checkDocumentSchema`. [Hypermedia Schemas](../schema.md) explains the model, and [Typed documents](../schema/typed-documents.md) explains the binding keys. <!-- id:XIWtKT9L -->
 
-`signed-blob` signs any value as a Hypermedia blob: `signBlob(signer, body, {typeTag?, ts?})` adds `signer`, `ts` and `sig`, encodes [canonical DAG-CBOR](../schema/encoding.md) and returns `{cid, data}`. `publishSignedBlob(client, signer, body, opts)` also publishes, and refuses a `type` tag that collides with a built-in Seed type. `verifySignedBlob(value)` checks a signature the way the daemon does. The signing rule is the same everywhere: encode the blob with `sig` set to 64 zero bytes, sign those bytes, fill `sig`, encode again, hash with SHA-256. [Blobs](../protocol/blobs.md) has the envelope. <!-- id:aubbprT3 -->
+`signed-blob` signs any value as a Hypermedia blob: `signBlob(signer, body, {typeTag?, ts?})` adds `signer`, `ts` and `sig`, encodes [canonical DAG-CBOR](../schema/encoding.md) and returns `{cid, data, ts, signer}`. `signBlob` wants an `HMSigner`, so wrap a key pair with `toHMSigner(keyPair)` first. `publishSignedBlob(client, signer, body, opts)` also publishes, and refuses a `type` tag that collides with a built-in Seed type. `verifySignedBlob(value)` checks a signature the way the daemon does. The signing rule is the same everywhere: encode the blob with `sig` set to 64 zero bytes, sign those bytes, fill `sig`, encode again, hash with SHA-256. [Blobs](../protocol/blobs.md) has the envelope. <!-- id:aubbprT3 -->
 
 # Sign in with Seed <!-- id:FqfZWgTO -->
 
@@ -187,7 +193,7 @@ The `auth` module implements the browser half of third-party sign-in: `startAuth
 
 # Editor interop <!-- id:yFaFo2ti -->
 
-If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and folder sync turn an edited tree into the minimal set of operations. <!-- id:a0m_gFJG -->
+If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and [folder sync](./publish-a-folder.md) turn an edited tree into the minimal set of operations. <!-- id:a0m_gFJG -->
 
 # Working with it <!-- id:QbNk3cwH -->
 
@@ -199,7 +205,7 @@ The desktop and web apps use this same package. The app is the reference client 
 
 Every write in the [Seed CLI](./cli.md) is one of the builders above followed by `client.publish`. Read the CLI's source when you want a worked example of a command. <!-- id:KYsIMo9N -->
 
-## Web API <!-- id:OqhTTr_X -->
+## Seed API <!-- id:OqhTTr_X -->
 
 The client is a thin layer over the [Seed API](./web-api.md). Anything the SDK does, you can do with `curl` and a CBOR encoder. <!-- id:vRTql5ol -->
 

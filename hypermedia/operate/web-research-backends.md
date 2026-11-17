@@ -1,29 +1,51 @@
 ---
 name: Web research backends
-summary: How to run the two optional sidecars, SearXNG and Crawl4AI, that give an app environment web search and browser-rendered web reads.
+summary: This page explains how to run SearXNG and Crawl4AI, the two optional helper containers that give an app environment web search and web reads through a real browser.
 ---
-An [app environment](../software/app-environment.md) can search the web and read web pages for its agents without any third-party API key. Two optional sidecar containers provide this: SearXNG for search and Crawl4AI for pages that need a browser. This page says what each one turns on and how to run them. What agents do with them is in [tools](../agent/tools.md), and the risks are in [security](../agent/security.md).
+An [app environment](../software/app-environment.md) can search the web and read web pages for its [agents](../agent.md). It needs no API key from another company. Two optional helper containers do the work: SearXNG searches, and Crawl4AI reads pages that need a real browser. This page says what each one turns on and how to run them.
+
+The first thing to check: `curl <server>/api/health` and read `webTools`. `{"search": true, "readBrowser": true}` means both are connected.
+
+What agents do with them is in [tools](../agent/tools.md), and the risks are in [security](../agent/security.md).
 
 # What each backend turns on <!-- id:ww1gPvmR -->
 
-Web research is fully self-hosted and uses no third-party API keys. It covers the `web_search` callable tool and the tiered reader behind `read https://…` (MediaWiki, then in-process static Readability+Turndown, then Crawl4AI). See [tools](../agent/tools.md). Both backends are optional. Without configuration, `web_search` errors and web reads fall back to the MediaWiki and static tiers. To enable them, run the backends as sidecar containers on the same internal network and point the app environment at them. <!-- id:6w4jARt9 -->
+Web research has two parts: <!-- id:6w4jARt9 -->
 
-The health endpoint reports the result as `webTools: {search, readBrowser}`, and the startup log prints `Web tools: search=on reader=static+crawl4ai` when both are wired. See [endpoints and health](./endpoints-and-health.md).
+- **`web_search`**, a tool agents can call. It needs SearXNG.
+- **The web reader** behind `read https://…`. It tries three ways in order: MediaWiki, then a plain fetch that the server turns into readable text itself, then Crawl4AI. Only the last one needs a backend.
+
+Both backends are optional. What happens without them:
+
+- **Without SearXNG**, the server still offers `web_search` to agents, and every call fails with `web_search is not configured (no SearXNG backend)`. If you do not run SearXNG, take `web_search` out of your agents' tools.
+- **Without Crawl4AI**, web reads still work through the first two ways. A page that only works in a browser may come back empty or incomplete.
+
+To turn them on, run the two containers on the same internal network as the app environment and give the server their addresses.
+
+The health endpoint reports the result as `webTools: {search, readBrowser}`. The startup log prints `Web tools: search=on reader=static+crawl4ai` when both are connected. See [endpoints and health](./endpoints-and-health.md).
 
 # Local development
 
-For local development a ready-to-run compose and SearXNG config live at `apps/dev/web-backends/`. Start the containers, then run the service. `bun run dev` already points at these dev endpoints by default: <!-- id:ylFQ-SIc -->
+A compose file and a SearXNG config, ready to run, are in `apps/dev/web-backends/`. Start the containers, then start the server. `bun run dev` already points at them: <!-- id:ylFQ-SIc -->
 
 ```bash <!-- id:ObEJf9WQ -->
 cd apps/dev/web-backends && docker compose up -d   # SearXNG on :8899, Crawl4AI on :11235
 cd ../.. && bun run dev                               # auto-targets the dev backends
 ```
 
-The `dev` script defaults `SEED_APPS_SEARXNG_URL` (`http://127.0.0.1:8899`), `SEED_APPS_CRAWLER_URL` (`http://127.0.0.1:11235`), and `SEED_APPS_CRAWLER_TOKEN` (`dev-crawl-token`) to the compose values. Export those env vars to override them. The same script also turns `SEED_APPS_SUBSCRIPTION_AUTH` on for local development. The reader's MediaWiki and static tiers still work if the containers are not running. Only `web_search` and the browser escalation need them. Stop the backends with `docker compose down` in `apps/dev/web-backends/`. Under `./dev up` the `backends` pane runs the same compose file; see [environments](./environments.md). <!-- id:sU3Ky-PV -->
+The `dev` script in `apps/package.json` sets three values to match the compose file. Export the variables yourself to use other values: <!-- id:sU3Ky-PV -->
+
+- `SEED_APPS_SEARXNG_URL` is `http://127.0.0.1:8899`;
+- `SEED_APPS_CRAWLER_URL` is `http://127.0.0.1:11235`;
+- `SEED_APPS_CRAWLER_TOKEN` is `dev-crawl-token`.
+
+The same script turns `SEED_APPS_SUBSCRIPTION_AUTH` on for local development.
+
+To stop the backends, run `docker compose down` in `apps/dev/web-backends/`. Under `./dev up` the `backends` pane runs the same compose file; see [environments](./environments.md).
 
 # Production
 
-For production the same two containers run as internal sidecars: <!-- id:HEFIWVDD -->
+In production the same two containers run beside the server, on an internal network: <!-- id:HEFIWVDD -->
 
 ```yaml <!-- id:PHv3Gdqr -->
 services:
@@ -43,7 +65,7 @@ services:
     # Reachable on the internal network as http://crawl4ai:11235
 ```
 
-Required SearXNG `settings.yml` (the JSON format is off by default and the limiter blocks API calls): <!-- id:VkqeSybu -->
+SearXNG needs this `settings.yml`. The JSON format is off by default, and the limiter refuses API calls: <!-- id:VkqeSybu -->
 
 ```yaml <!-- id:qV3GeELm -->
 use_default_settings: true
@@ -57,7 +79,7 @@ search:
     - json
 ```
 
-Then wire the agents container: <!-- id:T9adfXgF -->
+Then give the app environment container the addresses: <!-- id:T9adfXgF -->
 
 ```yaml <!-- id:O7DuPU3J -->
 environment:
@@ -66,16 +88,19 @@ environment:
   SEED_APPS_CRAWLER_TOKEN: ${CRAWL4AI_API_TOKEN}
 ```
 
-Keep both containers off the public network. SearXNG runs with its limiter off, which is safe only because nothing outside the internal network can reach it. Pin the Crawl4AI version: `0.9.0` changed its auth defaults, so it must not float to `:latest`.
+Two rules:
 
-Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the host accordingly. The SearXNG and in-process static reader path is lightweight. Crawl4AI is the heavy escalation tier. <!-- id:U9QXiKwN -->
+- **Keep both containers off the public network.** SearXNG runs with its limiter off. That is safe only because nothing outside the internal network can reach it.
+- **Pin the Crawl4AI version.** Version `0.9.0` changed how it checks access, so do not use `:latest`.
 
-On the hosted servers the two backends run on their own host, reachable only on the private network, and every environment points at them. They are defined in `seed_infra/agentic` in the infrastructure repository (`mintterteam/infrastructure` on GitHub, usually checked out as `SeedInfra`), not in the Seed repository.
+Size the host for Crawl4AI. It runs a Chromium browser without a window, and its own documentation asks for at least 4 GB of RAM plus 1 GB of shared memory. SearXNG and the server's own reader are light. <!-- id:U9QXiKwN -->
+
+On the hosted Seed servers, the two backends run on their own host. Only the private network reaches them, and every environment points at them. They are defined in `seed_infra/agentic` in the infrastructure repository (`mintterteam/infrastructure` on GitHub, usually checked out as `SeedInfra`), not in the Seed repository. This describes the hosted servers and can change.
 
 # See also
 
-- [Tools](../agent/tools.md), the `web_search` callable and the tiers behind `read https://…`
+- [Tools](../agent/tools.md), the `web_search` tool and the reader behind `read https://…`
 - [Security](../agent/security.md), web reading safety
 - [Configuration](./configuration.md), the three settings
-- [Environments](./environments.md), which deployments have the backends
+- [Environments](./environments.md), which setups have the backends
 - [Endpoints and health](./endpoints-and-health.md), the `webTools` field

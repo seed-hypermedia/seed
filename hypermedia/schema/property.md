@@ -2,7 +2,17 @@
 name: Property
 summary: One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
 ---
-A [struct](./struct-schema.md) lists its fields under `properties`, one property per field name. A property wraps a [schema](../schema.md) and is not a schema itself. `value` is the schema the field's value must match. `required` says whether a value of the struct must include the field. `description` says what the field is for, and the editors show it next to the field. <!-- id:kLdsYe2_ -->
+A **property** is one field of a [struct](../struct.md). A [struct schema](./struct-schema.md) lists its fields under `properties`, one property per field name. A property wraps a [schema](../schema.md) and is not a schema itself. <!-- id:kLdsYe2_ -->
+
+A property has three keys:
+
+- `value` is the schema that the field's value must match.
+- `required` says whether a value of the struct must include the field.
+- `description` says what the field is for. The editors show it next to the field.
+
+For example, `"surname": {"value": {"type": "hm://hyper.media/string"}, "required": true}` is a required text field called `surname`.
+
+This page defines the **schema/property** type. The type's formal schema is attached to this page as the `schemaDefinition` in its [metadata](../metadata.md).
 
 # See also <!-- id:QjhOSVQr -->
 

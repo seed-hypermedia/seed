@@ -1,32 +1,52 @@
 ---
 name: Markdown dialect
-summary: The lossless markdown form of a Hypermedia document, what each part of the syntax carries, and the SDK functions that read and write it.
+summary: The markdown dialect is the markdown form of a Hypermedia document that loses nothing; this page lists what each part of the syntax carries and the SDK functions that read and write it.
 ---
-A Hypermedia [document](../protocol/documents.md) is a tree of typed [blocks](../protocol/blocks.md) with [annotations](../protocol/blocks.md) and [metadata](../metadata.md). The markdown dialect is a text form that carries all of it. A document written to markdown and parsed again is the same document. The [Seed CLI](./cli.md) prints and accepts it, [folder sync](./publish-a-folder.md) stores a space in it, and a site's `.md` export and the agents' [`read`](../agent/read.md) verb return a display form of it. It is implemented once, in the [SDK](./sdk.md).
+The markdown dialect is a way to write a Hypermedia [document](../protocol/documents.md) as a markdown file without losing anything. A document is a tree of typed [blocks](../protocol/blocks.md) with [annotations](../protocol/blocks.md) and [metadata](../metadata.md). Plain markdown can say most of that, and the dialect adds the rest. If you write a document to markdown and parse it again, you get the same document.
+
+Several programs use it:
+
+- The [Seed CLI](./cli.md) prints it and accepts it.
+- [Folder sync](./publish-a-folder.md) stores a whole [space](../protocol/spaces.md) in it.
+- A [site](../protocol/sites.md)'s `.md` export and the [`read`](../agent/read.md) tool of [Seed Agents](../agent.md) return a form of it made for reading.
+
+The code exists once, in the [SDK](./sdk.md).
 
 # The format
 
 - **Ordinary markdown where it exists.** Headings, paragraphs, lists, block quotes, fenced code, math, images, links, tables, bold, italic, strikethrough and inline code are plain markdown.
-- **Frontmatter.** A YAML block at the top holds every metadata key of the document, including keys the client does not know.
-- **Block identity.** Each block ends with an HTML comment, `<!-- id:X -->`. The id is what makes an edit an update of that block and not a replacement.
-- **What markdown cannot say.** The same comment may carry `type:`, naming a block type such as Video, File, Button, Embed or Query, and `attrs:`, a JSON object of attributes such as an image width or a query definition.
+- **Frontmatter.** A YAML block at the top holds every metadata key of the document. It keeps keys the program does not know.
+- **Block identity.** Each block ends with an HTML marker, `<!-- id:X -->`. The id tells a program that an edit changes that block and does not replace it.
+- **What markdown cannot say.** The same marker may carry `type:`, naming a block type such as Video, File, Button, Embed or Query, and `attrs:`, a JSON object of attributes such as an image width or a query definition.
 - **Nesting.** A block's children sit two spaces deeper, or at the content column of a list marker. A heading's children follow it at the same indentation, and `<!-- end:X -->` closes a heading when a non-heading sibling follows.
 - **Text.** Markdown syntax characters in text are escaped. A newline inside a block is `<br>`. Styles markdown lacks, such as underline, highlight and colors, are inline HTML tags.
 - **Diagrams.** A `mermaid` code fence is a diagram and must parse.
-- **Files without ids.** A hand-written file needs no comments. Its blocks are matched to an existing document by position.
+- **Files without ids.** A file you write by hand needs no markers. Its blocks are matched to an existing document by position.
 
 # Functions <!-- id:ZwTWCrBr -->
 
-`blocksToMarkdown(doc)` and `parseMarkdown(md)` are a lossless pair: every [block](../protocol/blocks.md) type, [annotation](../protocol/blocks.md), attribute and [metadata](../metadata.md) key survives a round trip. The frontmatter is YAML with every metadata key. Each block ends in an `<!-- id:X -->` comment, with `type:` and `attrs:` in the same comment for what markdown cannot express. Nesting is indentation. `parseMarkdown` returns `{tree, metadata}` and `flattenToOperations` turns the tree into `DocumentOperation`s. `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the API shape. `parseMarkdown` throws `MarkdownFrontmatterError` on frontmatter whose YAML does not parse (pass `{strictFrontmatter: false}` on a display path that must render anything). `assertValidMermaid(nodes, parser)` rejects with `InvalidMermaidError` when a mermaid Code block does not parse; `loadMermaidParser()` from `@seed-hypermedia/client/mermaid-parser` supplies the parser in a browser, Node or Bun (with `mermaid`, plus `linkedom` outside a browser, installed by the caller). [Publish a folder](./publish-a-folder.md) describes the dialect as a writer sees it. <!-- id:WvgA5VpZ -->
+**Write and parse.** `blocksToMarkdown(doc)` and `parseMarkdown(md)` are a pair that loses nothing. Every [block](../protocol/blocks.md) type, [annotation](../protocol/blocks.md), attribute and [metadata](../metadata.md) key comes back the same after a round trip. <!-- id:WvgA5VpZ -->
 
-For display, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/links-and-citations.md) and [query blocks](../protocol/blocks.md) over the network and inline them. The web `.md` export and the agents' [`read`](../agent/read.md) verb return this form. <!-- id:60n-DBmo -->
+- `parseMarkdown` returns `{tree, metadata}`.
+- `flattenToOperations` turns the tree into `DocumentOperation`s, the steps you publish.
+- `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the shape the API uses.
 
-Drafts: `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the desktop app do. <!-- id:wxZ_H1P7 -->
+**Errors.**
+
+- `parseMarkdown` throws `MarkdownFrontmatterError` when the YAML in the frontmatter does not parse. Pass `{strictFrontmatter: false}` where the code only shows the text and must accept anything.
+- `assertValidMermaid(nodes, parser)` rejects with `InvalidMermaidError` when a mermaid Code block does not parse.
+- `loadMermaidParser()` from `@seed-hypermedia/client/mermaid-parser` gives you the parser in a browser, Node or Bun. You install `mermaid` yourself, and also `linkedom` when you are not in a browser.
+
+[Publish a folder](./publish-a-folder.md) describes the dialect from a writer's side.
+
+**For reading.** `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/links-and-citations.md) and [query blocks](../block/query.md) over the network and put their content in the text. `commentToResolvedMarkdown` does this for a [comment](../protocol/comments.md). The web `.md` export and the `read` tool of Seed Agents return this form. <!-- id:60n-DBmo -->
+
+**Drafts.** `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the [desktop app](../software/desktop.md) do. <!-- id:wxZ_H1P7 -->
 
 # See also
 
 - [SDK](./sdk.md)
-- [Publish a folder](./publish-a-folder.md), which keeps a directory of these files and a space in step
+- [Publish a folder](./publish-a-folder.md), which keeps a folder of these files and a space the same
 - [Seed CLI](./cli.md), `document get`, `document update` and the `space` commands
 - [Blocks](../protocol/blocks.md)
 - [Metadata](../metadata.md)

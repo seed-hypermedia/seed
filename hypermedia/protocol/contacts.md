@@ -1,28 +1,45 @@
 ---
 name: Contacts
-summary: A contact is one account's public name for another account, and this page explains following a person, joining a site, membership, and why none of them grants a permission.
+summary: A contact is one account's public name for another account, and this page explains how you follow a person, join a site and become a member, and why none of these gives a permission.
 ---
-A [contact](../contact.md) is a public address-book entry: "account A calls subject S by this name", plus two flags. A contact grants no permission. The daemon never consults a contact when deciding what a key may write or read. <!-- id:Ck7X4nVZ -->
+A [contact](../contact.md) is a public address-book entry. It says: "[account](./identity.md) A calls account S by this name". It also carries two flags. For example, Alice publishes a contact that names Bob's account "Bob from work".
 
-This page explains what contacts are for. The [contact](../contact.md) type page is the reference for the fields.
+A contact gives no permission. The [daemon](../software/daemon.md) never looks at a contact when it decides what a key may write or read. <!-- id:Ck7X4nVZ -->
+
+This page explains what contacts are for. The [contact](../contact.md) type page lists the fields.
 
 # Following, joining and membership <!-- id:pVqfd2gr -->
 
-The flags in `subscribe` are how the Seed apps model relationships: `site: true` means "I joined this [site](./sites.md)" and `profile: true` means "I follow this person". A contact with neither flag is treated as a legacy follow. To join a site, you publish such a contact. To leave, you remove the flag or the contact. The People and Members views of a site come from who has published a joining contact, and a writer who joins appears as a member with their role. Membership grants no permission. The indexer does not validate who signs a contact on whose behalf, but the daemon's own contact RPCs check the writer rule first. The daemon never turns a contact into a sync subscription. The apps do that. See [Contact](../contact.md) and [Contact subscription](../contact/subscribe.md). <!-- id:9D0UX8Nq -->
+The Seed apps use the two flags in `subscribe` to record how you relate to an account:
+
+- `site: true` means "I joined this [site](./sites.md)".
+- `profile: true` means "I follow this person".
+- A contact with neither flag counts as a plain follow.
+
+To join a site, you publish a contact with `site: true`. To leave, you remove the flag or the contact. The People and Members views of a site list the accounts that published a joining contact. A [writer](./permissions.md) who joins appears as a member with their role. Membership gives no permission.
+
+The indexer does not check who signs a contact for whom. The daemon's own contact RPCs do check the writer rule first. The daemon never turns a contact into a sync [subscription](./network.md). The apps do that. See [Contact](../contact.md) and [Contact subscription](../contact/subscribe.md). <!-- id:9D0UX8Nq -->
 
 # Identity and visibility
 
-A contact is a snapshot [blob](./blobs.md). Its record id is `<account>/<tsid>`, an edit replaces the whole record, and a contact with an empty subject is a tombstone. Contacts are always public and are indexed for search, so a name you gave someone shows up when you search for it.
+A contact is a snapshot [blob](./blobs.md): each edit is a whole new copy of the record. Its record id is `<account>/<tsid>`. A contact with an empty subject is a [tombstone](./documents.md), which marks the contact as deleted. Contacts are always public, and the daemon indexes them for search. So a name you gave someone shows up when you search for it.
 
 # Contacts and trust
 
-Contacts have no permission effect, and the indexer does not validate who signs them. No code path lets one user's contacts change what a third party may read or write. The grants that do carry authority are [capabilities](./permissions.md).
+No code path lets one user's contacts change what a third party may read or write. The grants that do carry authority are [capabilities](./permissions.md).
 
 # Working with contacts
 
-Create and remove contacts with `seed-cli contact create --subject <uid> --name "…"` and `seed-cli contact delete <id>` in the [CLI](../build/cli.md), with `createContact` and `deleteContact` in the [SDK](../build/sdk.md), with the Join and Follow buttons in the [Seed app](../software/desktop.md), or with the agent [write](../agent/write.md) actions `contact.create` and `contact.delete`. <!-- id:uH8Ag0hn -->
+You can create and remove contacts in four ways: <!-- id:uH8Ag0hn -->
 
-On the [Seed API](../build/web-api.md), `GET /api/AccountContacts?__value=<uid>` and `GET /api/SubjectContacts?__value=<uid>` list contacts by owner and by subject. `GET /api/ListDocumentCollaborators?targetId=…` combines grants and joining contacts into the view the app shows.
+- In the [CLI](../build/cli.md): `seed-cli contact create --subject <uid> --name "…"` and `seed-cli contact delete <id>`.
+- In the [SDK](../build/sdk.md): `createContact` and `deleteContact`.
+- In the [Seed app](../software/desktop.md): the Join and Follow buttons.
+- From an [agent](../agent.md): the [write](../agent/write.md) actions `contact.create` and `contact.delete`.
+
+A contact made with the CLI has neither flag, so it counts as a plain follow. Only the apps and the SDK's `createContact` can set `subscribe.site` or `subscribe.profile`.
+
+On the [Seed API](../build/web-api.md), `GET /api/AccountContacts?__value=<uid>` and `GET /api/SubjectContacts?__value=<uid>` list contacts by owner and by subject. `GET /api/ListDocumentCollaborators?targetId=…` joins grants and joining contacts into the one list the app shows.
 
 # See also
 
@@ -30,4 +47,4 @@ On the [Seed API](../build/web-api.md), `GET /api/AccountContacts?__value=<uid>`
 - [Permissions](./permissions.md): what does grant write access.
 - [Sites](./sites.md): what a site is, and its members.
 - [Network](./network.md): subscriptions, which the apps create when you join.
-- [Identity](./identity.md): accounts and profiles.
+- [Identity](./identity.md): accounts and [profiles](../profile.md).

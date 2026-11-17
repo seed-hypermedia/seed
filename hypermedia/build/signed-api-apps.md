@@ -1,8 +1,12 @@
 ---
 name: "Signed API: running apps"
-summary: The signed API actions that run an app on an app environment, stop it, call its tools and list the recorded calls.
+summary: These signed API actions run an app on an app environment, stop it, call its tools and list the recorded calls, which are not private.
 ---
-These are the actions of the [signed API](./signed-api.md) that run an [app](../app.md) on an app environment and call its [tools](../tool.md). The envelope, the endpoint, errors, [access levels](./signed-api.md#access-levels) and idempotency are on the [signed API](./signed-api.md) page.
+These actions of the [signed API](./signed-api.md) run an [app](../app.md) on an [app environment](../software/app-environment.md) and call its [tools](../tool.md). For example, a client sends `RunApp` to start an app, then `CallAppTool` to run one of its tools.
+
+The [signed API](./signed-api.md) page has the envelope, the endpoint, errors, [access levels](./signed-api.md#access-levels) and idempotency.
+
+The server does not check who reads a tool's call records. They include inputs and outputs. See "Calling a tool" and "Reading without a signature" below.
 
 # Running an app
 
@@ -25,10 +29,14 @@ type AppRunInfo = {
 }
 ```
 
-- `RunApp` runs an app document on this server, or updates a running app's private config. The signer must be able to write the app's space. `privateConfig` replaces the stored values, and omitting it keeps them. Private config is kept encrypted and never returned.
+- `RunApp` runs an app [document](../protocol/documents.md) on this server, or updates a running app's private config. The signer must be able to write the app's [space](../protocol/spaces.md).
+  - `privateConfig` sets the fields it names and keeps the others. So one secret can change without sending the rest.
+  - Omitting `privateConfig` keeps everything.
+  - To remove a field, stop the app and run it again.
+  - The server keeps private config encrypted and never returns it.
 - `StopApp` stops the app and forgets its private config. It answers `run: null`.
-- `GetAppRun` answers `run: null` when the app does not run here.
-- `CheckAppRun` asks whether `RunApp` would be accepted from the signer, without running the app. `reason` says why not, in words.
+- `GetAppRun` answers `run: null` when the app does not run here. For an [agent](../agent.md) mounted here it always answers a run, because an agent's tools need no run step.
+- `CheckAppRun` asks whether the server would accept `RunApp` from the signer, without running the app. `reason` says why not, in words.
 
 # Calling a tool
 
@@ -54,17 +62,27 @@ type AppToolCallInfo = {
 }
 ```
 
-- `CallAppTool` calls a tool of an app running on this server with its latest code. Any signed account may call. A failed run is still a response, with `call.error` set.
-- `GetAppToolCall` returns one recorded call by id.
-- `ListAppToolCalls` lists a tool's recorded calls, newest first.
+- `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Any signed [account](../protocol/identity.md) may call. A failed run is still a response, with `call.error` set.
+- `GetAppToolCall` returns one recorded call by id. The server makes no access check: any signed account that knows the call id gets the call.
+- `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200). The server makes no access check: any signed account that knows the tool's id gets the calls.
+
+Each call record holds the full `input` and `output`. So never pass secrets or private data through a tool. [Tool](../tool.md) has the rules.
 
 # Reading without a signature
 
-The same server answers plain JSON under the API prefix for anything that is not a Seed client. `GET /hm/api/apps` lists the apps running here. `GET /hm/api/apps/<space>/<app path>` returns a running app with its tools, and a tool's path returns the tool and its recent calls. A `POST` to a tool answers 405: calling is always a signed `CallAppTool`, so every run names the account that triggered it.
+The same server answers plain JSON under the API prefix, for programs that are not Seed clients:
+
+- `GET /hm/api/apps` lists the apps running here.
+- `GET /hm/api/apps/<space>/<app path>` returns a running app with its tools.
+- `GET /hm/api/apps/<space>/<app path>/<tool>` returns the tool and its recent calls. `?limit=` sets how many.
+
+The calls include their inputs and outputs. Nobody is asked to sign in, so anyone who can reach the server can read them.
+
+A `POST` to a tool answers 405. Calling is always a signed `CallAppTool`, so every run names the account that started it.
 
 # See also
 
 - [Signed API](./signed-api.md)
 - [App](../app.md)
 - [Tool](../tool.md)
-- [Triggers](./signed-api-triggers.md) for `ListHostTriggers` and `RunTriggerNow`
+- [The signed API for triggers](./signed-api-triggers.md) for `ListHostTriggers` and `RunTriggerNow`

@@ -1,12 +1,22 @@
 ---
 name: The Seed mobile app
-summary: The Expo and React Native app for iOS, Android and the web that reads documents and discussions from a Seed site, keeps identities in an on-device vault, and chats with Seed Agents.
+summary: The Seed mobile app is the Expo and React Native app for iOS, Android and the web that reads documents and discussions from a Seed site, keeps identities in a vault on the device, and chats with Seed Agents.
 ---
-The Seed mobile app puts Hypermedia on a phone. It opens [documents](../protocol/documents.md) from a Seed [site](../protocol/sites.md), shows their [discussions](../protocol/comments.md), lets you comment as one of your [identities](../protocol/identity.md), shows your notifications, and lets you talk to your [agents](../agent.md). It runs no [daemon](./daemon.md) and keeps no copy of the network. Every read and write goes through a site's [Seed API](../build/web-api.md). It builds for iOS, Android and the web from one codebase. <!-- id:aDm-H60i -->
+The Seed mobile app puts Hypermedia on a phone. People use it to read, to comment and to talk to their [agents](../agent.md) when they are away from the desktop app. It builds for iOS, Android and the web from one codebase. <!-- id:aDm-H60i -->
+
+The app does five things:
+
+- It opens [documents](../protocol/documents.md) from a Seed [site](../protocol/sites.md).
+- It shows their [discussions](../protocol/comments.md).
+- It lets you comment as one of your [identities](../protocol/identity.md).
+- It shows your notifications.
+- It lets you chat with your agents.
+
+The app runs no [daemon](./daemon.md) and keeps no copy of the network. Every read and write goes through a site's [Seed API](../build/web-api.md).
 
 # Where the code is <!-- id:qaYxfJDr -->
 
-`frontend/apps/mobile`, package `@shm/mobile`: Expo 54, React Native 0.81 with the new architecture, React 19, React Navigation, React Query 4, MMKV for storage on native and `localStorage` on the web. <!-- id:XYdhlZ4S -->
+The code is in `frontend/apps/mobile`, package `@shm/mobile`. It is built with Expo, React Native with the new architecture, React 19, React Navigation and React Query. It stores data with MMKV on a phone and with `localStorage` on the web. <!-- id:XYdhlZ4S -->
 
 <!-- id:X1BwpdMa -->
 | Path <!-- col:rt1wTHAX --> | What it holds <!-- col:MuwKipGt --> <!-- id:JJAURxXU --> |
@@ -14,27 +24,27 @@ The Seed mobile app puts Hypermedia on a phone. It opens [documents](../protocol
 | `index.ts`, `App.tsx` | The entry point and providers. <!-- id:Pa9b-_e5 --> |
 | `src/navigation/RootNavigator.tsx` | The screen stack. <!-- id:WeEhsO6T --> |
 | `src/screens/` | Server select, [account](../protocol/identity.md), identities, [vault](./vault.md), vault connect, [document](../protocol/documents.md), [comment](../protocol/comments.md), notifications. <!-- id:nMUYLxTv --> |
-| `src/components/` | React Native renderers for [blocks](../protocol/blocks.md), [embeds](../protocol/blocks.md), query blocks, discussions and the comment composer. <!-- id:FW-GGQM_ --> |
+| `src/components/` | The React Native views for [blocks](../protocol/blocks.md), [embeds](../block/embed.md), [query blocks](../block/query.md) and discussions, and the comment composer. <!-- id:FW-GGQM_ --> |
 | `src/client/` | The [Seed API](../build/web-api.md) client for the chosen server and its `/hm/api/config`. <!-- id:KuSkleI_ --> |
-| `src/vault/` | The on-device vault: encrypted envelope, secure key storage, vault connect, remote sync. <!-- id:7SQRlCKS --> |
+| `src/vault/` | The vault on the device: the encrypted envelope, secure key storage, vault connect and remote sync. <!-- id:7SQRlCKS --> |
 | `src/agents/` | The agents screens. <!-- id:TVQVAzLe --> |
 | `src/notifications/notify.ts` | The signed client for the [notify service](./notify.md). <!-- id:MzFsXA5o --> |
-| `dev/mock-agents-server.ts` | A scripted [app environment](./app-environment.md) for UI work. <!-- id:b3PVL8zR --> |
+| `dev/mock-agents-server.ts` | A fake [app environment](./app-environment.md) with scripted answers, for UI work. <!-- id:b3PVL8zR --> |
 
 ## Why it sits outside the pnpm workspace <!-- id:klVaYLDA -->
 
-The root pnpm workspace pins React 18 for the desktop and web apps, and React Native 0.81 needs React 19. So `pnpm-workspace.yaml` excludes this app, and it installs its own dependencies with npm. It still uses repository code without publishing it: <!-- id:9Z0Vi2P6 -->
+The root pnpm workspace uses React 18 for the desktop app, and this app's React Native version needs React 19. So `pnpm-workspace.yaml` leaves this app out, and the app installs its own dependencies with npm. It still uses code from the repository without publishing it: <!-- id:9Z0Vi2P6 -->
   - `@seed-hypermedia/client`, the [SDK](../build/sdk.md), is aliased to `frontend/packages/client` in `metro.config.js`, `tsconfig.json` and `jest.config.js`. The client's own dependencies resolve from the root `node_modules`, so run `pnpm install` at the root first. <!-- id:sPsIwfBa -->
-  - `@shm/ui/agents/*` is mapped to the shared agents code, limited to `.ts` files so an accidental import of a web component fails at bundle time. <!-- id:xpG76AYZ -->
-  - Metro's `resolveRequest` forces one copy of `react` and `@tanstack/react-query`. Without it, a shared module resolves React 18 from the root and its hooks break. <!-- id:WwwNlgDl -->
-  - Metro watches only a short list of package folders. Watching the repository root crawls over a million files and crash-loops watchman, so a new cross-package import means adding its folder to that list. <!-- id:3P5DvcLF -->
+  - `@shm/ui/agents/*` points at the shared agents code. Only `.ts` files are allowed, so an import of a web component by mistake fails when the app is bundled. <!-- id:xpG76AYZ -->
+  - Metro's `resolveRequest` forces one copy of `react` and `@tanstack/react-query`. Without it, a shared module loads React 18 from the root and its hooks break. <!-- id:WwwNlgDl -->
+  - Metro watches only a short list of package folders. If it watched the repository root, it would read over a million files and watchman would crash again and again. So when you import from a new package, add its folder to that list. <!-- id:3P5DvcLF -->
 
 # How it talks to the daemon <!-- id:vp3jwNvF -->
 
-It runs no daemon. The app talks to one Seed [site](../protocol/sites.md) at a time, chosen on the server screen and saved on the device. <!-- id:6NAuJtfu -->
-  - **Reads** use `createSeedClient(serverUrl)` from the [SDK](../build/sdk.md): `Resource`, `InteractionSummary` and the other typed `/api/<Key>` requests. The [documents](../protocol/documents.md) and [discussions](../protocol/comments.md) it renders are the same data the [web app](./web.md) shows. See [The web API](../build/web-api.md). <!-- id:TY75zC5p -->
-  - **Writes** are signed on the phone. The comment composer builds a [comment](../comment.md) [blob](../protocol/blobs.md) with the SDK's `createComment` and sends it with `publish`, the `PublishBlobs` action of the [Seed API](../build/web-api.md). <!-- id:ERlOuHIt -->
-  - **Site config** comes from the server's `/hm/api/config`, which is also how the app learns the site's [notify service](./notify.md). [The notify API](../build/notify-api.md) gives the order it looks in. <!-- id:9cdxxreq -->
+It runs no daemon. The app talks to one Seed [site](../protocol/sites.md) at a time. You choose the site on the server screen, and the app saves the choice on the device. <!-- id:6NAuJtfu -->
+  - **Reads** use `createSeedClient(serverUrl)` from the [SDK](../build/sdk.md): `Resource`, `InteractionSummary` and the other typed `/api/<Key>` requests. The [documents](../protocol/documents.md) and [discussions](../protocol/comments.md) it renders are the same data the [web app](./web.md) shows. See [Seed API](../build/web-api.md). <!-- id:TY75zC5p -->
+  - **Writes** are signed on the phone. The comment composer builds a [comment](../comment.md) [blob](../protocol/blobs.md) with the SDK's `createComment`. It sends the blob with `publish`, which is the `PublishBlobs` action of the [Seed API](../build/web-api.md). <!-- id:ERlOuHIt -->
+  - **Site config** comes from the server's `/hm/api/config`. This is also how the app learns the site's [notify service](./notify.md). [The notify API](../build/notify-api.md) gives the order in which the app looks. <!-- id:9cdxxreq -->
 
 # Configuration
 
@@ -44,12 +54,16 @@ It runs no daemon. The app talks to one Seed [site](../protocol/sites.md) at a t
 
 # Identities and the vault <!-- id:scPuECkp -->
 
-The app keeps identities in its own device [vault](./vault.md), a TypeScript port of the [daemon](./daemon.md)'s vault in `backend/storage/vault`. Private [keys](../build/keys.md) are stored in the platform keychain through `expo-secure-store` with the `WHEN_UNLOCKED_THIS_DEVICE_ONLY` access setting, so the keychain does not copy them to other devices. On the web build, which is for development and tests, the secret store falls back to browser storage. <!-- id:JCMx1aka -->
+The app keeps identities in its own vault on the device. That vault is a TypeScript port of the [daemon](./daemon.md)'s local vault in `backend/storage/vault`. It can sync with a remote [vault](./vault.md), the Seed service that stores encrypted keys. <!-- id:JCMx1aka -->
+
+The app stores private [keys](../protocol/identity.md) in the platform keychain through `expo-secure-store`, with the `WHEN_UNLOCKED_THIS_DEVICE_ONLY` access setting. So the keychain does not copy them to other devices. The web build is for development and tests, and there the secret store uses browser storage.
 
 You get an identity into the app in one of three ways: <!-- id:DJUJweEh -->
   1. **Create** a new key on the device. <!-- id:8QFULcF3 -->
   2. **Import** a 12-word [recovery phrase](../protocol/identity.md). The derivation matches the daemon: BIP-39 seed, SLIP-10 path `m/44'/104109'/0'`, Ed25519. See [Keys](../build/keys.md). <!-- id:U23PWR6y -->
-  3. **Connect a remote vault**, `https://hyper.media/vault` by default. The app runs the same vault connect handshake as the [desktop app](./desktop.md) and then syncs identities with the remote vault, merging changes from both sides. The handshake is described on [the vault](./vault.md) page. You can also import an unencrypted `.seedkey` file exported from the desktop app. Password-protected exports need Argon2id, which the app's JavaScript engine cannot run. <!-- id:7uPmNHPG -->
+  3. **Connect a remote vault**, `https://hyper.media/vault` by default. The app runs the same vault connect handshake as the [desktop app](./desktop.md). Then it syncs identities with the remote vault and merges changes from both sides. [The vault](./vault.md) page describes the handshake. <!-- id:7uPmNHPG -->
+
+You can also import an unencrypted `.seedkey` file that the desktop app exported. The app cannot import an export with a password, because that needs Argon2id, which the app's JavaScript engine cannot run.
 
 # Running it <!-- id:BXoG5SJY -->
 
@@ -61,7 +75,7 @@ pnpm mobile:test         # jest unit tests
 pnpm mobile:typecheck
 ```
 
-The `ios/` and `android/` folders are generated and are not in git. Create them with `npx expo prebuild`, then run `npx expo run:ios` or `npx expo run:android`. Release builds go through Expo Application Services (`eas.json`). `npm run submit` builds and submits the iOS app. The bundle id is `media.hyper.seed.mobile` and the URL scheme is `hm`. <!-- id:4G2VLZZc -->
+The `ios/` and `android/` folders are generated and are not in git. Create them with `npx expo prebuild`, then run `npx expo run:ios` or `npx expo run:android`. Run these commands inside `frontend/apps/mobile`. Release builds go through Expo Application Services (`eas.json`). `npm run submit` builds the iOS app and submits it. The bundle id is `media.hyper.seed.mobile` and the URL scheme is `hm`. <!-- id:4G2VLZZc -->
 
 The end-to-end tests live in the repository's `tests/` package. `mobile-web.integration.test.ts` drives the web build with Playwright against a real [daemon](./daemon.md) and [web app](./web.md), and `mobile-vault.integration.test.ts` covers the [vault](./vault.md). <!-- id:lNLgFsqL -->
 
@@ -69,21 +83,21 @@ The end-to-end tests live in the repository's `tests/` package. `mobile-web.inte
 
 ## In the Seed app <!-- id:aKT52ua8 -->
 
-The mobile app shares identities with the [desktop app](./desktop.md) only through a connected remote [vault](./vault.md). It does not read the desktop app's local data. <!-- id:tRSh-x3_ -->
+The mobile app shares identities with the [desktop app](./desktop.md) in one way only: both connect to the same remote [vault](./vault.md). The mobile app does not read the desktop app's local data. <!-- id:tRSh-x3_ -->
 
 ## SDK <!-- id:Tkvxnjn3 -->
 
-The app is a working example of the [SDK](../build/sdk.md) in React Native: the client, `createComment`, CBOR and signing all run under React Native with a few shims. <!-- id:RGqpKXJ4 -->
+The app is a working example of the [SDK](../build/sdk.md) in React Native. The client, `createComment`, CBOR and signing all run under React Native with a few small patches. <!-- id:RGqpKXJ4 -->
 
-## Web API <!-- id:yD0N6wpY -->
+## Seed API <!-- id:yD0N6wpY -->
 
-Everything the app shows comes from a [site](../protocol/sites.md)'s `/api/<Key>` routes and `/hm/api/config`. [Images](../protocol/files.md) come from the site service `/hm/api/image/<cid>`, which resizes them. See [The web API](../build/web-api.md). <!-- id:4YRR-bHB -->
+Everything the app shows comes from a [site](../protocol/sites.md)'s `/api/<Key>` routes and `/hm/api/config`. [Images](../protocol/files.md) come from the site service `/hm/api/image/<cid>`, which resizes them. See [Seed API](../build/web-api.md). <!-- id:4YRR-bHB -->
 
 ## Agents <!-- id:UHV5HLBL -->
 
-The Agents screens list your [Seed Agents](../agent.md), open sessions and chat. They reuse the platform-neutral half of the shared agents code: the signed client, React Query models, chat row model and tool summaries. Only the views are rewritten. The [app environment](./app-environment.md) it talks to is set under [Configuration](#configuration). <!-- id:r9o8K8r_ -->
+The Agents screens list your [Seed Agents](../agent.md), open [sessions](../agent/session.md) and let you chat. They reuse the part of the shared agents code that does not depend on a platform: the signed client, the React Query models, the chat row model and the tool summaries. Only the views are written again for React Native. [Configuration](#configuration) says which [app environment](./app-environment.md) the app talks to. <!-- id:r9o8K8r_ -->
 
-For UI work without spending tokens, `npm run mock-agents` serves a scripted app environment on `http://localhost:3052` that streams replies, shows pending tool calls, advances a plan and parks a run for an answer. It does not verify signatures, binds to loopback only, and must never be deployed. <!-- id:zIZYXZ2C -->
+For UI work that spends no model tokens, run `npm run mock-agents` inside `frontend/apps/mobile`. It serves a fake app environment on `http://localhost:3052` with scripted answers. It streams replies, shows tool calls that wait, moves a plan forward and pauses a run to wait for an answer. It does not check signatures and it binds to loopback only. Never deploy it. <!-- id:zIZYXZ2C -->
 
 # See also <!-- id:K0b69uPH -->
 

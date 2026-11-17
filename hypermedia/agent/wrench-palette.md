@@ -1,18 +1,21 @@
 ---
-name: Wrench Palette
-summary: The wrench palette is the tool button in the chat composer that lets a person run read, write, and call themselves, with results landing on the shared log.
+name: Running a Tool Yourself
+summary: A person holds the same verbs the agent does, and can run read, write and call from the slash menu of the chat composer, with the results saved on the shared log.
 ---
-The **wrench palette** is the tool button in the chat composer. It lets a person run [read](./read.md), [write](./write.md), and [call](./call.md) themselves. Results land on the [log](./log.md) with a **"You" chip**, and the agent reads them as ground truth (`<user_action>` in its replay). <!-- id:OLGsxfeU -->
+A person holds the same verbs the [agent](../agent.md) does. You can run [read](./read.md), [write](./write.md) and [call](./call.md) yourself, in the same conversation. In the chat composer, type `/` and pick a tool under **Run a tool**. A form opens above the input. For example, you can read a [document](../protocol/documents.md) yourself, and the agent then works from what you read. <!-- id:OLGsxfeU -->
+
+The result lands on the [log](./log.md) with a **You** chip. The agent reads it as fact (`<user_action>` in its replay). The file name of this page keeps an earlier name, the wrench palette.
 
 # The user holds the same verbs <!-- id:dwr2ygva -->
 
-`InvokeSessionTool` (`apps/protocol/src/index.ts`) runs `read`, `write`, or `call` **as the user** on the session's shared log (`#invokeSessionTool`, `api-service.ts`). The call and its result append as actor-`user` events, so the agent reads them on its next turn exactly as it reads its own. The log is the interface. There is no side channel. In the app this is the [wrench palette](./wrench-palette.md). <!-- id:yY41iY_5 -->
-  - `delegate` and `plan` are rejected. Delegation is a conversational ask, so the user messages the agent instead. <!-- id:GGnI4jWM -->
-  - The request is rejected with 409 while the session has a live run. <!-- id:Pyr3dfgV -->
-  - Execution failures are log entries too (a failed attempt is context) and come back in the response. Only pre-execution validation rejects the request outright. <!-- id:HXdtpBjo -->
-  - On replay, user tool calls become `<user_action>` and `<user_action_result>` tagged user messages. Providers have no notion of a user-made tool call, so these are not sent as provider tool exchanges (`api-service.ts`). The system prompt tells the agent these are shared ground truth it can build on without re-running them (`api-service.ts`). <!-- id:lj8l9b0x -->
+`InvokeSessionTool` (`apps/protocol/src/index.ts`) runs `read`, `write`, or `call` **as the user** on the shared log of the [session](./session.md) (`#invokeSessionTool`, `api-service.ts`). The call and its result are added as events with actor `user`. So the agent reads them on its next turn exactly as it reads its own. The log is the interface. There is no side channel. <!-- id:yY41iY_5 -->
+  - [`delegate`](./delegate.md) and [`plan`](./plan.md) are refused. To delegate, a person asks the agent in a message. <!-- id:GGnI4jWM -->
+  - `browser` is refused here. It only works in a run the owner started.
+  - The request is refused with 409 while the session has a live run. <!-- id:Pyr3dfgV -->
+  - A tool that fails while it runs is a log entry too, because a failed try is useful context. The failure also comes back in the response. Only a request that fails its checks before it runs is refused outright. <!-- id:HXdtpBjo -->
+  - On replay, the user's tool calls become user messages tagged `<user_action>` and `<user_action_result>`. [Model providers](./model-providers.md) have no idea of a tool call made by a user, so these are not sent as provider tool calls (`api-service.ts`). The [system prompt](./prompt.md) tells the agent that these are shared facts it can build on without running them again. <!-- id:lj8l9b0x -->
 
-The palette's place in the composer is described on [in the app](./in-the-app.md), and the action's request and response on the [signed API](../build/signed-api.md).
+Where the commands sit in the composer is described on [in the app](./in-the-app.md). The request and response of the action are on the [signed API](../build/signed-api.md).
 
 # See also <!-- id:wMF9v8fi -->
 

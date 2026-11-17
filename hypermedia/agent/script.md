@@ -1,18 +1,45 @@
 ---
 name: Script / ctx
-summary: A script child is a deterministic JavaScript module whose every effect goes through the journaled ctx object.
+summary: A script is a child that is code and not a model, and everything it does goes through the ctx object, which records each effect in the journal.
 ---
-A **script** is a [child](./child.md) that is code, not a model. It reaches the outside only through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate`, `ctx.parallel`, `ctx.step`, `ctx.plan`, `ctx.sleep`, `ctx.waitForEvent`, `ctx.continueAsNew`. Scripts are deterministic, with no clock and no randomness, and every effect goes into the [journal](./journal.md). <!-- id:FyyJwpqk -->
+A **script** is a [child](./child.md) that is code, not a model. It is a small JavaScript module. It reaches the outside world only through one object, `ctx`. For example, `await ctx.call('read', {address: 'hm://…'})` reads a [document](../protocol/documents.md), and `await ctx.delegate({brief: '…'})` starts a model child. <!-- id:FyyJwpqk -->
 
-Use a script when the control flow is known in advance: a loop over a list, a fan-out, a wait of hours or days. The script has no transcript. What a person sees of it is its journal.
+Scripts are deterministic: no `Date`, no `Math.random`, no `fetch`. The time comes from `ctx.now()`, which is recorded so a replay sees the same value. Every effect goes into the [journal](./journal.md), the saved record of what the script did.
+
+Use a script when the steps are known before the work starts: a loop over a list, many children at once, a wait of hours or days. A script has no transcript. What a person sees of it is its journal.
 
 # The module and the ctx API
 
-A script is passed to [delegate](./delegate.md) as `script`, a self-contained module `export default async function (input, ctx) {…}` run in an in-process QuickJS-WASM realm (`apps/src/workflow-host.ts`). Everything external crosses through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate` (alias `ctx.agent`), `ctx.parallel` and `ctx.parallelSettled`, `ctx.sleep` (a sleep of 60 seconds or more parks the run; shorter ones hold the VM), `ctx.minutes` and `ctx.hours`, `ctx.waitForEvent(match, {timeoutMs, label})` (resolves `null` on timeout), `ctx.continueAsNew` (never resolves), `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`, plus `TextEncoder` and `TextDecoder`. A child that is canceled or fails rejects `ctx.delegate` with an error whose code is `canceled` or `agent-failed`. Scripts hold the read and write verbs plus the agent's callable set (`api-service.ts`), and tool resources by hm:// URL. Every effect goes into the [journal](./journal.md), so resume after a crash or a timer wake replays from the top and completed work never re-executes. Detached script children are rejected outright. Scripts are always awaited. <!-- id:pnR_U13Y -->
+A script is passed to [delegate](./delegate.md) as `script`. It is one module that stands alone: `export default async function (input, ctx) {…}`. It runs in a QuickJS-WASM engine inside the server process (`apps/src/workflow-host.ts`). <!-- id:pnR_U13Y -->
+
+Everything outside the module goes through `ctx`:
+
+| `ctx` member | what it does |
+| --- | --- |
+| `ctx.call(tool, input, {description})` | runs [`read`](./read.md), [`write`](./write.md), one of the [agent](../agent.md)'s [callable tools](./callables.md), or a [tool resource](./call.md) by its [hm:// URL](../protocol/urls.md) |
+| `ctx.delegate` (also `ctx.agent`) | starts a child. If the child is canceled or fails, the promise rejects with an error whose code is `canceled` or `agent-failed` |
+| `ctx.parallel`, `ctx.parallelSettled` | run several effects at the same time |
+| `ctx.sleep` | waits. A sleep of 60 seconds or more [parks](./park.md) the run; a shorter one keeps the engine running |
+| `ctx.minutes`, `ctx.hours` | helpers that give a time in milliseconds |
+| `ctx.waitForEvent(match, {timeoutMs, label})` | waits for an event. It resolves `null` when the time runs out |
+| `ctx.continueAsNew` | ends this run and starts a fresh one (see [continueAsNew](./continue-as-new.md)). It never resolves |
+| `ctx.step`, `ctx.plan` | edit the script's [plan](./plan.md) |
+| `ctx.now` | the time, recorded in the journal |
+| `ctx.log`, `ctx.progress` | write a message or a progress note |
+| `ctx.input`, `ctx.runId` | the input value and the id of this run |
+
+`TextEncoder` and `TextDecoder` are also there.
+
+Two rules:
+
+- A script is always awaited. A detached script child is refused.
+- Every effect goes into the journal. So when a run resumes after a crash or a timer, it replays from the top, and finished work never runs again.
 
 # How a script survives a restart
 
-A script can [park](./park.md) on a timer, an event, or its children, and hold nothing while it waits. On resume the runtime runs the source again from the top and answers each effect from the [journal](./journal.md). A loop that would outgrow the journal ends into a fresh run with [continueAsNew](./continue-as-new.md). A script can also carry a wall-clock budget; see [delegation budgets](./delegation-budgets.md#choosing-thoroughness).
+A script can park on a timer, an event, or its children. It holds nothing while it waits. On resume the runtime runs the source again from the top and answers each effect from the journal.
+
+A loop that would grow past the journal's limit ends into a fresh run with [continueAsNew](./continue-as-new.md). A script can also have a time budget; see [delegation budgets](./delegation-budgets.md#the-wall-clock-budget-of-a-script).
 
 # See also <!-- id:7VeMo9KX -->
 

@@ -2,13 +2,20 @@
 name: Tool Document
 summary: A tool document is the content-addressed record in an agent's tools folder that describes one built-in tool or one tool projected from an MCP server.
 ---
-A **tool document** is the record of one tool an agent holds. Every tool is a content-addressed document in `~/tools/` in the agent's [Space](./space.md), stored as [DAG-CBOR](../protocol/blobs.md) with its [CID](../protocol/blobs.md) as its version. It is one of two kinds. A **builtin** is bound in the runtime. An **mcp** document projects one tool on a remote [MCP server](./mcp.md), and [call](./call.md) proxies to it. An agent holds no private code tools: a tool an agent makes is a [tool resource](./call.md#tool-resources) in an app or in the agent's own document. <!-- id:xCacrD0j -->
+A **tool document** is the stored record of one built-in tool, or of one tool from an MCP server, stored in the same way as a [document](../protocol/documents.md), that an [agent](../agent.md) can call by name. It is listed under `~/tools/` in the agent's [Space](./space.md). For example, `~/tools/search` is the tool document of the built-in `search`. <!-- id:xCacrD0j -->
 
-This page covers what a tool document holds, the two kinds, and how the Space index advertises the documents to the model. The model-facing part of a document is its [contract](./contract.md).
+It is not the same thing as a [tool resource](./call.md#tool-resources), which is a tool someone wrote and published in an app or an agent. An agent has no private code tools.
+
+A tool document is one of two kinds:
+
+- A **builtin** is a tool the runtime itself provides.
+- An **mcp** document stands for one tool on a remote [MCP server](./mcp.md). A [call](./call.md) of it is passed on to that server.
+
+Each tool document is stored as [DAG-CBOR](../schema/dag-cbor.md), and its [CID](../cid.md) is its version. This page covers what a tool document holds, the two kinds, and how the Space index shows the tools to the model. The part of a tool document that the model reads is its [contract](./contract.md).
 
 # Tools are documents <!-- id:SM16VRI3 -->
 
-Every tool an agent holds is a content-addressed tool document in its [Space](./space.md), stored per agent in the `tool_documents` table (`apps/src/tool-documents.ts`). A document's [CID](../protocol/blobs.md) is computed over its canonical DAG-CBOR encoding, the same encoding the hypermedia network uses for blobs. So you can always answer "what exactly can this agent run". <!-- id:Tt3S2vFy -->
+Each agent's tool documents are stored in the `tool_documents` table (`apps/src/tool-documents.ts`). The CID of a tool document is computed over its canonical DAG-CBOR encoding. The Hypermedia network encodes [blobs](../protocol/blobs.md) the same way. So you can always answer the question "what exactly can this agent run". <!-- id:Tt3S2vFy -->
 
 ```ts <!-- id:uGnR-4qi -->
 type ToolDocument = {
@@ -29,24 +36,24 @@ type ToolDocument = {
 The stored type keeps the `lambda` kind and its `source` and `runtime` fields so that old rows can still be read. Nothing creates one.
 
 <!-- id:P5VOO5bh -->
-- **Builtins** are documents whose implementation is a runtime binding. `ensureBuiltinToolDocuments()` creates and refreshes them per agent. Rows are rewritten only when the registry contract changed (the CID differs). A forked builtin keeps its binding, and its divergence from the shipped contract shows as a different CID (`tool-documents.ts`). <!-- id:jx8HtVIW -->
-- **Lambdas** do not exist as live tools. On start, the server moves any lambda row into the agent's memory at `~/memory/tools/<name>/` (the code and a `tool.json` with the schemas) and removes it from the registry (`moveLambdaToolsToMemory()`, `tool-documents.ts`). `write ~/tools/<name>` is refused with instructions to publish a tool resource instead.
-- **MCP projections** are the tools of the remote [MCP servers](./mcp.md) an agent enables (`definition.mcpServers`). There is one document per tool, named `<server>__<tool>`, reconciled by `syncMcpToolDocuments()` from the server's cached discovery. They carry the remote description and input schema plus `server` and `remoteName`. They cannot be deleted or replaced by hand (disable the server instead), and calls to them are proxied to the server. See [`mcp.md`](./mcp.md). <!-- id:BcWPjduI -->
+- **Builtins** are tool documents whose code is part of the runtime. `ensureBuiltinToolDocuments()` creates and refreshes them for each agent. A row is rewritten only when the registry contract changed (the CID differs). A forked builtin keeps its binding. Its difference from the shipped contract shows as a different CID (`tool-documents.ts`). <!-- id:jx8HtVIW -->
+- **Lambdas** do not exist as live tools. On start, the server moves any lambda row into the agent's memory at `~/memory/tools/<name>/` (the code and a `tool.json` with the schemas) and removes it from the registry (`moveLambdaToolsToMemory()`, `tool-documents.ts`). A [write](./write.md) to `~/tools/<name>` is refused, with instructions to publish a tool resource.
+- **MCP projections** are the tools of the remote [MCP servers](./mcp.md) an agent enables (`definition.mcpServers`). There is one tool document per tool, named `<server>__<tool>`. `syncMcpToolDocuments()` keeps them in step with the server's cached tool list. Each carries the remote description and input schema, plus `server` and `remoteName`. They cannot be deleted or replaced by hand; disable the server to remove them. Calls to them are passed on to the server. See [MCP servers](./mcp.md). <!-- id:BcWPjduI -->
 
-`ListAgentTools` returns the desktop's view of the same documents: name, kind, summary, description, schemas, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). `SaveAgentTool` is refused with status 410 and the same instructions as a `write` to `~/tools/<name>`. <!-- id:EiFnJN0w -->
+`ListAgentTools` returns the [Seed app](../software/desktop.md)'s view of the same tool documents: name, kind, summary, description, schemas, `cid`, `enabled`, and `granted` (whether the agent's [grants](./grants.md) offer it). `SaveAgentTool` is refused with status 410 and the same instructions as a `write` to `~/tools/<name>`. <!-- id:EiFnJN0w -->
 
 # The Space index <!-- id:OmLIl6Dh -->
 
-Every turn's input is followed by a compact `<space>` block built by `buildSpaceIndex()`. It has: <!-- id:hv-y1xqA -->
-  - one line per enabled tool document (`- name — summary`). Remote tools are tagged `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line. <!-- id:fUDEa-rz -->
-  - a one-line summary of top-level memory. <!-- id:MeTMOILl -->
-  - a triggers line. It names active [triggers](./triggers.md) and advertises `read ~/triggers/` and `write ~/triggers/<name>` even when no triggers exist, so an agent asked "do this every morning" knows it can create the automation. <!-- id:M-5n-zT_ -->
+After every turn's input comes a short `<space>` tag built by `buildSpaceIndex()`. It tells the model what it has. It holds: <!-- id:hv-y1xqA -->
+  - one line for each enabled tool document (`- name — summary`). Remote tools are marked `(<server> MCP)`. An MCP server with more than six tools becomes one line, `- <server>__* — N tools …`. <!-- id:fUDEa-rz -->
+  - a one-line summary of the top level of memory. <!-- id:MeTMOILl -->
+  - a triggers line. It names the active [triggers](../trigger.md), and it mentions `read ~/triggers/` and `write ~/triggers/<name>` even when no trigger exists. So an agent asked "do this every morning" knows it can create the automation. <!-- id:M-5n-zT_ -->
 
-The index is cached per `(account, agent, callable set)` and invalidated on tool or trigger writes; the memory line is refreshed off the prompt path, so an expensive memory walk is served from the last result rather than delaying the turn. Over `SPACE_INDEX_BUDGET_BYTES` (2048) the per-tool lines collapse to a count, so the index stays accurate and small. <!-- id:DWzJqLum -->
+The index is cached per [account](../protocol/identity.md), agent, [callable](./callables.md) set and reader level. A tool write or a trigger write clears the cache. The memory line is refreshed away from the prompt path, so a slow walk of memory uses the last result and does not delay the turn. When the index is larger than `SPACE_INDEX_BUDGET_BYTES` (2048), the tool lines become a count. So the index stays correct and small. <!-- id:DWzJqLum -->
 
-The agent always knows what it _could_ expand, without paying for every contract up front. <!-- id:G7Mcolvq -->
+The agent always knows what it _could_ open, without paying for every contract first. <!-- id:G7Mcolvq -->
 
-The term page is [Space index](./space-index.md), and the [What an agent is told](./prompt.md) shows where the block sits in a turn.
+[Space index](./space-index.md) defines the term, and [What an agent is told](./prompt.md) shows where the tag sits in a turn.
 
 # See also <!-- id:MzI1UPwM -->
 
