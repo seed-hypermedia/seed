@@ -231,7 +231,7 @@ The `auth` module implements the browser half of third-party sign-in: `startAuth
 
 # Editor interop <!-- id:yFaFo2ti -->
 
-If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and [folder sync](./publish-a-folder.md) turn an edited tree into the minimal set of operations. <!-- id:a0m_gFJG -->
+If you are building an editor, `hm-types` has the zod schemas for every block, annotation and metadata key (`HMBlockSchema`, `HMDocumentSchema`, `HMRequestSchema`, …), and the barrel exports the converters the Seed editor uses: `hmBlocksToEditorContent`, `editorBlocksToHMBlockNodes`, `hmBlockToEditorBlock`, `editorBlockToHMBlock`. The `block-diff` module (`createBlocksMap`, `matchBlockIds`, `computeReplaceOps`, `rebindTableIdentities`) is how the CLI's `document update` and [folder sync](./publish-a-folder.md) turn an edited tree into operations: a replace for each block whose content changed, and a move for each level whose order changed. The moves are not minimal by themselves (a level whose order changed lists all of its blocks), so send them through `documentUpdateBlobs`, which stores only the moves that change something. <!-- id:a0m_gFJG -->
 
 # Working with it <!-- id:QbNk3cwH -->
 

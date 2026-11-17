@@ -621,17 +621,17 @@ describe('seed-cli document update', () => {
 
   it('reads back every edit as written, whoever builds the change (seeded random edits through the CLI)', async () => {
     // One document per seed, walked through rounds of one to four edits each: blocks and whole
-    // subtrees inserted, deleted and moved, indents and outdents, and parents swapped with their
-    // children. Every round runs the real `document update -f blocks.json` and reads the tree back.
+    // subtrees inserted, deleted and moved, indents and outdents. Every round runs the real
+    // `document update -f blocks.json` and reads the tree back. No round leaves a parent/child
+    // inversion in the document's history: a daemon without Seed PR #1375 never answers a request
+    // that moves blocks in a document with one, and the daemon binary under plz-out/ may be that
+    // old (CI builds the daemon from the branch). Each document ends with one swap of a parent
+    // and its child, which is built by the CLI and never sent, and is not written to again.
     const toNodes = (tree: Tree): unknown[] => tree.map((t) => node(t.id, toNodes(t.children)))
     const stats = newFuzzStats()
     const failures: string[] = []
-    for (const [seed, swaps] of [
-      [20261116, true],
-      [424242, true],
-      [31337, false],
-    ] as const) {
-      const fuzzer = createTreeFuzzer(seed, {swaps})
+    for (const seed of [20261116, 424242, 31337]) {
+      const fuzzer = createTreeFuzzer(seed, {inversions: false})
       const docPath = `/random-${seed}`
       let tree: Tree = flatTree('a', 'b', 'c', 'd', 'e')
       tree[1]!.children = flatTree('p', 'q', 'r')
@@ -645,8 +645,9 @@ describe('seed-cli document update', () => {
         '--name',
         'Random',
       )
-      for (let round = 0; round < 25; round++) {
-        const next = fuzzer.mutate(tree)
+      for (let round = 0; round <= 25; round++) {
+        const next = round < 25 ? fuzzer.mutate(tree) : fuzzer.swap(tree)
+        if (!next) throw new Error(`seed ${seed}: no parent to swap in ${JSON.stringify(treeShape(tree))}`)
         const label = `seed ${seed} round ${round} (${next.edits.join(', ')}): ${JSON.stringify(
           treeShape(tree),
         )} -> ${JSON.stringify(treeShape(next.tree))}`
@@ -670,8 +671,11 @@ describe('seed-cli document update', () => {
     }
     reportStats(`FUZZ-STATS cli-document-update ${JSON.stringify(stats)}`)
     expect(failures).toEqual([])
-    expect(stats.rounds).toBe(75)
+    expect(stats.rounds).toBe(78)
     expect(stats.wrong).toBe(0)
+    expect(stats.edits.swap).toBe(3)
+    // No round waited for a daemon that was never going to answer.
+    expect(Object.keys(stats.reasons).filter((reason) => reason.includes('did not answer'))).toEqual([])
     expect(stats.server).toBeGreaterThan(5)
   }, 600_000)
 
