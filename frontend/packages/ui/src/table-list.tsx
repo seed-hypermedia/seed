@@ -33,7 +33,7 @@ export function TableList({
     <div
       className={cn(
         'cursor-default overflow-hidden rounded-lg border select-none',
-        'border-border bg-card',
+        'border-border bg-background',
         'sm:mx-0',
         className,
       )}
@@ -46,7 +46,7 @@ export function TableList({
 
 function TableHeader({children, className, ...props}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
   return (
-    <div className={cn('bg-muted flex items-center gap-3 px-4 py-2', className)} {...props}>
+    <div className={cn('bg-muted border-border flex items-center gap-3 border-b px-4 py-2', className)} {...props}>
       {children}
     </div>
   )
@@ -57,7 +57,7 @@ function TableItem({children, className, ...props}: PropsWithChildren<{className
     <div
       className={cn(
         'flex w-full items-start p-4',
-        'bg-card',
+        'bg-background',
         'hover:bg-muted',
         'border-border border-b last:border-b-0',
         className,
