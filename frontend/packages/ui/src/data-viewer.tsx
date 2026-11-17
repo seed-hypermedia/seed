@@ -31,7 +31,9 @@ export const DataViewer = memo(function DataViewer({data, level = 0, onNavigate,
 
   if (typeof data === 'string') {
     if (data.includes('\n')) {
-      return <div className="overflow-auto rounded bg-white p-2 font-mono whitespace-pre-wrap text-black">{data}</div>
+      return (
+        <div className="bg-card text-foreground overflow-auto rounded p-2 font-mono whitespace-pre-wrap">{data}</div>
+      )
     }
 
     if (data.startsWith('http://') || data.startsWith('https://')) {
@@ -51,18 +53,18 @@ export const DataViewer = memo(function DataViewer({data, level = 0, onNavigate,
       return <DataViewerLink url={data} onNavigate={onNavigate} getRouteForUrl={getRouteForUrl} />
     }
 
-    return <span className="font-mono text-black">{data}</span>
+    return <span className="text-foreground font-mono">{data}</span>
   }
 
   if (Array.isArray(data)) {
     if (data.length === 0) return <span className="text-muted-foreground">[]</span>
 
     return (
-      <div className={`overflow-auto rounded bg-white ${isTopLevel ? 'rounded-xl px-4 py-2' : ''}`}>
+      <div className={`bg-card overflow-auto rounded ${isTopLevel ? 'rounded-xl px-4 py-2' : ''}`}>
         <div className="flex overflow-auto">
           {!isTopLevel && (
             <div
-              className="flex w-4 cursor-pointer items-center justify-center overflow-auto hover:bg-black"
+              className="hover:bg-muted flex w-4 cursor-pointer items-center justify-center overflow-auto"
               onClick={() => setIsExpanded((expanded) => !expanded)}
             />
           )}
@@ -93,11 +95,11 @@ export const DataViewer = memo(function DataViewer({data, level = 0, onNavigate,
     }
 
     return (
-      <div className={`overflow-auto rounded bg-white ${isTopLevel ? 'rounded-xl px-4 py-2' : ''}`}>
+      <div className={`bg-card overflow-auto rounded ${isTopLevel ? 'rounded-xl px-4 py-2' : ''}`}>
         <div className="flex overflow-auto">
           {!isTopLevel && (
             <div
-              className="flex w-4 cursor-pointer items-center justify-center overflow-auto hover:bg-black"
+              className="hover:bg-muted flex w-4 cursor-pointer items-center justify-center overflow-auto"
               onClick={() => setIsExpanded((expanded) => !expanded)}
             />
           )}
@@ -173,7 +175,7 @@ function DataViewerLink({
   }
 
   if (!onNavigate) {
-    return <span className="font-mono text-black">{url}</span>
+    return <span className="text-foreground font-mono">{url}</span>
   }
 
   return (
