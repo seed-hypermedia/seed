@@ -31,10 +31,7 @@ So `hm://z6Mkfz…/notes/sushi?v=bafyreid3…#Zr1kAbQ2[12:40]` means "characters
 
 The [daemon](../software/daemon.md) does not enforce the "at least" part. When `l` is present it returns the latest version it knows.
 
-A path must start with `/` and must not end with `/`. It may not contain single or double quotes, backslashes, NUL, tab, CR or LF. The daemon rejects any [Ref](../ref.md) that breaks these rules. Two segment shapes have a special meaning: <!-- id:w3OedhEC -->
-
-- A path that is a single segment decoding as a [TSID](./blobs.md) (14 or 15 base58 characters) is a comment or contact record.
-- The apps use a leading `-` for local draft paths. Those are never published.
+The path rules are in [Spaces and paths](./spaces.md). A site also reserves some first segments; see [Reserved first segments](#reserved-first-segments). <!-- id:w3OedhEC -->
 
 The `l` flag has no value and follows `v`, so it is always written `?v=<version>&l`.
 
@@ -47,7 +44,7 @@ A reference can name a web domain in place of the uid, as in `hm://hyper.media/a
 
 # Versions, blocks and ranges <!-- id:RQMevPWC -->
 
-A version pins the whole history, because every head [Change](../change.md) links its dependencies by [CID](../cid.md). The same `v=` always replays to the same content on any node that has the blobs. Without `v`, a block reference `#id` follows the block wherever it moves in later versions. Use both when you need a quotation that cannot drift. Ranges count Unicode code points. They do not count UTF-16 units or bytes, so an emoji counts once. <!-- id:kjOBFhbW -->
+A version pins the whole history, because every head [Change](../change.md) links its dependencies by [CID](../cid.md). The same `v=` always replays to the same content on any node that has the [blobs](./blobs.md). Without `v`, a block reference `#id` follows the block wherever it moves in later versions. Use both when you need a quotation that cannot drift. Ranges count Unicode code points. They do not count UTF-16 units or bytes, so an emoji counts once. <!-- id:kjOBFhbW -->
 
 Links inside documents use the same grammar. A link annotation, an embed block, a button and a mention all carry an `hm://` URL. The daemon indexes each of them as a citation of the target; see [Links and citations](./links-and-citations.md) for backlinks. When you paste the web URL of a Seed site into the editor, the editor converts it to `hm://`. <!-- id:IlSRfmmm -->
 

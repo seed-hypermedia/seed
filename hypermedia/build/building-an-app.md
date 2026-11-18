@@ -11,7 +11,7 @@ One warning before you start: **tool call records are not private**. The server 
 # The order to work in
 
 1. Create the app.
-2. Set up its data: type documents, collections, and their addresses in the app's public config. See [where an app's data lives](../app.md).
+2. Set up its data: type documents, collections, and their addresses in the app's public config. See [where an app's data lives](../app.md#where-an-apps-data-lives).
 3. Add tools for what must run on a server: calls to outside services, and anything that needs a secret from the private config.
 4. Add pages for the interface. Pages read and write the app's records as the viewer and call its tools.
 5. Run the app on an [app environment](../software/app-environment.md), with its private config.
@@ -107,7 +107,7 @@ An update changes only what it names:
 
 If the trigger cannot fire, the write result says why.
 
-`~/triggers/<name>` is for triggers stored on the server. Use it only for what a document cannot express: a workflow script, a wake, a call to a builtin or MCP tool. See [triggers kept only on the server](../trigger.md). An agent's prompt lists its own trigger documents beside its tools. `~/triggers/` lists all its triggers, of both forms, with their firings, and names each trigger's document.
+`~/triggers/<name>` is for triggers stored on the server. Use it only for what a document cannot express: a workflow script, a wake, a call to a builtin or MCP tool. See [triggers kept only on the server](../trigger.md#triggers-kept-only-on-the-server). An agent's prompt lists its own trigger documents beside its tools. `~/triggers/` lists all its triggers, of both forms, with their firings, and names each trigger's document.
 
 ## Keep a host's embeds when editing it
 

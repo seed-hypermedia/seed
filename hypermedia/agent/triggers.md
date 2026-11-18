@@ -46,7 +46,7 @@ There are nine source types: the five activity sources, `activity` (a list of th
 | `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the five activity sources above <!-- id:awQJs1x6 --> |
 | `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timesOfDay?, timezone}` (`timesOfDay` lists several times a day), or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
 | `webhook` | something POSTs JSON to the trigger's delivery URL | none; the secret is created with the trigger. See [webhooks](./webhooks.md) <!-- id:-P02QGwG --> |
-| `run-completed` | a [run](./runs.md) of this account reaches a final status | optional `agentId`, [`status`](./tools.md) (`succeeded`, `failed`, `canceled`), `titleMatch` <!-- id:4JzuZ8WZ --> |
+| `run-completed` | a [run](./runs.md) of this account reaches a final status | optional `agentId`, `status` (`succeeded`, `failed`, `canceled`; see [run status](./runs.md#status)), `titleMatch` <!-- id:4JzuZ8WZ --> |
 
 The server rejects an empty account list.
 
@@ -158,7 +158,7 @@ Apps have a **Triggers** tab too. It lists trigger documents only, because an ap
 
 ## The agent itself <!-- id:bBRPFDh1 -->
 
-An agent manages its own triggers with the [read](./read.md) and [write](./write.md) verbs: <!-- id:KA4JCbvJ -->
+An agent manages its own triggers with the [read](./read.md) and [write](./write.md) [verbs](./tools.md): <!-- id:KA4JCbvJ -->
   - `read ~/triggers/` lists them, of both forms, with the write contract inline. <!-- id:BdwUYPMG -->
   - `read ~/triggers/<name>` returns one trigger with its five most recent firings. <!-- id:fB7qLr6W -->
   - `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a trigger stored on the server, by name or id. It keeps `enabled` as written. <!-- id:PqNfXf2G -->

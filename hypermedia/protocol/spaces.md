@@ -8,7 +8,7 @@ This page explains how documents are named inside a space.
 
 # Spaces, paths and the home document <!-- id:ulfSQIwk -->
 
-A **space** is a public [key](./identity.md). Every address is `hm://<space>/<path>`. The home document is the address with an empty path. <!-- id:fIFnjBkC -->
+Every address is `hm://<space>/<path>`. The home document is the address with an empty path. <!-- id:fIFnjBkC -->
 
 Paths are plain strings. `/cars` and `/cars/honda` are two independent documents, and the [daemon](../software/daemon.md) keeps no tree of documents. A **directory** listing is a query for all addresses that start with a path. A parent gets no authority over its children from the path alone. There are two exceptions:
 
@@ -17,6 +17,7 @@ Paths are plain strings. `/cars` and `/cars/honda` are two independent documents
 
 Clients follow these path rules: <!-- id:30WkfDUD -->
 
+- A path starts with `/` and does not end with `/`. It may not contain single or double quotes, backslashes, NUL, tab, CR or LF. The daemon rejects any [Ref](../ref.md) that breaks these rules.
 - The daemon reads a path that is a single segment decoding as a [TSID](./blobs.md) (14 or 15 base58 characters) as a [comment](./comments.md) or contact record.
 - A [private document](./privacy.md) must use a single path segment.
 - The apps use a leading `-` for local draft paths.

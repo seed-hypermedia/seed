@@ -16,7 +16,7 @@ A grant is a setting on the agent's definition in the [app environment](../softw
 
 # What is granted <!-- id:tPg5Z6sN -->
 
-Three things are granted per agent: the callable tools, publishing, and MCP servers. The first two live in `definition.tools`; the third in `definition.mcpServers`. <!-- id:dEtv6vHA -->
+The callable tools and publishing live in `definition.tools`. MCP servers live in `definition.mcpServers`. <!-- id:dEtv6vHA -->
   - **The callable set.** `enabledCallableTools()` (`api-service.ts`) keeps the server's callables that `definition.tools` also names. An undefined `tools` array grants all of them. `execute` is left out when the host cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
   - **Publish.** `publishGrantEnabled()` (`api-service.ts`) looks for the name `publish` in `definition.tools`. The older names `write`, `memory_publish_document`, `ipfs_write` and `attachment_to_ipfs` count as `publish` too. An undefined `tools` array grants publish. Without the grant, a `write` to `hm://` or `ipfs://` returns 403. Memory writes never need a grant. <!-- id:27po_PK5 -->
   - **MCP servers.** `definition.mcpServers` names the MCP servers of the [account](../protocol/identity.md) that the agent may call, at most 16. The grant is checked again at call time. See [MCP servers](./mcp.md).

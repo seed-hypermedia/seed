@@ -43,7 +43,7 @@ The server decides from the kind of failure whether to try again: <!-- id:it4z5p
 
 # Parked runs
 
-A parked run uses no resources and takes no place under the limits. [Park](../agent/park.md) lists the four reasons a run parks, and [wake source](../agent/wake-source.md) says what wakes each. The dispatcher looks once a second for timers that are due.
+A parked run uses no resources and takes no place under the limits. [Park](../agent/park.md) lists the three reasons a run parks, and [wake source](../agent/wake-source.md) says what wakes each. The dispatcher looks once a second for timers that are due.
 
 # When dispatch pauses
 

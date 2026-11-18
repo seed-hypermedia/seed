@@ -8,7 +8,7 @@ If you are new, start with [Getting started](./build/getting-started.md). In abo
 
 # The ways in, and how they fit together <!-- id:EDxAY8k1 -->
 
-Seed gives programs several ways to use the [protocol](./protocol.md). Each one is built on the one before it, so what you learn on one helps with the next. <!-- id:N9t06KQr -->
+Seed gives programs several ways to use the [protocol](./protocol.md). They go from the simplest to the deepest. The SDK wraps the Seed API, the CLI wraps the SDK, and the daemon's gRPC API and libp2p sit underneath all of them. The signed API is separate and talks to app environments. <!-- id:N9t06KQr -->
 
 <!-- id:i2ZTgRil -->
 | Surface <!-- col:MExJdkeL --> | Reach for it when <!-- col:SO4xzYks --> | Guide <!-- col:C-Wpq21_ --> <!-- id:g0zEAfOb --> |

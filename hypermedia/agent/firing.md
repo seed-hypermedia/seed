@@ -24,7 +24,7 @@ A [comment](../protocol/comments.md) that mentions someone produces two feed eve
 
 # Status
 
-A firing's [`status`](./tools.md) field records what happened: <!-- id:gujQ6cpk -->
+A firing's `status` field records what happened: <!-- id:gujQ6cpk -->
   - `created`: a thread (a [session](./session.md)) was started. <!-- id:Hwqa0EPx -->
   - `running`, then `succeeded`: a headless run, which is a [run](./runs.md) with no model. <!-- id:6H8HYNJq -->
   - `delivered` or `no-listener`: a wake. <!-- id:TpYQ2W5U -->

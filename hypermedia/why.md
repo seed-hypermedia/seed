@@ -21,7 +21,7 @@ Hypermedia is not a social network, a blockchain, or a closed platform. It has n
 
 # Limits <!-- id:5-EyBhYe -->
 
-These parts work: [signed blobs](./protocol/blobs.md), content named by its hash, change histories, branching, [capabilities](./protocol/permissions.md), peer-to-peer [sync](./protocol/network.md) and web publishing. There is no web of trust. People keep a public address book of [contacts](./protocol/contacts.md) and give explicit permissions, and nothing ranks strangers by who your contacts know. Each of the four idea essays ends with the limits that apply to it.
+These parts work: [signed blobs](./protocol/blobs.md), content named by its hash, change histories, branching, [capabilities](./protocol/permissions.md), peer-to-peer [sync](./protocol/network.md) and web publishing. There is no web of trust. People keep a public address book of [contacts](./protocol/contacts.md) and give explicit permissions, and nothing ranks strangers by who your contacts know. Each essay except Inspirations ends with the limits that apply to it.
 
 # See also <!-- id:mTSC6ba6 -->
 

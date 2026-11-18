@@ -31,7 +31,7 @@ A document can name a local server or a hosted one. A server on localhost or a p
 
 # Creating an agent
 
-You create an agent the way you create a document. Pick **Agent** from the **New** menu of a [home document](../protocol/spaces.md), or from the plus button beside Home in the file browser. This is the only way to create one. Agents are always children of the home document, so no other document offers the entry.
+You create an agent the way you create a document. Pick **Agent** from the **New** menu of a [home document](../protocol/spaces.md), or from the plus button beside Home in the file browser. This is the only way a person creates one. The built-in [Assistant](./assistant.md) is the exception: the desktop app creates it. Agents are always children of the home document, so no other document offers the entry.
 
 The dialog asks for a name, a model, and what the agent may write. It shows the server the agent will run on (**Runs on**) with a **Change** link. The server is chosen in this order:
 
@@ -48,7 +48,7 @@ Creating the agent does these things in order:
 3. The server creates the agent under that document id, with the default [grants](./grants.md): [`search`](./callables.md), `web_search`, [`execute`](./code-execution.md) and `publish`.
 4. The app publishes the write access chosen in the dialog as a [capability](../capability.md).
 
-If the document is published and the server action fails, **Retry** uses the same document, signing identity and request again. The server also creates an enabled mention trigger for the new identity, so mentioning the agent's [account](../protocol/identity.md) starts a [session](./session.md). See [triggers](./triggers.md).
+If the document is published and the server action fails, **Retry** uses the same document, signing identity and request again. The server also creates an enabled `activity` trigger for mentions, replies and [comments](../protocol/comments.md), so mentioning the agent's [account](../protocol/identity.md), replying to it, or commenting on its documents starts a [session](./session.md). See [triggers](./triggers.md).
 
 # The name follows the document
 

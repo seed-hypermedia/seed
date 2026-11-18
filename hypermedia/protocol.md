@@ -10,18 +10,17 @@ This page gives the words and shows how the things fit together. Then it lists t
 
 # A note on words <!-- id:wVDNHkRN -->
 
-Three words come first. A **[document](./protocol/documents.md)** is a page. An **[account](./protocol/identity.md)** is a key used as an identity. A **[space](./protocol/spaces.md)** is all the documents that key owns: the same key, seen from the other side. <!-- id:EAr97Lgd -->
+Three words come first. A **[document](./protocol/documents.md)** is one piece of writing with an address, like a web page. An **[account](./protocol/identity.md)** is a key used as an identity. A **[space](./protocol/spaces.md)** is all the documents that key owns: the same key, seen from the other side. <!-- id:EAr97Lgd -->
 
 Three more words appear often:
 
 - A **[site](./protocol/sites.md)** is a space published at a web domain.
-- A **[resource](./glossary.md)** is anything that can change and is rebuilt from [blobs](./protocol/blobs.md), which cannot change. The API uses this word. A document is one kind of resource: each edit is a small change, and the changes are applied in order.
-- A **snapshot blob** is the other kind of resource: an edit replaces the whole value. [Comments](./protocol/comments.md), [contacts](./protocol/contacts.md) and [profiles](./profile.md) are snapshot blobs.
+- A **resource** is anything that can change and is rebuilt from [blobs](./protocol/blobs.md), which cannot change. The API uses this word. A document is one kind of resource: each edit is a small change, and the changes are applied in order.
+- A **snapshot record** is the other kind of resource: each edit publishes a whole new snapshot [blob](./protocol/blobs.md) that replaces the old value. [Comments](./protocol/comments.md), [contacts](./protocol/contacts.md) and [profiles](./profile.md) work this way.
 
 # The core nouns
 
-- **Key.** A public key, written `z6Mk…`, is the only root of identity. Inside a blob it is called a [principal](./principal.md).
-- **Account and space.** One key seen two ways. The [account](./protocol/identity.md) is the identity that signs. The [space](./protocol/spaces.md) is the set of addresses `hm://<key>/<path>` that the key owns.
+- **Key.** A public key, written `z6Mk…`, is the only root of identity. Inside a blob it is called a [principal](./principal.md). The same key is an account and a space; see A note on words above.
 - **Device key.** A separate key that names one running [daemon](./software/daemon.md) on the [network](./protocol/network.md). It never signs content.
 - **Blob.** A value that never changes, named by its [CID](./cid.md), which is a hash of its bytes. A structured [blob](./protocol/blobs.md) carries four signed fields: `type`, `signer`, `sig` and `ts`. There are six signed types: [Change](./change.md), [Ref](./ref.md), [Comment](./comment.md), [Capability](./capability.md), [Contact](./contact.md) and [Profile](./profile.md). [Files](./protocol/files.md) are unsigned blobs.
 - **Resource.** A [document](./protocol/documents.md), or a snapshot record: a comment, a contact or a profile.
@@ -30,7 +29,6 @@ Three more words appear often:
 - **Citation.** The record a node makes for every `hm://` link it sees. [Citations](./protocol/links-and-citations.md) give every resource its backlinks: the list of what links to it.
 - **File.** IPFS data that a block, a metadata key or a profile links as `ipfs://<cid>`.
 - **Visibility.** Public or `Private`. It is set on Refs and comments. Changes and files take it from whatever links to them. See [Privacy](./protocol/privacy.md).
-- **Site.** A space published at a web domain. See [Sites](./protocol/sites.md).
 - **Network.** Peers, which are running daemons, compare the blobs they hold and fetch what they lack. See [Network](./protocol/network.md).
 
 # Reading order
@@ -78,11 +76,11 @@ Start at [Building on Hypermedia](./build.md) and [Getting started](./build/gett
 
 <./protocol/identity.md> <!-- id:yk1R1BrY type:Embed attrs:{"view":"Card"} -->
 
-<./protocol/spaces.md> <!-- id:PwnDQ9mZ type:Embed attrs:{"view":"Card"} -->
-
 <./protocol/blobs.md> <!-- id:Nwt5jnEa type:Embed attrs:{"view":"Card"} -->
 
 <./protocol/documents.md> <!-- id:GqBOIYgV type:Embed attrs:{"view":"Card"} -->
+
+<./protocol/spaces.md> <!-- id:PwnDQ9mZ type:Embed attrs:{"view":"Card"} -->
 
 <./protocol/blocks.md> <!-- id:Mtx5JGhF type:Embed attrs:{"view":"Card"} -->
 

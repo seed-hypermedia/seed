@@ -160,11 +160,13 @@ type AgentToolInfo = {
   runtime?: 'typescript' | 'python'
   cid: string // DAG-CBOR CIDv1 of the document; changes on every edit
   enabled: boolean
-  granted: boolean // builtins: whether the agent's grant set offers it. Lambdas: always true
+  granted: boolean // builtins: whether the agent's grant set offers it
   createdAt: number
   updatedAt: number
 }
 ```
+
+`lambda`, `source` and `runtime` remain only so that old rows can be read. The server moves old lambdas into memory at start, so `ListAgentTools` never returns a lambda. See [tool document](../agent/tool-document.md).
 
 ## `SaveAgentTool` and `DeleteAgentTool`
 

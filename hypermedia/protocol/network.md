@@ -35,7 +35,7 @@ So you can find a public document only because some [gateway](./sites.md) or sit
 
 # What sync exchanges <!-- id:oRGp7Z3y -->
 
-A sync always asks about a **scope**. It never asks for "everything peer X has". A scope is one [resource](../glossary.md) address such as `hm://ACC/notes/foo`. It can include the resource's direct children (`depth one`) or everything under it (`recursive`). It can also be limited to some blob types. Both sides work out the same set of blobs for a scope, each from its own index: <!-- id:v01a_crK -->
+A sync always asks about a **scope**. It never asks for "everything peer X has". A scope is one [resource](../protocol.md#a-note-on-words) address such as `hm://ACC/notes/foo`. It can include the resource's direct children (`depth one`) or everything under it (`recursive`). It can also be limited to some blob types. Both sides work out the same set of blobs for a scope, each from its own index: <!-- id:v01a_crK -->
   1. the [Refs](../ref.md), [capabilities](../capability.md), [comments](./comments.md), [profiles](../profile.md) and [contacts](../contact.md) that belong to the resources in scope; <!-- id:45mCSNnK -->
   2. every [change](../change.md) reachable from those Refs through their heads and dependencies; <!-- id:6igt5Qam -->
   3. the media those blobs link to (files, images, chunks), following every link, but skipping blobs the index set aside because their signer had no right to write; <!-- id:1TFxz3Da -->

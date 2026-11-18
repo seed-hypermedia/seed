@@ -8,7 +8,7 @@ This page covers who can do what with an agent on its [app environment](../softw
 
 # Roles
 
-A **collaborator** is an account the owner invited. There are four roles.
+There are four roles. A **collaborator** is an account the owner invited as a reader or a writer.
 
 | Role | How an account gets it | What it can do |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Each action of the [signed API](../build/signed-api.md) needs one of four **acce
 - **Reader level**: read the agent and everything it holds: memory, tools, the prompt, sessions and their transcripts, attachments, [triggers](../trigger.md) and [runs](./runs.md). Every role has it.
 - **Chat level**: create a [session](./session.md), send a message, upload an attachment, and stop or retry a run. The owner, writers and chatters have it. Readers do not.
 - **Writer level**: edit the agent, its triggers, its memory and its tools; rename and delete sessions; cancel or signal a run; and [run a tool yourself](./wrench-palette.md) in a session. The owner and writers have it.
-- **Owner level**: invite and remove collaborators, set the public switches, manage the agent's [signing identities](./identity.md), and delete, adopt or orphan the agent.
+- **Owner level**: invite and remove collaborators, set the public switches, manage the agent's [signing identities](./identity.md), and delete, adopt or orphan the agent. Only the owner has it.
 
 Live [WebSocket subscriptions](../build/websocket-subscriptions.md) to an agent, a session or a run use the same check. The server sends changes to the account subscription of every accepted collaborator. When the owner removes a collaborator, that account's next request or subscription is refused.
 

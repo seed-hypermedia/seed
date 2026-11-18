@@ -6,7 +6,7 @@ A document in Hypermedia is a history. It is a chain of small signed edits, and 
 
 This design has three results. Several people can edit without a central server. Anyone can keep their own copy and change it. A [link](./urls.md) can name an exact version forever.
 
-If the words blob, [CID](../cid.md) and signature are new, read [Signed Blobs](./blobs.md) first. This page covers the document, the kind of [resource](../glossary.md) that is built from changes. [Comments](./comments.md), [contacts](./contacts.md) and [profiles](./identity.md) are snapshot blobs and have their own pages. <!-- id:rZNBZEnZ -->
+If the words blob, [CID](../cid.md) and signature are new, read [Signed Blobs](./blobs.md) first. This page covers the document, the kind of [resource](../protocol.md#a-note-on-words) that is built from changes. [Comments](./comments.md), [contacts](./contacts.md) and [profiles](../profile.md) are snapshot blobs and have their own pages. <!-- id:rZNBZEnZ -->
 
 # The mental model <!-- id:26xzaCgR -->
 

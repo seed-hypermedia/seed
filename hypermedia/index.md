@@ -53,7 +53,7 @@ These pages are written for agents as well as people. Most concept pages have a 
 
 # Where the source lives <!-- id:-YxSfaki -->
 
-These pages are markdown files in the folder `hypermedia/` of the public Seed repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). A sync keeps that folder and this Hypermedia space the same, and [Publish a folder](./build/publish-a-folder.md) explains how. To correct a page, edit the markdown and open a pull request. You can also edit the page in the Seed app, and the sync brings your edit back to git. See [Contributing](./contribute/contributing.md). <!-- id:-H2vfuhJ -->
+These pages are markdown files in the folder `hypermedia/` of the public Seed repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). A sync keeps that folder and this Hypermedia space the same, and [Publish a folder](./build/publish-a-folder.md) explains how. To correct a page, edit the markdown and open a pull request. To preview or edit a page in the Seed app, run the local dev loop (`./dev hm-sync`), which writes your edits back to the markdown. Never edit the published pages on hyper.media directly. See [Editing these docs](./contribute/editing-these-docs.md). <!-- id:-H2vfuhJ -->
 
 # Sections <!-- id:d4RLpinJ attrs:{"childrenType":"Grid","columnCount":3} -->
 

@@ -59,7 +59,7 @@ The model starts with five verbs and two session verbs. Promotion can add tools 
 
 - [child](./child.md): a run started by delegate. A model child gets its own session. A script child runs in the QuickJS engine. <!-- id:pPaUo-gX -->
 - [brief](./brief.md): the markdown description of a task that becomes a model child's first message word for word. <!-- id:Qen21b9Q -->
-- [persona](./prompt.md#a-delegated-child): a role the parent model writes for a child, as the `prompt` of a `delegate` call. The child works under it and not under the agent's own instructions.
+- [persona](./prompt.md#a-delegated-child): a role the parent model writes for a child, as the `systemPrompt` of a `delegate` call. It is added to the agent's own instructions unless `includeAgentSystemPrompt` is `false`.
 - [typed result](./typed-result.md): a child started with an `output` schema must deliver its result through the `return_result` tool. <!-- id:THID80eE -->
 - [typed child](./typed-result.md): a child that must return a typed result.
 - [leaf run](./delegation-budgets.md#leaves): a run at the deepest level its tree allows. It cannot delegate, so it is not given `delegate`.

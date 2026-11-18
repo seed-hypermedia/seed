@@ -66,7 +66,7 @@ How the types differ: <!-- id:PzO9Vrs3 -->
 - A Ref holds no content of its own. It points an address at Changes.
 - Comments, contacts and profiles are **snapshot blobs**. An edit publishes a new blob that carries the full value, and the newest one wins.
 - Comments and contacts are addressed by a **TSID** (timestamped id), described below, instead of a path.
-- A profile has one current value per account: the newest.
+- Readers merge all of an account's profiles field by field, keeping the newest value of each field.
 - A capability is a standalone grant. Nobody edits it.
 
 The formal schema of every blob type is on its type page: [blob](../blob.md), [change](../change.md), [ref](../ref.md), [comment](../comment.md), [capability](../capability.md), [contact](../contact.md) and [profile](../profile.md). [Network blobs](../schema/blobs.md) explains how they were written. <!-- id:sTsUdcWS -->

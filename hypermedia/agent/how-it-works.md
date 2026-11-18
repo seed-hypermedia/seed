@@ -10,7 +10,7 @@ This page has three parts: the principles the design follows, the components, an
 
 <!-- id:aTrhlaXK -->
 1. **Signed control plane**: every HTTP action is wrapped in a signed [DAG-CBOR](../schema/dag-cbor.md) envelope. See the [signed API](../build/signed-api.md). <!-- id:DoPLxUzT -->
-2. **Account isolation**: everything the server stores belongs to one Seed [account](../protocol/identity.md). To reach it you must be the owner, or a reader or writer the owner invited. See [sharing](./sharing.md). <!-- id:JartbkEd -->
+2. **Account isolation**: everything the server stores belongs to one Seed [account](../protocol/identity.md). To reach it you must be the owner, a reader or writer the owner invited, or any signed account when the owner turns on public access. See [sharing](./sharing.md). <!-- id:JartbkEd -->
 3. **Durable sessions**: a [session](./session.md) is a log of events that only grows. A client can replay it from any sequence number. <!-- id:G2rHB4lC -->
 4. **Live clients**: clients subscribe over a signed WebSocket (see [WebSocket subscriptions](../build/websocket-subscriptions.md)) and receive changes as they happen. <!-- id:eZIvnI2F -->
 5. **Secret redaction**: the server stores API keys encrypted and never returns them in a response. <!-- id:0HDC4TeT -->
@@ -75,7 +75,7 @@ Steps 1 to 8 set an agent up. Steps 9 to 21 follow one message.
 8. The server saves the agent and tells subscribed clients that the account changed. <!-- id:U2T3lUGx -->
 9. The person opens the agent and creates or opens a [session](./session.md). <!-- id:Mx7jRmmi -->
 10. The app subscribes to `sessions/<sessionId>` over WebSocket. <!-- id:o4auo92c -->
-11. A writer sends a message with a signed `MessageSession`. Other accepted writers may send at the same time. <!-- id:HR9VWSNS -->
+11. Someone with chat access (the owner, a writer, or a chatter) sends a message with a signed `MessageSession`. Others may send at the same time. <!-- id:HR9VWSNS -->
 12. The server saves each user message at once, with the account that acted and the exact signer. It sends the message to subscribers and creates a `runs` row. The first turn is claimed at once on the `interactive` queue. Later turns wait in the order their messages arrived, because only one model turn may own a session. The session status follows its runs, so it reads `streaming` while any of those turns is live. <!-- id:oRXM5vFs -->
 13. The server opens the session's [durable store](./durable-sessions.md) and brings its conversation up to date with the log. The turn is set up from the provider record, the encrypted secret, the system prompt, and the tools. The system prompt is the agent's own instructions plus the shared Seed instructions; see [what an agent is told](./prompt.md). The tools are the verbs, plus any callables this thread has already used. <!-- id:XnosbwT5 -->
 14. Pi Durable runs the loop: it asks the model, runs the tool calls, and asks again. It saves every model response, tool result, and partial answer to the store before anything else sees it. <!-- id:5aLPYqqC -->

@@ -102,7 +102,7 @@ An unknown type is never an error. The wire [block](../block.md) schema is open.
 
 # Embeds <!-- id:U4JGYCtf -->
 
-An `Embed` block shows another Hypermedia [resource](../glossary.md) inside this one. Its `link` is an `hm://` URL, and the URL decides what is embedded: <!-- id:HmN49Lid -->
+An `Embed` block shows another Hypermedia [resource](../protocol.md#a-note-on-words) inside this one. Its `link` is an `hm://` URL, and the URL decides what is embedded: <!-- id:HmN49Lid -->
 
 - a whole document,
 - one block, with `#blockId`,

@@ -2,7 +2,7 @@
 name: Tool Document
 summary: A tool document is the content-addressed record in an agent's tools folder that describes one built-in tool or one tool projected from an MCP server.
 ---
-A **tool document** is the stored record of one built-in tool, or of one tool from an MCP server, stored in the same way as a [document](../protocol/documents.md), that an [agent](../agent.md) can call by name. It is listed under `~/tools/` in the agent's [Space](./space.md). For example, `~/tools/search` is the tool document of the built-in `search`. <!-- id:xCacrD0j -->
+A **tool document** is the stored record of one built-in tool, or of one tool from an MCP server, kept as a content-addressed DAG-CBOR record (not a Hypermedia [document](../protocol/documents.md)), that an [agent](../agent.md) can call by name. It is listed under `~/tools/` in the agent's [Space](./space.md). For example, `~/tools/search` is the tool document of the built-in `search`. <!-- id:xCacrD0j -->
 
 It is not the same thing as a [tool resource](./call.md#tool-resources), which is a tool someone wrote and published in an app or an agent. An agent has no private code tools.
 
@@ -13,7 +13,7 @@ A tool document is one of two kinds:
 
 Each tool document is stored as [DAG-CBOR](../schema/dag-cbor.md), and its [CID](../cid.md) is its version. This page covers what a tool document holds, the two kinds, and how the Space index shows the tools to the model. The part of a tool document that the model reads is its [contract](./contract.md).
 
-# Tools are documents <!-- id:SM16VRI3 -->
+# How tool documents are stored <!-- id:SM16VRI3 -->
 
 Each agent's tool documents are stored in the `tool_documents` table (`apps/src/tool-documents.ts`). The CID of a tool document is computed over its canonical DAG-CBOR encoding. The Hypermedia network encodes [blobs](../protocol/blobs.md) the same way. So you can always answer the question "what exactly can this agent run". <!-- id:Tt3S2vFy -->
 

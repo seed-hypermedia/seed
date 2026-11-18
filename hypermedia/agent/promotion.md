@@ -7,7 +7,7 @@ summary: Promotion makes a tool a real provider tool for the rest of a thread, o
 For example, after the agent runs `call {tool: "search", …}` once, the model can call [`search`](./callables.md) itself, with no `call` around it.
 
 - The runtime works out what is promoted only from saved events. So promotion survives a restart.
-- Promotion never adds a tool the agent is not allowed. The allowed tools are the agent's [grants](./grants.md) and its own enabled [tool documents](./tool-document.md).
+- Promotion never adds a tool the agent is not allowed. The allowed tools are the callables the agent is [granted](./grants.md) and the tools of its enabled [MCP servers](./mcp.md).
 - A promoted tool and a `call` of it behave the same: same checks, same code.
 - A tool that a person runs themselves (see [running a tool yourself](./wrench-palette.md)) does not promote anything.
 

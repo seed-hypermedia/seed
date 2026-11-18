@@ -4,7 +4,7 @@ summary: A document or comment can be marked private, and this page explains who
 ---
 Most Hypermedia content is public. It is signed, named by its hash, and free to copy. Some content should stay private, so the protocol lets you mark a [document](./documents.md) or a [comment](./comments.md) as private. Nodes then hand its [blobs](./blobs.md) only to peers and readers who can prove they belong to the [space](./spaces.md).
 
-This page describes what the [daemon](../software/daemon.md) does. The [Seed apps](../software/desktop.md) cannot create a private document. A client that signs its own Refs can. <!-- id:JW-UMOhs -->
+This page describes what the [daemon](../software/daemon.md) does. The [Seed desktop](../software/desktop.md) and [web](../software/web.md) apps cannot create a private document. A client that signs its own Refs can. <!-- id:JW-UMOhs -->
 
 # How it works <!-- id:HEitzGwI -->
 

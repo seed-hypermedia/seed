@@ -17,7 +17,7 @@ The [Seed daemon](../software/daemon.md) accepts two kinds of key: <!-- id:xIsj0
 
 The web sign-in flow makes Ed25519 keys in WebCrypto, so new browser identities are Ed25519 too. Some web identities on hyper.media are P-256 keys.
 
-The daemon has no account object. An account is the public key, and so is the [space](./spaces.md) of [documents](./documents.md) it owns. Every [resource](../glossary.md) in that space has an address of the form `hm://<account>/<path>`. The account's [home document](./spaces.md) is the address with an empty path. See [Spaces and paths](./spaces.md) for the space side, and [Sites](./sites.md) for how a space becomes a website. <!-- id:P8Wl69sj -->
+The daemon has no account object. An account is the public key, and so is the [space](./spaces.md) of [documents](./documents.md) it owns. Every [resource](../protocol.md#a-note-on-words) in that space has an address of the form `hm://<account>/<path>`. The account's [home document](./spaces.md) is the address with an empty path. See [Spaces and paths](./spaces.md) for the space side, and [Sites](./sites.md) for how a space becomes a website. <!-- id:P8Wl69sj -->
 
 <!-- id:j-JWEBuS -->
 | Term <!-- col:rTOET9Q2 --> | Meaning <!-- col:DvS4peL2 --> <!-- id:pPGyWSi4 --> |

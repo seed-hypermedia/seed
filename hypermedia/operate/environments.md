@@ -95,7 +95,7 @@ Three Ubuntu virtual machines on OVH/OpenStack run the hosted app environments: 
 
 The Terraform Cloud workspace `SHM-Agentic` manages them. It is in the infrastructure repository (`mintterteam/infrastructure` on GitHub, usually checked out as `SeedInfra`; stack `seed_infra/agentic`). Terraform sets up plain Docker hosts. What runs on each is defined by the compose file Terraform writes to `/opt/sae/docker-compose.yml`.
 
-The three deployments differ in exactly two ways: which image tag they follow, and which HM network they read. <!-- id:ORaW2HNY -->
+The three deployments differ mainly in two ways: which image tag they follow, and which HM network they read. <!-- id:ORaW2HNY -->
 
 <!-- id:kkpozSX- -->
 | Hostname <!-- col:sXrNq-0H --> | Container <!-- col:1FEmsSXu --> | Image tag <!-- col:d1bQOJd8 --> | Code <!-- col:kG1ioF-3 --> | Data <!-- col:ty-3yWjB --> <!-- id:-S4MK1Hh --> |

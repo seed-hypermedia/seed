@@ -10,14 +10,14 @@ A webhook is one of the [sources](./triggers.md) of a trigger. This page covers 
 
 The HTTP server handles a webhook at once, inside the request. There are two ways to send one: <!-- id:30W5TAHJ -->
 
-- `POST /hm/api/agents/webhooks/<triggerId>/<secret>`
-- `POST /hm/api/agents/webhooks/<triggerId>` with the header `Authorization: Bearer <secret>`
+- `POST /hm/api/apps/webhooks/<triggerId>/<secret>`
+- `POST /hm/api/apps/webhooks/<triggerId>` with the header `Authorization: Bearer <secret>`
 
 With a JSON body, the server answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and no larger than 64 KiB.
 
 The secret is 43 URL-safe characters. The server makes it with the trigger. It is shown on the trigger's page to [accounts](../protocol/identity.md) that can write the host's space. The client builds the delivery URL from the server's base address.
 
-The same two routes also answer under `/hm/api/apps/webhooks/…`. The secret can be in the URL because many senders can only POST to a URL they are given. A sender that can set headers can keep the secret out of the URL with the `Authorization` form.
+The same two routes also answer under the older prefix `/hm/api/agents/webhooks/…`, which existing webhook URLs use. The secret can be in the URL because many senders can only POST to a URL they are given. A sender that can set headers can keep the secret out of the URL with the `Authorization` form.
 
 | Response | Meaning |
 | --- | --- |

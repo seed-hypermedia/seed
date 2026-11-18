@@ -53,7 +53,13 @@ const CODE = new Set(
 const EXACT = new Set(['Space', 'Log', 'Runs'])
 
 /** Places where a registered word is used in another sense and no link would be right: {file: [terms]}. */
-const EXCEPTIONS = {}
+const EXCEPTIONS = {
+  // A firing's or a run's `status` field, not the `status` verb.
+  'agent/firing.md': ['status'],
+  'agent/triggers.md': ['status'],
+  // The published docs, not the protocol's idea of a site.
+  'contribute.md': ['Site'],
+}
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 

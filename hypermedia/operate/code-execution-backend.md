@@ -6,7 +6,7 @@ summary: This page says what a host needs so that agents can run code in small v
 
 The first thing to check: `curl <server>/api/health` and read `codeExec`. If it is `false`, the server does not offer `execute` to any agent, and `codeExecReason` says why.
 
-The tool's contract is in [tools](../agent/tools.md), and the threat model is in [security](../agent/security.md).
+The tool's input and behaviour are in [code execution](../agent/code-execution.md), and the threat model is in [security](../agent/security.md).
 
 # Requirements <!-- id:VLdUUR8z -->
 

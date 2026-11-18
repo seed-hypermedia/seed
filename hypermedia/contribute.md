@@ -2,7 +2,7 @@
 name: Working on Seed
 summary: This section holds the guides for people who change the Seed repository, and it covers setup and tests, editing these docs, local CI, releases, package publishing and the app environment.
 ---
-This section is for people and coding agents who change the code of Seed. All the code is in one repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). The repository holds the [daemon](./software/daemon.md), the apps, the [app environment](./software/app-environment.md), the [vault](./software/vault.md), the deployment tools and the markdown for this [site](./protocol/sites.md).
+This section is for people and coding agents who change the code of Seed. All the code is in one repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). The repository holds the [daemon](./software/daemon.md), the apps, the [app environment](./software/app-environment.md), the [vault](./software/vault.md), the deployment tools and the markdown for these docs (see [Editing these docs](./contribute/editing-these-docs.md)).
 
 Pick the section that fits what you want to do:
 

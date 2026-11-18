@@ -15,7 +15,7 @@ A larger application is an [app](./app.md). An app has pages for the interface, 
 | `type` | `hm://hyper.media/page` |
 | `name`, `summary` | the page's name and description, as on any document |
 | `html` | `ipfs://<cid>` of a UnixFS folder whose `index.html` is the page |
-| `inputSchema` | a published [HM struct](./schema.md) that defines the page's URL input. Required; a page without inputs uses [the empty page input](./page-input.md) |
+| `inputSchema` | a published [HM struct](./schema/struct-schema.md) that defines the page's URL input. Required; a page without inputs uses [the empty page input](./page-input.md) |
 
 The folder is a [file](./protocol/files.md) that the document references. A new version of the page is a new version of the document that points at a new folder.
 

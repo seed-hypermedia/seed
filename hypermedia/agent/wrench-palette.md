@@ -4,7 +4,7 @@ summary: A person holds the same verbs the agent does, and can run read, write a
 ---
 A person holds the same verbs the [agent](../agent.md) does. You can run [read](./read.md), [write](./write.md) and [call](./call.md) yourself, in the same conversation. In the chat composer, type `/` and pick a tool under **Run a tool**. A form opens above the input. For example, you can read a [document](../protocol/documents.md) yourself, and the agent then works from what you read. <!-- id:OLGsxfeU -->
 
-The result lands on the [log](./log.md) with a **You** chip. The agent reads it as fact (`<user_action>` in its replay). The file name of this page keeps an earlier name, the wrench palette.
+The result lands on the [log](./log.md) with a **You** chip. The agent reads it as fact (`<user_action>` in its replay).
 
 # The user holds the same verbs <!-- id:dwr2ygva -->
 

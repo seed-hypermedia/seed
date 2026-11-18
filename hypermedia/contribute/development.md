@@ -112,7 +112,7 @@ The model-facing surface is everything the model sees as a tool. It is only the 
   2. A new **callable** goes in `callableToolRegistry`, with `runtimes` that include `agent-service`. The model reaches it through `call`. Never add it to the provider payload directly. The next listing turns it into a [tool document](../agent/tool-document.md) for every agent, and the change of its [CID](../cid.md) is the new version. <!-- id:3CFRldLu -->
   3. Keep touch-expand working: a `call` that is wrong, or that names a tool the model has not opened, answers with the contract and never with an error. <!-- id:FtdrC1Vt -->
   4. Filter anything [promoted](../agent/promotion.md) into the provider payload against the callables the agent has turned on. Promotion comes from durable events. Without the filter, a tool name that the model made up could turn on a real tool. <!-- id:5YLbjR8m -->
-  5. [Grants](../agent/grants.md) are `publish` and the callable set. Do not add a grant for a verb. <!-- id:5G20WmgP -->
+  5. [Grants](../agent/grants.md) are the callable set, `publish`, and the enabled MCP servers. Do not add a grant for a verb. <!-- id:5G20WmgP -->
   6. Update [tools](../agent/tools.md) and [security](../agent/security.md). If you made a new word for the mechanism, add a term page and list it in the [glossary](../agent/glossary.md). <!-- id:SF7b6DXI -->
 
 # Adding a provider <!-- id:OTf3ZmOJ -->

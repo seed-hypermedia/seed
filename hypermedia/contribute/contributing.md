@@ -4,7 +4,7 @@ summary: This page shows how to find your way around the Seed repository, set it
 ---
 Seed is one public repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). This page is for people who want to change anything in it. Read it first: it gets the code running on your machine. <!-- id:_zvH8SHk -->
 
-The repository holds the [Go daemon](../software/daemon.md), the TypeScript apps and libraries, the [app environment](../software/app-environment.md) that runs [Seed Agents](../agent.md), the [vault](../software/vault.md), the deployment tools, and the markdown for this [site](../protocol/sites.md).
+The repository holds the [Go daemon](../software/daemon.md), the TypeScript apps and libraries, the [app environment](../software/app-environment.md) that runs [Seed Agents](../agent.md), the [vault](../software/vault.md), the deployment tools, and the markdown for these docs (see [Editing these docs](./editing-these-docs.md)).
 
 This page covers four things:
 
@@ -25,7 +25,7 @@ The repository keeps instructions for coding agents in `AGENTS.md` at the root a
 | `backend/` | the Seed daemon: storage and indexing (`storage/`, `blob/`), the document model and CRDTs (`api/documents/`, `crdt/`), networking (`hmnet/`), gRPC APIs (`api/`), the embedding model (`llm/`) | Go, built with Please <!-- id:H2EwgJQj --> |
 | `proto/` | protobuf definitions for every daemon service; generated Go and TypeScript are checked in | Please, `./dev gen` <!-- id:0NSWiC7J --> |
 | `frontend/apps/desktop` | the [Seed app](../software/desktop.md) (Electron) | pnpm <!-- id:Zbe5Pvw9 --> |
-| `frontend/apps/web` | the [Seed web app](../software/web.md) that serves sites, the [Seed API](../build/web-api.md) and the [site services](../build/site-services.md) (Remix) | pnpm <!-- id:0CIOxjFE --> |
+| `frontend/apps/web` | the [Seed web app](../software/web.md) that serves [sites](../protocol/sites.md), the [Seed API](../build/web-api.md) and the [site services](../build/site-services.md) (Remix) | pnpm <!-- id:0CIOxjFE --> |
 | `frontend/apps/cli` | `seed-cli`, also the home of the `hypermedia/` sync script | pnpm workspace, runs under Bun <!-- id:2PI-xaLm --> |
 | `frontend/apps/notify` | the email [notification service](../software/notify.md) | pnpm <!-- id:1XZADdbO --> |
 | `frontend/apps/explore` | the [Hypermedia Explorer](../software/explorer.md) | pnpm <!-- id:jIim84ro --> |
@@ -38,7 +38,7 @@ The repository keeps instructions for coding agents in `AGENTS.md` at the root a
 | `hypermedia/` | this site: concept pages, the [Hypermedia Schemas](../schema.md) library, the references and guides; see [Editing these docs](./editing-these-docs.md) | markdown, `scripts/hypermedia/` <!-- id:KGtdocvh --> |
 | `ops/` | the [self-hosted node](../operate/self-hosting.md) deployment script (`seed-deploy`) | pinned Bun <!-- id:sKjHiyy5 --> |
 | `tests/` | cross-app integration tests | pnpm, Vitest, Playwright <!-- id:jLogi_RO --> |
-| `docs/` | internal design notes, decision records, runbooks and the security audit log; not published | markdown <!-- id:SH8-ft4T --> |
+| `docs/` | internal design notes and runbooks; not published | markdown <!-- id:SH8-ft4T --> |
 
 `apps/` and `vault/` copy the frontend packages they use through `file:` dependencies. So a change to `frontend/packages/*` reaches them only after `bun install`. Their development servers do this for you. The map pages under [The Seed software](../software.md), such as [Daemon](../software/daemon.md), [Desktop](../software/desktop.md) and [Web](../software/web.md), explain how the programs talk to each other. <!-- id:qypHor4G -->
 

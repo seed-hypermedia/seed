@@ -36,7 +36,7 @@ You can send a correction as a pull request, or as a [comment](../protocol/comme
 # Checks and commands
 
 ```sh <!-- id:cKaIfLAn -->
-node scripts/hypermedia/check.mjs          # schemas, lockfile, generated types, bindings, frontmatter, the tree rule
+node scripts/hypermedia/check.mjs          # schemas, lockfile, generated types, bindings, frontmatter, tables, the tree rule, glossary links
 node scripts/hypermedia/tree.mjs --fix     # add the Card embed of each child that a parent lacks
 node scripts/hypermedia/concepts.mjs --fix # link the first mention of each glossary term a page uses
 pnpm hypermedia:push -- --dry-run          # read-only: what a publish would create, update, move or retire
@@ -50,6 +50,8 @@ pnpm hypermedia:push -- --dry-run          # read-only: what a publish would cre
 - A page that is an instance of a type does not fit its type.
 - A page has no `name`, or its `summary` is not a whole sentence.
 - A page has no parent page, or a parent has no Card embed of a child.
+- A table row has a different number of cells than its header.
+- A page names a glossary term without linking the page that defines it.
 
 The summaries of schema pages go into the generated files. So after you change the summary of a schema page, run `node scripts/hypermedia/gen-registry.mjs` and `node scripts/hypermedia/typegen.mjs`.
 

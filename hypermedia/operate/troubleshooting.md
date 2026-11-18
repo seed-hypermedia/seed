@@ -41,7 +41,7 @@ One CPU core sits at about 100%. The server has one thread, and that thread is b
 
 ## Streaming response does not appear while model is typing <!-- id:OETTdZNj -->
 
-A reply should grow on screen while the model writes it. If it only appears at the end, or never, check in this order. The server does not log WebSocket traffic, so you watch the socket from the client side. <!-- id:1wCRkz3V -->
+A reply should grow on screen while the model writes it. If it only appears at the end, or never, follow the steps below. The server does not log WebSocket traffic, so you watch the socket from the client side. <!-- id:1wCRkz3V -->
 
 Check in this order: <!-- id:y_nHvnuv -->
   1. **Is the server healthy?** `curl <server>/api/health` must answer `200`. A `503` with `"reason": "loop-lag"` means the thread is too busy to send anything; see [diagnosing a stalled server](./stalled-server.md).
@@ -110,7 +110,7 @@ Every request a read makes to the HM server times out after 30 seconds, and the 
 
 ## `call` came back with a tool contract instead of a result <!-- id:TwNmKW4- -->
 
-This is expected. A [`call`](../agent/call.md) with a missing or invalid input answers with the tool's [contract](../agent/contract.md), and the model calls again correctly. So does a call for a tool the thread has not expanded yet. [Promotion](../agent/promotion.md) explains what the contract does to the thread. <!-- id:i1t-NwX7 -->
+This is expected. A [`call`](../agent/call.md) with a missing or invalid input answers with the tool's [contract](../agent/contract.md), and the model calls again correctly. So does a call for a tool the thread has not used yet. [Promotion](../agent/promotion.md) explains what the contract does to the thread. <!-- id:i1t-NwX7 -->
 
 If a tool keeps returning its contract, compare the model's input with the `input` schema in `read ~/tools/<name>`. <!-- id:c8HVk-cZ -->
 
@@ -127,7 +127,7 @@ If a tool is not in `~/tools` at all, there are two causes:
 
 A person can [run a verb themselves](../agent/wrench-palette.md) from the `/` menu of the message box. Those verbs are added to the same log as events with `actor: 'user'`, and the agent reads them on its next turn. If the agent seems not to know: <!-- id:R5VVhbu6 -->
   1. Run `GetSession` and check that the `tool_call` and `tool_result` events are there with `actor: 'user'`. <!-- id:Dwg5lYb7 -->
-  2. `InvokeSessionTool` answers `409` while a run is live. Use the palette between turns. <!-- id:lTVdOjgv -->
+  2. `InvokeSessionTool` answers `409` while a run is live. Run the tool yourself between turns. <!-- id:lTVdOjgv -->
   3. The result is context for the next turn. Nothing is pushed into a turn that is already running. <!-- id:FjVIHG5h -->
 
 # Server and data

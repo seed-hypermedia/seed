@@ -77,7 +77,7 @@ Account-owned tables include `account_id`: <!-- id:vuJdoDIn -->
   - agent collaborators (the invited account is also stored explicitly); <!-- id:Gr5aJlcs -->
   - sessions; <!-- id:SLr0c6ot -->
   - runs; <!-- id:ekFRPh6l -->
-  - tool documents; <!-- id:NqEjnxJ6 -->
+  - [tool documents](./tool-document.md); <!-- id:NqEjnxJ6 -->
   - action idempotency; <!-- id:t-a5Y_Zu -->
   - authorizations. <!-- id:dAsoKOkW -->
 
@@ -105,24 +105,13 @@ A new pinned provider type inherits the pinned-URL policy automatically. <!-- id
 
 # The tool surface is the authority boundary <!-- id:ZUb7YijU -->
 
-The model can only do what its tools let it do. It starts with the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) plus the two session verbs, `status` and [`continue_session`](./session-continuation.md). The session verbs touch only the session's own title and its link to a successor. Only **[promotion](./promotion.md)** adds to that set, and promotion has two limits: <!-- id:jh9t4A6y -->
-  - promotion is derived only from durable `tool_call` events in this session's own transcript, so it survives restarts and live state cannot inject it; <!-- id:LdBc3z4t -->
-  - the server keeps only the promoted names that are also among the agent's enabled [callables](./callables.md), before it offers them to the provider. This filter is a security control. A hallucinated or injected `call {tool: 'bash'}` durably stores that name, and only names that pass the filter are installed as tools of the turn. <!-- id:q2b0tftt -->
+The model can only do what its tools let it do. It starts with the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) and the two session verbs, `status` and [`continue_session`](./session-continuation.md). Only [promotion](./promotion.md) adds to that set. Promotion is worked out from the session's saved `tool_call` events and filtered against the agent's grants before anything is offered to the provider, so a made-up or injected tool name never becomes a tool. [Touch-expand and promotion](./tools.md#touch-expand-and-promotion) has the full rule. <!-- id:jh9t4A6y -->
 
-The turn's Pi Durable harness starts from an empty registry, and Seed installs one extension in it. Pi's coding tools (`read`, `write`, `edit`, `bash`) are a separate extension that is never installed, and no execution environment is configured. The only executable surface is the Seed-owned verbs. <!-- id:RMyDqBZn -->
-
-Events written by a person's own verb calls carry `actor: 'user'`. Promotion skips them. So a tool that a person runs never changes the agent's set of tools. <!-- id:ahkTiyN7 -->
+The turn's Pi Durable harness starts from an empty registry, and Seed installs one extension in it. Pi's coding tools (`read`, `write`, `edit`, `bash`) are never installed, and no execution environment is configured. Calls a person runs carry `actor: 'user'`, and promotion skips them. <!-- id:RMyDqBZn -->
 
 # Grants <!-- id:u27bF0_B -->
 
-Three things are [granted](./grants.md) per agent. The verbs themselves are never grants. <!-- id:c2iQDOLW -->
-  - **The callable set**: which of `search`, `web_search`, `execute` and `browser` the agent may dispatch. `query` and `attributes` are always on, because they only read what `read` already reaches (`attributes` returns a document's [attributes](../metadata.md)). `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
-  - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403. Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
-  - **MCP servers**: `definition.mcpServers` names the account [MCP servers](./mcp.md) an agent may call. Enabling a server is a grant on par with `execute`: its tools run with whatever the remote server can do. The projected `mcp` tool documents only cache this grant. `executeMcpTool` re-checks `definition.mcpServers` before any call, so a stale document cannot reach a server the owner turned off. <!-- id:JAdshfOI -->
-
-A [delegate](./delegate.md) child's `tools` narrowing intersects against the parent's full callable set, so delegation can only reduce authority. A child keeps `publish` only when its `tools` ask for `write` or `publish`. <!-- id:6GNsOBus -->
-
-The promotion filter admits the enabled callable set and the agent's own enabled MCP projections, derived again from the definition at run start. A promoted [tool document](./tool-document.md) executes through the same `call` dispatch and the same checks as an explicit `call`. <!-- id:Cqpe6uA3 -->
+[Grants](./grants.md) narrow the [callable](./callables.md) set, decide whether the agent may publish, and choose its MCP servers. Two points matter for security. Enabling an MCP server gives as much power as `execute`, because its tools do whatever the remote server can do; `executeMcpTool` checks the grant again before each call. A [delegate](./delegate.md) child can only have fewer tools than its parent, and it keeps `publish` only when its `tools` ask for `write` or `publish`. <!-- id:c2iQDOLW -->
 
 Grants stop there. There is no rule per address or per destination.
 
@@ -131,9 +120,9 @@ Grants stop there. There is no rule per address or per destination.
 A connected MCP server is reached with account-configured URLs and headers from the agents host. Only `http(s)` remote transports exist. The service never spawns stdio processes. <!-- id:tBT0Wu3e -->
 
 Risks: <!-- id:m4T6j5YR -->
-  - **SSRF and private-network access**: the same unmitigated posture as web reading. An owner can point a server record at any reachable address. Loopback is allowed on purpose, because local MCP proxies are common in development. <!-- id:KT52H4iu -->
+  - **Requests to private addresses (SSRF)**: private networks are reachable, as with web reading. An owner can point a server record at any reachable address. Loopback is allowed on purpose, because local MCP proxies are common in development. <!-- id:KT52H4iu -->
   - **Tool authority**: the remote server decides what its tools do. Model-driven calls carry model-authored arguments. A server that acts on the world (files, issues, payments) should be enabled only for agents whose prompts warrant it. <!-- id:pO_XpBfB -->
-  - **Prompt injection**: tool results are untrusted text, exactly like fetched web pages. See [untrusted text](./prompt.md). <!-- id:T9GTfukQ -->
+  - **Prompt injection**: tool results are untrusted text, exactly like fetched web pages. See [untrusted text](./prompt.md#untrusted-text-that-reaches-the-model). <!-- id:T9GTfukQ -->
 
 Mitigations present: <!-- id:PtUHslMF -->
   - header values are encrypted account secrets, redacted from every response. The desktop refuses to send one to a non-HTTPS remote app environment; <!-- id:KtK34BUu -->
@@ -157,7 +146,7 @@ This has a cost. A trigger lets an agent act when nobody is present. Text that a
 
 A person can run `read`, `write` and `call` on a session from the composer's `/` menu (`InvokeSessionTool`). See [running a tool yourself](./wrench-palette.md). Three rules limit it: the server accepts only those three verbs, it rejects the request while the session has a live run, and a failed call is written to the log where anyone can see it. <!-- id:yQRuxww- -->
 
-Their calls and results are shown to the model inside `<user_action>` frames. Text in those frames, and in every other frame that carries text someone else wrote, is escaped so it cannot close the frame. See [untrusted text that reaches the model](./prompt.md).
+Their calls and results are shown to the model inside `<user_action>` frames. Text in those frames, and in every other frame that carries text someone else wrote, is escaped so it cannot close the frame. See [untrusted text that reaches the model](./prompt.md#untrusted-text-that-reaches-the-model).
 
 # `read` safety <!-- id:tJvMcJBK -->
 
@@ -222,8 +211,8 @@ Agent [memory](./memory.md) exposes a real filesystem directory to model-control
 # Script (workflow) safety <!-- id:fcE-ASsj -->
 
 [Script](./script.md) children are JavaScript that the model wrote, so the server does not trust them. Several layers protect against them: <!-- id:Mi-PBDI- -->
-  - **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers, `fetch`, imports, or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
-  - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
+  - **Nothing but `ctx`**: each run gets a fresh QuickJS-WASM engine with no clock (`Date`), random numbers (`Math.random`), timers, network (`fetch`), imports or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
+  - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) records every effect, and `GetRunJournal` lists them afterwards. <!-- id:BNwxImA5 -->
   - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the [thoroughness](./delegation-budgets.md) preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
   - **Child outputs re-enter parents as data** (schema-validated when a [typed result](./typed-result.md) was declared), inside tool results. They are never trusted instructions. A prompt-injected child can corrupt only its own return value. <!-- id:_9Lz0w7L -->
   - **Kill switch**: `CancelRun` on any root cascades to every descendant. Queued runs never start, waiting runs never wake, live agent runs abort their durable conversation, live script VMs are interrupted. `StopSession` on the launching chat does the same for its whole tree. <!-- id:LvFiHHRo -->

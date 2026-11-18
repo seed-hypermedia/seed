@@ -6,7 +6,7 @@ An [app environment](../software/app-environment.md) can search the web and read
 
 The first thing to check: `curl <server>/api/health` and read `webTools`. `{"search": true, "readBrowser": true}` means both are connected.
 
-What agents do with them is in [tools](../agent/tools.md), and the risks are in [security](../agent/security.md).
+What agents do with them is in [web reading](../agent/web-reading.md), and the risks are in [security](../agent/security.md).
 
 # What each backend turns on <!-- id:ww1gPvmR -->
 

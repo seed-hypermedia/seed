@@ -56,7 +56,7 @@ An agent's `tools` array narrows that set, with two exceptions. `query` and `att
 
 # Touch-expand and promotion <!-- id:ywZR_0ng -->
 
-**Touch-expand** means that a wrong call teaches the model the right one. `call` never punishes a miss. A call to an unknown tool returns the `~/tools` listing. A call to a known tool with wrong input returns **the tool's contract** and the validation errors, so the next try succeeds (`executeCallVerb`, `api-service.ts`). <!-- id:edRIqz0f -->
+**Touch-expand** means that a wrong call answers with the tool's description, so the model's next try succeeds. `call` never punishes a miss. A call to an unknown tool returns the `~/tools` listing. A call to a known tool with wrong input returns **the tool's contract** and the validation errors, so the next try succeeds (`executeCallVerb`, `api-service.ts`). <!-- id:edRIqz0f -->
 
 A tool's contract enters the transcript when the agent reads `~/tools/<name>` or calls the tool by that name. From then on the tool is **promoted**: the model gets it as a real provider tool for the rest of the thread. See [promotion](./promotion.md).
 

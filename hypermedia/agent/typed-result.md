@@ -15,7 +15,7 @@ Only a typed child has `return_result`. The tool's parameters ARE the parent's `
 - A child can retry `return_result` 3 times (`MAX_RETURN_RESULT_RETRIES`). After that it fails with error code `output-schema`.
 - When a typed child's turn ends with no result delivered, the runtime hands the turn back. The child fails if it still does not deliver. See [obligations](./obligations.md).
 
-No other run can see `return_result`. The registry holds three entries beside [the five verbs](./read.md): `status`, [`continue_session`](./session-continuation.md), and `return_result` (see [tools](./tools.md#the-registry)).
+No other run can see `return_result`. The registry holds three entries beside [the five verbs](./tools.md#the-registry): `status`, [`continue_session`](./session-continuation.md), and `return_result` (see [tools](./tools.md#the-registry)).
 
 # See also <!-- id:l4MhYa6V -->
 

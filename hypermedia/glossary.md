@@ -153,7 +153,7 @@ Hypermedia is the protocol, and Seed is the software that runs it. When an entry
 - **IPLD data model.** The rule that every value is one of nine kinds. See [Data Model](./schema/data-model.md). <!-- id:SO32xew_ -->
 - **Kind.** One of the nine basic sorts of value: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map` and `link`. See [Kind](./schema/kind.md).
 - **Ready-made value types.** The types the library gives you for one value: [string](./string.md), [integer](./integer.md), [float](./float.md), [boolean](./boolean.md), [bytes](./bytes.md), [null](./null.md), [list](./list.md), [map](./map.md), [link](./link.md), [date](./date.md), [date-time](./date-time.md), [URL](./url.md), [Hypermedia URL](./hm-url.md), [IPFS URL](./ipfs-url.md), [account](./account.md), [any](./any.md) and [none](./none.md). See [Catalogue of Types](./schema/types.md).
-- **Variant.** One member of the meta-schema union: a scalar, literal, list, map, struct, link, union, reference or variable schema. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
+- **Variant.** One member of the meta-schema union: a struct, map, list, scalar, link, include, union, variable or literal schema. A bare string, integer, boolean or null is a literal too. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
 - **Scalar schema.** A schema for one single value that is not a collection: null, boolean, integer, float, string or bytes. Limits such as `minLength` can narrow what it accepts. See [Scalar schema](./schema/scalar-schema.md).
 - **Struct.** A map whose keys are known in advance, such as a person with the fields `name` and `age`. It is not a tenth kind: when stored, a struct is a map. See [Struct](./struct.md).
 - **Struct schema.** A schema for a map with known fields. Each field is a property. See [Struct schema](./schema/struct-schema.md) and [Property](./schema/property.md). <!-- id:RbR5twB1 -->
@@ -181,25 +181,24 @@ Hypermedia is the protocol, and Seed is the software that runs it. When an entry
 # Apps and agents <!-- id:zTbkpg3w -->
 
 Agents have their own vocabulary, defined once in the [Agents glossary](./agent/glossary.md). These are the terms you meet most often on the rest of the site. <!-- id:p4unACr4 -->
-  - **App.** A document typed `hm://hyper.media/app` that groups tools, pages and triggers into one thing people can share and run. It lists them with card embeds. See [App](./app.md).
-  - **Host.** The app or agent that a tool, a page or a trigger lives directly under. The host lists it with a card embed. See [Tool](./tool.md).
-  - **Public config of an app.** The settings in `metadata.publicConfig`. Every page and tool of the app can read them. See [App](./app.md).
-  - **Private config of an app.** The secret settings. Only the server that runs the app holds them, encrypted, and they are never in the document. See [App](./app.md).
-  - **Tool.** A document typed `hm://hyper.media/tool` that holds one function, with a schema for its input and one for its output. The server of its app or agent runs it. See [Tool](./tool.md).
-  - **Call record.** What the server keeps of one tool call: who called, the tool's version, the input, the output or the error, and how long the call took. Call records are not private. See [Tool](./tool.md#calls-are-not-private).
-  - **Page, custom page.** A document typed `hm://hyper.media/page` that carries a small web interface. It runs in a sandbox in the viewer's client, and a schema defines the input it takes from its URL. See [Page](./page.md).
-  - **Page input.** The typed values a page takes from its URL, one `p.<name>` parameter for each field of its input schema. See [Page Input](./page-input.md).
-  - **Page sandbox.** The closed box a custom page runs in. The page cannot leave it, and the viewer approves what the page may read, sign and publish. See [The Page Sandbox](./build/page-sandbox.md).
-  - **Page SDK.** `window.seed`, the object a custom page uses to read data, to sign and publish as the viewer, and to call its host's tools. See [The Page SDK](./build/page-sdk.md).
-  - **Trigger.** A document typed `hm://hyper.media/trigger`, under an app or an agent, that says when to act and what to do. The server that runs its app or agent fires it. See [Trigger](./trigger.md). <!-- id:5mQOFGu3 -->
-  - **Trigger document.** A trigger in its document form, typed `hm://hyper.media/trigger`, under an app or an agent. An agent can also hold triggers that are only rows on its server. See [Trigger](./trigger.md#the-document-and-the-server).
-  - **Agent, Seed Agents.** A language model with a memory, tools and its own Seed identity. It runs on an app environment, and it reads and writes Hypermedia with keys its owner gives it. See [Seed Agents](./agent.md). <!-- id:3iLepJog -->
-  - **Agent space.** Everything one agent has, as a tree of addresses: its memory, its tools, its triggers and its own definition. It is not the same thing as a protocol space. See [Space](./agent/space.md). <!-- id:HJOKTVDM -->
-  - **The five verbs.** [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md) and [plan](./agent/plan.md): the main tools an agent's model is given. The model also has two session verbs, `status` and `continue_session`, and a tool it has used can become a tool of its own. See [Tools](./agent/tools.md). <!-- id:uWLm_jV4 -->
-  - **Grants.** The permissions of an agent: the callable tools it may use, whether it may publish signed content, and the MCP servers it may reach. Capabilities, not grants, decide where it may publish. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
-  - **App environment.** The server that runs agents and apps. The Seed app includes one, and hosted servers run one. You choose which one runs an agent or an app when you create it. See [The app environment](./software/app-environment.md).
-  - **MCP server.** A Model Context Protocol server that an agent connects to as a client. Its tools appear in the agent's space. No MCP server made by the Seed team exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
-  - **seed-cli skill.** The skill that lets an agent outside Seed, such as Claude Code, use the Seed CLI to read and publish. See [Using Seed from your own agent](./build/agents.md). <!-- id:RUsX_znS -->
+- **App.** A document typed `hm://hyper.media/app` that groups tools, pages and triggers into one thing people can share and run. It lists them with card embeds. See [App](./app.md).
+- **Host.** The app or agent that a tool, a page or a trigger lives directly under. The host lists it with a card embed. See [Tool](./tool.md).
+- **Public config of an app.** The settings in `metadata.publicConfig`. Every page and tool of the app can read them. See [App](./app.md).
+- **Private config of an app.** The secret settings. Only the server that runs the app holds them, encrypted, and they are never in the document. See [App](./app.md).
+- **Tool.** A document typed `hm://hyper.media/tool` that holds one function, with a schema for its input and one for its output. The server of its app or agent runs it. See [Tool](./tool.md).
+- **Call record.** What the server keeps of one tool call: who called, the tool's version, the input, the output or the error, and how long the call took. Call records are not private. See [Tool](./tool.md#calls-are-not-private).
+- **Page, custom page.** A document typed `hm://hyper.media/page` that carries a small web interface. It runs in a sandbox in the viewer's client, and a schema defines the input it takes from its URL. See [Page](./page.md).
+- **Page input.** The typed values a page takes from its URL, one `p.<name>` parameter for each field of its input schema. See [Page Input](./page-input.md).
+- **Page sandbox.** The closed box a custom page runs in. The page cannot leave it, and the viewer approves what the page may read, sign and publish. See [The Page Sandbox](./build/page-sandbox.md).
+- **Page SDK.** `window.seed`, the object a custom page uses to read data, to sign and publish as the viewer, and to call its host's tools. See [The Page SDK](./build/page-sdk.md).
+- **Trigger, trigger document.** A rule that acts when something happens. Its usual form is a document typed `hm://hyper.media/trigger` under an app or an agent, which the host's server fires. An agent can also keep triggers that exist only on its server. See [Trigger](./trigger.md). <!-- id:5mQOFGu3 -->
+- **Agent, Seed Agents.** A language model with a memory, tools and its own Seed identity. It runs on an app environment, and it reads and writes Hypermedia with keys its owner gives it. See [Seed Agents](./agent.md). <!-- id:3iLepJog -->
+- **Agent space.** Everything one agent has, as a tree of addresses: its memory, its tools, its triggers and its own definition. It is not the same thing as a protocol space. See [Space](./agent/space.md). <!-- id:HJOKTVDM -->
+- **The five verbs.** [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md) and [plan](./agent/plan.md): the main tools an agent's model is given. The model also has two session verbs, `status` and `continue_session`, and a tool it has used can become a tool of its own. See [Tools](./agent/tools.md). <!-- id:uWLm_jV4 -->
+- **Grants.** The permissions of an agent: the callable tools it may use, whether it may publish signed content, and the MCP servers it may reach. Capabilities, not grants, decide where it may publish. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
+- **App environment.** The server that runs agents and apps. The Seed app includes one, and hosted servers run one. You choose which one runs an agent or an app when you create it. See [The app environment](./software/app-environment.md).
+- **MCP server.** A Model Context Protocol server that an agent connects to as a client. Its tools appear in the agent's space. No MCP server made by the Seed team exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
+- **seed-cli skill.** The skill that lets an agent outside Seed, such as Claude Code, use the Seed CLI to read and publish. See [Using Seed from your own agent](./build/agents.md). <!-- id:RUsX_znS -->
 
 # Software and process <!-- id:yWwG-PYb -->
 

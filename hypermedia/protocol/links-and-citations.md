@@ -4,11 +4,11 @@ summary: Every hm:// link in a document, a comment or an attribute is indexed as
 ---
 A Hypermedia link is an [`hm://` URL](./urls.md). When one page links another, the linked page can show who links to it. A link to a person is a mention, and it reaches that person. All of this works because a node indexes every link it sees.
 
-Links appear in several places: in a [block](./blocks.md) as the block's `link`, in inline annotations, in embeds, in [comment](./comments.md) bodies and in [metadata](../metadata.md) attributes. The index gives each [resource](../glossary.md) its backlinks: the list of links that point at it. This page covers the index and what is built on it.
+Links appear in several places: in a [block](./blocks.md) as the block's `link`, in inline annotations, in embeds, in [comment](./comments.md) bodies and in [metadata](../metadata.md) attributes. The index gives each [resource](../protocol.md#a-note-on-words) its backlinks: the list of links that point at it. This page covers the index and what is built on it.
 
 # Citations and backlinks <!-- id:fvUUw6AL -->
 
-A citation is one indexed link. Every `hm://` link the [daemon](../software/daemon.md) meets while indexing becomes a link record from the source [blob](./blobs.md) to the target [resource](../glossary.md). The link can sit in a [document](./documents.md) [block](./blocks.md), an annotation, or a comment body. <!-- id:cQdIVT1x -->
+A citation is one indexed link. Every `hm://` link the [daemon](../software/daemon.md) meets while indexing becomes a link record from the source [blob](./blobs.md) to the target [resource](../protocol.md#a-note-on-words). The link can sit in a [document](./documents.md) [block](./blocks.md), an annotation, or a comment body. <!-- id:cQdIVT1x -->
 
 - The record is tagged with the source block, the fragment and the version.
 - A link with a pinned version is marked as exact. A link that follows the latest marks its version as a suggested minimum.

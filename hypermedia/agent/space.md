@@ -19,7 +19,7 @@ The agent's owner reads the same tree. The Memory, Triggers and Settings tabs of
 | Path | Holds | Read | Write |
 | --- | --- | --- | --- |
 | `~/memory/` | the agent's own files | a file, or a directory listing | replaces a file whole; never gated by a grant |
-| `~/tools/` | one tool document per tool the agent holds | a tool's [contract](./contract.md); the bare path lists the verbs and everything callable | refused |
+| `~/tools/` | one tool document per tool the agent holds | a tool's [contract](./contract.md); the bare path lists the verbs and everything [callable](./callables.md) | refused |
 | `~/triggers/` | the agent's triggers | one trigger with its recent firings; the bare path lists all | creates, edits, enables, disables or deletes a trigger |
 | `~/self` | the agent's own record | definition, stored prompt, owner's account id, [delegation budget](./delegation-budgets.md), grants, signing-key names, triggers, memory summary, [session](./session.md) count | refused: the definition is the owner's to edit |
 
@@ -39,7 +39,7 @@ See [memory](./memory.md).
 
 `~/tools/` holds the tools the agent can run: the built-in callables, and one document per tool of each enabled [MCP server](./mcp.md). An agent cannot write here.
 
-A tool that an agent makes is a different thing. It is a [tool](../tool.md) document, published under the agent's own [document](./mounting.md) or under an app, and called by its `hm://` URL. See [tool document](./tool-document.md) and [callables](./callables.md).
+A tool that an agent makes is a different thing. It is a [tool](../tool.md) document, published under the agent's own [document](./mounting.md) or under an app, and called by its `hm://` URL. See [tool resources](./call.md#tool-resources) and [Tool](../tool.md).
 
 # Triggers
 

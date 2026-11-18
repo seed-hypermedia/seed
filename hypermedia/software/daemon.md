@@ -40,7 +40,7 @@ A program reaches the daemon through one of its three listeners. This section li
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-The gRPC and HTTP listeners bind every network address. In default mode the daemon still accepts only callers on the same machine. [Server mode](../protocol/privacy.md) skips that check and relies on the network of the deployment. [Who is admitted](#who-is-admitted) has the details. <!-- id:a_qAaLbm -->
+The gRPC and HTTP listeners bind every network address. In default mode the daemon still accepts only callers on the same machine. [Server mode](#who-is-admitted) skips that check and relies on the network of the deployment. <!-- id:a_qAaLbm -->
 
 The [desktop app](./desktop.md) passes its own ports, listed in the [port table](../software.md). A daemon that you run yourself keeps the 55000 defaults. You can also set every flag as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` adds extra flags in front.
 
@@ -66,7 +66,7 @@ The daemon has two modes. <!-- id:2ImcyxRS -->
 - Keep the daemon's HTTP and gRPC ports private, behind the [web app](./web.md).
 - Proxy only the public `/ipfs/*` routes.
 
-In server mode the daemon hides [private content](../protocol/privacy.md) from a caller with no token. A caller with a valid [bearer token](../protocol/privacy.md) may read the private content it is allowed to see. A bearer token never allows a write. The Docker image turns server mode on through its environment. [Integrity](../protocol/integrity.md) explains the trust model.
+In server mode the daemon hides [private content](../protocol/privacy.md) from a caller with no token. A caller with a valid [bearer token](../protocol/identity.md#proving-identity-to-a-server) may read the private content it is allowed to see. A bearer token never allows a write. The Docker image turns server mode on through its environment. [Integrity](../protocol/integrity.md) explains the trust model.
 
 # Configuration <!-- id:qKo2ROZg -->
 

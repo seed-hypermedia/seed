@@ -40,7 +40,7 @@ A new agent's document holds one [Embed](../protocol/blocks.md) block of the [Ag
 A model [child](./child.md) does not start from the agent's conversation.
 
 - Its [brief](./brief.md) becomes its first user message **word for word**. A brief that is not a string is sent as a fenced JSON block, so nothing is reworded or hidden. The brief is the interface, and the parent model writes it. <!-- id:LZnMX5Dg -->
-- A persona is a role the parent model writes for a child, as the `systemPrompt` of the `delegate` call. The child then works under that persona and not under the agent's own instructions. <!-- id:66rAYyWF -->
+- A persona is a role the parent model writes for a child, as the `systemPrompt` of the `delegate` call. It is added after the agent's own instructions, unless the call sets `includeAgentSystemPrompt: false`. <!-- id:66rAYyWF -->
 - A typed child's `return_result` parameters are the schema the spawner declared. See [typed result](./typed-result.md). <!-- id:GyEs2UEP -->
 
 # What each request holds

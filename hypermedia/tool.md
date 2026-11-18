@@ -73,7 +73,7 @@ Making the app's document private does not hide its call records.
 
 # The other things called "tool"
 
-The word has three uses on this [site](./protocol/sites.md). They are different things.
+The word has three uses in these docs. They are different things.
 
 | Name | What it is | Where it lives |
 | --- | --- | --- |

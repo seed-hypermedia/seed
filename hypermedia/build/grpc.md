@@ -56,7 +56,7 @@ The HTTP port also serves a few plain routes, such as `/ipfs/<cid>` and the `/de
 
 # Trust <!-- id:3Nue2Gcl -->
 
-By default the daemon only answers programs on the same machine. Any program it answers can do everything: read keys, sign, and read all stored content. In [server mode](../protocol/privacy.md), which a site's daemon uses, it answers the whole private network it is deployed on, so both API ports must stay private. The [daemon page](../software/daemon.md) has the exact rules. The plain gRPC port ignores [bearer tokens](../protocol/privacy.md). [Authentication](./web-api.md#authentication) says where they apply.
+By default the daemon only answers programs on the same machine. Any program it answers can do everything: read keys, sign, and read all stored content. In [server mode](../software/daemon.md#who-is-admitted), which a site's daemon uses, it answers the whole private network it is deployed on, so both API ports must stay private. The [daemon page](../software/daemon.md) has the exact rules. The plain gRPC port ignores [bearer tokens](../protocol/identity.md#proving-identity-to-a-server). [Authentication](./web-api.md#authentication) says where they apply.
 
 Write RPCs check the **signing key**, not the caller. Every write takes a `signing_key_name`. The daemon loads that key from its own store and checks that the key may write to the target space and path. [Comments](../protocol/comments.md) skip even that check: anyone may comment on anything. <!-- id:azQnlNR4 -->
 

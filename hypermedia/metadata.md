@@ -19,11 +19,11 @@ A value that names an [account](./protocol/identity.md) or a document is a link.
 | `siteUrl` | URL | the web address a space is published at; set on the [home document](./protocol/spaces.md) when a site is registered, see [Sites](./protocol/sites.md) <!-- id:AyiR8yjR --> |
 | `appEnvironmentUrl` | URL | the [app environment](./software/app-environment.md) that runs an [app](./app.md), set on the app document when the app is created. Without it, the app runs on the environment that its space's site advertises in `/hm/api/config` |
 | `agentServerUrl` | URL | the app environment that hosts the agent this document mounts (an http(s) origin), set together with `type: hm://hyper.media/agent`; the document's versionless id is the agent's id, and a space's agents are found by querying its documents for that type, see [Agents](./agent.md) <!-- id:Y7jh1Rjp --> |
-| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md), [apps](./app.md) `hm://hyper.media/app`, their tools `hm://hyper.media/tool` and their [triggers](./trigger.md) `hm://hyper.media/trigger` <!-- id:3-HON7jT --> |
+| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md), [apps](./app.md) `hm://hyper.media/app`, [agents](./agent.md) `hm://hyper.media/agent`, and the tools and [triggers](./trigger.md) under an app or an agent `hm://hyper.media/tool` and `hm://hyper.media/trigger` <!-- id:3-HON7jT --> |
 | `inputSchema` | URL | a published HM [struct](./struct.md) defining a custom HTML page's URL input (see [Page input](./page-input.md)) or what an [app tool](./tool.md) takes <!-- id:lGfreYXM --> |
 | `outputSchema` | URL | a published HM struct defining what an [app tool](./tool.md) returns |
 | `code` | `ipfs://` | an [app tool](./tool.md)'s code: a UnixFS folder whose `index.ts` default-exports the tool's async function |
-| `source`, `tool`, `input`, `enabled` | `ipfs://`, URL, `ipfs://`, boolean | a [trigger](./trigger.md)'s source ([DAG-CBOR](./schema/dag-cbor.md)), the host tool it calls, that tool's input template (DAG-CBOR), and whether it is on |
+| `source`, `tool`, `input`, `enabled` | map, URL, map, boolean | a [trigger](./trigger.md)'s source, stored as nested attributes; the host tool it calls; that tool's input template, as nested attributes; and whether it is on |
 | `homePage` | URL | the hm:// URL of one of an [app](./app.md)'s own pages, which its Home tab shows |
 | `publicConfig` | map | an [app](./app.md)'s public settings, readable by anyone who can read the app |
 | `publicConfigSchema`, `privateConfigSchema` | URL | the schemas of an [app](./app.md)'s public config and private config |
