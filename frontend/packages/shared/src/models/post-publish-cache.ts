@@ -1,5 +1,5 @@
-import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {invalidateQueries, setQueriesDataByKey} from './query-client'
+import {HMDocument, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {invalidateQueries, setQueriesDataByKey, updateQueriesDataByKey} from './query-client'
 import {documentInfoQueryKey, isDocumentInfoQueryKey, queryKeys} from './query-keys'
 
 /**
@@ -25,6 +25,14 @@ export function invalidateAfterPublish(docId: UnpackedHypermediaId, newDocument:
     },
     (key) => !isDocumentInfoQueryKey(key),
   )
+  // The sidebar reads navigation from the info, so carry the published Cards over
+  // now instead of waiting for the refetch.
+  if (newDocument.navigationCards) {
+    const navigationCards = newDocument.navigationCards
+    updateQueriesDataByKey(documentInfoQueryKey(docId.id), (info) =>
+      info ? {...(info as HMDocumentInfo), navigationCards} : info,
+    )
+  }
   invalidateQueries(documentInfoQueryKey(docId.id))
   // Deliberately DO NOT invalidate the ENTITY query for this doc: it would
   // refetch "latest" from the daemon whose latest pointer can still lag right

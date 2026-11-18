@@ -3255,15 +3255,16 @@ func indexedAttrBool(v blob.IndexedValue) (bool, bool) {
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 	return &documents.DocumentInfo{
-		Account:        doc.Account,
-		Path:           doc.Path,
-		Metadata:       doc.Metadata,
-		Authors:        doc.Authors,
-		CreateTime:     doc.CreateTime,
-		UpdateTime:     doc.UpdateTime,
-		Genesis:        doc.Genesis,
-		Version:        doc.Version,
-		GenerationInfo: doc.GenerationInfo,
-		Visibility:     doc.Visibility,
+		Account:         doc.Account,
+		Path:            doc.Path,
+		Metadata:        doc.Metadata,
+		Authors:         doc.Authors,
+		CreateTime:      doc.CreateTime,
+		UpdateTime:      doc.UpdateTime,
+		Genesis:         doc.Genesis,
+		Version:         doc.Version,
+		GenerationInfo:  doc.GenerationInfo,
+		Visibility:      doc.Visibility,
+		NavigationCards: doc.NavigationCards,
 	}
 }

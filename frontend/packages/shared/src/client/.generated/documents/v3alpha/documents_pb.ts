@@ -4444,6 +4444,15 @@ export class Document extends Message<Document> {
    */
   visibility = ResourceVisibility.UNSPECIFIED;
 
+  /**
+   * Output only. Documents this version links as Card embeds that follow the
+   * latest version, in reading order, once each. Same derivation as
+   * DocumentInfo.navigation_cards, but for the exact version returned.
+   *
+   * @generated from field: com.seed.documents.v3alpha.NavigationCards navigation_cards = 16;
+   */
+  navigationCards?: NavigationCards;
+
   constructor(data?: PartialMessage<Document>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4464,6 +4473,7 @@ export class Document extends Message<Document> {
     { no: 10, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "generation_info", kind: "message", T: GenerationInfo },
     { no: 15, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+    { no: 16, name: "navigation_cards", kind: "message", T: NavigationCards },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {

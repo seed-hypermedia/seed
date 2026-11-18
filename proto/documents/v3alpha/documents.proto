@@ -1193,6 +1193,11 @@ message Document {
 
   // Output only. Visibility of the document.
   ResourceVisibility visibility = 15;
+
+  // Output only. Documents this version links as Card embeds that follow the
+  // latest version, in reading order, once each. Same derivation as
+  // DocumentInfo.navigation_cards, but for the exact version returned.
+  NavigationCards navigation_cards = 16;
 }
 
 // Content block with children.

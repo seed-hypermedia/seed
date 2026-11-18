@@ -34,4 +34,13 @@ describe('invalidateAfterPublish against a real cache', () => {
     })
   })
 
+  it("carries the published document's navigation Cards into the info right away", () => {
+    const client = new QueryClient()
+    registerQueryClient(client)
+    client.setQueryData(documentInfoQueryKey(docId.id), {id: docId, navigationCards: ['hm://z6Mksite/a']})
+
+    invalidateAfterPublish(docId, {version: 'new', navigationCards: ['hm://z6Mksite/b']} as HMDocument)
+
+    expect(client.getQueryData(documentInfoQueryKey(docId.id))).toEqual({id: docId, navigationCards: ['hm://z6Mksite/b']})
+  })
 })

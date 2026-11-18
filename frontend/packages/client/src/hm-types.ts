@@ -1133,6 +1133,11 @@ export const HMDocumentSchema = z.object({
   genesis: z.string(),
   generationInfo: HMGenerationInfoSchema.optional(),
   visibility: HMResourceVisibilitySchema,
+  /**
+   * hm:// IDs of the documents this version links as latest-following Card embeds, in reading order. Derived by the
+   * backend, the same way as `HMDocumentInfo.navigationCards`.
+   */
+  navigationCards: z.array(z.string()).optional(),
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>

@@ -202,6 +202,7 @@ func TestDocumentChangePublishing(t *testing.T) {
 		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
+	want.NavigationCards = &documents.NavigationCards{} // Hydrate derives it for every document.
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
 		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis", "GenerationInfo").
@@ -297,7 +298,7 @@ func TestListRootDocuments(t *testing.T) {
 // Listings carry first_image_in_content for every document without a
 // cover/icon (empty = "derived, no image"), and is_collection and
 // navigation_cards for every document, while DocumentToListItem — converting from a raw Document — leaves
-// both unset.
+// the first two unset and copies the Document's own navigation_cards.
 func stampDerivedFields(d *documents.DocumentInfo) *documents.DocumentInfo {
 	d.FirstImageInContent = proto.String("")
 	d.IsCollection = proto.Bool(false)
@@ -705,6 +706,7 @@ func TestDocumentChangePublishingWithTimestamp(t *testing.T) {
 		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
+	want.NavigationCards = &documents.NavigationCards{} // Hydrate derives it for every document.
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
 		IgnoreFields(documents.Document{}, "Version", "Genesis", "GenerationInfo").
@@ -1310,10 +1312,11 @@ func TestDocumentInfoNavigationCards(t *testing.T) {
 		return info.NavigationCards.Targets
 	}
 
-	require.Equal(t, []string{"hm://" + aliceSpace + "/team", "hm://" + aliceSpace + "/blog"}, cards(),
-		"latest Cards in reading order; a pinned Card is not navigation")
+	both := []string{"hm://" + aliceSpace + "/team", "hm://" + aliceSpace + "/blog"}
+	require.Equal(t, both, cards(), "latest Cards in reading order; a pinned Card is not navigation")
+	require.Equal(t, both, home.NavigationCards.GetTargets(), "the published document carries its own Cards")
 
-	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+	edited, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        aliceSpace,
 		BaseVersion:    home.Version,
@@ -1321,6 +1324,11 @@ func TestDocumentInfoNavigationCards(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []string{"hm://" + aliceSpace + "/blog"}, cards(), "a removed Card leaves navigation")
+	require.Equal(t, []string{"hm://" + aliceSpace + "/blog"}, edited.NavigationCards.GetTargets())
+
+	old, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: aliceSpace, Version: home.Version})
+	require.NoError(t, err)
+	require.Equal(t, both, old.NavigationCards.GetTargets(), "a pinned version reports the Cards it had")
 }
 
 // A Ref that arrives late, with an older timestamp than the latest indexed Ref,
@@ -3058,6 +3066,7 @@ func TestDetachedBlocks(t *testing.T) {
 
 	require.NotNil(t, doc.DetachedBlocks, "document must have detached blocks")
 
+	want.NavigationCards = &documents.NavigationCards{} // Hydrate derives it for every document.
 	testutil.StructsEqual(want, doc).
 		IgnoreFields(documents.Block{}, "Revision").
 		IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis", "GenerationInfo").

@@ -346,7 +346,7 @@ function CardNavigationRow({
       ? latestId(hmId(resource.data.id.uid, {path: resource.data.id.path}))
       : id
   const branchIds = [...ancestors, id.id, resolvedId.id]
-  const navigationCards = indexed ? indexed.navigationCards ?? [] : null
+  const navigationCards = indexed ? indexed.navigationCards ?? [] : document?.navigationCards ?? null
   const targets = useMemo(
     () =>
       navigationCards

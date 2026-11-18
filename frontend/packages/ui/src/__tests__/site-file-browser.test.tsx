@@ -162,6 +162,19 @@ describe('SiteFileBrowser', () => {
     expect(loaded).not.toContain('hm://site')
   })
 
+  it("prefers a loaded document's derived navigation Cards over its content", () => {
+    setIndexed([], 'Home', ['hm://site/guides'])
+    setCards('hm://site/guides', ['hm://site/stale'])
+    const guides = resources.get('hm://site/guides')
+    if (guides?.type !== 'document') throw new Error('Missing fixture hm://site/guides')
+    guides.document.navigationCards = ['hm://site/page']
+    makeDoc(['page'], 'Page')
+    makeDoc(['stale'], 'Stale')
+    render(hmId('site', {path: ['page']}))
+    expect(container.textContent).toContain('Page')
+    expect(container.textContent).not.toContain('Stale')
+  })
+
   it('resolves a domain-based Card target before loading it', () => {
     setIndexed([], 'Home', ['hm://example.com/guides', 'hm://unknown.example/page'])
     setIndexed(['guides'], 'Guides', [])

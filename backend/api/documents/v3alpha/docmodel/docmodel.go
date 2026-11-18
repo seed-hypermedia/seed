@@ -730,7 +730,8 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			Genesis:    e.cids[0].String(),
 			Generation: dm.Generation.Value(),
 		},
-		Visibility: VisibilityToProto(dm.visibility),
+		Visibility:      VisibilityToProto(dm.visibility),
+		NavigationCards: &documents.NavigationCards{Targets: dm.NavigationCards()},
 	}
 
 	docpb.UpdateTime = timestamppb.New(last.Ts)
