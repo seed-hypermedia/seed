@@ -82,7 +82,7 @@ describe('/hm/api/register action', () => {
     const response = await register({}, forwardedHost)
 
     expect(response.status).toBe(200)
-    expect(mocks.getConfig).toHaveBeenCalledExactlyOnceWith(forwardedHost)
+    expect(mocks.getConfig).toHaveBeenCalledExactlyOnceWith(forwardedHost, {fresh: true})
     expect(mocks.writeConfig).toHaveBeenCalledExactlyOnceWith(forwardedHost, {
       registeredAccountUid: 'space-account',
       sourcePeerId: 'publishing-peer',
