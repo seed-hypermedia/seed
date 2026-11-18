@@ -318,22 +318,22 @@ describe('SessionRunCard (pinned)', () => {
     expect(errorSpan?.getAttribute('role')).toBe('button')
     expect(errorSpan?.className).toContain('truncate')
     expect(errorSpan?.className).not.toContain('flex-none')
-    // Clicking the error opens the full message (code + complete text), NOT the child's run page:
+    // Clicking the error opens the full message (code + complete text), NOT the child's transcript:
     // the chip swallows the click so interrogating a failure never navigates away from the card.
     click(errorSpan)
     expect(mockState.navigate).not.toHaveBeenCalled()
     const popover = Array.from(document.querySelectorAll('pre')).find((pre) => pre.textContent === longError)
     expect(popover).toBeTruthy()
     expect(document.body.textContent).toContain('provider-error')
-    // The row is still clickable and opens the child's run page.
+    // The row is still clickable and opens the child's transcript.
     const row = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Analyze BIB File'),
     )
     expect(row).toBeTruthy()
     click(row)
     expect(mockState.navigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-1',
+      key: 'agent-session',
+      sessionId: 'session-child-1',
       serverUrl: 'http://localhost:3050',
     })
   })
@@ -614,6 +614,15 @@ describe('RunRecordCard (in the chat bubble)', () => {
     // Technical detail lives on the run page now; the card carries only the way there.
     expect(container.querySelector('button[aria-label="Run details"]')).toBeNull()
     expect(container.querySelector('button[aria-label="Open run page"]')).not.toBeNull()
+  })
+
+  it('offers no run page for a run with a transcript — the card already sits in it', () => {
+    mockState.run = makeRun({id: 'root-1', status: 'succeeded', title: 'Compare competitors', sessionId: 'session-1'})
+    mockState.tree = [mockState.run]
+    render(<RunRecordCard {...recordProps} />)
+
+    expect(container.textContent).toContain('Compare competitors')
+    expect(container.querySelector('button[aria-label="Open run page"]')).toBeNull()
   })
 
   it('keeps the workflow module off the card — the run page owns the code', () => {

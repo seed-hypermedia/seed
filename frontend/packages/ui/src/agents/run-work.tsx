@@ -604,7 +604,7 @@ export function RunWorkHierarchy({
   cancelPending,
   renderToolPart,
 }: {
-  /** App environment the runs live on: where a child row's run page is. */
+  /** App environment the runs live on: where a child row's transcript or run page is. */
   serverUrl: string
   run: RunInfo
   childRuns: RunInfo[]
@@ -617,7 +617,7 @@ export function RunWorkHierarchy({
   journal: RunJournalEntryInfo[]
   liveState: AgentRunTreeLiveState
   compact?: boolean
-  /** Opens a child's transcript from inside its error inspector. The rows themselves open run pages. */
+  /** Opens a child's transcript from inside its error inspector. */
   onOpenSession?: (sessionId: string, agentId?: string) => void
   onCancelRun?: (runId: string) => void
   cancelPending?: boolean
@@ -627,9 +627,9 @@ export function RunWorkHierarchy({
   const isTerminal = isTerminalRun(run.status)
   const settle: PlanSettle = isTerminal ? 'run-finished' : 'live'
   const openRunFor = useOpenAgentRun()
-  // Every child row is the way to that run's own page: a script child has no transcript at all,
-  // and a delegate's transcript is one click further, from the run page. What "open" means on
-  // the hosting surface is the hook's call.
+  // Every child row is the way into that child: a delegate opens its transcript, and a script
+  // child, which has none, opens its run page. What "open" means on the hosting surface is the
+  // hook's call.
   const openRun = (child: RunInfo) =>
     openRunFor({runId: child.id, sessionId: child.sessionId, agentId: child.agentId, serverUrl})
   const openSession = (child: RunInfo) =>

@@ -2223,15 +2223,19 @@ function DelegateWorkDetails({
 
       {(sessionId || runId) && serverUrl ? (
         <div className="flex items-center gap-3">
-          {sessionId ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
-          {runId ? <OpenRunLink runId={runId} serverUrl={serverUrl} /> : null}
+          {/* A child with a transcript is read there; the run page is only for one without. */}
+          {sessionId ? (
+            <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} />
+          ) : runId ? (
+            <OpenRunLink runId={runId} serverUrl={serverUrl} />
+          ) : null}
         </div>
       ) : null}
     </div>
   )
 }
 
-/** The child run's own page: the durable record, reachable even when the child has no transcript. */
+/** The child run's own page: the durable record of a child that has no transcript. */
 function OpenRunLink({runId, serverUrl}: {runId: string; serverUrl: string}) {
   const clickNavigate = useClickNavigate()
   return (

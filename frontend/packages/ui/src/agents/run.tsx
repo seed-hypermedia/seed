@@ -26,8 +26,7 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {Notice} from '@shm/ui/notice'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {MessageSquare} from 'lucide-react'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import type {RunInfo} from './client'
 
 /**
@@ -44,13 +43,14 @@ const ORIGIN_LABELS: Record<RunInfo['origin'], string> = {
 }
 
 /**
- * The durable record of one run, as a page.
+ * The durable record of one run that has no transcript, as a page.
  *
- * The same record the transcript's run card shows, given room and an address: firings, delegate
- * rows, and copied links all land here. Deliberately spare — one title line, one meta line, the
- * work itself, and the code/activity drawers. A run is a record, not a conversation: nothing here
- * is editable, and the only actions are the ones the run itself still offers (cancel, parked
- * questions, its transcript when it has one).
+ * A run with a session is read in that session, which holds everything it did, so this page never
+ * renders one: it hands the address over to the session instead, and links copied before that rule
+ * still land somewhere useful. What is left is scripts and session-less firings. Deliberately
+ * spare — one title line, one meta line, the work itself, and the code/activity drawers. A run is
+ * a record, not a conversation: nothing here is editable, and the only actions are the ones the
+ * run itself still offers (cancel, parked questions).
  */
 function AgentRunPage({
   runId,
@@ -64,12 +64,22 @@ function AgentRunPage({
   selectedAccountId: string
 }) {
   const navigate = useNavigate()
+  const replace = useNavigate('replace')
   const serverUrlQuery = useAgentServerUrl()
   const serverUrl = routeServerUrl || serverUrlQuery.data || getDefaultAgentServerUrl() || ''
   const run = useRun(serverUrl, selectedAccountId, runId)
   const seed = run.data ?? undefined
   const {runsById, liveState} = useRunTreeView(serverUrl, selectedAccountId, seed?.rootRunId, seed, true)
-  const focus = seed ? runsById[seed.id] ?? seed : undefined
+  const loaded = seed ? runsById[seed.id] ?? seed : undefined
+  // Replaces rather than pushes, so Back leaves the run's address instead of bouncing off it.
+  const redirectSessionId = loaded?.sessionId
+  const redirectAgentId = routeAgentId || loaded?.agentId
+  useEffect(() => {
+    if (!redirectSessionId) return
+    replace({key: 'agent-session', sessionId: redirectSessionId, agentId: redirectAgentId, serverUrl})
+  }, [redirectSessionId, redirectAgentId, serverUrl, replace])
+  // While the session takes over, the page shows the loading state, never a flash of the record.
+  const focus = redirectSessionId ? undefined : loaded
   const children = useMemo(() => (focus ? descendantsOf(runsById, focus.id) : []), [runsById, focus?.id])
   const agentId = routeAgentId || focus?.agentId
   // Names the breadcrumb; a run of an agent the viewer cannot read still renders without it.
@@ -114,7 +124,7 @@ function AgentRunPage({
           agentName={agent.data?.agent.definition.name}
           items={[{label: focus ? runTitle(focus) : 'Run'}]}
         />
-        {run.isLoading && !focus ? (
+        {(run.isLoading && !focus) || redirectSessionId ? (
           <div className="flex flex-1 items-center justify-center py-12">
             <Spinner size="large" className="text-muted-foreground" />
           </div>
@@ -122,7 +132,7 @@ function AgentRunPage({
         {run.isError ? (
           <RunLoadNotice error={run.error} onRetry={() => void run.refetch()} retryPending={run.isFetching} />
         ) : null}
-        {!run.isLoading && !run.isError && !focus ? (
+        {!run.isLoading && !run.isError && !loaded ? (
           <Notice tone="warning" title="Run not found">
             This run may have been removed, or it lives on a different server.
           </Notice>
@@ -141,18 +151,6 @@ function AgentRunPage({
                 <SizableText size="xl" weight="bold" className="min-w-0 flex-1 truncate" title={runTitle(focus)}>
                   {runTitle(focus)}
                 </SizableText>
-                {focus.sessionId ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      navigate({key: 'agent-session', sessionId: focus.sessionId!, agentId: focus.agentId, serverUrl})
-                    }
-                  >
-                    <MessageSquare className="size-4" />
-                    Open transcript
-                  </Button>
-                ) : null}
                 {isTerminalRun(focus.status) ? null : confirmingCancel ? (
                   <span className="flex flex-none items-center gap-1">
                     <Button
