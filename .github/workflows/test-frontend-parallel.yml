@@ -177,7 +177,9 @@ jobs:
   # shipped in seven releases with no CI signal.
   integration-tests:
     if: inputs.run-integration-tests || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.57 cannot install Chromium on ubuntu-26.04, which ubuntu-latest
+    # now resolves to. The install only runs on a browser-cache miss (any lockfile change).
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - name: Checkout code
@@ -356,7 +358,9 @@ jobs:
   # the Playwright-cache step below.
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.57 cannot install Chromium on ubuntu-26.04, which ubuntu-latest
+    # now resolves to. The install only runs on a browser-cache miss (any lockfile change).
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
