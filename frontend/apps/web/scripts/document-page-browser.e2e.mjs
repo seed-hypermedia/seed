@@ -8,7 +8,7 @@ import {chromium, firefox, webkit} from 'playwright'
 const bundle = await build({
   stdin: {
     contents:
-      'export * from "./document-page-sandbox"; export {createDocumentPageInput} from "./document-page-input"; export {pageParamsFromUrl, pageParamsQuery} from "@seed-hypermedia/client/page-input";',
+      'export * from "./document-page-sandbox"; export {createDocumentPageWatches} from "./document-page-watch"; export {createDocumentPageInput} from "./document-page-input"; export {pageParamsFromUrl, pageParamsQuery} from "@seed-hypermedia/client/page-input";',
     resolveDir: fileURLToPath(new URL('../../../packages/shared/src', import.meta.url)),
     sourcefile: 'page-browser-test.ts',
     loader: 'ts',
@@ -330,7 +330,7 @@ for (const engine of (process.env.PAGE_TEST_BROWSERS || 'chromium,firefox,webkit
         })
         const frame = page.frames().find((frame) => frame.url().includes('/hm/page-runner'))
         const runtime = await frame.evaluate(() => seed.runtime())
-        assert.equal(runtime.sdkVersion, '2.0.0')
+        assert.equal(runtime.sdkVersion, '2.1.0')
         assert.match(runtime.sdkDigest, /^[a-f0-9]{64}$/)
         assert.equal(runtime.storage.synced, false)
         assert.equal(
@@ -490,6 +490,54 @@ for (const engine of (process.env.PAGE_TEST_BROWSERS || 'chromium,firefox,webkit
       })
       const frame = await mount()
       assert.equal(await frame.evaluate(() => seed.storage.get('late')), null)
+    })
+    await t.test('a watched directory repaints when its data changes, with no polling in the page', async () => {
+      await page.evaluate(async () => {
+        window.session?.destroy()
+        window.rows = [{id: {id: 'hm://alice/entries/1', uid: 'alice', path: ['entries', '1']}, metadata: {}}]
+        window.hostReads = 0
+        window.watches = window.createDocumentPageWatches({
+          read: async () => {
+            window.hostReads++
+            return structuredClone(window.rows)
+          },
+          observe: (_method, _params, changed) => {
+            window.dataChanged = changed
+            return () => (window.dataChanged = null)
+          },
+          send: (message) => window.session.dataChanged(message),
+        })
+        window.session = window.mountDocumentPage({
+          container: document.querySelector('#page'),
+          storage: localStorage,
+          context: {protocol: 1, account: null, document: 'hm://alice/page', version: 'v1', page: 'v1'},
+          html: '<ul id="list"></ul><script>window.paints = 0; window.stopWatch = seed.watch.directory("hm://alice/entries", (records) => { window.paints++; document.querySelector("#list").innerHTML = records.map((record) => "<li>" + record.url + "</li>").join("") })</script>',
+          content: (method, params, signal) =>
+            method === 'watch.start' ? window.watches.start(params, signal) : window.watches.stop(params),
+        })
+        await window.session.ready
+      })
+      const frame = page.frames().find((item) => item.url().includes('/hm/page-runner'))
+      const list = () => frame.evaluate(() => [...document.querySelectorAll('li')].map((item) => item.textContent))
+      await frame.waitForFunction(() => window.paints === 1)
+      assert.deepEqual(await list(), ['hm://alice/entries/1'])
+
+      // The host hears of a change (as from the activity feed) and the page is pushed the new list.
+      await page.evaluate(() => {
+        window.rows.push({id: {id: 'hm://alice/entries/2', uid: 'alice', path: ['entries', '2']}, metadata: {}})
+        window.dataChanged()
+      })
+      await frame.waitForFunction(() => window.paints === 2)
+      assert.deepEqual(await list(), ['hm://alice/entries/1', 'hm://alice/entries/2'])
+
+      // A signal without a real difference re-reads on the host but does not disturb the page.
+      await page.evaluate(() => window.dataChanged())
+      await page.waitForFunction(() => window.hostReads === 3)
+      assert.equal(await frame.evaluate(() => window.paints), 2)
+
+      // Stopping from the page releases the host's observer.
+      await frame.evaluate(() => window.stopWatch())
+      await page.waitForFunction(() => window.dataChanged === null && window.watches.size === 0)
     })
     await t.test('direct runner visit remains sandboxed and does not load a page', async () => {
       const direct = await browser.newPage()

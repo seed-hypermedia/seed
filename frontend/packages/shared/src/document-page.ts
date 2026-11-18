@@ -27,7 +27,7 @@ export const DOCUMENT_PAGE_CLIENT_PATH = '/.seed/client.js'
 export const DOCUMENT_PAGE_PROTOCOL = 1
 
 /** Version of the SDK contract, independent of the transport envelope version. */
-export const DOCUMENT_PAGE_SDK_VERSION = '2.0.0'
+export const DOCUMENT_PAGE_SDK_VERSION = '2.1.0'
 
 /** Largest request a page may send, including binary data. */
 export const DOCUMENT_PAGE_MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -60,6 +60,8 @@ export const DOCUMENT_PAGE_METHODS = [
   'profile',
   'resource',
   'directory',
+  'watch.start',
+  'watch.stop',
   'storage.get',
   'storage.set',
   'hm.parseMarkdown',
@@ -93,12 +95,36 @@ export function documentPageMessageSize(value: unknown): number {
 }
 
 /** The same portable SDK surface is injected into desktop and opaque web runtimes. */
-export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {}) => {
+export const DOCUMENT_PAGE_API_SCRIPT = `(call, subscribeInput = () => () => {}, subscribeData = () => () => {}) => {
 const isHmId = (value) => !!value && typeof value === 'object' && typeof value.id === 'string' && value.id.startsWith('hm://') && (typeof value.uid === 'string' || Object.keys(value).length === 1)
 const asLink = (value) => typeof value === 'string' ? value : isHmId(value) ? value.id : value && isHmId(value.id) ? value.id.id : value
 // A record's id prints as its URL (String(record.id), \`\${record.id}\`), as pages tend to expect.
 const printable = (id) => isHmId(id) ? Object.defineProperty({...id}, 'toString', {value: () => id.id}) : id
 const links = (value) => Array.isArray(value) ? value.map(links) : isHmId(value) || (value && isHmId(value.id)) ? asLink(value) : value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, links(item)])) : value
+const shapeResource = (resource) => resource && resource.type === 'document' && resource.document ? {...resource.document, ...resource, ...(isHmId(resource.id) ? {id: printable(resource.id), url: resource.id.id} : {})} : resource
+const shapeDirectory = (found) => { const records = found.map((record) => record && isHmId(record.id) && record.url === undefined ? {...record, id: printable(record.id), url: record.id.id} : record); return Object.defineProperties(records, {documents: {value: records}, items: {value: records}, records: {value: records}}) }
+let watchCount = 0
+// A live read: the listener gets the current value, then each later one. Returns how to stop.
+const watch = (method, params, shape, listener, onError) => {
+  if (typeof listener !== 'function') throw new TypeError('seed.watch needs a listener function')
+  const id = String(++watchCount) + '.' + Math.random().toString(36).slice(2)
+  let stopped = false
+  const deliver = (message) => {
+    if (stopped) return
+    try {
+      if ('error' in message) { if (typeof onError === 'function') onError(new Error(String(message.error))); else console.error('seed.watch', message.error) }
+      else listener(shape(message.result))
+    } catch (error) { console.error(error) }
+  }
+  const unsubscribe = subscribeData(id, deliver)
+  call('watch.start', {watch: id, method, params}).then((result) => deliver({result}), (error) => deliver({error: error && error.message || String(error)}))
+  return () => {
+    if (stopped) return
+    stopped = true
+    unsubscribe()
+    call('watch.stop', {watch: id}).catch(() => {})
+  }
+}
 return Object.freeze({
   runtime: () => call('runtime'),
   input: Object.freeze({get: () => call('input.get'), push: (values) => call('input.push', {values}), replace: (values) => call('input.replace', {values}), onChange: (listener) => subscribeInput(listener)}),
@@ -107,8 +133,12 @@ return Object.freeze({
   context: () => call('context'),
   profile: () => call('profile'),
   storage: Object.freeze({get: (key) => call('storage.get', {key}), set: (key, value) => call('storage.set', {key, value})}),
-  resource: (url) => call('resource', {url: asLink(url)}).then((resource) => resource && resource.type === 'document' && resource.document ? {...resource.document, ...resource, ...(isHmId(resource.id) ? {id: printable(resource.id), url: resource.id.id} : {})} : resource),
-  directory: (url, options) => call('directory', {url: asLink(url), all: !!options?.all}).then((found) => found.map((record) => record && isHmId(record.id) && record.url === undefined ? {...record, id: printable(record.id), url: record.id.id} : record)).then((records) => Object.defineProperties(records, {documents: {value: records}, items: {value: records}, records: {value: records}})),
+  resource: (url) => call('resource', {url: asLink(url)}).then(shapeResource),
+  directory: (url, options) => call('directory', {url: asLink(url), all: !!options?.all}).then(shapeDirectory),
+  watch: Object.freeze({
+    resource: (url, listener, onError) => watch('resource', {url: asLink(url)}, shapeResource, listener, onError),
+    directory: (url, options, listener, onError) => typeof options === 'function' ? watch('directory', {url: asLink(url), all: false}, shapeDirectory, options, listener) : watch('directory', {url: asLink(url), all: !!options?.all}, shapeDirectory, listener, onError),
+  }),
   permissions: Object.freeze({request: () => call('permissions.request'), revoke: () => call('permissions.revoke')}),
   request: (key, input) => call('request', {key, input}),
   publish: (input) => call('publish', {input}),
@@ -174,6 +204,30 @@ export type DocumentPageSDK = {
   resource(url: string): Promise<HMResource | {id: string; name: string | null}>
   /** Direct children by default; each row has id and metadata, without a document wrapper. */
   directory(url: string, options?: {all?: boolean}): Promise<HMQueryResult['results']>
+  /**
+   * Live reads. The listener is called with the current value and again whenever it changes: the
+   * host watches the data and pushes each new value, so a page never polls or reloads to stay
+   * current. Each call returns a function that stops the watch. `onError` hears a failed first read
+   * and a refresh the host could not make (the page keeps the last value it was given).
+   */
+  watch: {
+    resource(
+      url: string,
+      listener: (resource: HMResource | {id: string; name: string | null}) => void,
+      onError?: (error: Error) => void,
+    ): () => void
+    directory(
+      url: string,
+      listener: (records: HMQueryResult['results']) => void,
+      onError?: (error: Error) => void,
+    ): () => void
+    directory(
+      url: string,
+      options: {all?: boolean},
+      listener: (records: HMQueryResult['results']) => void,
+      onError?: (error: Error) => void,
+    ): () => void
+  }
   /** Inspect remembered rules or revoke them; operations themselves trigger consent. */
   permissions: {
     request(): Promise<{grants: import('./document-page-permissions').PagePermissionGrant[]}>
@@ -359,6 +413,7 @@ export const DOCUMENT_PAGE_CLIENT_SCRIPT = `(() => {
   const host = window.parent !== window ? window.parent : null;
   const pending = new Map();
   const inputListeners = new Set();
+  const dataListeners = new Map();
   let markReady;
   const ready = new Promise((resolve) => { markReady = resolve; });
   let counter = 0;
@@ -367,6 +422,7 @@ export const DOCUMENT_PAGE_CLIENT_SCRIPT = `(() => {
     if (!host || event.source !== host || !data || data.seedPage !== ${DOCUMENT_PAGE_PROTOCOL}) return;
     if (data.type === 'seed-ready') { markReady(); return; }
     if (data.type === 'seed-input') { for (const listener of inputListeners) { try { listener(data.state); } catch (error) { console.error(error); } } return; }
+    if (data.type === 'seed-data') { const listener = dataListeners.get(data.message && data.message.watch); if (listener) listener(data.message); return; }
     if (typeof data.id !== 'string') return;
     const entry = pending.get(data.id);
     if (!entry) return;
@@ -384,7 +440,7 @@ export const DOCUMENT_PAGE_CLIENT_SCRIPT = `(() => {
       pending.set(id, {resolve, reject});
       ready.then(() => host.postMessage({seedPage: ${DOCUMENT_PAGE_PROTOCOL}, id, method, params}, '*'));
     });
-  window.seed = (${DOCUMENT_PAGE_API_SCRIPT})(call, (listener) => { inputListeners.add(listener); return () => inputListeners.delete(listener); });
+  window.seed = (${DOCUMENT_PAGE_API_SCRIPT})(call, (listener) => { inputListeners.add(listener); return () => inputListeners.delete(listener); }, (id, listener) => { dataListeners.set(id, listener); return () => dataListeners.delete(id); });
   ${DOCUMENT_PAGE_LINK_SCRIPT}
 })();
 `
