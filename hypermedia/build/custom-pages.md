@@ -41,7 +41,7 @@ Store the real collection and type URLs in the page's metadata. The data then st
 
 The agent's `~/tools/write/pages` guide gives the workflow and a working task data adapter. <!-- id:LcAwU0H8 -->
 
-- `seed.directory` and `seed.resource` read records.
+- `seed.directory` and `seed.resource` read records. `seed.watch.directory` and `seed.watch.resource` keep those reads up to date, so the page never needs to poll. See [live reads](./page-sdk.md#live-reads).
 - `seed.publishDocument` creates and edits records, with the rights of the current viewer.
 - An update keeps the document's genesis and generation and uses its current base version.
 - During setup, decide which [space](../protocol/spaces.md) holds the data, whether it is private, and who can write it. A collection that the agent owns and the user cannot edit is not a finished page.

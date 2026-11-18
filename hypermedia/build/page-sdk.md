@@ -25,6 +25,27 @@ What the reads return: <!-- id:n4Z2jI-5 -->
 
 `seed.publishDocument(input)` picks a [capability](../protocol/permissions.md) the viewer already holds for the target. If the viewer has no right to write, it rejects before signing. After publishing, it reads the target to confirm the new version, and only then resolves. A stored [blob](../protocol/blobs.md) with an unconfirmed document is not a successful save. Read the reported address before you retry.
 
+# Live reads
+
+A page can keep a read up to date without polling. A live read is called a watch.
+
+- `seed.watch.resource(url, listener, onError?)` keeps `seed.resource(url)` current.
+- `seed.watch.directory(url, {all}?, listener, onError?)` keeps `seed.directory(url, {all})` current.
+- The listener gets the current value first, then each new value. The call returns a function. Call it to stop the watch.
+
+How it works:
+
+- The watch starts with the bridge method `watch.start`. Its first answer is exactly what the one-time read would return, with the same permission rules.
+- After that, the host watches the data, not the page. The host reads again as the page when the data may have changed. It sends the new value (a `seed-data` message) only when the value is different from the last one it sent.
+- On desktop, the app's activity feed tells the host about changes, about a second after a change reaches the [node](../software/daemon.md). The watch also keeps the node syncing that data, as it does for an open document.
+- On the web there is no change feed. The host checks watched data every five seconds while the tab is visible.
+- A refresh never asks the viewer for permission. If no saved permission covers the read any more (a read allowed once, or a permission the viewer removed), the page keeps its last value and `onError` is called once. The next change tries again.
+- A write the page makes itself (`seed.publishDocument`, `seed.publish`, `seed.comments.create`) refreshes its watches as soon as the write is confirmed.
+- One page can hold at most 16 watches. They end when the page stops them, reloads, navigates away or closes.
+- A read of a pinned version (`?v=`) is delivered once, because a pinned version cannot change.
+
+Only Hypermedia reads can be watched. The output of `seed.app.call` cannot. If a [tool](../tool.md) or [trigger](../trigger.md) makes data that a page should show live, the tool writes it to documents and the page watches those.
+
 # Input
 
 `seed.input.get()`, `seed.input.push(values)`, `seed.input.replace(values)` and `seed.input.onChange(listener)` read and change the page's URL input. [Page input](../page-input.md) describes them with the schema and the URL form.
@@ -102,7 +123,7 @@ To link, use ordinary anchors such as `<a href="hm://<account>/notes?v=<version>
 - A failed anchor sends a `seed-link-error` event on the page window.
 - Opening a link needs no approval. <!-- id:MgUiUh_j -->
 
-`await seed.runtime()` describes the host that is running the page. It returns the SDK version and implementation digest, the supported bridge methods, the platform, the limits, the authority (`"scoped-page-permissions"`) and how storage behaves. Check that a method exists before you call it, because an older host may not have it. A guide or a copy of the source does not prove that a running host is up to date.
+`await seed.runtime()` describes the host that is running the page. It returns the SDK version and implementation digest, the supported bridge methods, the platform, the limits, the authority (`"scoped-page-permissions"`) and how storage behaves. Check that a method exists before you call it, because an older host may not have it. For example, live reads need a host whose bridge methods include `watch.start` (SDK 2.1.0 or later). A guide or a copy of the source does not prove that a running host is up to date.
 
 `seed.stringify(value)` formats the SDK's BigInts and byte arrays for display. Do not use it for signing, or to save and load values. <!-- id:7IHH63oo -->
 

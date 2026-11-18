@@ -153,6 +153,8 @@ A waiting run stays pinned, because you answer it there:
 
 The app builds everything on the card from `ListRuns` and the signed `runs/<rootRunId>` subscription, so a reload loses nothing. <!-- id:HBZRMtDD -->
 
+A child row, and the link on a `delegate` tool row, opens the child's transcript when the child has a session. A script has no session, so its row opens its **run page**: its status, origin and timing, the work, **Code** and **Activity**. For the same reason, a card for a script has an **Open run page** arrow, and a card for a run with a session does not: the session the card sits in is that run's record. If you open the run page of a run that has a session, the app opens the session instead.
+
 ## Continuation <!-- id:FDM7RGpy -->
 
 When an agent calls `continue_session`, the conversation moves to a new session, the successor. The successor opens with a handoff card and a link back to the old session. The old session shows where the conversation went. See [session continuation](./session-continuation.md). <!-- id:CBNIjpG2 -->

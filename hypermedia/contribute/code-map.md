@@ -47,7 +47,7 @@ This page is a map of the code behind [Seed Agents](../agent.md). Use it to find
 
 The desktop app and the web app show the same screens, from `frontend/packages/ui/src/agents/`. [In the app](../agent/in-the-app.md) describes what the screens do.
 
-- Pages: `detail.tsx`, `session.tsx`, `run.tsx` (one run's status, work, tool calls, code, and activity) and `header.tsx`. <!-- id:yPdOBjWR -->
+- Pages: `detail.tsx`, `session.tsx`, `run.tsx` (the run page, for a run with no session: its status, work, tool calls, code, and activity) and `header.tsx`. <!-- id:yPdOBjWR -->
 - The assistant panel: `assistant-panel.tsx` with `assistant-selection.ts`, `assistant-session-ref.ts`, and `assistant-window-context.ts`.
 - Pieces: `dialogs.tsx`, `mcp-servers.tsx`, `memory.tsx`, `trigger-types.tsx`, `user-tool-commands.tsx`, `run-card.tsx`, `run-work.tsx`, `run-parked-actions.tsx`, `continuation.tsx`, `session-children.tsx`, `sessions-feed.tsx`, `new-session-composer.tsx`, `prompt-editor.tsx`, and `message-rendering.tsx`.
 - Data: `models.ts` holds every React Query hook and the signed subscriptions. `client.ts` signs and sends actions and builds server, WebSocket, and webhook URLs. `agent-tools.ts` holds the [grant](../agent/grants.md) names and defaults. `agent-session-rows.ts` turns events into rows. `provider-registry.ts` holds the provider metadata. `../site-agents.ts`, outside the agents folder, finds the agents of a [space](../protocol/spaces.md) through its [mount](../agent/mounting.md) documents.
