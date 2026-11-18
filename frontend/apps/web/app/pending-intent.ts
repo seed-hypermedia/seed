@@ -258,11 +258,18 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         return {type: 'none'}
       }
 
+      const accountUid = await getCurrentAccountUidWithDelegation()
+      if (!accountUid) {
+        await clearPendingIntent()
+        return {type: 'none'}
+      }
+
       const {docId, content} = intent
       const commentPayload = await createComment(
         {
           docId,
           docVersion: intent.docVersion,
+          account: accountUid,
           content,
           replyCommentVersion: intent.replyCommentVersion,
           rootReplyCommentVersion: intent.rootReplyCommentVersion,
@@ -271,8 +278,6 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         signer,
       )
 
-      const accountUid = await getCurrentAccountUidWithDelegation()
-      if (!accountUid) throw new Error('No account available to publish comment')
       const comment = await buildOptimisticComment({
         commentPayload,
         authorUid: accountUid,

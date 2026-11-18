@@ -141,7 +141,8 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		return err
 	}
 
-	if _, err := ictx.ensurePubKey(account); err != nil {
+	accountID, err := ictx.ensurePubKey(account)
+	if err != nil {
 		return err
 	}
 
@@ -169,6 +170,12 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 
 	extraAttrs := map[string]any{
 		"tsid": eb.TSID(),
+	}
+
+	// Like delegated comments, a contact signed on behalf of its account is
+	// addressed by that account, so snapshot lookups by (authority, TSID) find it.
+	if !account.Equal(v.Signer) {
+		extraAttrs["account"] = accountID
 	}
 
 	// For active contacts, add subject and name

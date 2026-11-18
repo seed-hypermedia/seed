@@ -7,6 +7,7 @@ import (
 	"seed/backend/api/entities/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/core/coretest"
 	activity "seed/backend/genproto/activity/v1alpha"
 	entity_proto "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/logging"
@@ -20,8 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -748,38 +751,38 @@ func insertActivityProfileEvent(conn *sqlite.Conn, blobID int64, resourceID int6
 
 func mkBlobEvent(resource, blobType, author string, evtMillis int64, blobID int64) (*activity.Event, feedCursor) {
 	return &activity.Event{
-			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
-				Cid:      strconv.FormatInt(blobID, 10),
-				BlobType: blobType,
-				Author:   author,
-				Resource: resource,
-				BlobId:   blobID,
-			}},
-			Account:   author,
-			EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
-		}, feedCursor{
-			cursorValue: evtMillis,
-			blobID:      blobID,
-			kind:        feedCursorKindBlob,
-			key:         strconv.FormatInt(blobID, 10),
-		}
+		Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
+			Cid:      strconv.FormatInt(blobID, 10),
+			BlobType: blobType,
+			Author:   author,
+			Resource: resource,
+			BlobId:   blobID,
+		}},
+		Account:   author,
+		EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
+	}, feedCursor{
+		cursorValue: evtMillis,
+		blobID:      blobID,
+		kind:        feedCursorKindBlob,
+		key:         strconv.FormatInt(blobID, 10),
+	}
 }
 
 func mkMentionEvent(target, source, sourceType, author string, evtMillis, blobID int64) (*activity.Event, feedCursor) {
 	return &activity.Event{
-			Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
-				Source:     source,
-				SourceType: sourceType,
-				Target:     target,
-			}},
-			Account:   author,
-			EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
-		}, feedCursor{
-			cursorValue: evtMillis,
-			blobID:      blobID,
-			kind:        feedCursorKindMention,
-			key:         target + "|" + source,
-		}
+		Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+			Source:     source,
+			SourceType: sourceType,
+			Target:     target,
+		}},
+		Account:   author,
+		EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
+	}, feedCursor{
+		cursorValue: evtMillis,
+		blobID:      blobID,
+		kind:        feedCursorKindMention,
+		key:         target + "|" + source,
+	}
 }
 
 func TestFilterDeletedAndDedupEvents_EmptyInputs(t *testing.T) {
@@ -1157,4 +1160,26 @@ func TestListEventsRunsOnlyTheLegsTheFilterNames(t *testing.T) {
 	blobs, mentions = list()
 	require.Equal(t, 2, blobs, "no filter serves every blob event (the Profile and the Comment)")
 	require.Equal(t, 1, mentions, "no filter serves the mention too")
+}
+
+func TestDelegatedCommentEventAuthority(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	idx, err := blob.OpenIndex(t.Context(), srv.db, zap.NewNop())
+	require.NoError(t, err)
+	bob := coretest.NewTester("bob")
+	alice := coretest.NewTester("alice")
+	now := time.Now().Round(blob.ClockPrecision)
+	capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), capability))
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "", nil, cid.Undef, cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), comment))
+	events, err := srv.ListEvents(t.Context(), &activity.ListEventsRequest{FilterEventType: []string{"Comment"}, FilterAuthors: []string{bob.Account.Principal().String()}})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+	event := events.Events[0].GetNewBlob()
+	require.Equal(t, bob.Account.Principal().String(), event.Author)
+	require.Equal(t, blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI().String(), event.Resource)
 }

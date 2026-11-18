@@ -2,6 +2,7 @@ package blob
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"github.com/polydawn/refmt/obj/atlas"
 )
 
@@ -49,6 +51,7 @@ type Comment struct {
 	BaseBlob
 	ID           TSID           `refmt:"id,omitempty"`
 	_            cid.Cid        `refmt:"capability,omitempty"` // deprecated
+	Account      core.Principal `refmt:"account,omitempty"`
 	Space_       core.Principal `refmt:"space,omitempty"`
 	Path         string         `refmt:"path,omitempty"`
 	Version      []cid.Cid      `refmt:"version,omitempty"`
@@ -62,6 +65,7 @@ type Comment struct {
 func NewComment(
 	kp *core.KeyPair,
 	id TSID,
+	account core.Principal,
 	space core.Principal,
 	path string,
 	version []cid.Cid,
@@ -71,8 +75,16 @@ func NewComment(
 	visibility Visibility,
 	ts time.Time,
 ) (eb Encoded[*Comment], err error) {
+	if account == nil {
+		return eb, fmt.Errorf("comment account cannot be nil")
+	}
+
 	if threadRoot.Equals(replyParent) {
 		replyParent = cid.Undef
+	}
+
+	if kp.Principal().Equal(account) {
+		account = nil
 	}
 
 	cu := &Comment{
@@ -82,6 +94,7 @@ func NewComment(
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
+		Account:      account,
 		Path:         path,
 		Version:      version,
 		ThreadRoot:   threadRoot,
@@ -115,6 +128,16 @@ func (c *Comment) ReplyParent() cid.Cid {
 		return c.ReplyParent_
 	}
 	return c.ThreadRoot
+}
+
+// Authority returns the stable account authority represented by this comment.
+// Legacy and directly signed comments omit Account and remain owned by their signer.
+func (c *Comment) Authority() core.Principal {
+	if len(c.Account) == 0 {
+		return c.Signer
+	}
+
+	return c.Account
 }
 
 // GetSpace returns the space for the comment.
@@ -184,8 +207,64 @@ func decodeComment(c cid.Cid, data []byte) (eb Encoded[*Comment], err error) {
 	return eb, nil
 }
 
+// commentVersionHashAttr is the extra_attrs key holding commentVersionHash.
+const commentVersionHashAttr = "hash"
+
+// commentVersionHash returns the first 8 bytes of a comment version's hash digest
+// as lowercase hex. Versions of one comment that share a timestamp are ordered by
+// it, which every replica computes the same way. Hex compares as text in the same
+// order as the bytes, so queries order by it directly from the index.
+func commentVersionHash(c cid.Cid) (string, error) {
+	dmh, err := multihash.Decode(c.Hash())
+	if err != nil {
+		return "", fmt.Errorf("invalid comment CID %s: %w", c, err)
+	}
+
+	if len(dmh.Digest) < 8 {
+		return "", fmt.Errorf("comment CID %s has a digest shorter than 8 bytes", c)
+	}
+
+	return hex.EncodeToString(dmh.Digest[:8]), nil
+}
+
 func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	c, v := eb.CID, eb.Decoded
+
+	authority := v.Authority()
+	if len(v.Account) != 0 {
+		account, err := core.DecodePrincipal([]byte(v.Account))
+		if err != nil {
+			return fmt.Errorf("invalid comment account: %w", err)
+		}
+
+		v.Account = account
+		authority = account
+
+		// Redundant self-account encodings are direct signatures, not delegation.
+		if !account.Equal(v.Signer) {
+			accountID, err := ictx.ensurePubKey(account)
+			if err != nil {
+				return err
+			}
+
+			signerID, err := ictx.ensurePubKey(v.Signer)
+			if err != nil {
+				return err
+			}
+
+			valid, err := isValidAgentKey(ictx.conn, accountID, signerID)
+			if err != nil {
+				return err
+			}
+
+			if !valid {
+				return stashError{
+					Reason:   stashReasonPermissionDenied,
+					Metadata: stashMetadata{DeniedSigners: []core.Principal{v.Signer}},
+				}
+			}
+		}
+	}
 
 	iri, err := NewIRI(v.Space(), v.Path)
 	if err != nil {
@@ -239,13 +318,24 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 
 	extraAttrs := make(map[string]any)
 
+	if !authority.Equal(v.Signer) {
+		_, accountID, err := ictx.ensureAccount(authority)
+		if err != nil {
+			return err
+		}
+
+		// Author remains the signer for implicit capability discovery. Account
+		// supplies the stable comment identity across delegated key rotations.
+		extraAttrs["account"] = accountID
+	}
+
 	// Comments have an explicit visibility field, which is usually inherited from the document they target.
-	// For private comments, they're owned by both the signer and the target document's space.
+	// For private comments, they're owned by both the account authority and the target document's space.
 	var visibilitySpaces []core.Principal
 	if v.Visibility == VisibilityPrivate {
-		visibilitySpaces = []core.Principal{v.Signer}
+		visibilitySpaces = []core.Principal{authority}
 		// Also include the target space to allow the space owner to access comments on their documents.
-		if !v.Signer.Equal(v.Space()) {
+		if !authority.Equal(v.Space()) {
 			visibilitySpaces = append(visibilitySpaces, v.Space())
 		}
 	}
@@ -257,6 +347,13 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	}
 
 	extraAttrs["tsid"] = eb.TSID()
+
+	hash, err := commentVersionHash(c)
+	if err != nil {
+		return err
+	}
+
+	extraAttrs[commentVersionHashAttr] = hash
 
 	// For tombstones, mark as deleted
 	if isTombstone {
@@ -338,7 +435,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		panic("BUG: missing resource for comment target")
 	}
 
-	settled, err := settleComment(ictx, eb, resourceID)
+	settled, err := settleComment(ictx, id, eb, resourceID)
 	if err != nil {
 		return err
 	}
@@ -358,7 +455,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		// non-deleted comment TSIDs for the target. Edits with the same TSID don't
 		// change the count; tombstones decrement only when a previously-live version
 		// existed; out-of-order arrivals (non-tombstone after tombstone) re-activate.
-		delta, err := commentCountDelta(ictx.conn, id, eb.TSID(), isTombstone)
+		delta, err := commentCountDelta(ictx.conn, id, authority, eb.TSID(), isTombstone)
 		if err != nil {
 			return fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
 		}
@@ -401,12 +498,14 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	return nil
 }
 
-// settleComment resolves the target document and recomputes the comment's live
-// version, document stats, and space totals. It is safe to retry these writes.
-// Unknown targets remain indexed and return false; a later Change or Ref retries
-// settlement. Targets stored but not yet indexed return a stash error, preserving
-// the existing dependency retry behavior during indexing and reindexing.
-func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (settled bool, err error) {
+// settleComment resolves the target document of comment version id and
+// recomputes which version of its comment is live, along with the stats of every
+// document and space that changes. It is safe to retry these writes.
+// Target changes that aren't indexed yet, whether stored or not, return a stash
+// error: like a Ref, the comment waits until every change it names arrives.
+// A path with no generation yet returns false; the Ref that creates one
+// re-settles the comment.
+func settleComment(ictx *indexingCtx, id int64, eb Encoded[*Comment], resourceID int64) (settled bool, err error) {
 	c, v := eb.CID, eb.Decoded
 
 	var (
@@ -425,14 +524,23 @@ func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (s
 		}
 
 		if cm.ID == 0 {
-			if changeID.BlobsSize < 0 {
-				return false, nil
-			}
 			pendingChanges = append(pendingChanges, ver)
 			continue
 		}
 
-		genesisBlobID = cm.Genesis()
+		// A compound version names heads of one document. Heads from different
+		// genesises don't identify any document, so the comment is invalid.
+		changeGenesis := cm.Genesis()
+		if genesisBlobID != 0 && genesisBlobID != changeGenesis {
+			return false, stashError{
+				Reason: stashReasonBadData,
+				Metadata: stashMetadata{
+					Details: fmt.Sprintf("changes of comment target version %s have different genesis", NewVersion(v.Version...)),
+				},
+			}
+		}
+
+		genesisBlobID = changeGenesis
 	}
 
 	if pendingChanges != nil {
@@ -443,7 +551,9 @@ func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (s
 	}
 
 	// A comment that pins no target version means "the document at this path", so
-	// its identity is whatever genesis that path currently resolves to.
+	// its identity is whatever genesis that path currently resolves to. An empty
+	// genesis (no generation at the path yet) leaves this version unattributed:
+	// the Ref that creates one re-settles it.
 	var genesis string
 	if genesisBlobID != 0 {
 		genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
@@ -454,37 +564,35 @@ func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (s
 		return false, fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
 	}
 
-	// No generation at that path yet, so there is no document to attribute this to.
-	// The Ref that creates one re-settles the comment.
-	if genesis == "" {
-		return false, nil
-	}
-
-	// Settle this comment's live version, its document's activity, and mark the
-	// space total stale. None of these need a document generation, so they're settled the
-	// moment the blob lands rather than waiting for a Ref.
-	if err := updateCommentLive(ictx.conn, eb.TSID(), genesis); err != nil {
+	// Settle the comment's live version even when this version is unattributed:
+	// if it's the newest, an older version must stop counting.
+	affected, err := updateCommentLive(ictx.conn, v.Authority(), eb.TSID(), id, genesis)
+	if err != nil {
 		return false, err
 	}
 
-	if err := updateDocumentCommentStats(ictx.conn, genesis); err != nil {
-		return false, err
+	for _, g := range affected.genesises {
+		if err := updateDocumentCommentStats(ictx.conn, g); err != nil {
+			return false, err
+		}
 	}
 
-	// The space total is recounted once per batch, when it flushes: recounting
+	// Space totals are recounted once per batch, when it flushes: recounting
 	// per comment is quadratic in a space's comments during a reindex.
-	ictx.batch.commentSpaces[v.Space().String()] = true
+	for _, space := range affected.spaces {
+		ictx.batch.commentSpaces[space] = true
+	}
 
-	return true, nil
+	return genesis != "", nil
 }
 
 // commentCountDelta returns the change to apply to comment counts when indexing
 // a Comment blob. A new TSID contributes +1, edits contribute 0, the first
 // tombstone for a previously-live TSID contributes -1, and a live blob arriving
 // after a tombstone (out-of-order P2P sync) re-activates the TSID for +1.
-func commentCountDelta(conn *sqlite.Conn, currentID int64, tsid TSID, isTombstone bool) (delta int64, err error) {
+func commentCountDelta(conn *sqlite.Conn, currentID int64, authority core.Principal, tsid TSID, isTombstone bool) (delta int64, err error) {
 	var priorAny, priorLive int64
-	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), string(tsid), currentID).All()
+	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), authority, string(tsid), currentID).All()
 	defer discard(&err)
 	for row := range rows {
 		row.Scan(&priorAny, &priorLive)
@@ -523,14 +631,16 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 		COALESCE(SUM(CASE WHEN extra_attrs->>'deleted' IS NULL THEN 1 ELSE 0 END), 0) AS prior_live
 	FROM structural_blobs
 	WHERE type = 'Comment'
-	  AND extra_attrs->>'tsid' = ?1
-	  AND id != ?2;
+	  AND COALESCE(extra_attrs->>'account', author) = (SELECT +id FROM public_keys WHERE principal = ?1)
+	  AND extra_attrs->>'tsid' = ?2
+	  AND id != ?3;
 `)
 
 // resettleComments retries derived stats without replaying initial indexing's
 // count increments or unread notifications.
 func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 	type pendingComment struct {
+		id       int64
 		resource int64
 		c        cid.Cid
 		data     []byte
@@ -543,6 +653,7 @@ func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 	for row := range rows {
 		inc := sqlite.NewIncrementor(0)
 		var (
+			id       = row.ColumnInt64(inc())
 			resource = row.ColumnInt64(inc())
 			codec    = row.ColumnInt64(inc())
 			hash     = row.ColumnBytes(inc())
@@ -556,6 +667,7 @@ func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 		}
 
 		found = append(found, pendingComment{
+			id:       id,
 			resource: resource,
 			c:        cid.NewCidV1(uint64(codec), hash),
 			data:     data,
@@ -574,7 +686,7 @@ func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 		// Still pending (another target change is missing, or still no generation):
 		// a later arrival will get it. Nothing to stash from here -- a stash error
 		// would roll back the blob that triggered this re-settlement.
-		if _, err := settleComment(ictx, eb, pc.resource); err != nil {
+		if _, err := settleComment(ictx, pc.id, eb, pc.resource); err != nil {
 			var pending stashError
 			if errors.As(err, &pending) {
 				continue
@@ -586,36 +698,37 @@ func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 	return nil
 }
 
-// Retry only the latest version of each comment, using the same (ts, id) order
-// as comment_live. A deleted winner must exclude all of its historical versions.
+// Retry only the latest version of each comment, using the same (ts, hash)
+// order as comments_live. A deleted winner must exclude all of its historical versions.
 const pendingCommentColumns = `
-	SELECT sb.resource, b.codec, b.multihash, b.data, b.size
+	SELECT sb.id, sb.resource, b.codec, b.multihash, b.data, b.size
 `
 
+// isLatestCommentVersion keeps only the latest version of each comment.
 // Pin the inner lookup to TSID: SQLite otherwise prefers the type/time index
 // for ORDER BY ... LIMIT 1 and scans unrelated comments for every candidate.
-const pendingCommentFilter = `
-	AND sb.type = 'Comment'
-	AND sb.extra_attrs->>'deleted' IS NULL
+const isLatestCommentVersion = `
 	AND sb.id = (
 		SELECT latest.id FROM structural_blobs latest INDEXED BY structural_blobs_by_tsid
 		WHERE latest.type = 'Comment'
 		AND latest.extra_attrs->>'tsid' IS NOT NULL
 		AND latest.extra_attrs->>'tsid' = sb.extra_attrs->>'tsid'
-		ORDER BY latest.ts DESC, latest.id DESC
+		AND COALESCE(latest.extra_attrs->>'account', latest.author) = COALESCE(sb.extra_attrs->>'account', sb.author)
+		ORDER BY latest.ts DESC, latest.extra_attrs->>'hash' DESC
 		LIMIT 1
 	)
-	AND NOT EXISTS (SELECT 1 FROM comment_live l WHERE l.tsid = sb.extra_attrs->>'tsid')
 `
 
-// Start with backlinks so SQLite seeks each source by its primary key instead
-// of scanning all Comment rows and filtering them against the backlink IDs.
-var qPendingCommentsTargetingChange = dqb.Str(pendingCommentColumns + `
-	FROM blob_links bl
-	CROSS JOIN structural_blobs sb ON sb.id = bl.source
-	JOIN blobs b ON b.id = sb.id
-	WHERE bl.target = ?1 AND bl.type = 'comment/target'
-` + pendingCommentFilter)
+const pendingCommentFilter = `
+	AND sb.type = 'Comment'
+	AND sb.extra_attrs->>'deleted' IS NULL
+` + isLatestCommentVersion + `
+	AND NOT EXISTS (
+		SELECT 1 FROM comments_live l
+		WHERE l.authority = COALESCE(sb.extra_attrs->>'account', sb.author)
+		AND l.tsid = sb.extra_attrs->>'tsid'
+	)
+`
 
 var qPendingCommentsOnResource = dqb.Str(pendingCommentColumns + `
 	FROM structural_blobs sb

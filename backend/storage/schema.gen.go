@@ -94,24 +94,28 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
-// Table comment_live.
+// Table comments_live.
 const (
-	CommentLive         sqlitegen.Table  = "comment_live"
-	CommentLiveBlobID   sqlitegen.Column = "comment_live.blob_id"
-	CommentLiveGenesis  sqlitegen.Column = "comment_live.genesis"
-	CommentLiveResource sqlitegen.Column = "comment_live.resource"
-	CommentLiveTs       sqlitegen.Column = "comment_live.ts"
-	CommentLiveTsid     sqlitegen.Column = "comment_live.tsid"
+	CommentsLive          sqlitegen.Table  = "comments_live"
+	CommentsLiveAuthority sqlitegen.Column = "comments_live.authority"
+	CommentsLiveBlobID    sqlitegen.Column = "comments_live.blob_id"
+	CommentsLiveGenesis   sqlitegen.Column = "comments_live.genesis"
+	CommentsLiveHash      sqlitegen.Column = "comments_live.hash"
+	CommentsLiveResource  sqlitegen.Column = "comments_live.resource"
+	CommentsLiveTs        sqlitegen.Column = "comments_live.ts"
+	CommentsLiveTsid      sqlitegen.Column = "comments_live.tsid"
 )
 
-// Table comment_live. Plain strings.
+// Table comments_live. Plain strings.
 const (
-	T_CommentLive         = "comment_live"
-	C_CommentLiveBlobID   = "comment_live.blob_id"
-	C_CommentLiveGenesis  = "comment_live.genesis"
-	C_CommentLiveResource = "comment_live.resource"
-	C_CommentLiveTs       = "comment_live.ts"
-	C_CommentLiveTsid     = "comment_live.tsid"
+	T_CommentsLive          = "comments_live"
+	C_CommentsLiveAuthority = "comments_live.authority"
+	C_CommentsLiveBlobID    = "comments_live.blob_id"
+	C_CommentsLiveGenesis   = "comments_live.genesis"
+	C_CommentsLiveHash      = "comments_live.hash"
+	C_CommentsLiveResource  = "comments_live.resource"
+	C_CommentsLiveTs        = "comments_live.ts"
+	C_CommentsLiveTsid      = "comments_live.tsid"
 )
 
 // Table document_attribute_keys.
@@ -844,11 +848,13 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
-		CommentLiveBlobID:                       {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveGenesis:                      {Table: CommentLive, SQLType: "TEXT"},
-		CommentLiveResource:                     {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveTs:                           {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveTsid:                         {Table: CommentLive, SQLType: "TEXT"},
+		CommentsLiveAuthority:                   {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveBlobID:                      {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveGenesis:                     {Table: CommentsLive, SQLType: "TEXT"},
+		CommentsLiveHash:                        {Table: CommentsLive, SQLType: "TEXT"},
+		CommentsLiveResource:                    {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveTs:                          {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveTsid:                        {Table: CommentsLive, SQLType: "TEXT"},
 		DocumentAttributeKeysID:                 {Table: DocumentAttributeKeys, SQLType: "INTEGER"},
 		DocumentAttributeKeysKey:                {Table: DocumentAttributeKeys, SQLType: "TEXT"},
 		DocumentAttributeKeysSearchKey:          {Table: DocumentAttributeKeys, SQLType: "TEXT"},

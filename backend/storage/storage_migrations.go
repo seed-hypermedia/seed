@@ -64,6 +64,37 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Comment identity is account authority + TSID. Comments signed by an agent key
+	// on behalf of an account belong to the account, so rebuild the live-comment
+	// table (renamed to comments_live) with that compound key: rotating delegated keys keeps one comment, and
+	// unrelated authorities can never compete for the same TSID.
+	{Version: "2026-11-17.072139", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS structural_blobs_by_tsid;
+			CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', COALESCE(extra_attrs->>'account', author), ts DESC, extra_attrs->>'hash' DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+			CREATE INDEX IF NOT EXISTS comments_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author)) WHERE type = 'Comment';
+
+			DROP TABLE IF EXISTS comment_live;
+			CREATE TABLE comments_live (
+			    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    tsid TEXT NOT NULL,
+			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    ts INTEGER NOT NULL,
+			    hash TEXT NOT NULL,
+			    PRIMARY KEY (authority, tsid)
+			) WITHOUT ROWID;
+			CREATE INDEX comments_live_by_genesis ON comments_live (genesis, ts, hash);
+			CREATE INDEX comments_live_by_resource ON comments_live (resource, ts);
+			CREATE INDEX comments_live_by_blob ON comments_live (blob_id);
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
 	// Derive navigation Cards and the other derived document fields for every
 	// document. They change what readers see (the sidebar is built from them),
 	// so they are derived during indexing, never by a lagging background job.
