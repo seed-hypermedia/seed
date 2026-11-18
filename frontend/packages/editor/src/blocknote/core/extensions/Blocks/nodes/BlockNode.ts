@@ -6,9 +6,9 @@ import {Decoration, DecorationSet} from 'prosemirror-view'
 import {getCarryableStoredMarks, splitBlockCommand} from '../../../api/blockManipulation/commands/splitBlock'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
+import {setupBlockDropTarget} from '../../SideMenu/pragmatic-dnd-bridge'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import {getBlockInfoFromPos} from '../helpers/getBlockInfoFromPos'
-import {setupBlockDropTarget} from '../../SideMenu/pragmatic-dnd-bridge'
 import styles from './Block.module.css'
 import BlockAttributes from './BlockAttributes'
 
@@ -187,6 +187,7 @@ export const BlockNode = Node.create<{
   // Ensures content-specific keyboard handlers trigger first.
   priority: 50,
   defining: true,
+  allowGapCursor: false,
 
   parseHTML() {
     return [
