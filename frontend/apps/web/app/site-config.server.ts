@@ -112,8 +112,7 @@ if (serviceConfig) {
   throw new Error('Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json')
 }
 
-export async function getConfig(hostname: string) {
-  await refreshConfigFromDisk()
+function lookupConfig(hostname: string): SiteConfig | null {
   // the service config takes precedence over the regular config
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname) return serviceConfig.rootConfig
@@ -138,8 +137,24 @@ export async function getConfig(hostname: string) {
   }
 }
 
-export async function getServiceConfig() {
-  await refreshConfigFromDisk()
+/**
+ * The config for a hostname. `fresh` skips the refresh throttle, for callers
+ * that act on the answer (registration) rather than only render with it.
+ */
+export async function getConfig(hostname: string, opts: {fresh?: boolean} = {}) {
+  await refreshConfigFromDisk({force: opts.fresh})
+  const config = lookupConfig(hostname)
+  if (config || opts.fresh) return config
+  // An unknown hostname may be a site another process created a moment ago:
+  // publishing creates the site and asks for its config straight away, and the
+  // two requests can land on different processes. Check the file before saying no.
+  await refreshConfigFromDisk({force: true})
+  return lookupConfig(hostname)
+}
+
+/** The whole service config. `fresh` skips the refresh throttle, as in `getConfig`. */
+export async function getServiceConfig(opts: {fresh?: boolean} = {}) {
+  await refreshConfigFromDisk({force: opts.fresh})
   return serviceConfig
 }
 
