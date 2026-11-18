@@ -289,6 +289,34 @@
   margin-top: 0.25rem;
 }
 
+/* Node type blocks keep the normal block gap inside lists and against their nested blocks. */
+.hm-prose
+  [data-node-type='blockChildren']:is([data-list-type='Unordered'], [data-list-type='Ordered'])
+  > [data-node-type='blockNode']:has(
+    > :is(.node-image, .node-video, .node-file, .node-embed, .node-web-embed, .node-button, .node-math, .node-query)
+  )
+  + [data-node-type='blockNode'],
+.hm-prose
+  [data-node-type='blockChildren']:is([data-list-type='Unordered'], [data-list-type='Ordered'])
+  > [data-node-type='blockNode']
+  + [data-node-type='blockNode']:has(
+    > :is(.node-image, .node-video, .node-file, .node-embed, .node-web-embed, .node-button, .node-math, .node-query)
+  ),
+.hm-prose
+  [data-node-type='blockNode']:has(
+    > :is(.node-image, .node-video, .node-file, .node-embed, .node-web-embed, .node-button, .node-math, .node-query)
+  )
+  > [data-node-type='blockChildren']:not([data-list-type='Grid'])
+  > [data-node-type='blockNode']:first-child,
+.hm-prose
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']:not([data-list-type='Grid'])
+  > [data-node-type='blockNode']:first-child:has(
+    > :is(.node-image, .node-video, .node-file, .node-embed, .node-web-embed, .node-button, .node-math, .node-query)
+  ) {
+  margin-top: 0.75rem;
+}
+
 /* Override margin top on the first child of blockChildren in grid layout */
 .hm-prose [data-node-type='blockChildren'][data-list-type='Grid'] > [data-node-type='blockNode'],
 .hm-prose

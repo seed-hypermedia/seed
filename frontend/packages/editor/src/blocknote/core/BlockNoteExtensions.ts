@@ -7,7 +7,6 @@ import {BlockNoteEditor} from './BlockNoteEditor'
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
 
-import {Gapcursor} from '@tiptap/extension-gapcursor'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {History} from '@tiptap/extension-history'
 import {Italic} from '@tiptap/extension-italic'
@@ -30,6 +29,7 @@ import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {DragExtension} from './extensions/DragMedia/DragExtension'
+import {GapCursorExtension} from './extensions/GapCursor/GapCursorExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
@@ -150,7 +150,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   if (!isEmbed && !isViewer) {
     ret.push(
       // DevTools,
-      Gapcursor,
+      GapCursorExtension,
       Placeholder.configure({
         emptyNodeClass: blockStyles.isEmpty,
         firstEmptyBlockClass: blockStyles.isFirstEmptyBlock,
