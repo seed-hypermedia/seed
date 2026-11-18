@@ -4,7 +4,7 @@ summary: "Runs are everything that executes: every turn, child, and script is a 
 ---
 **Runs**: everything that executes. Every turn, [child](./child.md), and [script](./script.md) is a run row in a tree, and the same table is the dispatch queue. Waiting runs hold no resources (see [park](./park.md)). The table is `runs` in [persistence](./persistence.md). <!-- id:Dnidzb7V -->
 
-A run is the unit the server schedules, leases, retries, cancels, and bills. A person never creates one directly: sending a message starts a run for that turn, a [trigger](./trigger.md) firing starts one, and a running agent starts more by delegating. A run page in the [desktop and web UI](./desktop-ui.md) is the durable record of one run; the `/hm/agents/run/<id>` web route and the session's run card show the same row. <!-- id:sPYIhitw -->
+A run is the unit the server schedules, leases, retries, cancels, and bills. A person never creates one directly: sending a message starts a run for that turn, a [trigger](./trigger.md) firing starts one, and a running agent starts more by delegating. In the [desktop and web UI](./desktop-ui.md) a run that has a session is read in that session, where its run card shows the row; only a run without one, a script or a firing that made no session, has a run page. The `/hm/agents/run/<id>` web route shows that page, and for a run with a session it opens the session instead. <!-- id:sPYIhitw -->
 
 # Kinds and origins <!-- id:rUs_WgEA -->
 
@@ -14,7 +14,7 @@ A run has a `kind`: **agent**, a model turn with a transcript session (`sessionI
 
 Runs form trees. The run that a message or a firing started is a **root run**; every run it spawns, and every run those spawn, carries the same `rootRunId`, its own `parentRunId`, and a `depth` (0 for the root). The tree is what `ListRuns {rootRunId}` returns and what a `runs/<rootRunId>` [WebSocket subscription](./websocket-subscriptions.md) replays, in creation order. A child spawned by a model turn also records `parentToolCallId`, the tool call in the parent's transcript that spawned it, which is how a delegate row finds its child while it is still working. A run started by `ctx.continueAsNew` is linked to its predecessor by `continuedFromRunId` and shares its root. Depth and fan-out are bounded by the [delegation budget](./tools.md) of the root (`maxDepth`, `maxChildren`), set by the session's thoroughness. <!-- id:ePQvLPMY -->
 
-The pages of a tree read like one piece of work: the root run page shows its children under the plan steps they were [attached](./attachment.md) to, each child row opens that child's own page, and cancelling a run cancels its whole subtree. <!-- id:ThJY3mv9 -->
+A tree reads like one piece of work: a run's card or page shows its children under the plan steps they were [attached](./attachment.md) to, each child row opens that child (its transcript when it has a session, its run page when it is a script), and cancelling a run cancels its whole subtree. <!-- id:ThJY3mv9 -->
 
 # Status <!-- id:PB-W4SMv -->
 
@@ -45,7 +45,7 @@ A run may own a `plan`, the visible checklist of [steps](./step.md) with their s
 
 - `GetRun`, `ListRuns` (by `sessionId`, `agentId`, `rootRunId`, or the account), `GetRunJournal`, `CancelRun`, and `SignalRun` in the [signed API](./signed-api.md). <!-- id:_aE4Nl4B -->
 - `runs/<rootRunId>` in [WebSocket subscriptions](./websocket-subscriptions.md) for live status, progress, activity, and journal. <!-- id:Rysvxm7n -->
-- On a run page: the status pill and title, one line of origin and timing, the error chip, parked-run actions (answer a signal, resume), the work hierarchy with **Tool calls**, and the **Code** and **Activity** drawers. <!-- id:_jI8XSAO -->
+- On a run page (runs without a session only): the status pill and title, one line of origin and timing, the error chip, parked-run actions (answer a signal, resume), the work hierarchy with **Tool calls**, and the **Code** and **Activity** drawers. <!-- id:_jI8XSAO -->
 
 # See also <!-- id:ewgk70Sj -->
 
