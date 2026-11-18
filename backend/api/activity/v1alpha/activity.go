@@ -547,9 +547,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			probeArgs := slices.Clone(args)
 			probeArgs[len(probeArgs)-1] = int64(req.PageSize) + 1
 
-			cursorColumn := 4
+			cursorColumn := mentionColumnStructuralTimestamp
 			if orderByObserved {
-				cursorColumn = 11
+				cursorColumn = mentionColumnBlobID
 			}
 
 			var previous, last int64
@@ -576,7 +576,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 				author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
 				// Structural timestamp (ms) is the event's authored timestamp.
-				structTsMillis = stmt.ColumnInt64(4)
+				structTsMillis = stmt.ColumnInt64(mentionColumnStructuralTimestamp)
 				eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
 				blobType       = stmt.ColumnText(5)
 
@@ -586,7 +586,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				fragment      = stmt.ColumnText(9)
 
 				linkType    = stmt.ColumnText(10)
-				blobID      = stmt.ColumnInt64(11)
+				blobID      = stmt.ColumnInt64(mentionColumnBlobID)
 				observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 				tsid        = blob.TSID(stmt.ColumnText(13))
 				//extraAttrs  = stmt.ColumnText(14)
@@ -1080,6 +1080,11 @@ WHERE lp.rn = 1
 AND lp.alias_id = (SELECT id FROM target);
 `)
 
+const (
+	mentionColumnStructuralTimestamp = 4
+	mentionColumnBlobID              = 11
+)
+
 // listMentionsCoreSelect is the shared SELECT/FROM/JOIN prefix for the
 // mentions query. The trailing WHERE clause is appended by callers via
 // listMentionsCore (filtered) or listMentionsCoreNoTargets (unfiltered).
@@ -1149,6 +1154,7 @@ FROM resource_links INDEXED BY resource_links_by_target
 WHERE target IN (SELECT value FROM json_each(:targets_json))
 `)
 
+// useSourceOrderedMentions compares estimated source traversal work with target sorting work.
 func useSourceOrderedMentions(conn *sqlite.Conn, targetsJSON string, pageSize int32) (bool, error) {
 	var sourceOrdered bool
 
