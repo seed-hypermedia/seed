@@ -4,9 +4,10 @@ summary: The vault is the Seed service that stores a person's account keys in en
 ---
 The vault keeps a person's Hypermedia [account](../protocol/identity.md) keys for them, so they do not have to look after a recovery phrase. It works like a password manager. The browser encrypts the keys with a key that only the person can produce, and the server stores data it cannot read. The hosted vault is `https://hyper.media/vault`. The interface calls it "Identity". <!-- id:CVIMFwRf -->
 
-In the vault a person can do five things:
+In the vault a person can:
 
 - Create an account.
+- Import an existing account from a key file or its account recovery phrase.
 - Sign in with a passkey or a password.
 - Get back in with recovery words after they forget the password.
 - Approve a website that wants to [act for them](../build/sign-in.md).
@@ -144,6 +145,14 @@ bun test
 ## In the Seed app <!-- id:tem5R7L_ -->
 
 In the [desktop app](./desktop.md), the account settings switch between the local vault and a remote one, start vault connect, and manage the email, the password and the notify server of a connected vault. Connected accounts still sign through the local daemon. <!-- id:AgHzk374 -->
+
+## Import an existing account
+
+In the web vault, choose **Import identity** in the account sidebar, then choose **Key file** or **Recovery phrase**. A key file is an exported `.hmkey.json`; enter its password if it was encrypted. For a recovery phrase, paste the account's BIP-39 words in order and enter the original passphrase only if one was used when creating that account. Type one word per numbered input, or paste the complete phrase into any input to fill the grid. Spaces, newlines and commas between words are accepted. Account import adjusts the grid to a pasted phrase of 12, 15, 18, 21 or 24 words; use the word-count selector when entering a longer phrase by hand.
+
+The browser validates the phrase and derives the same account key as the Seed desktop app. It saves that key in the encrypted vault and selects the imported account. The words and passphrase are not saved in the vault or sent to the server. An account already in the vault cannot be imported again.
+
+Account recovery phrases are different from vault recovery words. Vault recovery words sign you in to the vault; account recovery phrases restore an individual [account key](../protocol/identity.md).
 
 ## CLI <!-- id:w6gtUmyO -->
 
