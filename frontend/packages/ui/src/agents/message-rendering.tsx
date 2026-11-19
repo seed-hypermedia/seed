@@ -506,7 +506,8 @@ function DeliberationDivider({durationMs, first}: {durationMs: number; first: bo
  */
 function StatusUpdateRow({item}: {item: ChatToolPart}) {
   const title = getToolString(item.args, 'title')
-  const description = getToolString(item.args, 'description')
+  // A reader the transcript is private to gets the server's redaction stub as the call's input.
+  const description = getToolString(item.args, 'description') ?? getToolString(item.args, 'summary')
   const isPending = item.result === undefined && item.rawOutput === undefined
   const [detailsOpen, setDetailsOpen] = useState(false)
   // The model turn that wrote this update, on the provider's clock. A status update is the one row

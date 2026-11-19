@@ -166,6 +166,14 @@ test('ordinary prose and unrelated paths do not make a session private', () => {
   expect(containsPrivateData({name: 'search', input: {path: 'private/file.md'}})).toBe(false)
   expect(containsPrivateData({path: 'private/file.md'})).toBe(false)
   expect(containsPrivateData({name: 'write', input: {path: 'private-notes.md'}})).toBe(false)
+  // Reading a public document that documents the private-memory path (the Agent Guide does).
+  expect(
+    containsPrivateData({
+      type: 'tool_result',
+      name: 'read',
+      output: {markdown: 'Only `~/memory/private/` is for the owner alone.'},
+    }),
+  ).toBe(false)
   // Rows written without an append notification are unscanned: private until the backfill reads them.
   expect(privacy.sessionIsPrivate('other')).toBe(true)
   privacy.drainBackfill()
