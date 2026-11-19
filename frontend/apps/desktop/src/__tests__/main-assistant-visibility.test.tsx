@@ -480,7 +480,7 @@ describe('Main assistant visibility', () => {
     cleanupRendered(root, container)
   })
 
-  it('keeps the document page mounted while navigating between document routes', async () => {
+  it('releases the previous document on resource changes but preserves version navigation', async () => {
     mockState.currentRoute = {
       key: 'document',
       id: {uid: 'site-1', path: ['page-a']},
@@ -506,11 +506,20 @@ describe('Main assistant visibility', () => {
     await flushEffects()
 
     expect(container.querySelector('[data-testid="desktop-resource"]')).not.toBeNull()
-    expect(mockState.documentMounts).toBe(1)
-    expect(mockState.documentUnmounts).toBe(0)
+    expect(mockState.documentMounts).toBe(2)
+    expect(mockState.documentUnmounts).toBe(1)
+
+    mockState.currentRoute = {
+      key: 'document',
+      id: {uid: 'site-1', path: ['page-b'], version: 'v2'},
+    }
+    act(() => root.render(renderMainTree()))
+    await flushEffects()
+    expect(mockState.documentMounts).toBe(2)
+    expect(mockState.documentUnmounts).toBe(1)
 
     cleanupRendered(root, container)
-    expect(mockState.documentUnmounts).toBe(1)
+    expect(mockState.documentUnmounts).toBe(2)
   })
 
   it('closes Bookmarks when Agents opens', async () => {
