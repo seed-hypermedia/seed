@@ -5,21 +5,20 @@ export interface NewDocumentCardProps {
   onCreateDraft: () => void
 }
 
+/** Thin full-width "New document" strip shown above a collection's Cards view, so it never takes a card slot. */
 export function NewDocumentCard({onCreateDraft}: NewDocumentCardProps) {
   return (
     <button
+      type="button"
       onClick={onCreateDraft}
       className={cn(
-        'flex min-h-[200px] flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed',
-        'border-muted-foreground/25 bg-white transition-colors duration-200',
-        'hover:border-muted-foreground/50 hover:bg-muted/30',
-        'dark:hover:bg-muted/20 dark:bg-black',
+        'border-muted-foreground/25 text-muted-foreground flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed bg-white font-sans text-sm font-medium',
+        'hover:border-muted-foreground/50 hover:bg-muted/30 hover:text-foreground transition-colors dark:bg-black',
+        'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
       )}
     >
-      <div className="flex flex-col items-center gap-2">
-        <Plus className="text-muted-foreground size-8" />
-        <span className="text-muted-foreground font-sans text-sm font-medium">New Document</span>
-      </div>
+      <Plus className="size-4" />
+      New document
     </button>
   )
 }

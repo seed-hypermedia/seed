@@ -613,6 +613,75 @@ describe('QueryBlockContent list view with prepended draft items', () => {
   })
 })
 
+describe('QueryBlockContent new document entry', () => {
+  function getNewDocumentButtons() {
+    return Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === 'New document')
+  }
+
+  it.each(['Table', 'List', 'Card'] as const)(
+    'shows one "New document" entry before the results in the %s view',
+    (style) => {
+      const onCreateDocument = vi.fn()
+      act(() => {
+        root.render(
+          <QueryBlockContent
+            items={makeItems(2)}
+            style={style}
+            banner={style === 'Card'}
+            accountsMetadata={{}}
+            prependItems={[<div key="draft">Draft item</div>]}
+            onCreateDocument={onCreateDocument}
+          />,
+        )
+      })
+
+      const buttons = getNewDocumentButtons()
+      expect(buttons).toHaveLength(1)
+      const text = container.textContent ?? ''
+      expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Item 0'))
+      if (style !== 'Table') expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Draft item'))
+
+      act(() => {
+        buttons[0]!.click()
+      })
+      expect(onCreateDocument).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('places the table entry above draft rows', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          onCreateDocument={vi.fn()}
+          tableDrafts={{
+            drafts: [{draft: {id: 'd1', metadata: {name: 'Draft one'}} as any}],
+            onOpenDraft: vi.fn(),
+            onDeleteDraft: vi.fn(),
+            onUpdateDraftName: vi.fn(),
+          }}
+        />,
+      )
+    })
+
+    const rows = Array.from(container.querySelectorAll('tbody tr'))
+    expect(rows[0]?.textContent).toBe('New document')
+    expect(rows[1]?.querySelector('input')?.value ?? rows[1]?.textContent).toContain('Draft one')
+    // Spans every column, including the draft actions column.
+    expect(rows[0]?.querySelector('td')?.colSpan).toBe(rows[1]?.querySelectorAll('td').length)
+  })
+
+  it('hides the entry for readers who cannot create documents', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(2)} style="Table" accountsMetadata={{}} />)
+    })
+
+    expect(getNewDocumentButtons()).toHaveLength(0)
+  })
+})
+
 describe('QueryBlockContent selected card comments', () => {
   it.each([0, 7])('shows one selected comment count (%i) and suppresses card navigation', (comments) => {
     const items = makeItems(1)

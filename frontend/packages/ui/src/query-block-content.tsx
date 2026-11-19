@@ -52,6 +52,8 @@ import {MentionResults} from './mention-results'
 import {parseQueryBlockSearchMention, queryBlockSearchMachine} from './query-block-search-machine'
 import {DocumentCard} from './newspaper'
 import {QueryBlockTable} from './query-block-table'
+import {NewDocumentCard} from './new-document-card'
+import {NewDocumentListItem} from './new-document-list-item'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
@@ -137,7 +139,7 @@ export interface QueryBlockContentProps {
   prependItems?: ReactNode[]
   /** Drafts rendered as table rows with a separate actions column. */
   tableDrafts?: QueryBlockDraftSlotData
-  /** Creates a document in the query target when the results are empty. */
+  /** Creates a document in the query target. Shown first in every view, or as the empty state. */
   onCreateDocument?: () => void
   bannerContent?: ReactNode
   /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
@@ -383,6 +385,7 @@ export function QueryBlockContent({
             <QueryBlockTable
               items={sortedItems}
               tableDrafts={tableDrafts}
+              onCreateDocument={onCreateDocument}
               descriptors={descriptors}
               context={context}
               sorting={sorting}
@@ -407,6 +410,7 @@ export function QueryBlockContent({
           banner={banner}
           bannerContent={bannerContent}
           prependItems={prependItems}
+          onCreateDocument={onCreateDocument}
           navigateCards={navigateCards}
           titleLinkOnly={titleLinkOnly}
           itemContributors={itemContributors}
@@ -416,6 +420,7 @@ export function QueryBlockContent({
         <QueryBlockList
           items={sortedItems}
           prependItems={prependItems}
+          onCreateDocument={onCreateDocument}
           context={context}
           visibleDescriptors={visibleDescriptors}
         />
@@ -1190,17 +1195,20 @@ function useProgressiveChunk<T>(items: T[]) {
 function QueryBlockList({
   items,
   prependItems,
+  onCreateDocument,
   context,
   visibleDescriptors,
 }: {
   items: HMDocumentInfo[]
   prependItems?: ReactNode[]
+  onCreateDocument?: () => void
   context: QueryTableValueContext
   visibleDescriptors: QueryTableColumn[]
 }) {
   const {visibleCount, sentinelRef} = useProgressiveChunk(items)
   return (
     <div className="flex flex-col">
+      {onCreateDocument ? <NewDocumentListItem onCreateDraft={onCreateDocument} /> : null}
       {prependItems}
       {items.slice(0, visibleCount).map((item) => (
         <QueryBlockListItem key={item.id.id} item={item} context={context} visibleDescriptors={visibleDescriptors} />
@@ -1250,6 +1258,7 @@ function QueryBlockCards({
   banner,
   bannerContent,
   prependItems,
+  onCreateDocument,
   navigateCards,
   titleLinkOnly,
   itemContributors,
@@ -1261,6 +1270,7 @@ function QueryBlockCards({
   banner?: boolean
   bannerContent?: ReactNode
   prependItems?: ReactNode[]
+  onCreateDocument?: () => void
   navigateCards?: boolean
   titleLinkOnly?: boolean
   itemContributors?: Record<string, string[]>
@@ -1283,6 +1293,7 @@ function QueryBlockCards({
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      {onCreateDocument ? <NewDocumentCard onCreateDraft={onCreateDocument} /> : null}
       {hasPrependItems ? prependItems : null}
       {bannerContent}
       {firstItem && (
