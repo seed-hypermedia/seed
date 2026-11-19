@@ -20,6 +20,13 @@ export type DocumentState = {
   headDepth: number
   /** Dot-separated head CIDs (version string). */
   version: string
+  /**
+   * The latest timestamp among the head changes, in milliseconds (a Change's `ts`). A Change built
+   * on these heads must be stamped later than this, whatever the local clock says: the daemon
+   * treats a Change that is not later than its dependencies as broken. Absent when the server
+   * did not report the heads' times.
+   */
+  headTs?: number
 }
 
 /**
@@ -83,12 +90,32 @@ export async function resolveDocumentState(
   // Version string: dot-separated head CIDs.
   const version = heads.join('.')
 
+  // The heads' timestamps. `createTime` is the Change's own `ts` (milliseconds) as an RFC 3339
+  // string, so parsing it gives the exact value. Unknown for any head means unknown for all.
+  let headTs: number | undefined = 0
+  for (const change of changesResp.changes) {
+    if (!change.id || !heads.includes(change.id)) continue
+    const ts = change.createTime ? Date.parse(change.createTime) : NaN
+    if (!Number.isFinite(ts)) {
+      headTs = undefined
+      break
+    }
+    if (ts > headTs!) headTs = ts
+  }
+
   return {
     genesis,
     heads,
     headDepth: maxHeadDepth,
     version,
+    headTs,
   }
+}
+
+/** Whether two version strings name the same heads, in any order. */
+export function sameDocumentVersion(a: string | undefined, b: string | undefined): boolean {
+  const heads = (version: string | undefined) => (version ?? '').split('.').filter(Boolean).sort().join('.')
+  return heads(a) === heads(b)
 }
 
 /** Maximum redirect hops {@link resolveEditableDocument} follows before giving up. */
@@ -231,13 +258,24 @@ export async function followToDocument(
  * Edits at a redirected address must build the Change on the redirect target's DAG (the source
  * path has no changes of its own — `ListChanges` returns nothing for it) and publish a Version
  * Ref at the source path with a fresh generation, which supersedes the redirect Ref.
+ *
+ * `document` and `state` are read one after the other; when they name different versions both are
+ * read once more. Compare `document.version` with `state.version` ({@link sameDocumentVersion})
+ * to know whether the content is the content at the heads.
  */
 export async function resolveEditableDocument(
   client: Pick<SeedClient, 'request'>,
   id: UnpackedHypermediaId,
 ): Promise<EditableDocumentBase> {
-  const followed = await followToDocument(client, id)
-  const state = await resolveDocumentState(client, packHmId(followed.targetId))
+  let followed = await followToDocument(client, id)
+  let state = await resolveDocumentState(client, packHmId(followed.targetId))
+  if (!sameDocumentVersion(followed.document.version, state.version)) {
+    // The document and its heads come from two reads. A write that landed between them leaves the
+    // content older than the heads, so both are read again, once. A caller that still sees them
+    // differ must not compute block moves against that content (documentUpdateBlobs does not).
+    followed = await followToDocument(client, id)
+    state = await resolveDocumentState(client, packHmId(followed.targetId))
+  }
   return {...followed, state}
 }
 

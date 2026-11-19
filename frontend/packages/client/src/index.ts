@@ -125,11 +125,37 @@ export {
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
+  clientBuiltDocumentUpdateBlobs,
+  DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+  DEFAULT_PREPARE_TIMEOUT_MS,
+  documentOperationsToChanges,
+  documentUpdateBlobs,
+  implausiblePreparedChange,
+  isEmptyPreparedChange,
+  nativeBlockToProtoBlock,
+  preparableDocumentChanges,
+  prepareDocumentUpdateBlobs,
+  UnpreparableDocumentUpdateError,
+} from './prepare-change'
+export type {
+  ClientBuiltDocumentUpdateInput,
+  DocumentContent,
+  DocumentChangeInput,
+  DocumentChanges,
+  DocumentUpdateBlobsInput,
+  DocumentUpdateBlobsResult,
+  PrepareDocumentUpdateInput,
+  PrepareDocumentUpdateResult,
+  ProtoAnnotationJson,
+  ProtoBlockJson,
+} from './prepare-change'
+export {
   describeRedirect,
   followRedirects,
   followToDocument,
   resolveDocumentState,
   resolveEditableDocument,
+  sameDocumentVersion,
 } from './document-state'
 export type {
   DocumentState,
