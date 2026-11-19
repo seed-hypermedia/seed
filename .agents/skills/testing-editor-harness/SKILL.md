@@ -113,6 +113,24 @@ await new Promise(r => setTimeout(r, 20));
 view.dom.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true, clientX: 100, clientY: 100}));
 ```
 
+## Enter / Shift+Enter inside an image caption
+
+Enter in a caption is handled by the ProseMirror keymap (`KeyboardShortcuts/KeyboardShortcutsExtension.ts`), not by a
+React `onKeyDown` on the caption. Expected behavior when testing it:
+
+- Enter moves the selection out of the caption to the block after the image; the caption text is unchanged and the image
+  block is never split.
+- If the next block is an **atom** (video / file / embed / web-embed), the resulting selection is a `NodeSelection` on
+  that node, not a text caret. Re-wrapping `TextSelection.near(...).from` in `TextSelection.create()` is the bug shape
+  to watch for; it produces an invalid caret / `RangeError` for atoms.
+- If the image is the last block, Enter appends a paragraph and puts the caret in it. This case is hard to reach
+  manually because the editor keeps an empty trailing paragraph at the end of the document; prefer the Playwright spec
+  (`e2e/tests/image-caption.e2e.ts`) for it.
+- Shift+Enter stays inside the caption and inserts a line break (caption text gains `\n`, block count unchanged).
+
+If a future change reverts the caption to a separate editing host, the symptom is Enter/typing/selection silently doing
+nothing in the caption.
+
 ## Common pitfalls
 - `?badges=1` is required in the harness to render `.bn-supernumber-badge` widgets.
 - `Emulation.setTouchEmulationEnabled` is deprecated in newer CDP versions; if it stops working, use `Emulation.setEmitTouchEventsForMouse` or a newer `Emulation` domain method.
