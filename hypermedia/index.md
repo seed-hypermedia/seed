@@ -113,19 +113,11 @@ These pages are markdown files in the folder `hypermedia/` of the public Seed re
 
 <./query.md> <!-- id:ffIQRmcH type:Embed attrs:{"view":"Card"} -->
 
-<./account.md> <!-- id:4T0MZZee type:Embed attrs:{"view":"Card"} -->
-
 <./authority.md> <!-- id:BTkNe2g7 type:Embed attrs:{"view":"Card"} -->
-
-<./link.md> <!-- id:8mi0zkbc type:Embed attrs:{"view":"Card"} -->
 
 <./role.md> <!-- id:AfmitHEx type:Embed attrs:{"view":"Card"} -->
 
 <./visibility.md> <!-- id:eHK9gwvg type:Embed attrs:{"view":"Card"} -->
-
-<./signature.md> <!-- id:1BinpM6h type:Embed attrs:{"view":"Card"} -->
-
-<./principal.md> <!-- id:rblSeWul type:Embed attrs:{"view":"Card"} -->
 
 # Value types <!-- id:1e0XUIvV attrs:{"childrenType":"Grid","columnCount":3} -->
 
@@ -148,6 +140,14 @@ These pages are markdown files in the folder `hypermedia/` of the public Seed re
 <./bytes.md> <!-- id:z9mLUXCt type:Embed attrs:{"view":"Card"} -->
 
 <./cid.md> <!-- id:7ExynST9 type:Embed attrs:{"view":"Card"} -->
+
+<./link.md> <!-- id:8mi0zkbc type:Embed attrs:{"view":"Card"} -->
+
+<./account.md> <!-- id:4T0MZZee type:Embed attrs:{"view":"Card"} -->
+
+<./principal.md> <!-- id:rblSeWul type:Embed attrs:{"view":"Card"} -->
+
+<./signature.md> <!-- id:1BinpM6h type:Embed attrs:{"view":"Card"} -->
 
 <./list.md> <!-- id:DrjpV3Lo type:Embed attrs:{"view":"Card"} -->
 
