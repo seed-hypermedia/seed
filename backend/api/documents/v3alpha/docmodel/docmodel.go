@@ -228,12 +228,38 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 	}
 
 	exactKey := slices.Clone(keyPath)
+
+	// Writes of the same mutation apply in the order they are made, and a write to a key
+	// replaces everything below it. So the pending writes below this key are superseded,
+	// no matter whether this write ends up being stored or not.
+	var (
+		superseded       [][]string
+		hasPendingParent bool
+	)
+
+	for k := range dm.dirtyMetadata.Keys() {
+		switch {
+		case isKeyAncestor(exactKey, k):
+			superseded = append(superseded, k)
+		case isKeyAncestor(k, exactKey):
+			hasPendingParent = true
+		}
+	}
+
+	for _, k := range superseded {
+		dm.dirtyMetadata.Delete(k)
+	}
+
 	var preds []opID
 	if reg := dm.crdt.stateMetadata.GetMaybe(exactKey); reg != nil {
 		latest := reg.GetLatest()
-		if attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
-			// If metadata key already has the same value in the committed CRDT state,
-			// we do nothing, and just in case clear the dirty metadata value if any.
+
+		// If metadata key already has the same value in the committed CRDT state,
+		// we do nothing, and just in case clear the dirty metadata value if any.
+		//
+		// Unless there's a pending write above this key: it removes the committed value,
+		// so this one is not redundant (see pendingAttributes for how those are reduced).
+		if !hasPendingParent && attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
 			dm.dirtyMetadata.Delete(exactKey)
 			return nil
 		}
@@ -246,6 +272,130 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 	})
 
 	return nil
+}
+
+// isKeyAncestor reports whether key path a is a strict prefix of key path b.
+func isKeyAncestor(a, b []string) bool {
+	return len(a) < len(b) && slices.Equal(a, b[:len(a)])
+}
+
+// pendingAttributes returns the attribute writes to store for the current mutation.
+//
+// Stored writes apply in the order of their keys, parents before children,
+// and each of them removes whatever is stored above and below its key.
+// So a pending write with other pending writes below it ("clear the map, then set its entries")
+// is only there to remove what the committed state has around: its own value never survives.
+// Writing all of that is correct, but most of the time there's a smaller way to say the same,
+// especially when the entries being set are those the map already has:
+// leave alone the committed entries that are set to the same value,
+// and clear only those that are not mentioned.
+// We store whichever is smaller.
+func (dm *Document) pendingAttributes() []blob.KeyValue {
+	if dm.dirtyMetadata.Len() == 0 {
+		return nil
+	}
+
+	pending := make([]blob.KeyValue, 0, dm.dirtyMetadata.Len())
+	for _, v := range dm.dirtyMetadata.Items() {
+		pending = append(pending, blob.KeyValue{Key: v.Value.Key, Value: v.Value.Value})
+	}
+
+	// Keys are sorted, so the writes below a key directly follow it.
+	for i := 0; i < len(pending); i++ {
+		parent := pending[i].Key
+
+		end := i + 1
+		for end < len(pending) && isKeyAncestor(parent, pending[end].Key) {
+			end++
+		}
+
+		below := pending[i+1 : end]
+		if len(below) == 0 {
+			continue
+		}
+
+		// A stored write above the parent removes everything the committed state has below it.
+		// So there's nothing left for the parent write to remove, and the writes below it
+		// repeat nothing: they all stay, and only the parent write goes.
+		// Writes above the parent were already looked at, so those still pending are stored.
+		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, parent) }) {
+			pending = slices.Delete(pending, i, i+1)
+			i--
+
+			continue
+		}
+
+		// Writes below the parent that only repeat what's committed are not needed if the parent write is gone.
+		// Only those directly exposed to the committed state count:
+		// writes having other pending writes above or below them are left as is.
+		redundant := make([]bool, len(below))
+		var nRedundant int
+
+		for j, kv := range below {
+			if j+1 < len(below) && isKeyAncestor(kv.Key, below[j+1].Key) {
+				continue
+			}
+
+			if slices.ContainsFunc(below[:j], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, kv.Key) }) {
+				continue
+			}
+
+			reg := dm.crdt.stateMetadata.GetMaybe(kv.Key)
+			if reg == nil {
+				continue
+			}
+
+			if latest, ok := reg.GetLatestOK(); ok && attrValuesEqual(kv.Value, latest.Value) {
+				redundant[j] = true
+				nRedundant++
+			}
+		}
+
+		// Committed values below the parent that no pending write replaces have to be cleared one by one.
+		var cleared []blob.KeyValue
+
+		for k, reg := range dm.crdt.stateMetadata.Items() {
+			if !isKeyAncestor(parent, k) {
+				continue
+			}
+
+			if latest, ok := reg.GetLatestOK(); !ok || latest.Value == nil {
+				continue
+			}
+
+			replaced := slices.ContainsFunc(below, func(kv blob.KeyValue) bool {
+				return slices.Equal(kv.Key, k) || isKeyAncestor(kv.Key, k) || isKeyAncestor(k, kv.Key)
+			})
+			if !replaced {
+				cleared = append(cleared, blob.KeyValue{Key: slices.Clone(k), Value: nil})
+			}
+		}
+
+		// Whatever the committed state has at the parent key itself, or above it, is removed
+		// by any of the writes below, and there's always at least one of those left:
+		// they can't be redundant when there's a committed value above them.
+		if len(cleared)+len(below)-nRedundant >= 1+len(below) {
+			continue
+		}
+
+		reduced := make([]blob.KeyValue, 0, len(pending)-1-nRedundant+len(cleared))
+		reduced = append(reduced, pending[:i]...)
+		for j, kv := range below {
+			if !redundant[j] {
+				reduced = append(reduced, kv)
+			}
+		}
+
+		reduced = append(reduced, cleared...)
+		slices.SortFunc(reduced[i:], func(a, b blob.KeyValue) int { return slices.Compare(a.Key, b.Key) })
+		reduced = append(reduced, pending[end:]...)
+
+		pending = reduced
+		// The write that took the place of the parent may have its own writes below.
+		i--
+	}
+
+	return pending
 }
 
 // DeleteBlock deletes a block.
@@ -301,6 +451,12 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	if _, ok := dm.crdt.tree.sublists.Get(blk.ID()); !ok {
 		dm.crdt.tree.sublists.Set(blk.ID(), newRGAList[string]())
 		dm.crdt.tree.detachedBlocks.Set(blk.ID(), blockLatestMove{detached: true})
+	}
+
+	// The ongoing tree mutation works on its own copy of the tree, taken at the first move.
+	// A block written after that has to be known there too, to be a valid parent for the next moves.
+	if dm.mut != nil {
+		dm.mut.registerBlock(blk.ID())
 	}
 
 	return nil
@@ -427,6 +583,11 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 	if dm.mut != nil {
 		// There's a bit of complexity here implementing "compression",
 		// i.e. contiguous moves are batched to avoid repeating redundant OpIDs.
+		//
+		// Ops are stored in the order the moves are committed. Deletes normally come after all the moves,
+		// but blocks moved under a deleted block follow its delete: such a block may have been
+		// an ancestor of the deleted one, in which case moving it first would be a cycle,
+		// and those who apply the change would ignore the move.
 		var (
 			deletedBlocks []string
 			seenDeletes   = map[string]struct{}{}
@@ -437,27 +598,37 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 			ref           opID
 			blockSequence []string
 		)
+
+		flushMoves := func() {
+			if len(blockSequence) > 0 {
+				addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
+				blockSequence = nil
+			}
+		}
+
+		flushDeletes := func() {
+			if len(deletedBlocks) > 0 {
+				addOp(blob.NewOpDeleteBlocks(deletedBlocks), len(deletedBlocks))
+				deletedBlocks = nil
+			}
+		}
+
 		for move := range dm.mut.Commit(0, math.MaxUint64) {
 			if move.Parent == TrashNodeID {
 				if _, seen := seenDeletes[move.Block]; seen {
 					panic("BUG: delete block operation seen multiple times")
 				}
+				flushMoves()
 				deletedBlocks = append(deletedBlocks, move.Block)
 				seenDeletes[move.Block] = struct{}{}
 				continue
 			}
 
-			// Start new batch of moves.
-			if len(blockSequence) == 0 {
-				curParent = move.Parent
-				lastOpID = move.OpID
-				ref = move.Ref
-				blockSequence = append(blockSequence, move.Block)
-				continue
-			}
+			flushDeletes()
 
 			// If we continue the same sequence, just append move to the batch.
-			if move.Parent == curParent &&
+			if len(blockSequence) > 0 &&
+				move.Parent == curParent &&
 				move.OpID.Actor == lastOpID.Actor &&
 				move.OpID.Ts == lastOpID.Ts &&
 				move.OpID.Idx == lastOpID.Idx+1 &&
@@ -467,39 +638,20 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 				continue
 			}
 
-			// If we are here we need to close the batch, and start a new one.
-			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
-
-			// Start new batch.
+			// If we are here we need to close the batch if any, and start a new one.
+			flushMoves()
 			curParent = move.Parent
 			lastOpID = move.OpID
 			ref = move.Ref
-			blockSequence = append([]string{}, move.Block)
-			continue
+			blockSequence = []string{move.Block}
 		}
 
-		// If we haven't sent the last batch, we need to send it now.
-		if len(blockSequence) > 0 {
-			addOp(blob.NewOpMoveBlocks(curParent, blockSequence, encodeOpID(ref)), len(blockSequence))
-		}
-
-		// Now process the deletes.
-		if len(deletedBlocks) > 0 {
-			addOp(blob.NewOpDeleteBlocks(deletedBlocks), len(deletedBlocks))
-		}
+		flushMoves()
+		flushDeletes()
 	}
 
-	nDirtyAttrs := dm.dirtyMetadata.Len()
-	if nDirtyAttrs > 0 {
-		attrs := make([]blob.KeyValue, 0, nDirtyAttrs)
-		for _, v := range dm.dirtyMetadata.Items() {
-			attrs = append(attrs, blob.KeyValue{
-				Key:   v.Value.Key,
-				Value: v.Value.Value,
-			})
-		}
-		op := blob.NewOpSetAttributes("", attrs)
-		addOp(op, len(attrs))
+	if attrs := dm.pendingAttributes(); len(attrs) > 0 {
+		addOp(blob.NewOpSetAttributes("", attrs), len(attrs))
 	}
 
 	// Remove state of those blocks that we created and deleted in the same change.
