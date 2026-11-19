@@ -2,7 +2,9 @@
 name: Image Block
 summary: An image referenced by an ipfs:// link, with a caption in the text field and an optional display width.
 ---
-An **image block** shows an image. `link` is required and is normally an `ipfs://<cid>` [file](../protocol/files.md) that the daemon serves at `/ipfs/<cid>`. `text` and `annotations` are the caption. Attributes: `width` (display width in pixels), `name` (the original file name), and the parent-layout pair `childrenType` and `columnCount`. Listings also use a document's first image block as a fallback cover. <!-- id:rnQi1k1d -->
+An **image block** shows an image. `link` is required and is normally an `ipfs://<cid>` [file](../protocol/files.md) that the daemon serves at `/ipfs/<cid>`. `text` and `annotations` are the caption. Attributes: `width` (display width), `name` (the original file name), and the parent-layout pair `childrenType` and `columnCount`. Listings also use a document's first image block as a fallback cover. <!-- id:rnQi1k1d -->
+
+Image widths greater than zero and up to 100 are percentages of the available content width; larger values are legacy pixel widths. Without a width, an image fills the available width. The renderer applies this sizing from the first render and caps images at the available width, so scrolling or hovering does not change their size. Dragging a resize handle saves a percentage width.
 
 # See also <!-- id:IWMMRALb -->
 
