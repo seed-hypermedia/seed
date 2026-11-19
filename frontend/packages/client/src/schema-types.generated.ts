@@ -19,7 +19,7 @@ export type HMAccount = string
 
 /**
  * Seed Agents
- * Seed Agents is the hosted agent runtime that lets an account run language-model agents which read and write Hypermedia through the Seed API with their own signing keys.
+ * An agent is a language model with memory, tools and its own Seed identity, which runs on an app environment and reads and writes Hypermedia like any other participant.
  * Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID.
  * Schema: hm://hyper.media/agent
  */
@@ -1211,7 +1211,7 @@ export type HMExampleWorldDoc = {
 }
 
 /**
- * Resource URL
+ * Hypermedia URL
  * A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
  * A reference to a Hypermedia document as an `hm://` URL string — rendered as a searchable pill showing the target's title.
  * Schema: hm://hyper.media/hm-url
@@ -1329,8 +1329,8 @@ export type HMMetadataNavigationItem = {
 export type HMNone = never
 
 /**
- * Custom HTML Page
- * A resource type for a sandboxed HTML page with schema-defined URL input.
+ * Page
+ * A page is a document typed hm://hyper.media/page that carries an HTML bundle and an input schema, runs sandboxed in the viewer's client, and acts as the viewer under approvals the viewer gives step by step.
  * Resource attributes for a custom HTML page, with a sandboxed HTML bundle and a published input contract.
  * Schema: hm://hyper.media/page
  */
@@ -1343,8 +1343,8 @@ export type HMPage = {
 } & {[key: string]: HMValue}
 
 /**
- * Empty Page Input
- * The default published input schema for a custom HTML page that accepts no URL state.
+ * Page Input
+ * A page takes typed input from its URL, declared by the struct schema its inputSchema names, and this closed, empty struct is the default for a page that takes none.
  * The empty input contract for a custom HTML page that accepts no URL parameters.
  * Schema: hm://hyper.media/page-input
  */
@@ -1498,7 +1498,7 @@ export type HMRole = 'WRITER' | 'AGENT'
 
 /**
  * Schema
- * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
+ * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, and the starting point for every page about Hypermedia Schemas.
  * The meta-schema: the union of every shape a schema can take, itself a valid instance of this type.
  * Schema: hm://hyper.media/schema
  */
@@ -1535,7 +1535,7 @@ export type HMSchemaAnyof = {
 }
 
 /**
- * Reference Schema
+ * Include schema
  * The variant for a reference, which is a bare include or, when it carries refinements, an extension.
  * A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension.
  * Schema: hm://hyper.media/schema/include-schema

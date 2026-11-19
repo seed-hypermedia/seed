@@ -1,8 +1,13 @@
 ---
 name: DAG-CBOR
-summary: The canonical binary encoding of Hypermedia blocks on IPFS, a deterministic CBOR profile with native CID links.
+summary: DAG-CBOR is the binary form in which every Hypermedia blob and schema is stored and hashed.
 ---
-**DAG-CBOR**: the canonical binary encoding of Hypermedia blocks on IPFS. It is a deterministic CBOR profile with native [CID](../cid.md) links. Every [blob](../protocol/blobs.md) and every schema is stored in this form. <!-- id:MTZmummk -->
+**DAG-CBOR** is the binary form in which Hypermedia data is stored on IPFS. Every [blob](../protocol/blobs.md) and every [schema](../schema.md) is stored in this form. <!-- id:MTZmummk -->
+
+DAG-CBOR is a strict version of CBOR, a compact binary format. It adds two things:
+
+- **One byte form for each value.** This is the [canonical encoding](./canonical-encoding.md). The same value always gives the same bytes, so it always gets the same [CID](../cid.md).
+- **Links.** A value can hold a CID that points at another stored object. See [link](../link.md).
 
 # See also <!-- id:UDMNyNPe -->
 

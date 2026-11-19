@@ -237,11 +237,11 @@ describe('main routes', () => {
       // New agents write this URL into their documents, where hm://hyper.media would not load.
       configureDocsSpace({account: 'z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB'})
       const health = getGetHandler(
-        createAPIRoutes(new apisvc.Service(db, dataDir), 'hm://hyper.media/app-environment/guide'),
+        createAPIRoutes(new apisvc.Service(db, dataDir), 'hm://hyper.media/agent/guide'),
         '/agents/api/health',
       )
       expect((await (await health()).json()).defaultPromptUrl).toBe(
-        'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/app-environment/guide',
+        'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
       )
     } finally {
       configureDocsSpace({})

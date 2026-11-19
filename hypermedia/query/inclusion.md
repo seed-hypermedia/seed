@@ -8,5 +8,5 @@ A **query inclusion** is one source of a [query](../query.md). `space` is the [a
 
 - [query](../query.md): the query that holds inclusions. <!-- id:D46kFAFI -->
 - [query/sort](./sort.md): how results are ordered. <!-- id:SUfA4c1m -->
-- [block/query](../block/query.md): the block that renders a query. <!-- id:Z06j_fOC -->
+- [block/query](../block/query.md): the [block](../protocol/blocks.md) that renders a query. <!-- id:Z06j_fOC -->
 - [Documents](../protocol/documents.md): paths and directories. <!-- id:4666wtOu -->

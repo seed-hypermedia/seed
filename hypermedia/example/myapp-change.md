@@ -2,7 +2,7 @@
 name: "Example: MyApp Change"
 summary: A Change instantiated with the app’s block type, so its ReplaceBlock ops are validated strictly against core blocks plus Poll instead of the open default.
 ---
-A [Change](../change.md) bound to this app's block type: `Change<example/app-block>`. It instantiates the [generic](../schema/generic.md) Change with `Block` set to [app-block](./app-block.md). Its [ReplaceBlock](../change/op/replace-block.md) ops are checked strictly against the app's blocks, core plus Poll, deep inside the op stack. A block type the app does not know is rejected. The default Change is open and accepts it. <!-- id:oQwgI4Kv -->
+A [Change](../change.md) bound to this app's [block](../protocol/blocks.md) type: `Change<example/app-block>`. It instantiates the [generic](../schema/generic.md) Change with `Block` set to [app-block](./app-block.md). Its [ReplaceBlock](../change/op/replace-block.md) ops are checked strictly against the app's blocks, core plus Poll, deep inside the op stack. A block type the app does not know is rejected. The default Change is open and accepts it. <!-- id:oQwgI4Kv -->
 
 This page describes the **example/myapp-change** type, one of the [example schemas](../example.md). The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type. <!-- id:LLDru3Us -->
 
@@ -10,5 +10,5 @@ This page describes the **example/myapp-change** type, one of the [example schem
 
 - [app-block](./app-block.md): the block union it binds. <!-- id:yl0MmG_l -->
 - [Generic](../schema/generic.md): schemas parameterized over a type. <!-- id:92jpqMxE -->
-- [Change](../change.md): the generic Change blob. <!-- id:-VX3Odtg -->
+- [Change](../change.md): the generic Change [blob](../protocol/blobs.md). <!-- id:-VX3Odtg -->
 - [Examples](../example.md): every example, grouped by feature. <!-- id:TLvOmf6z -->

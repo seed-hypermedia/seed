@@ -18,7 +18,7 @@ import {parseFragment} from '../utils'
 /**
  * Maps items to async results with at most `limit` requests in flight. The daemon has no
  * in-flight cap of its own, so callers fanning out per-item RPCs bound the burst here
- * (hypermedia/apps/daemon.md, "Load and the read pool"). Real relief is server-side citation/comment
+ * (hypermedia/software/daemon.md, "Load and the read pool"). Real relief is server-side citation/comment
  * pagination; until then this keeps a heavily-cited document from firing a whole
  * citations page of lookups at once.
  */

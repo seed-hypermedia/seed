@@ -1,5 +1,5 @@
 /**
- * Running apps on this server (hypermedia/apps/apps-and-tools.md). An app document names this server
+ * Running apps on this server (hypermedia/app.md). An app document names this server
  * with its `appEnvironmentUrl`; a writer of the app's space runs it here with its private config,
  * which the server keeps encrypted. While it runs, anyone may call its tools: each call runs the
  * tool's latest code in the sandbox as `(input, ctx)`, and is recorded for anyone who can read the

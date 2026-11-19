@@ -2,7 +2,7 @@
 name: Navigation item
 summary: "One entry of a site's navigation menu: a Link block with display text and a link, stored as a child of the detached navigation block."
 ---
-A **navigation item** is one entry of a [site](../protocol/sites.md)'s menu. The menu is a detached block named `navigation`: a [block](../block.md) with state but no position in the content tree. It is neither [metadata](../metadata.md) nor part of the body. Each of its children is one of these `Link` blocks: `text` is the label and `link` is an `hm://` or web URL. The Seed app edits the menu in a site's settings, and the daemon returns it in the document's detached blocks. See [Blocks](../protocol/blocks.md). <!-- id:9-mJuCfi -->
+A **navigation item** is one entry of a [site](../protocol/sites.md)'s menu. The menu is a detached block named `navigation`: a [block](../block.md) with state but no position in the content tree. It is neither [metadata](../metadata.md) nor part of the body. Each of its children is one of these `Link` blocks: `text` is the label and `link` is an `hm://` or web URL. The [Seed app](../software/desktop.md) edits the menu in a site's settings, and the [daemon](../software/daemon.md) returns it in the [document](../protocol/documents.md)'s detached blocks. See [Blocks](../protocol/blocks.md). <!-- id:9-mJuCfi -->
 
 # See also <!-- id:4pqsVOfl -->
 

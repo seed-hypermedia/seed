@@ -1,8 +1,18 @@
 ---
 name: Generic
-summary: A schema parameterized over a type.
+summary: A generic is a schema with a blank for a type, which you fill in when you use the schema.
 ---
-**Generic**: a schema parameterized over a type. You declare it with `params` (named type parameters, each with a default). You use a parameter with [`var`](./var-schema.md), a type-variable reference such as `{ "var": "B" }`. You instantiate the generic with `args`: `{ "type": X, "args": { "B": … } }`. The parameter passes through references and falls back to its default when unbound. The worked example is `Change<Block>` ([`change`](../change.md)), instantiated as [`example/myapp-change`](../example/myapp-change.md). [The schema language](./schema-language.md) has the details. <!-- id:srZ8LHVL -->
+A **generic** is a schema with a blank for a type. You fill in the blank when you use the schema. For example, [`change`](../change.md) is `Change<Block>`: a change that works for any [block](../protocol/blocks.md) type you give it. <!-- id:srZ8LHVL -->
+
+A generic has three parts:
+
+- **Declare** the blanks with `params`. Each parameter has a name and a default type.
+- **Use** a parameter with [`var`](./var-schema.md), such as `{ "var": "B" }`.
+- **Fill in** the parameters with `args`: `{ "type": X, "args": { "B": … } }`.
+
+A parameter passes through references to other schemas. When nothing fills it in, it uses its default.
+
+[`example/myapp-change`](../example/myapp-change.md) fills in the `Block` parameter of `change`. [The schema language](./schema-language.md) has the details.
 
 # See also <!-- id:YavMNM84 -->
 

@@ -2,13 +2,35 @@
 name: Ref
 summary: A signed claim, like a Git ref, that a path in a space points at the current head Changes of a document, or that the path is deleted or redirects elsewhere.
 ---
-A **Ref** is the blob that gives a [document](./protocol/documents.md) an address. [Changes](./change.md) describe history. A Ref says "this path in this space currently shows these heads". The daemon checks Refs for permission. A Ref is what makes a document appear in listings and search, and you publish one to branch, delete, move or redirect a document. <!-- id:od4IuOD_ -->
+A **Ref** is the [blob](./protocol/blobs.md) that gives a [document](./protocol/documents.md) an address. [Changes](./change.md) hold the history. A Ref says: "this path in this [space](./protocol/spaces.md) shows these heads". The heads are the newest Changes. The [daemon](./software/daemon.md) checks permission on Refs. A Ref makes a document appear in listings and search. You also publish a Ref to branch, delete, move or redirect a document. <!-- id:od4IuOD_ -->
 
-This page defines the **ref** blob type, a Hypermedia network blob that extends the signed [blob](./blob.md) envelope. Its formal schema is attached as the `schemaDefinition` in this document's metadata, so the app can show it and sign values of this type. <!-- id:5X7JPVaE -->
+This page defines the **ref** blob type. A Ref starts with the signed [blob envelope](./blob.md). The formal schema is attached to this document as the `schemaDefinition` key of its metadata. So the app can show the schema and sign values of this type. <!-- id:5X7JPVaE -->
 
-Three shapes are valid. A **version Ref** has `genesisBlob` and one or more `heads`, and asserts a version. A **tombstone** has `genesisBlob` and no heads, and deletes the document at that path once it is newer than the last live Ref of the same generation. A **redirect** has `genesisBlob`, no heads and a [redirect target](./ref/redirect-target.md). With `republish` set, a redirect keeps showing the target's content under this address and does not count as a deletion. The home document (empty `path`) may be neither a tombstone nor a redirect. <!-- id:ABaZUnEP -->
+A Ref has one of three shapes: <!-- id:ABaZUnEP -->
 
-`space` is omitted when the signer is the space owner. Otherwise the signer must hold a [capability](./capability.md) for the path, or the Ref is stashed and has no effect. The `capability` field is informational only and the daemon ignores it, so publish the Capability blob itself. `generation` orders the lives of an address: the highest generation wins. The daemon's `CreateRef` asks for a higher generation before it replaces a document with a different genesis, and clients use the current time in milliseconds for a new document. `visibility` is empty for public or `Private`, and a private Ref must have a single-segment path. Paths must start with `/`, must not end with `/`, and may not contain single or double quotes, backslashes, NUL, tab, CR or LF. [Documents](./protocol/documents.md) gives the reasoning behind each rule. <!-- id:CNUyMAhI -->
+- A **version Ref** has `genesisBlob` and one or more `heads`. It says which version the address shows.
+- A **tombstone** has `genesisBlob` and no heads. It deletes the document at that path, once it is newer than the last live Ref of the same generation.
+- A **redirect** has `genesisBlob`, no heads and a [redirect target](./ref/redirect-target.md). With `republish` set, the address keeps showing the target's content, and the redirect does not count as a deletion.
+
+The [home document](./protocol/spaces.md) (empty `path`) can be neither a tombstone nor a redirect.
+
+# Fields
+
+A Ref adds these fields to the signed [blob](./blob.md) envelope:
+
+<!-- id:exQijQ7E -->
+| key <!-- col:ZQ8Vpyx0 --> | meaning <!-- col:lexYQOQi --> <!-- id:lK27WJw5 --> |
+| --- | --- |
+| `space` | the [account](./protocol/identity.md) whose namespace the path lives in; omitted when it equals `signer`. <!-- id:HHpSjaV7 --> |
+| `path` | the path inside the space; empty for the home document. Must start with `/`, must not end with `/`, and may not contain single or double quotes, backslashes, NUL, tab, CR or LF. <!-- id:NyJ_Zq8k --> |
+| `genesisBlob` | the genesis of the document. Required by the indexer. <!-- id:o9WrppxN --> |
+| `heads` | the version this Ref asserts. Empty for a tombstone or a redirect. <!-- id:r69jLlUd --> |
+| `redirect` | `{space?, path?, republish?}`: where readers should go instead. <!-- id:6mMcULge --> |
+| `generation` | a number that orders successive lives of the address; see below. <!-- id:WF1b-MBl --> |
+| `visibility` | empty for public, `"Private"` for private; see [Privacy](./protocol/privacy.md). <!-- id:ZlYPwFPW --> |
+| `capability` | informational [CID](./cid.md) of the grant the signer relied on. The daemon never sets it and ignores it for authorisation. Publish the [Capability](./capability.md) blob itself instead. <!-- id:VTYN6xJ7 --> |
+
+`space` is omitted when the signer owns the space. Any other signer must hold a [capability](./capability.md) for the path. Without one, the daemon sets the Ref aside and it has no effect. `generation` orders the lives of an address: the highest generation wins. A private Ref must have a path of one segment. [Documents](./protocol/documents.md) explains branching, deleting, moving, republishing and generations. <!-- id:CNUyMAhI -->
 
 # See also <!-- id:_DOCd5Nd -->
 

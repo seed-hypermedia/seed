@@ -1,6 +1,6 @@
 /**
  * Keeps an app's card embeds in step with the tools and pages written under it (see
- * hypermedia/apps/apps-and-tools.md). Creating a child of an app adds its embed in the same
+ * hypermedia/app.md). Creating a child of an app adds its embed in the same
  * publish; deleting one removes it. A tool or a trigger must be a child of an app or an agent.
  */
 

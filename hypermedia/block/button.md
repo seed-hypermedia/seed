@@ -7,6 +7,6 @@ A **button block** is a call-to-action button. `text` is the label, and `link` (
 # See also <!-- id:D0909KYI -->
 
 - [block/button-alignment](./button-alignment.md): where the button sits. <!-- id:vTGd7N5i -->
-- [block/embed](./embed.md): show a linked document in place. <!-- id:8ExLW19I -->
+- [block/embed](./embed.md): show a linked [document](../protocol/documents.md) in place. <!-- id:8ExLW19I -->
 - [block/core](./core.md): all built-in block types. <!-- id:bKIQAvJw -->
 - [Blocks](../protocol/blocks.md): the block model. <!-- id:p7M2sHWe -->

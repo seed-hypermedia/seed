@@ -105,7 +105,7 @@ loopback ports demonstrate different origins, but not different registrable site
 
 The integrated implementation uses a same-host opaque web runner and a dedicated desktop protocol. It includes viewer
 authorization, signed document/bundle resolution, scoped permissions and agent publication. See
-[custom HTML pages](../../hypermedia/apps/document-pages.md) for its current SDK and deployment model; a separate web
+[custom HTML pages](../../hypermedia/build/custom-pages.md) for its current SDK and deployment model; a separate web
 runner domain is not required. This workshop retains its earlier two-port design to exercise isolation independently.
 
 The workshop's local browser state is not encrypted or synced. Updates retain storage, so a newly authorized code

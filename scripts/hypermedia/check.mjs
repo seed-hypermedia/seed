@@ -19,6 +19,7 @@
 //   8. frontmatter   every page has a name and a whole one-sentence summary
 //   9. tables        every table row has as many cells as its header (a raw `|` inside inline code splits a row)
 //  10. tree          every page has a parent page, and every parent shows a Card embed of each child (tree.mjs)
+//  11. concepts      a page that names a glossary term links the page that defines it (concepts.mjs)
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
@@ -29,6 +30,7 @@ import {HM_DIR, listSchemaFiles, nameOfFile, refToName} from './names.mjs'
 
 /** A reference's library name, checked against the files on disk. */
 const nameOf = (ref) => refToName(ref, (name) => existsSync(resolve(HM_DIR, `${name}.schema.json`)))
+import {findUnlinkedConcepts, loadRegistry} from './concepts.mjs'
 import {findTreeProblems} from './tree.mjs'
 import {load, validate} from './validate.mjs'
 
@@ -253,6 +255,17 @@ section('Every page has a parent that shows its card')
     for (const child of children)
       fail(parent, `no Card embed of its child ${child} (node scripts/hypermedia/tree.mjs --fix adds it)`)
   if (!missingParents.size && !missingCards.size) ok('every page has a parent page with a Card embed of it')
+}
+
+// 11. Concepts ───────────────────────────────────────────────────────────────
+// The two glossaries are the registry of terms. A page that uses a term must link the page that defines it,
+// so a reader is never left with a word and nowhere to look it up.
+section('Every concept a page names links the page that defines it')
+{
+  const problems = findUnlinkedConcepts()
+  for (const p of problems)
+    fail(p.file, `line ${p.line + 1}: "${p.term}" is used but ${p.page} is not linked (node scripts/hypermedia/concepts.mjs --fix links it)`)
+  if (!problems.length) ok(`${loadRegistry().length} glossary terms are linked wherever they are used`)
 }
 
 if (failures.length) {

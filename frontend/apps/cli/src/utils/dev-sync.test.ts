@@ -443,10 +443,12 @@ describe('a running dev sync follows Git checkouts', () => {
 })
 
 describe('movedDocsPaths', () => {
-  test("names the page's address from before the app environment rename, in the caller's path form", () => {
-    expect(movedDocsPaths('app-environment/guide')).toEqual(['agent/guide'])
-    expect(movedDocsPaths('/app-environment/plans/exec-warm-pool')).toEqual(['/agent/plans/exec-warm-pool'])
-    expect(movedDocsPaths('apps/desktop')).toEqual([])
+  test("names the page's earlier addresses, in the caller's path form", () => {
+    expect(movedDocsPaths('agent/guide')).toEqual(['app-environment/guide'])
+    expect(movedDocsPaths('/operate/operations')).toEqual(['/app-environment/operations', '/agent/operations'])
+    expect(movedDocsPaths('software/desktop')).toEqual(['apps/desktop'])
+    expect(movedDocsPaths('trigger')).toEqual(['apps/triggers'])
+    expect(movedDocsPaths('protocol/documents')).toEqual([])
     expect(movedDocsPaths('')).toEqual([])
   })
 })

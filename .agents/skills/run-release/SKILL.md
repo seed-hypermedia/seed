@@ -5,7 +5,7 @@ description: 'Cut a production release: tag, wait for CI, write release notes, p
 
 # Run Release
 
-Execute the release process in `hypermedia/build/releasing.md`. That doc is canonical for the process details; this
+Execute the release process in `hypermedia/contribute/releasing.md`. That doc is canonical for the process details; this
 skill is the interactive runbook. Invoking this skill counts as explicit permission to create and push the release tag,
 but confirm the version number with the user before pushing it.
 
@@ -13,7 +13,7 @@ but confirm the version number with the user before pushing it.
 
 1. **Preflight**: confirm you are on `main`, the working tree is clean, and local `main` matches `origin/main`. Abort
    and report if not.
-2. **Determine the version** (`YYYY.M.N`, see `hypermedia/build/releasing.md`): check
+2. **Determine the version** (`YYYY.M.N`, see `hypermedia/contribute/releasing.md`): check
    `git tag --sort=-creatordate | head -5`. If the latest tag is from the current month, increment its last number;
    otherwise start at `.1` for the current month.
 3. **Verify CI is green for the commit BEFORE tagging.** The release workflows gate on the same `frontend-tests` (Lint,
@@ -38,7 +38,7 @@ but confirm the version number with the user before pushing it.
    waiting, don't proceed early. If a workflow fails, stop and report.
 7. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and exclusion rules in the
    `releasenotes` skill, but match the exact format of the last few published releases (`gh release view <prev-tag>`).
-   Key rules from `hypermedia/build/releasing.md`:
+   Key rules from `hypermedia/contribute/releasing.md`:
    - Very short feature entries; many commits often collapse into one line.
    - No entries for regressions introduced and fixed since the previous tag — never released, users never saw them.
    - End with the `**Full Changelog**` compare link.
