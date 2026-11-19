@@ -4,6 +4,7 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {
   DirectoryPageContent,
@@ -278,7 +279,11 @@ describe('DirectoryPageContent search toggle', () => {
     })
 
     act(() => {
-      root.render(<DirectoryPageContent docId={hmId('site', {path: ['parent']})} />)
+      root.render(
+        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+          <DirectoryPageContent docId={hmId('site', {path: ['parent']})} />
+        </QueryClientProvider>,
+      )
     })
   }
 

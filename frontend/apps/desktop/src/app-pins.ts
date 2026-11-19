@@ -1,6 +1,5 @@
 import {pathMatches} from '@shm/shared/utils/entity-id-url'
 import z from 'zod'
-// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 
