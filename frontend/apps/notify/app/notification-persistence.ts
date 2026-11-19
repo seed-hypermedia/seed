@@ -30,6 +30,27 @@ export function notificationToPayload(notif: Notification, eventId: string, even
     }
   }
 
+  if (notif.reason === 'assignment') {
+    return {
+      ...base,
+      reason: 'assignment',
+      eventType: 'citation',
+      author: {
+        uid: notif.authorAccountId,
+        name: notif.authorMeta?.name ?? null,
+        icon: notif.authorMeta?.icon ?? null,
+      },
+      target: {
+        uid: notif.targetId.uid,
+        path: notif.targetId.path ?? null,
+        name: notif.targetMeta?.name ?? null,
+      },
+      commentId: null,
+      sourceId: null,
+      citationType: null,
+    }
+  }
+
   if (notif.reason === 'reply') {
     return {
       ...base,

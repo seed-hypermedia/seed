@@ -184,3 +184,17 @@ it('derives citation identity from matching source blocks and preserves mixed le
   expect(getCitationMentionKind(comment.content, hmId('alice'))).toBeUndefined()
   expect(getCitationMentionKind(comment.content, hmId('alice'), 'block-1')).toBe('document')
 })
+
+it('classifies an owner attribute citation as an assignment and other attributes as mentions', () => {
+  const citation = (metadataKey?: string) =>
+    ({
+      type: 'citation',
+      citationType: 'd',
+      mentionKind: 'account',
+      metadataKey,
+      target: {id: {uid: 'alice', path: []}},
+    }) as any
+  expect(classifyNotificationEvent(citation('owner'), 'alice')).toBe('assignment')
+  expect(classifyNotificationEvent(citation('reviewer'), 'alice')).toBe('mention')
+  expect(classifyNotificationEvent(citation(), 'alice')).toBe('mention')
+})

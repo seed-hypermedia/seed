@@ -85,6 +85,8 @@ function NotificationContent({notification}: {notification: Notification}) {
       ) : (
         <NoteText>Mentioned {notification.subjectAccountMeta?.name ?? 'you'} in the document</NoteText>
       )
+    case 'assignment':
+      return <NoteText>Assigned {notification.subjectAccountMeta?.name ?? 'you'} to the document</NoteText>
     case 'reply':
     case 'site-new-discussion':
     case 'discussion':

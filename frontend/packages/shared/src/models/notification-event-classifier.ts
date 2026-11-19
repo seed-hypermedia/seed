@@ -61,7 +61,18 @@ export function commentMentionsAccount(comment: HMComment | null | undefined, ac
   return extractMentionedAccountUidsFromComment(comment).has(accountUid)
 }
 
-export type NotificationReason = 'mention' | 'reply' | 'discussion'
+export type NotificationReason = 'mention' | 'assignment' | 'reply' | 'discussion'
+
+/**
+ * The document attribute that assigns an account to a document (its owner). An account named by
+ * this key is notified as assigned, not mentioned; other account-valued attributes stay mentions.
+ */
+export const ASSIGNMENT_METADATA_KEY = 'owner'
+
+/** Whether a citation's metadata key assigns the cited account rather than mentioning it. */
+export function isAssignmentMetadataKey(metadataKey: string | null | undefined): boolean {
+  return metadataKey === ASSIGNMENT_METADATA_KEY
+}
 
 export function classifyCommentNotificationForAccount(input: {
   subscriptionAccountUid: string
@@ -98,7 +109,7 @@ export function classifyNotificationEvent(
     }
 
     if (event.target?.id?.uid === accountUid || getMentionedAccountUid(event.target?.id) === accountUid) {
-      return 'mention'
+      return isAssignmentMetadataKey(event.metadataKey) ? 'assignment' : 'mention'
     }
   }
 

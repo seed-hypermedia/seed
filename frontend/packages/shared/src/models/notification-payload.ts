@@ -16,6 +16,7 @@ export type NotificationTarget = z.infer<typeof NotificationTargetSchema>
 
 export const NotificationReasonSchema = z.enum([
   'mention',
+  'assignment',
   'reply',
   'discussion',
   'site-doc-update',

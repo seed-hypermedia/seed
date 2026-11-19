@@ -19,6 +19,7 @@ type LoadState =
 
 const REASON_LABELS: Record<string, string> = {
   mention: 'mentioned you',
+  assignment: 'assigned you',
   reply: 'replied to you',
   discussion: 'started a discussion',
   'site-new-discussion': 'new discussion on your site',

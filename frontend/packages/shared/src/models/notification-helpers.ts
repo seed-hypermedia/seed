@@ -79,6 +79,8 @@ export function notificationAction(payload: NotificationPayload): string {
   switch (payload.reason) {
     case 'mention':
       return 'mentioned you in'
+    case 'assignment':
+      return 'assigned you to'
     case 'discussion':
     case 'site-new-discussion':
       return 'started a discussion on'
