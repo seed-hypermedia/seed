@@ -60,6 +60,7 @@ export function BlockSelectionWrapper({
   onSelectionChange,
   selectOnMouseDown,
   onSelectMouseDown,
+  keepEditable,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
@@ -86,6 +87,16 @@ export function BlockSelectionWrapper({
    * capture handler has already selected the block.
    */
   onSelectMouseDown?: (wasSelected: boolean) => void
+  /**
+   * Opt out of the non-editable wrapper for blocks that render editable
+   * inline content (image captions). A ProseMirror view manages a single
+   * contenteditable range, so a `contenteditable=false` ancestor makes the
+   * caption its own editing host: `view.hasFocus()` stays false and every
+   * caption selection is discarded, which breaks range selection and the
+   * fragment actions built on it. The media surface itself stays
+   * non-editable, so click-to-select is unaffected.
+   */
+  keepEditable?: boolean
 }) {
   const selected = useIsBlockSelected(editor, block)
   useEffect(() => {
@@ -107,7 +118,7 @@ export function BlockSelectionWrapper({
 
   return (
     <div
-      contentEditable={false}
+      contentEditable={keepEditable ? undefined : false}
       className={cn(className, selected && 'bn-media-selected')}
       onMouseDownCapture={selectOnMouseDown ? handleMouseDownCapture : undefined}
     >
