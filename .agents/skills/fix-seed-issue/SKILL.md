@@ -159,7 +159,21 @@ not UI proof.
 If verification fails, fix and rerun affected checks. If the right target or required check is unavailable, state that
 verification is incomplete and ask how to proceed rather than claiming the issue fixed.
 
-## 5. Hand off for review
+## 5. Update the issue document
+
+When the user asks for the issue itself to reflect the outcome, update the Seed document with a new `## Solution`
+section appended after the existing content: describe what was implemented and how it behaves, and embed the
+before/after screenshot or short recording captured in step 4 (reference it as a `file://` image in the markdown so it
+publishes to IPFS). Keep markdown image alt text free of `[[` and other link-syntax characters — the parser will emit
+the whole line as literal text instead of an image block.
+
+This step needs a signing key with a WRITER capability on the issue's space account. `seed-cli key list` shows local
+keys; on headless hosts without an OS keyring, use `SEED_CLI_MNEMONIC` or `SEED_CLI_KEYFILE` for a key provisioned out
+of band, and ask the space owner to `capability create --delegate <accountId> --role WRITER` if the capability is
+missing. Verify the result with `document get` and confirm the image block resolved to `ipfs://`. Do not change the
+issue's status or post comments unless the user asks.
+
+## 6. Hand off for review
 
 Review the diff for scope and secrets, commit only intended files with a message explaining why, push the authorized
 branch, and open a PR against the agreed repository's `main` (normally `seed-hypermedia/seed`). For a fork, use its

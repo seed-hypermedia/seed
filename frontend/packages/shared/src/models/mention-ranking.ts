@@ -20,7 +20,7 @@ export type MentionThreadContext = {
   selectedAccountUid?: string
 }
 
-function timeAgo(time: number, now: number) {
+export function timeAgo(time: number, now: number) {
   const elapsed = Math.max(0, now - time)
   if (elapsed < 60_000) return 'just now'
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`
@@ -37,6 +37,26 @@ export function mentionCandidateSubtitle(candidate: HMMentionCandidate) {
   if (candidate.type === 'document') return candidate.parentNames.join(' / ')
   const uid = candidate.id.uid
   return uid.length > 16 ? `${uid.slice(0, 8)}…${uid.slice(-6)}` : uid
+}
+
+const MAX_BREADCRUMB_SEGMENTS = 3
+
+/** Display label for one slug path segment ("my-note" -> "My note"). */
+export function formatPathSegment(segment: string) {
+  const [first = '', ...rest] = segment.split('-')
+  return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
+}
+
+/**
+ * Breadcrumb labels for a document mention row: space name followed by ancestor
+ * path segments, middle-collapsed with an ellipsis when deeper than the cap.
+ */
+export function mentionBreadcrumbSegments(candidate: HMMentionCandidate, spaceName?: string) {
+  const raw = candidate.parentNames.length
+    ? candidate.parentNames
+    : [candidate.id.uid, ...(candidate.id.path || []).slice(0, -1)]
+  const segments = raw.map((segment, i) => (i === 0 ? spaceName || segment : formatPathSegment(segment)))
+  return segments.length > MAX_BREADCRUMB_SEGMENTS ? [segments[0]!, '…', segments[segments.length - 1]!] : segments
 }
 
 /** Canonical key distinguishing account profiles from home documents and ignoring versions. */
