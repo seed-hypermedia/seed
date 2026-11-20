@@ -228,6 +228,7 @@ export function useVaultEmail(opts?: {enabled?: boolean}) {
     },
     enabled: opts?.enabled ?? true,
     staleTime: 0,
+    useErrorBoundary: false,
   })
 }
 
@@ -277,6 +278,7 @@ export function useVaultPasswordStatus(opts?: {enabled?: boolean}) {
     },
     enabled: opts?.enabled ?? true,
     staleTime: 0,
+    useErrorBoundary: false,
   })
 }
 
