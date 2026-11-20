@@ -5,6 +5,7 @@
     "*.css"
   ],
   "private": true,
+  "type": "module",
   "types": "./types/index",
   "module:jsx": "src",
   "files": [
@@ -41,7 +42,9 @@
     "pack:public": "pnpm build && npm pack ./dist --pack-destination .",
     "publish:public": "pnpm build && npm publish ./dist --access public",
     "test:package": "pnpm build && node scripts/test-package.mjs",
-    "test:package:install": "pnpm build && node scripts/test-package.mjs --install"
+    "test:package:install": "pnpm build && node scripts/test-package.mjs --install",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build -o storybook-static"
   },
   "dependencies": {
     "@ariakit/react": "0.3.5",
@@ -101,12 +104,18 @@
     "@ipld/dag-cbor": "^9.2.5",
     "@playwright/test": "1.57.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@storybook/addon-docs": "10.6.5",
+    "@storybook/addon-themes": "10.6.5",
+    "@storybook/react": "10.6.5",
+    "@storybook/react-vite": "10.6.5",
     "shadcn": "^2.6.3",
+    "storybook": "10.6.5",
     "typescript": "5.8.3",
     "vite": "6.4.2",
     "vitest": "4.1.8",
     "@tailwindcss/node": "4.1.18",
-    "@tailwindcss/oxide": "4.1.18"
+    "@tailwindcss/oxide": "4.1.18",
+    "vite-tsconfig-paths": "5.1.4"
   },
   "peerDependencies": {
     "react": ">=18.2.0 <20",
