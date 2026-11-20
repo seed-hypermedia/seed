@@ -287,7 +287,10 @@ export function usePublishResource(
         newContent = fillEmptyQueryBlocks(newContent, destinationId)
       }
 
-      const navigationChanges = getNavigationChanges(draft.navigation, editDocument?.detachedBlocks?.navigation)
+      const navigationChanges = getNavigationChanges(
+        draft.navigation,
+        editId ? editDocument?.detachedBlocks?.navigation : undefined,
+      )
 
       if (accts.data?.length == 0) {
         throw new Error('Create an account before publishing')
@@ -380,13 +383,15 @@ export function usePublishResource(
           // (`schemaDefinition`) and its children's (`childAttributesSchema`).
           const publishMetadata = await freezeSchemaDraft(
             desktopUniversalClient,
-            {...editDocument?.metadata, ...draft.metadata},
+            editId ? {...editDocument?.metadata, ...draft.metadata} : draft.metadata,
             draft.schemaDraft,
             draft.bindingSchemaDrafts,
           )
           const allChanges = [
             ...navigationChanges,
-            ...getDocAttributeChanges(expandObjectRemovals(publishMetadata, editDocument?.metadata)),
+            ...getDocAttributeChanges(
+              expandObjectRemovals(publishMetadata, editId ? editDocument?.metadata : undefined),
+            ),
             ...changes.changes,
             ...deleteChanges,
           ]

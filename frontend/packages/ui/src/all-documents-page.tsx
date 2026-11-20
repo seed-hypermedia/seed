@@ -1,5 +1,5 @@
 import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, hmId} from '@shm/shared'
+import {getDocumentTitle, hmId} from '@shm/shared'
 import {useAccountsMetadata, useDirectory} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {buildDocumentTree, type DocumentTreeNode, type FlatRow, flattenTree} from '@shm/shared/utils/all-documents-tree'
@@ -27,7 +27,7 @@ function pathKeyOf(doc: HMDocumentInfo) {
 }
 
 function titleOf(doc: HMDocumentInfo) {
-  return getMetadataName(doc.metadata) || doc.path?.at(-1) || 'Untitled'
+  return getDocumentTitle(doc, 'Untitled')
 }
 
 function pathLabelOf(doc: HMDocumentInfo) {
