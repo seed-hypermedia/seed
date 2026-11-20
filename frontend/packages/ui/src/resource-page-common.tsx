@@ -1029,6 +1029,8 @@ export interface ResourcePageProps {
   /** Revision of the saved draft after reference maintenance. */
   existingDraftMaintenanceRevision?: number
   existingDraftRemovedChildDocumentIds?: string[]
+  /** Child draft ids whose cards were removed, persisted across reloads; deleted on publish/discard. */
+  existingDraftRemovedChildDraftIds?: string[]
   existingDraftMineTouchedIds?: string[]
   /** Three-way merge base captured at draft start or last rebase, persisted across reloads. */
   existingDraftBaseBlocks?: HMBlockNode[]
@@ -1142,6 +1144,7 @@ function ResourcePageContent({
   existingDraftCursorPosition,
   existingDraftMaintenanceRevision,
   existingDraftRemovedChildDocumentIds,
+  existingDraftRemovedChildDraftIds,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
@@ -1648,6 +1651,7 @@ function ResourcePageContent({
             existingDraftCursorPosition={existingDraftCursorPosition}
             existingDraftMaintenanceRevision={existingDraftMaintenanceRevision}
             existingDraftRemovedChildDocumentIds={existingDraftRemovedChildDocumentIds}
+            existingDraftRemovedChildDraftIds={existingDraftRemovedChildDraftIds}
             existingDraftMineTouchedIds={existingDraftMineTouchedIds}
             existingDraftBaseBlocks={existingDraftBaseBlocks}
             existingDraftPublishPath={existingDraftPublishPath}
@@ -2011,6 +2015,7 @@ function DocumentBody({
   existingDraftCursorPosition,
   existingDraftMaintenanceRevision,
   existingDraftRemovedChildDocumentIds,
+  existingDraftRemovedChildDraftIds,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
   existingDraftPublishPath,
@@ -2065,6 +2070,8 @@ function DocumentBody({
   /** Revision of the saved draft after reference maintenance. */
   existingDraftMaintenanceRevision?: number
   existingDraftRemovedChildDocumentIds?: string[]
+  /** Child draft ids whose cards were removed, persisted across reloads; deleted on publish/discard. */
+  existingDraftRemovedChildDraftIds?: string[]
   existingDraftMineTouchedIds?: string[]
   existingDraftBaseBlocks?: HMBlockNode[]
   existingDraftPublishPath?: string[]
@@ -2127,6 +2134,7 @@ function DocumentBody({
           deps?: string[] | null
           maintenanceRevision?: number
           removedChildDocumentIds?: string[] | null
+          removedChildDraftIds?: string[] | null
           mineTouchedIds?: string[] | null
           baseBlocks?: HMBlockNode[] | null
           publishPath?: string[] | null
@@ -2147,6 +2155,7 @@ function DocumentBody({
         deps: existingDraftDeps ?? null,
         maintenanceRevision: existingDraftMaintenanceRevision ?? 0,
         removedChildDocumentIds: existingDraftRemovedChildDocumentIds ?? null,
+        removedChildDraftIds: existingDraftRemovedChildDraftIds ?? null,
         mineTouchedIds: existingDraftMineTouchedIds ?? null,
         baseBlocks: existingDraftBaseBlocks ?? null,
         publishPath: existingDraftPublishPath ?? null,
@@ -2164,6 +2173,7 @@ function DocumentBody({
     existingDraftDeps,
     existingDraftMaintenanceRevision,
     existingDraftRemovedChildDocumentIds,
+    existingDraftRemovedChildDraftIds,
     existingDraftMineTouchedIds,
     existingDraftBaseBlocks,
     existingDraftPublishPath,

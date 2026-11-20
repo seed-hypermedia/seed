@@ -71,6 +71,10 @@ If you switch to an [account](../protocol/identity.md) without [edit access](../
 
 "New" on a document creates a child draft in place. A card with a title you can edit appears at the bottom of the parent, and opening the card goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The app does not change the parent until the child is published, so there is nothing to discard on the parent. `buildInlineDraftWrite` in `@shm/shared` builds the write, and the app stores it like any other draft. <!-- id:KRj-N47e -->
 
+When such a child is published, the app adds a card for it to the published parent, after the parent's last block. If the parent also has an unpublished draft, the same card goes into the draft right after that block, wherever the draft has moved it, and the rest of the draft stays as it is.
+
+Typing `/New document` in the editor creates a child draft from inside the text instead: a draft card appears where you typed, its title is focused, and you stay in the parent. A parent that embeds an unpublished draft card cannot be published until that child is. Publishing the child turns the card into an ordinary document card at the same spot in the parent's draft, and the published parent gets the card next to its nearest published block. Removing a draft card deletes its child draft when the parent is published or discarded. Discarding a parent that still embeds child drafts asks whether to delete them or keep them. The [web app](./web.md) works the same way.
+
 The editor itself is the shared `@shm/editor` package. [The shared packages](./packages.md) describes its schema, its typography and how embeds are rendered.
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->

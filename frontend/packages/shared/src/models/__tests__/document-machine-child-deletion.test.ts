@@ -20,9 +20,10 @@ const document = {
   authors: [],
 } as unknown as HMDocument
 const confirmation = [{childId, documents: [{id: childId.id, version: 'child-v1'}]}]
-function start(content: HMBlockNode[] = [], removedChildDocumentIds: string[] = []) {
+function start(content: HMBlockNode[] = [], removedChildDocumentIds: string[] = [], removedChildDraftIds?: string[]) {
   const publish = vi.fn(async (_args: {input: PublishInput}) => ({...document, version: 'v2', content}))
   const inspect = vi.fn(async (_args: {input: ConfirmChildDeletionInput}) => confirmation)
+  const discard = vi.fn(async (_args: {input: {draftId: string; deletedChildDraftIds: string[]}}) => {})
   const applyInitialContent = vi.fn()
   const placeCursor = vi.fn()
   const setEditable = vi.fn()
@@ -37,7 +38,7 @@ function start(content: HMBlockNode[] = [], removedChildDocumentIds: string[] = 
         publishDocument: fromPromise(publish),
         inspectChildDeletions: fromPromise(inspect),
         writeDraft: fromPromise(async () => ({id: 'draft'})),
-        discardDraft: fromPromise(async () => {}),
+        discardDraft: fromPromise(discard),
       },
     }),
     {input: {documentId, canEdit: true}},
@@ -50,10 +51,11 @@ function start(content: HMBlockNode[] = [], removedChildDocumentIds: string[] = 
     content,
     baseBlocks,
     removedChildDocumentIds,
+    removedChildDraftIds,
     cursorPosition: null,
   })
   actor.send({type: 'edit.start'})
-  return {actor, publish, inspect, applyInitialContent, placeCursor, setEditable}
+  return {actor, publish, inspect, discard, applyInitialContent, placeCursor, setEditable}
 }
 
 describe('parent reference-removal publication confirmation', () => {
@@ -214,3 +216,40 @@ it.each(['confirmingChildDeletion', 'childDeletionFailed'] as const)(
     actor.stop()
   },
 )
+
+describe('removed child draft persistence', () => {
+  it('restores pending deleted child drafts from draft.resolved and passes them to publish', async () => {
+    const {actor, publish, inspect} = start([], [], ['child-draft-1'])
+    inspect.mockResolvedValue([])
+    expect(actor.getSnapshot().context.pendingDeletedChildDraftIds).toEqual(['child-draft-1'])
+    actor.send({type: 'publish.start'})
+    await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+    expect(publish.mock.calls[0]?.[0].input.deletedChildDraftIds).toEqual(['child-draft-1'])
+    actor.stop()
+  })
+
+  it('keeps a re-referenced draft out of the pending deletion list after restore', async () => {
+    const {actor} = start([], [], ['child-draft-1'])
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-draft-1']})
+    expect(actor.getSnapshot().context.pendingDeletedChildDraftIds).toEqual([])
+    actor.stop()
+  })
+
+  it('discarding deletes pending and referenced child drafts by default', async () => {
+    const {actor, discard} = start([], [], ['child-draft-1'])
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-draft-2']})
+    actor.send({type: 'edit.discard'})
+    await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+    expect(discard.mock.calls[0]?.[0].input.deletedChildDraftIds).toEqual(['child-draft-1', 'child-draft-2'])
+    actor.stop()
+  })
+
+  it('discarding with deleteChildDrafts false keeps the child drafts', async () => {
+    const {actor, discard} = start([], [], ['child-draft-1'])
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-draft-2']})
+    actor.send({type: 'edit.discard', deleteChildDrafts: false})
+    await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+    expect(discard.mock.calls[0]?.[0].input.deletedChildDraftIds).toEqual([])
+    actor.stop()
+  })
+})

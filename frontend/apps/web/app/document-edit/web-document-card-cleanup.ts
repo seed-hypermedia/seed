@@ -10,10 +10,7 @@ import {
   planDocumentCardRemoval,
   planDocumentCardRewrite,
 } from '@shm/shared/utils/document-card-cleanup'
-import {
-  executeConfirmedChildDeletion,
-  resolveDirectDocumentReferences,
-} from '@shm/shared/utils/confirmed-child-deletion'
+import {contentReferencesDocument, executeConfirmedChildDeletion} from '@shm/shared/utils/confirmed-child-deletion'
 import {rebaseDocumentReferenceDraft, findPublishedCardPosition} from '@shm/shared/utils/document-reference-rebase'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -304,8 +301,8 @@ function createCleanupActor(deps: WebCleanupDeps) {
               ? planDocumentCardRemoval(parentDocument as any, sourceDocumentId, {targetBlockId: job.targetBlockId})
               : {changes: [], removedBlockIds: []}
       if (operation === 'add' && plan.changes.length && targetDocumentId) {
-        const references = await resolveDirectDocumentReferences((parentDocument as HMDocument).content || [])
-        if (references.ids.some((id) => id.id === targetDocumentId)) return {changes: [], removedBlockIds: []}
+        if (await contentReferencesDocument((parentDocument as HMDocument).content || [], targetDocumentId))
+          return {changes: [], removedBlockIds: []}
         if (job.cardParentId !== undefined) {
           for (const change of plan.changes) {
             if (change.op.case === 'moveBlock') {

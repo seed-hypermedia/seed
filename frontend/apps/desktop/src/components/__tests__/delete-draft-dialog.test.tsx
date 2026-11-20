@@ -68,4 +68,45 @@ describe('DeleteDraftDialog', () => {
     expect(cancel?.className).toContain('border')
     expect(confirm?.className).toContain('bg-destructive')
   })
+
+  it('offers delete/keep child draft actions and the child-draft sentence when childDraftCount > 0', () => {
+    useDeleteDraftDialog()
+    const DialogComponent = dialogComponent
+    if (!DialogComponent) throw new Error('Dialog component was not registered')
+
+    const onConfirm = vi.fn()
+    const onConfirmKeepDrafts = vi.fn()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    act(() => {
+      root?.render(
+        <AlertDialog open>
+          <AlertDialogContent>
+            <DialogComponent
+              input={{draftId: 'draft-id', childDraftCount: 2, onConfirm, onConfirmKeepDrafts}}
+              onClose={vi.fn()}
+            />
+          </AlertDialogContent>
+        </AlertDialog>,
+      )
+    })
+
+    expect(document.body.textContent).toContain(
+      'This draft contains 2 unpublished child document(s). Discarding removes their cards.',
+    )
+    const labels = Array.from(document.querySelectorAll('button')).map((button) => button.textContent?.trim())
+    expect(labels).toEqual(
+      expect.arrayContaining(['Cancel', 'Discard and keep drafts (not recommended)', 'Discard and delete drafts']),
+    )
+    const keep = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Discard and keep drafts (not recommended)',
+    )
+    act(() => {
+      keep?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+    expect(onConfirmKeepDrafts).toHaveBeenCalled()
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
 })
