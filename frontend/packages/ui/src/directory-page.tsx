@@ -5,22 +5,37 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, useRouteLink} from '@shm/shared'
+import {
+  getMetadataName,
+  hmId,
+  pinnedDocumentId,
+  pinnedDocumentToUnpackedId,
+  resolvePins,
+  useRouteLink,
+  useUniversalClient,
+  type ResolvedPin,
+} from '@shm/shared'
+import {useDocumentActions, type DocumentActionsContextValue} from '@shm/shared/document-actions-context'
+import {queryDirectory} from '@shm/shared/models/queries'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search} from 'lucide-react'
-import {ChangeEvent, ReactNode, useMemo, useState} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {ArrowDown, ArrowUp, ArrowUpToLine, ChevronRight, Folder, History, Pin, Search, Trash, X} from 'lucide-react'
+import {ChangeEvent, KeyboardEvent, ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
 import {DraftBadge} from './draft-badge'
 import {getSiteNavDirectory} from './navigation'
+import {MenuItemType} from './options-dropdown'
 import {PageLayout} from './page-layout'
+import {SelectDropdown, SelectOptions} from './select-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {useScrollRestoration} from './use-scroll-restoration'
+import {cn} from './utils'
 
 /**
  * Full-page directory content component.
@@ -46,6 +61,8 @@ export function DirectoryPageContent({
 }) {
   const route = useNavRoute()
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [sortValue, setSortValue] = useState<SortValue>(DEFAULT_SORT_VALUE)
 
   const scrollRef = useScrollRestoration({
     scrollId: `directory-page-${docId.id}`,
@@ -68,41 +85,95 @@ export function DirectoryPageContent({
     )
   }
 
-  const searchBox =
-    showSearch && items.length > 0 ? (
-      <div className="relative w-full">
-        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-        <Input
-          placeholder="Filter documents…"
-          value={searchQuery}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+  const hasItems = items.length > 0
+  const showSort = hasItems
+  const showSearchBtn = showSearch && hasItems
+
+  const searchButton = showSearchBtn ? (
+    <Button
+      size="icon"
+      variant="ghost"
+      aria-label={searchOpen ? 'Close search' : 'Search documents'}
+      onClick={() => {
+        if (searchOpen) {
+          setSearchQuery('')
+        }
+        setSearchOpen((open) => !open)
+      }}
+    >
+      {searchOpen ? <X className="size-4" /> : <Search className="size-4" />}
+    </Button>
+  ) : null
+
+  const sortSelector = showSort ? (
+    <SelectDropdown
+      options={SORT_OPTIONS}
+      value={sortValue}
+      onValue={(value) => setSortValue(value as SortValue)}
+      className="w-36"
+    />
+  ) : null
+
+  const directoryHeaderRight =
+    showSort || showSearchBtn || headerRight ? (
+      <div className="ml-auto flex items-center justify-end gap-2">
+        {sortSelector}
+        {searchButton}
+        {headerRight}
       </div>
     ) : null
+
+  const expandedSearch = searchOpen ? (
+    <div className="relative w-full">
+      <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <Input
+        autoFocus
+        placeholder="Filter documents…"
+        value={searchQuery}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+        className="pl-9"
+        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === 'Escape') {
+            if (searchQuery) {
+              setSearchQuery('')
+            } else {
+              setSearchOpen(false)
+            }
+          }
+        }}
+      />
+    </div>
+  ) : null
 
   return (
     <PageLayout
       title={showTitle ? 'Sub documents' : undefined}
-      headerRight={
-        <>
-          {searchBox}
-          {headerRight}
-        </>
-      }
+      headerRight={directoryHeaderRight}
       contentMaxWidth={contentMaxWidth}
     >
       {/* Optional header slot (for create button, etc.) */}
-      {header && <div className="border-border border-b px-6 py-3">{header}</div>}
+      {(header || searchOpen) && (
+        <div className="border-border border-b px-6 py-3">
+          <div className="flex flex-col gap-3">
+            {expandedSearch}
+            {header}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="py-6" ref={scrollRef}>
+        <DirectoryPinnedDocuments docId={docId} searchQuery={searchQuery} />
         {items.length === 0 ? (
           <DirectoryEmpty canCreate={canCreate} />
         ) : filteredItems.length === 0 ? (
           <DirectoryNoResults searchQuery={searchQuery} />
         ) : (
-          <DirectoryListViewWithActivity items={filteredItems} accountsMetadata={accountsMetadata} />
+          <DirectoryListViewWithActivity
+            items={filteredItems}
+            accountsMetadata={accountsMetadata}
+            sortValue={sortValue}
+          />
         )}
       </div>
     </PageLayout>
@@ -139,6 +210,164 @@ export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
       )}
     </div>
   )
+}
+
+/**
+ * Renders a collapsible "Pinned" section at the top of a directory panel/page.
+ * Pinned documents are resolved against the whole site so pins from any
+ * sub-folder are recognised, and the section stays in a neutral state while
+ * the site directory is still loading to avoid a flash of deleted items.
+ */
+export function DirectoryPinnedDocuments({
+  docId,
+  searchQuery = '',
+}: {
+  docId: UnpackedHypermediaId
+  searchQuery?: string
+}) {
+  const actions = useDocumentActions()
+  const [expanded, setExpanded] = useState(true)
+  const pins = actions.getPinsForSite?.(docId.uid) ?? []
+  const client = useUniversalClient()
+  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
+  const allDescendants = useQuery({
+    ...queryDirectory(client, siteId, 'AllDescendants'),
+    enabled: pins.length > 0,
+  })
+  const resolvedPins = useMemo(() => {
+    if (!allDescendants.isSuccess) {
+      return pins.map((pin) => ({pin, item: undefined, status: 'ok' as const}))
+    }
+    return resolvePins(pins, allDescendants.data)
+  }, [pins, allDescendants.isSuccess, allDescendants.data])
+
+  if (searchQuery) return null
+  if (!resolvedPins.length) return null
+
+  return (
+    <div className="flex flex-col gap-1 pb-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex items-center gap-2 px-4 py-2"
+      >
+        <ChevronRight
+          className={cn('text-muted-foreground size-4 transition-transform duration-150', expanded && 'rotate-90')}
+        />
+        <SizableText size="xs" color="muted" weight="medium" className="tracking-wide uppercase">
+          Pinned
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          ({resolvedPins.length})
+        </SizableText>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-1">
+          {resolvedPins.map((resolved, index) => {
+            const item =
+              resolved.item ??
+              ({
+                id: pinnedDocumentToUnpackedId(resolved.pin),
+                metadata: {name: resolved.pin.title || 'Untitled'},
+              } as HMDocumentInfo)
+            return (
+              <DocumentListItem
+                key={pinnedDocumentId(resolved.pin)}
+                item={item}
+                pinState={{
+                  isPinned: true,
+                  isOutdated: resolved.status === 'outdated',
+                  isDeleted: resolved.status === 'deleted',
+                }}
+                extraMenuItems={createPinMenuItems(resolved, index, resolvedPins.length, docId.uid, actions)}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function createPinMenuItems(
+  resolved: ResolvedPin,
+  index: number,
+  total: number,
+  siteUid: string,
+  actions: DocumentActionsContextValue,
+): MenuItemType[] {
+  const id = pinnedDocumentToUnpackedId(resolved.pin)
+  const items: MenuItemType[] = []
+  if (resolved.status === 'outdated' && actions.acknowledgePin) {
+    items.push({
+      key: 'acknowledge',
+      label: 'Mark as up to date',
+      icon: <History className="size-3.5" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.acknowledgePin?.(id, resolved.item?.version ?? null, resolved.item?.metadata?.name)
+      },
+    })
+  }
+  if (resolved.status === 'deleted' && actions.unpinDocument) {
+    items.push({
+      key: 'remove',
+      label: 'Remove pin',
+      icon: <Trash className="size-3.5" />,
+      variant: 'destructive' as const,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.unpinDocument?.(id)
+      },
+    })
+  }
+  if (actions.movePin && total > 1) {
+    if (index > 0) {
+      items.push({
+        key: 'move-up',
+        label: 'Move up',
+        icon: <ArrowUp className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.movePin?.(siteUid, index, index - 1)
+        },
+      })
+    }
+    if (index < total - 1) {
+      items.push({
+        key: 'move-down',
+        label: 'Move down',
+        icon: <ArrowDown className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.movePin?.(siteUid, index, index + 1)
+        },
+      })
+    }
+    if (index > 0) {
+      items.push({
+        key: 'move-top',
+        label: 'Move to top',
+        icon: <ArrowUpToLine className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.movePin?.(siteUid, index, 0)
+        },
+      })
+    }
+  }
+  if (actions.unpinDocument) {
+    items.push({
+      key: 'unpin',
+      label: 'Unpin',
+      icon: <Pin className="size-3.5" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.unpinDocument?.(id)
+      },
+    })
+  }
+  return items
 }
 
 /** Hook to fetch directory data with drafts */
@@ -184,6 +413,62 @@ function getActivityTime(item: DirectoryItemWithActivity): number {
   return Math.max(changeTime, commentTime) || item.sortTime?.getTime() || 0
 }
 
+type SortType = 'hierarchy' | 'alphabetical' | 'activity'
+type SortDirection = 'asc' | 'desc'
+type SortValue = `${SortType}-${SortDirection}`
+
+const DEFAULT_SORT_VALUE: SortValue = 'activity-desc'
+
+const SORT_OPTIONS: SelectOptions[] = [
+  {value: 'activity-desc', label: 'Recent activity'},
+  {value: 'activity-asc', label: 'Oldest activity'},
+  {value: 'alphabetical-asc', label: 'A → Z'},
+  {value: 'alphabetical-desc', label: 'Z → A'},
+  {value: 'hierarchy-asc', label: 'Hierarchy'},
+  {value: 'hierarchy-desc', label: 'Hierarchy (reversed)'},
+]
+
+export function parseSortValue(value: SortValue): {type: SortType; direction: SortDirection} {
+  const [type, direction] = value.split('-') as [SortType, SortDirection]
+  return {type, direction}
+}
+
+export function getSortKey(item: DirectoryItemWithActivity, type: SortType): string | number {
+  switch (type) {
+    case 'alphabetical':
+      return getMetadataName(item.metadata).toLowerCase()
+    case 'activity':
+      return getActivityTime(item)
+    case 'hierarchy':
+    default: {
+      if ('path' in item && Array.isArray(item.path) && item.path.length > 0) {
+        return item.path.join('/').toLowerCase()
+      }
+      return getMetadataName(item.metadata).toLowerCase()
+    }
+  }
+}
+
+export function sortDirectoryItems(
+  items: DirectoryItemWithActivity[],
+  type: SortType,
+  direction: SortDirection,
+): DirectoryItemWithActivity[] {
+  const sorted = [...items]
+  sorted.sort((a, b) => {
+    const aKey = getSortKey(a, type)
+    const bKey = getSortKey(b, type)
+    let cmp = 0
+    if (typeof aKey === 'number' && typeof bKey === 'number') {
+      cmp = aKey - bKey
+    } else {
+      cmp = String(aKey).localeCompare(String(bKey), undefined, {numeric: true, sensitivity: 'base'})
+    }
+    return direction === 'desc' ? -cmp : cmp
+  })
+  return sorted
+}
+
 /** Hook to fetch directory data with activity info for rich display */
 export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
   const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
@@ -224,9 +509,6 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
 
     const allItems = [...publishedItems, ...unpublishedDraftItems]
 
-    // Sort by activity time (most recent first)
-    allItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
-
     return allItems
   }, [directory, drafts, docId.id, canSeePrivate])
 
@@ -255,19 +537,25 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
 export function DirectoryListViewWithActivity({
   items,
   accountsMetadata,
+  sortValue = DEFAULT_SORT_VALUE,
 }: {
   items: DirectoryItemWithActivity[]
   accountsMetadata?: HMAccountsMetadata
+  sortValue?: SortValue
 }) {
+  const {type, direction} = parseSortValue(sortValue)
+  const sortedItems = useMemo(() => sortDirectoryItems(items, type, direction), [items, type, direction])
+
   return (
     <div className="flex flex-col gap-1">
-      {items.map((item) =>
+      {sortedItems.map((item) =>
         item.isPublished ? (
           <DirectoryDocumentTreeItem
             key={item.id.id}
             item={item}
             draftId={item.draftId}
             accountsMetadata={accountsMetadata}
+            sortValue={sortValue}
           />
         ) : (
           <DraftListItem key={item.draftId} draftId={item.draftId} metadata={item.metadata} />
@@ -281,10 +569,12 @@ function DirectoryDocumentTreeItem({
   item,
   draftId,
   accountsMetadata,
+  sortValue,
 }: {
   item: HMDocumentInfo & {draftId?: string; isPublished: true}
   draftId?: string
   accountsMetadata?: HMAccountsMetadata
+  sortValue: SortValue
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -299,12 +589,12 @@ function DirectoryDocumentTreeItem({
           onToggle: () => setExpanded((value) => !value),
         }}
       />
-      {expanded && <DirectoryDocumentChildren docId={item.id} />}
+      {expanded && <DirectoryDocumentChildren docId={item.id} sortValue={sortValue} />}
     </div>
   )
 }
 
-function DirectoryDocumentChildren({docId}: {docId: UnpackedHypermediaId}) {
+function DirectoryDocumentChildren({docId, sortValue}: {docId: UnpackedHypermediaId; sortValue: SortValue}) {
   const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
 
   if (isInitialLoading) {
@@ -320,7 +610,7 @@ function DirectoryDocumentChildren({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <div className="border-border/70 ml-5 border-l pl-5">
-      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
+      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} sortValue={sortValue} />
     </div>
   )
 }
