@@ -12,6 +12,7 @@ export type DaemonConfig = {
   grpcPort: number
   p2pPort: number
   dataDir: string
+  allowedOrigins?: string[]
   /**
    * Use the vault key store (the one the desktop app runs with), with its
    * secrets in memory instead of the OS keychain. Needed to connect to a
@@ -74,6 +75,7 @@ export async function spawnDaemon(config: DaemonConfig): Promise<DaemonInstance>
     '-syncing.smart=true',
     '-syncing.no-sync-back=true',
     '-lndhub.mainnet=false',
+    ...(config.allowedOrigins?.length ? [`-api.allowed-origins=${config.allowedOrigins.join(',')}`] : []),
   ]
 
   console.log(`[Daemon] Spawning: ${binaryPath}`)
