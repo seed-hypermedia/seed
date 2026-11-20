@@ -1,9 +1,16 @@
 import {type Page} from '@playwright/test'
-import {expect, test} from './fixtures'
+import {expect, test, type EditorTestHelpers} from './fixtures'
 
 test.use({clipboardPermissions: false})
 
-async function insertImageBlock(page: Page, name: string) {
+/**
+ * Inserts an image after the first block.
+ *
+ * Takes `editorHelpers` because that fixture is what navigates to the harness: a test that destructures only `page`
+ * never has it built, so it runs against `about:blank` and finds no editor.
+ */
+async function insertImageBlock(page: Page, editorHelpers: EditorTestHelpers, name: string) {
+  await editorHelpers.waitForEditorReady()
   await page.evaluate((fileName: string) => {
     const editor = window.TEST_EDITOR?.editor
     const firstBlock = editor?.topLevelBlocks?.[0]
@@ -51,8 +58,8 @@ async function getSelectionInfo(page: Page) {
 test.describe('Image caption selection', () => {
   test.use({editorEditMode: true})
 
-  test('selects caption text with the keyboard and shows the formatting toolbar', async ({page}) => {
-    await insertImageBlock(page, 'caption-keyboard.gif')
+  test('selects caption text with the keyboard and shows the formatting toolbar', async ({editorHelpers, page}) => {
+    await insertImageBlock(page, editorHelpers, 'caption-keyboard.gif')
 
     const caption = page.locator('.image-caption').first()
     await expect(caption).toBeVisible()
@@ -72,8 +79,8 @@ test.describe('Image caption selection', () => {
     await expect(page.getByTestId('formatting-toolbar')).toBeVisible()
   })
 
-  test('selects caption text by dragging with the mouse', async ({page}) => {
-    await insertImageBlock(page, 'caption-mouse.gif')
+  test('selects caption text by dragging with the mouse', async ({editorHelpers, page}) => {
+    await insertImageBlock(page, editorHelpers, 'caption-mouse.gif')
 
     const caption = page.locator('.image-caption').first()
     await expect(caption).toBeVisible()
@@ -97,7 +104,7 @@ test.describe('Image caption selection', () => {
   })
 
   test('applies bold to a caption selection', async ({editorHelpers, page}) => {
-    await insertImageBlock(page, 'caption-bold.gif')
+    await insertImageBlock(page, editorHelpers, 'caption-bold.gif')
 
     const caption = page.locator('.image-caption').first()
     await expect(caption).toBeVisible()
