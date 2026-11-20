@@ -10,14 +10,15 @@ import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search} from 'lucide-react'
-import {ChangeEvent, ReactNode, useMemo, useState} from 'react'
+import {Folder, Search, X} from 'lucide-react'
+import {ChangeEvent, KeyboardEvent, ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
 import {DraftBadge} from './draft-badge'
 import {getSiteNavDirectory} from './navigation'
 import {PageLayout} from './page-layout'
+import {SelectDropdown, SelectOptions} from './select-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {useScrollRestoration} from './use-scroll-restoration'
@@ -46,6 +47,8 @@ export function DirectoryPageContent({
 }) {
   const route = useNavRoute()
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [sortValue, setSortValue] = useState<SortValue>(DEFAULT_SORT_VALUE)
 
   const scrollRef = useScrollRestoration({
     scrollId: `directory-page-${docId.id}`,
@@ -68,32 +71,81 @@ export function DirectoryPageContent({
     )
   }
 
-  const searchBox =
-    showSearch && items.length > 0 ? (
-      <div className="relative w-full">
-        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-        <Input
-          placeholder="Filter documents…"
-          value={searchQuery}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+  const hasItems = items.length > 0
+  const showSort = hasItems
+  const showSearchBtn = showSearch && hasItems
+
+  const searchButton = showSearchBtn ? (
+    <Button
+      size="icon"
+      variant="ghost"
+      aria-label={searchOpen ? 'Close search' : 'Search documents'}
+      onClick={() => {
+        if (searchOpen) {
+          setSearchQuery('')
+        }
+        setSearchOpen((open) => !open)
+      }}
+    >
+      {searchOpen ? <X className="size-4" /> : <Search className="size-4" />}
+    </Button>
+  ) : null
+
+  const sortSelector = showSort ? (
+    <SelectDropdown
+      options={SORT_OPTIONS}
+      value={sortValue}
+      onValue={(value) => setSortValue(value as SortValue)}
+      className="w-36"
+    />
+  ) : null
+
+  const directoryHeaderRight =
+    showSort || showSearchBtn || headerRight ? (
+      <div className="ml-auto flex items-center justify-end gap-2">
+        {sortSelector}
+        {searchButton}
+        {headerRight}
       </div>
     ) : null
+
+  const expandedSearch = searchOpen ? (
+    <div className="relative w-full">
+      <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <Input
+        autoFocus
+        placeholder="Filter documents…"
+        value={searchQuery}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+        className="pl-9"
+        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === 'Escape') {
+            if (searchQuery) {
+              setSearchQuery('')
+            } else {
+              setSearchOpen(false)
+            }
+          }
+        }}
+      />
+    </div>
+  ) : null
 
   return (
     <PageLayout
       title={showTitle ? 'Sub documents' : undefined}
-      headerRight={
-        <>
-          {searchBox}
-          {headerRight}
-        </>
-      }
+      headerRight={directoryHeaderRight}
       contentMaxWidth={contentMaxWidth}
     >
       {/* Optional header slot (for create button, etc.) */}
-      {header && <div className="border-border border-b px-6 py-3">{header}</div>}
+      {(header || searchOpen) && (
+        <div className="border-border border-b px-6 py-3">
+          <div className="flex flex-col gap-3">
+            {expandedSearch}
+            {header}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="py-6" ref={scrollRef}>
@@ -102,7 +154,11 @@ export function DirectoryPageContent({
         ) : filteredItems.length === 0 ? (
           <DirectoryNoResults searchQuery={searchQuery} />
         ) : (
-          <DirectoryListViewWithActivity items={filteredItems} accountsMetadata={accountsMetadata} />
+          <DirectoryListViewWithActivity
+            items={filteredItems}
+            accountsMetadata={accountsMetadata}
+            sortValue={sortValue}
+          />
         )}
       </div>
     </PageLayout>
@@ -184,6 +240,62 @@ function getActivityTime(item: DirectoryItemWithActivity): number {
   return Math.max(changeTime, commentTime) || item.sortTime?.getTime() || 0
 }
 
+type SortType = 'hierarchy' | 'alphabetical' | 'activity'
+type SortDirection = 'asc' | 'desc'
+type SortValue = `${SortType}-${SortDirection}`
+
+const DEFAULT_SORT_VALUE: SortValue = 'activity-desc'
+
+const SORT_OPTIONS: SelectOptions[] = [
+  {value: 'activity-desc', label: 'Recent activity'},
+  {value: 'activity-asc', label: 'Oldest activity'},
+  {value: 'alphabetical-asc', label: 'A → Z'},
+  {value: 'alphabetical-desc', label: 'Z → A'},
+  {value: 'hierarchy-asc', label: 'Hierarchy'},
+  {value: 'hierarchy-desc', label: 'Hierarchy (reversed)'},
+]
+
+export function parseSortValue(value: SortValue): {type: SortType; direction: SortDirection} {
+  const [type, direction] = value.split('-') as [SortType, SortDirection]
+  return {type, direction}
+}
+
+export function getSortKey(item: DirectoryItemWithActivity, type: SortType): string | number {
+  switch (type) {
+    case 'alphabetical':
+      return getMetadataName(item.metadata).toLowerCase()
+    case 'activity':
+      return getActivityTime(item)
+    case 'hierarchy':
+    default: {
+      if ('path' in item && Array.isArray(item.path) && item.path.length > 0) {
+        return item.path.join('/').toLowerCase()
+      }
+      return getMetadataName(item.metadata).toLowerCase()
+    }
+  }
+}
+
+export function sortDirectoryItems(
+  items: DirectoryItemWithActivity[],
+  type: SortType,
+  direction: SortDirection,
+): DirectoryItemWithActivity[] {
+  const sorted = [...items]
+  sorted.sort((a, b) => {
+    const aKey = getSortKey(a, type)
+    const bKey = getSortKey(b, type)
+    let cmp = 0
+    if (typeof aKey === 'number' && typeof bKey === 'number') {
+      cmp = aKey - bKey
+    } else {
+      cmp = String(aKey).localeCompare(String(bKey), undefined, {numeric: true, sensitivity: 'base'})
+    }
+    return direction === 'desc' ? -cmp : cmp
+  })
+  return sorted
+}
+
 /** Hook to fetch directory data with activity info for rich display */
 export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
   const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
@@ -224,9 +336,6 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
 
     const allItems = [...publishedItems, ...unpublishedDraftItems]
 
-    // Sort by activity time (most recent first)
-    allItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
-
     return allItems
   }, [directory, drafts, docId.id, canSeePrivate])
 
@@ -255,19 +364,25 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
 export function DirectoryListViewWithActivity({
   items,
   accountsMetadata,
+  sortValue = DEFAULT_SORT_VALUE,
 }: {
   items: DirectoryItemWithActivity[]
   accountsMetadata?: HMAccountsMetadata
+  sortValue?: SortValue
 }) {
+  const {type, direction} = parseSortValue(sortValue)
+  const sortedItems = useMemo(() => sortDirectoryItems(items, type, direction), [items, type, direction])
+
   return (
     <div className="flex flex-col gap-1">
-      {items.map((item) =>
+      {sortedItems.map((item) =>
         item.isPublished ? (
           <DirectoryDocumentTreeItem
             key={item.id.id}
             item={item}
             draftId={item.draftId}
             accountsMetadata={accountsMetadata}
+            sortValue={sortValue}
           />
         ) : (
           <DraftListItem key={item.draftId} draftId={item.draftId} metadata={item.metadata} />
@@ -281,10 +396,12 @@ function DirectoryDocumentTreeItem({
   item,
   draftId,
   accountsMetadata,
+  sortValue,
 }: {
   item: HMDocumentInfo & {draftId?: string; isPublished: true}
   draftId?: string
   accountsMetadata?: HMAccountsMetadata
+  sortValue: SortValue
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -299,12 +416,12 @@ function DirectoryDocumentTreeItem({
           onToggle: () => setExpanded((value) => !value),
         }}
       />
-      {expanded && <DirectoryDocumentChildren docId={item.id} />}
+      {expanded && <DirectoryDocumentChildren docId={item.id} sortValue={sortValue} />}
     </div>
   )
 }
 
-function DirectoryDocumentChildren({docId}: {docId: UnpackedHypermediaId}) {
+function DirectoryDocumentChildren({docId, sortValue}: {docId: UnpackedHypermediaId; sortValue: SortValue}) {
   const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
 
   if (isInitialLoading) {
@@ -320,7 +437,7 @@ function DirectoryDocumentChildren({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <div className="border-border/70 ml-5 border-l pl-5">
-      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
+      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} sortValue={sortValue} />
     </div>
   )
 }
