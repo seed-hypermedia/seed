@@ -148,7 +148,7 @@ In the [desktop app](./desktop.md), the account settings switch between the loca
 
 ## Import an existing account
 
-In the web vault, choose **Import identity** in the account sidebar, then choose **Key file** or **Recovery phrase**. A key file is an exported `.hmkey.json`; enter its password if it was encrypted. For a recovery phrase, paste the account's BIP-39 words in order and enter the original passphrase only if one was used when creating that account. Type one word per numbered input, or paste the complete phrase into any input to fill the grid. Spaces, newlines and commas between words are accepted. Account import adjusts the grid to a pasted phrase of 12, 15, 18, 21 or 24 words; use the word-count selector when entering a longer phrase by hand.
+In the web vault, choose **Import identity** in the account sidebar, then choose **Key file** or **Recovery phrase**. A key file is an exported `.hmkey.json`; enter its password if it was encrypted. For a recovery phrase, paste the account's BIP-39 words in order and enter the original passphrase only if one was used when creating that account. Type one word per numbered input, or paste the complete phrase into any input to fill the grid. Separate words with whitespace or commas. Account import adjusts the grid to a pasted phrase of 12, 15, 18, 21 or 24 words; use the word-count selector when entering a longer phrase by hand.
 
 The browser validates the phrase and derives the same account key as the Seed desktop app. It saves that key in the encrypted vault and selects the imported account. The words and passphrase are not saved in the vault or sent to the server. An account already in the vault cannot be imported again.
 
