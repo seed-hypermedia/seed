@@ -972,6 +972,7 @@ function EventCommentWithReply({
           <EventContent size={size} event={event} />
           <div className="-ml-3">
             <Button
+              variant="ghost"
               size="xs"
               className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
             >
@@ -1183,6 +1184,7 @@ function EventItem({
             {event.type == 'comment' || (event.type == 'citation' && event.comment) ? (
               <div className="-ml-3">
                 <Button
+                  variant="ghost"
                   size="xs"
                   className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
                 >

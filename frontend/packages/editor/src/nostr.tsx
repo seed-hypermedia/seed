@@ -159,6 +159,7 @@ function NostrComponent({
     >
       {replace && editor.isEditable ? (
         <Button
+          variant="ghost"
           className="absolute top-1.5 right-1.5 z-20 w-[60px]"
           size="sm"
           onClick={() =>
@@ -392,7 +393,9 @@ function NostrForm({
                   autoFocus={true}
                 />
 
-                <Button type="submit">SEARCH</Button>
+                <Button variant="ghost" type="submit">
+                  SEARCH
+                </Button>
               </div>
               {state.name && (
                 <SizableText size="sm" style={{color: state.color}} className="pt-2">
@@ -413,7 +416,9 @@ function NostrForm({
                   autoFocus={true}
                 />
 
-                <Button type="submit">EMBED</Button>
+                <Button variant="ghost" type="submit">
+                  EMBED
+                </Button>
               </div>
               {state.name && (
                 <SizableText size="sm" style={{color: state.color}} className="pt-2">

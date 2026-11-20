@@ -96,6 +96,7 @@ function FooterNetworkingButton() {
   return (
     <div className="flex items-center gap-2">
       <Button
+        variant="ghost"
         size="xs"
         className={cn('px-2', route.key == 'contacts' && 'text-primary')}
         onClick={() => networkDialog.open(true)}

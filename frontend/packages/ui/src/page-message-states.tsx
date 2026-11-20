@@ -60,6 +60,7 @@ export function PageRedirected({
   return (
     <PageMessageBox title="Redirected" message="This document has been redirected to a new location.">
       <Button
+        variant="ghost"
         onClick={() => {
           onNavigate(redirectTarget)
         }}

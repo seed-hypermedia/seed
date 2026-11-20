@@ -49,7 +49,7 @@ describe('SettingsRow', () => {
           icon={<svg data-testid="icon" />}
           label="Password"
           description="Password is set"
-          action={<Button>Change</Button>}
+          action={<Button variant="ghost">Change</Button>}
         />,
       )
     })
@@ -74,7 +74,7 @@ describe('Button loading', () => {
   it('disables the button and renders a spinner when loading', () => {
     act(() => {
       root.render(
-        <Button loading onClick={() => {}}>
+        <Button variant="ghost" loading onClick={() => {}}>
           Add Passkey
         </Button>,
       )

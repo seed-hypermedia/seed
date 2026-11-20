@@ -87,7 +87,12 @@ export function ParkedRunActions({
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" disabled={signalRun.isPending} onClick={() => (payloadOpen ? sendTypedPayload() : send())}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={signalRun.isPending}
+          onClick={() => (payloadOpen ? sendTypedPayload() : send())}
+        >
           {signalRun.isPending ? 'Sending…' : ask.kind === 'resume' ? 'Resume' : 'Answer'}
         </Button>
         {ask.kind === 'answer' ? (

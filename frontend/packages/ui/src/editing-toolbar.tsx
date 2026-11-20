@@ -399,8 +399,7 @@ export function PublishPopoverBody({
           variant={publishDisabled ? 'ghost' : 'brand'}
           className={cn(
             'h-11 text-base font-semibold',
-            publishDisabled &&
-              'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
+            publishDisabled && 'bg-muted text-muted-foreground hover:bg-muted disabled:opacity-100',
           )}
           disabled={publishDisabled}
           onClick={() => onPublish()}
@@ -468,11 +467,7 @@ const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onCli
         ref={ref}
         size="sm"
         variant={canPublish ? 'green' : 'ghost'}
-        className={cn(
-          'gap-1.5',
-          !canPublish &&
-            'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
-        )}
+        className={cn('gap-1.5', !canPublish && 'bg-muted text-muted-foreground hover:bg-muted')}
         onClick={onClick}
       >
         <span>Publish</span>

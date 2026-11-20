@@ -4742,6 +4742,7 @@ function CollectionViewControls({
           >
             <PopoverTrigger asChild>
               <Button
+                variant="ghost"
                 size="sm"
                 disabled={!active && !canEdit}
                 aria-pressed={active}

@@ -234,6 +234,7 @@ function LinkedObjectEditor({
             : 'Free-form: any DAG-CBOR value'}
         </span>
         <Button
+          variant="ghost"
           size="sm"
           onClick={publish}
           disabled={publishing || value === undefined || (locked && errors.length > 0)}

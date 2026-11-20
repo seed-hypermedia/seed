@@ -335,7 +335,9 @@ export function DiscardChangesDialog({onDiscard, onCancel}: {onDiscard: (() => v
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onDiscard?.()}>Discard</AlertDialogAction>
+          <AlertDialogAction variant="ghost" onClick={() => onDiscard?.()}>
+            Discard
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

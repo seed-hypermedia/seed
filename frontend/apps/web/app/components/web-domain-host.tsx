@@ -57,7 +57,7 @@ export function WebDomainHost() {
                   <Button variant="ghost" onClick={dismiss}>
                     Not now
                   </Button>
-                  <Button onClick={() => setWebDomainRequest({...request, view: 'hosting'})}>
+                  <Button variant="ghost" onClick={() => setWebDomainRequest({...request, view: 'hosting'})}>
                     Publish to a Domain
                   </Button>
                 </DialogFooter>

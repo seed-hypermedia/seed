@@ -529,9 +529,9 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
   return (
     <button
       onClick={onClick}
-      className="flex size-8 cursor-pointer items-center justify-center rounded-full border border-dashed border-gray-400"
+      className="border-muted-foreground/50 flex size-8 cursor-pointer items-center justify-center rounded-full border border-dashed"
     >
-      <User className="size-4 text-gray-400" />
+      <User className="text-muted-foreground size-4" />
     </button>
   )
 }

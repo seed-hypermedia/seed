@@ -165,6 +165,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
       >
         {isMermaid && (
           <Button
+            variant="ghost"
             size="xs"
             className="border-input bg-background border shadow-sm"
             onClick={(e) => {
@@ -181,6 +182,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
           </Button>
         )}
         <Button
+          variant="ghost"
           ref={buttonRef}
           size="xs"
           className="border-input bg-background w-24 justify-between border shadow-sm"
@@ -196,6 +198,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
         </Button>
         <Tooltip content={copyLabel} asChild>
           <Button
+            variant="ghost"
             type="button"
             size="iconSm"
             aria-label={copyLabel}
@@ -248,6 +251,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
             >
               {allLanguages.map((item) => (
                 <Button
+                  variant="ghost"
                   key={item}
                   onClick={() => handleChange(item)}
                   className="hover:bg-accent dark:hover:bg-accent flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm"

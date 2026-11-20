@@ -63,7 +63,7 @@ function Tab({label, isActive, onPress}: {label: string; isActive: boolean; onPr
         'inline-block flex-shrink-0 border-b-3 p-4 whitespace-nowrap dark:text-white',
         isActive
           ? 'border-primary rounded-none font-bold text-black'
-          : 'rounded-none border-transparent text-gray-600 hover:text-gray-800',
+          : 'text-muted-foreground hover:text-foreground rounded-none border-transparent',
       )}
       onClick={onPress}
       role="tab"
@@ -170,7 +170,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
           </Tooltip>
           {secondaryTitle && (
             <Tooltip content={secondaryTooltip}>
-              <h3 className="text-2xl text-gray-600 dark:text-gray-300">{secondaryTitle}</h3>
+              <h3 className="text-muted-foreground text-2xl">{secondaryTitle}</h3>
             </Tooltip>
           )}
           {contact.data ? <ContactEdgeNames contact={contact.data} accounts={accounts.data?.accountsMetadata} /> : null}
@@ -217,6 +217,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
               </>
             ) : (
               <Button
+                variant="ghost"
                 onClick={() => {
                   contactFormDialog.open({
                     name: contact.data?.metadata?.name || '?',
@@ -336,7 +337,7 @@ function AccountContacts({contact, ownerLabel}: {contact: HMContact; ownerLabel:
 
           return (
             <div
-              className="flex flex-row items-center gap-2 p-2 text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              className="text-muted-foreground hover:text-foreground flex flex-row items-center gap-2 p-2"
               onClick={() => {
                 navigate({
                   key: 'contact',
@@ -355,9 +356,7 @@ function AccountContacts({contact, ownerLabel}: {contact: HMContact; ownerLabel:
                 <AccountAvatar id={hmId(contact.subject)} size={32} />
               )}
               <span className="font-bold">{isDiscovering ? 'Loading…' : subjectName}</span>
-              {subjectName !== contactName ? (
-                <span className="text-gray-500 dark:text-gray-300">| {contactName}</span>
-              ) : null}
+              {subjectName !== contactName ? <span className="text-muted-foreground">| {contactName}</span> : null}
             </div>
           )
         })}

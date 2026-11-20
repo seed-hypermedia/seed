@@ -212,6 +212,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       <div className="flex justify-end">
         <Button
+          variant="ghost"
           size="icon"
           onClick={() => {
             if (props.type === 'link') {

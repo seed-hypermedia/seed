@@ -398,7 +398,7 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
           : 'Sign in or create your identity to get started.'}
       </DialogDescription>
 
-      {/* <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
+      {/* <SizableText size="xs" className="text-muted-foreground">
                 By continuing, you agree to our{' '}
                 <a
                   href="https://hyper.media/terms"
@@ -415,19 +415,19 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
       </Button>
 
       <div className="flex items-center gap-2">
-        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">Or</span>
-        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+        <div className="bg-border h-px flex-1" />
+        <span className="text-muted-foreground text-xs">Or</span>
+        <div className="bg-border h-px flex-1" />
       </div>
 
       <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
         {tx('Already have a Hypermedia identity')}
       </Button>
 
-      <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
+      <div className="text-muted-foreground text-center text-sm">
         <button
           type="button"
-          className="cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300"
+          className="hover:text-foreground cursor-pointer"
           onClick={() => setShowCustomVaultInput(true)}
         >
           {tx('I have a different identity domain')}
@@ -435,13 +435,13 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
       </div>
 
       {showCustomVaultInput && (
-        <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
+        <div className="flex flex-col gap-2 rounded-md border p-3">
           <SizableText size="sm" className="font-medium">
             Identity Domain
           </SizableText>
           <input
             ref={customVaultInputRef}
-            className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
+            className="bg-background rounded border px-2 py-1.5 text-sm"
             value={customVaultUrl}
             onChange={(e) => setCustomVaultUrl(e.target.value)}
             placeholder={defaultVaultUrl}

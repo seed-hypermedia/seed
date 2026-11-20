@@ -41,7 +41,9 @@ export function ConnectionsPanel({docId, targetBlockId}: {docId: UnpackedHyperme
       ) : citations.isError ? (
         <div role="alert">
           <p>Could not load connections.</p>
-          <Button onClick={() => citations.refetch()}>Try again</Button>
+          <Button variant="ghost" onClick={() => citations.refetch()}>
+            Try again
+          </Button>
         </div>
       ) : groups.length ? (
         <div className="divide-border border-border divide-y border-t">

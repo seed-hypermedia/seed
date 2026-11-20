@@ -91,7 +91,7 @@ export function SetPasswordDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !password || !confirmPassword}>
+            <Button variant="default" type="submit" disabled={isSubmitting || !password || !confirmPassword}>
               {isSubmitting ? 'Saving…' : submitLabel}
             </Button>
           </DialogFooter>

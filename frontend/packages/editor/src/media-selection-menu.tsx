@@ -80,10 +80,7 @@ export function MediaSelectionMenu({
 
   return (
     <div
-      className={cn(
-        'bg-background border-border z-20 flex items-center gap-1 rounded-md border p-1 shadow-md',
-        'dark:bg-neutral-900',
-      )}
+      className={cn('bg-background border-border z-20 flex items-center gap-1 rounded-md border p-1 shadow-md')}
       data-testid={testId('selection-menu')}
       // Selection menu shouldn't bubble pointer events into the editor and
       // accidentally move the cursor or kill the block selection.

@@ -83,7 +83,7 @@ export function CreateSpaceForm({
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <div className="flex items-start justify-between p-4 pb-0">
-        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+        <Badge className="bg-muted text-muted-foreground">
           Step {step + 1}/{TOTAL_STEPS}
         </Badge>
         {onClose ? (
@@ -173,8 +173,8 @@ function useFilePreviewUrl(file: File | null) {
 function ImagePlusEmpty({hint}: {hint?: string}) {
   return (
     <div className="flex flex-col items-center justify-center gap-2">
-      <div className="flex size-8 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900">
-        <Plus className="size-4 text-emerald-700 dark:text-emerald-300" />
+      <div className="bg-muted flex size-8 items-center justify-center rounded-md">
+        <Plus className="text-muted-foreground size-4" />
       </div>
       {hint ? (
         <SizableText size="xs" className="text-muted-foreground text-center">

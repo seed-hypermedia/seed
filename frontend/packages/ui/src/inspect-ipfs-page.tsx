@@ -639,6 +639,7 @@ export function InspectIpfsPage({
                   </Button>
                 )}
                 <Button
+                  variant="ghost"
                   size="sm"
                   onClick={() => (editField ? setConfirmOpen(true) : publish())}
                   disabled={
@@ -692,6 +693,7 @@ export function InspectIpfsPage({
                     Cancel
                   </Button>
                   <Button
+                    variant="default"
                     onClick={async () => {
                       await publish()
                       setConfirmOpen(false)

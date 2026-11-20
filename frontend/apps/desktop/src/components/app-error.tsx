@@ -99,7 +99,7 @@ export function AppErrorContent({
               </div>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={() => window.location.reload()}>
+              <Button variant="ghost" onClick={() => window.location.reload()}>
                 <RefreshCw className="size-4" />
                 Try again
               </Button>

@@ -98,7 +98,7 @@ export function ImportKeyDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isImporting}>
+            <Button variant="default" type="submit" disabled={isImporting}>
               {isImporting ? 'Importing…' : 'Import Key'}
             </Button>
           </DialogFooter>

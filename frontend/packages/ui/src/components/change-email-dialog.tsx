@@ -112,7 +112,7 @@ export function ChangeEmailDialog({
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isStarting || !newEmail.trim()}>
+                <Button variant="default" type="submit" disabled={isStarting || !newEmail.trim()}>
                   {isStarting ? 'Sending…' : 'Send Verification Link'}
                 </Button>
               </DialogFooter>
@@ -133,7 +133,7 @@ export function ChangeEmailDialog({
                 <ExpiryHint expireTimeMs={expireTimeMs} />
               </div>
               {error ? <p className="text-destructive text-center text-sm">{error}</p> : null}
-              <Button type="submit" disabled={code.length !== 4 || isVerifying}>
+              <Button variant="default" type="submit" disabled={code.length !== 4 || isVerifying}>
                 {isVerifying ? 'Verifying…' : 'Verify email'}
               </Button>
               <Button type="button" variant="ghost" disabled={isStarting} onClick={() => start()}>

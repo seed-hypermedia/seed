@@ -152,7 +152,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   if (hasSrc || uploading) {
     // this means we have a URL in the props.url that is not starting with `ipfs://`, which means we are uploading the image to IPFS
     return (
-      <Button contentEditable={false} size="lg" className="w-full justify-start">
+      <Button variant="ghost" contentEditable={false} size="lg" className="w-full justify-start">
         uploading...
       </Button>
     )

@@ -242,7 +242,7 @@ export default function AuthCallbackRoute() {
             </SizableText>
           </div>
           <div className="flex w-full flex-col gap-2">
-            <Button onClick={() => navigate('/', {replace: true})} className="w-full">
+            <Button variant="ghost" onClick={() => navigate('/', {replace: true})} className="w-full">
               Return Home
             </Button>
             <Button variant="outline" onClick={() => window.location.reload()} className="w-full">

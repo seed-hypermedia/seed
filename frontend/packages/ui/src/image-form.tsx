@@ -185,6 +185,7 @@ export function ImageForm({
       </div>
       {cropper.source && url ? (
         <Button
+          variant="ghost"
           size="icon"
           aria-label="Adjust crop"
           className={cn(
@@ -202,6 +203,7 @@ export function ImageForm({
       ) : null}
       {onRemove && url ? (
         <Button
+          variant="ghost"
           size="icon"
           aria-label="Remove image"
           className="grouo-hover:pointer-events-all absolute top-0 right-0 z-50 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"

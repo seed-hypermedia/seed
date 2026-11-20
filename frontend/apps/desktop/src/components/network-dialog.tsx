@@ -38,7 +38,7 @@ export function NetworkDialog() {
     <>
       <DialogTitle>Network Connections</DialogTitle>
       <div className="flex justify-end">
-        <Button onClick={() => connectDialog.open(true)} size="sm">
+        <Button variant="ghost" onClick={() => connectDialog.open(true)} size="sm">
           <Route className="size-3" />
           Add Connection
         </Button>
@@ -249,7 +249,7 @@ function IndicationTag({label, status}: {label: string; status: null | 0 | 1 | 2
   if (status === 1) statusDot = <IndicationStatus color="$orange9" />
   if (status === 2) statusDot = <IndicationStatus color="$green9" />
   return (
-    <Button disabled size="sm">
+    <Button variant="ghost" disabled size="sm">
       {statusDot}
       {label}
     </Button>

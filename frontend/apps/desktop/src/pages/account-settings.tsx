@@ -518,7 +518,11 @@ function VaultSettings() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDisconnect()} disabled={disconnectVault.isPending}>
+            <AlertDialogAction
+              variant="ghost"
+              onClick={() => void handleDisconnect()}
+              disabled={disconnectVault.isPending}
+            >
               Switch to Local
             </AlertDialogAction>
           </AlertDialogFooter>

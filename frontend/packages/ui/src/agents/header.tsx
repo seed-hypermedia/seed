@@ -341,7 +341,12 @@ export function AgentHeader({
           </div>
           <div className="flex flex-none items-center gap-2">
             {activeTab === 'triggers' && onCreateTrigger ? (
-              <Button className="max-sm:min-h-10" onClick={onCreateTrigger} disabled={!canCreateTrigger}>
+              <Button
+                variant="ghost"
+                className="max-sm:min-h-10"
+                onClick={onCreateTrigger}
+                disabled={!canCreateTrigger}
+              >
                 <GitBranch className="mr-2 size-4" /> New trigger
               </Button>
             ) : null}

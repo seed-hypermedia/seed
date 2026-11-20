@@ -31,8 +31,7 @@ export function ResourceToken({
       <HMIcon size={20} id={id} name={displayMetadata?.name} icon={displayMetadata?.icon} />
     ) : null
 
-  const baseClassName =
-    'inline text-sm whitespace-normal bg-gray-100 border hover:dark:text-white dark:bg-gray-800 hover:bg-gray-200'
+  const baseClassName = 'inline text-sm whitespace-normal bg-muted border hover:bg-accent hover:text-accent-foreground'
   const previewTriggerClassName = 'inline-block align-middle whitespace-nowrap px-1 rounded-md'
   if (ResourcePreview) {
     return (

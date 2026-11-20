@@ -140,7 +140,7 @@ function CreateInstance({schema, typeName}: {schema: Record<string, any>; typeNa
         <span className={errors.length ? 'text-destructive text-sm' : 'text-sm text-green-600'}>
           {errors.length ? `${errors.length} issue${errors.length > 1 ? 's' : ''} to resolve` : '✓ valid'}
         </span>
-        <Button size="sm" onClick={publish} disabled={publishing || errors.length > 0}>
+        <Button variant="ghost" size="sm" onClick={publish} disabled={publishing || errors.length > 0}>
           {publishing ? 'Publishing…' : 'Publish'}
         </Button>
       </div>
@@ -283,7 +283,7 @@ export function SchemaDocumentHeaderActions({
       <div className="flex items-center gap-1.5">
         {onNewTypedDocument && (
           <Tooltip content="A new document whose attributes follow this schema">
-            <Button size="sm" onClick={() => onNewTypedDocument(docUrl)}>
+            <Button variant="ghost" size="sm" onClick={() => onNewTypedDocument(docUrl)}>
               <Plus className="mr-1 size-4" /> New Document
             </Button>
           </Tooltip>
@@ -302,7 +302,7 @@ export function SchemaDocumentHeaderActions({
   return (
     <div className="flex items-center gap-1.5">
       {isInstantiable && (
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-4" /> Create
         </Button>
       )}

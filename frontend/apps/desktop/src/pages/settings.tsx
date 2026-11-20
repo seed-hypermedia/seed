@@ -536,7 +536,7 @@ function NetworkSettings() {
                 <Button variant="ghost">Cancel</Button>
               </AlertDialogCancel>
               <AlertDialogAction asChild>
-                <Button disabled={!canConfirm} onClick={confirmNetworkChange}>
+                <Button variant="ghost" disabled={!canConfirm} onClick={confirmNetworkChange}>
                   Change & Restart
                 </Button>
               </AlertDialogAction>
@@ -1109,7 +1109,7 @@ function AccountKeys() {
               <Button type="button" variant="ghost" onClick={() => setIsExportDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={exportKey.isPending}>
+              <Button variant="default" type="submit" disabled={exportKey.isPending}>
                 {exportKey.isPending ? 'Exporting…' : 'Export Key'}
               </Button>
             </div>
@@ -1127,6 +1127,7 @@ function AccountKeys() {
         Create a new profile to get started with Seed. You'll need to create a profile to use all the features.
       </p>
       <Button
+        variant="ghost"
         className="mt-4"
         size="lg"
         onClick={() => {
@@ -1366,7 +1367,7 @@ function DeviceItem({id}: {id: string}) {
         title={id.substring(id.length - 10)}
         right={
           isCurrent && (
-            <Button size="xs" className="font-bold" disabled>
+            <Button variant="ghost" size="xs" className="font-bold" disabled>
               current device
             </Button>
           )

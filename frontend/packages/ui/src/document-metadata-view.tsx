@@ -434,6 +434,7 @@ function MetadataJsonEditor({
           ) : (
             <>
               <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   onMetadata!(diffMetadata(metadata, validation.value!))

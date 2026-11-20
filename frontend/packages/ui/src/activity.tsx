@@ -23,7 +23,7 @@ export function SubDocumentItem({
   const isRead = markedAsRead || !item.activitySummary?.isUnread
   const linkProps = useRouteLink({key: 'document', id})
   return (
-    <Button className={cn('h-auto items-start justify-start')} {...linkProps}>
+    <Button variant="ghost" className={cn('h-auto items-start justify-start')} {...linkProps}>
       {!hideIcon && (
         <div
           className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
