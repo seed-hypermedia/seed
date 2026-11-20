@@ -154,7 +154,6 @@ function invalidateParent(parentDocumentId: string) {
   appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'Children'])
   appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'AllDescendants'])
   appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentDocumentId])
-  appInvalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, parent.uid])
 }
 
 async function resolveParentCapability(

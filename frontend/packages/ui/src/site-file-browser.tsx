@@ -1,15 +1,16 @@
-import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
-import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
-import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
+import {
+  isDraftPlaceholderPath,
+  useDraftsForAccountSafe,
+  type HMListedDraftWithLocation,
+} from '@shm/shared/draft-breadcrumb-context'
+import {deriveDocumentType} from '@shm/shared/models/document-machine'
+import {useDirectory, useDocumentInfo, useResolvedHmId, useResource} from '@shm/shared/models/entity'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {latestId} from '@shm/shared/utils/entity-id-url'
-import {
-  buildDocumentTree,
-  filterDocumentsByTitle,
-  flattenTree,
-  getAncestorPathKeys,
-} from '@shm/shared/utils/all-documents-tree'
+import {filterDocumentsByTitle} from '@shm/shared/utils/all-documents-tree'
+import {getCardNavigationTargets, getIndexedCardNavigationTargets} from '@shm/shared/utils/card-navigation'
 import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
@@ -47,7 +48,7 @@ function titleOf(doc: HMDocumentInfo) {
   return doc.metadata?.name || slug || 'Untitled Document'
 }
 
-/** Renders the searchable, expandable document hierarchy for a site. */
+/** Renders published Card navigation, with directory search and unpublished drafts. */
 export function SiteFileBrowser({
   siteId,
   activeDocumentId,
@@ -59,46 +60,28 @@ export function SiteFileBrowser({
   createMenuItem,
   onCreate,
 }: SiteFileBrowserProps) {
-  const {directory, drafts, isLoading} = useDirectoryWithDrafts(siteId, {mode: 'AllDescendants'})
   const [query, setQuery] = useState('')
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
+  // Only title search needs the whole space; navigation lists children per expanded row.
+  const searching = query.trim().length > 0
+  const directoryQuery = useDirectory(searching ? siteId : null, {mode: 'AllDescendants'})
+  const draftsQuery = useDraftsForAccountSafe(siteId.uid)
+  const directory = directoryQuery.data
+  const drafts = draftsQuery.data ?? []
+  const isLoading = directoryQuery.isInitialLoading || draftsQuery.isLoading
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (searchVisible) searchInputRef.current?.focus()
   }, [searchVisible])
 
-  useEffect(() => {
-    const activeAncestors = getAncestorPathKeys(activeDocumentId?.path)
-    if (!activeAncestors.length) return
-    setExpandedPaths((current) => new Set(Array.from(current).concat(activeAncestors)))
-  }, [activeDocumentId?.id])
-
   const {documents, unpublishedDraftIds} = useMemo(() => {
-    const draftEdits = new Map(
-      drafts
-        .filter((draft): draft is HMListedDraft & {editId: UnpackedHypermediaId} =>
-          Boolean((draft as HMListedDraftWithLocation).editId),
-        )
-        .map((draft) => [draft.editId.id, draft]),
-    )
-    const published = (directory ?? []).map((document) => {
-      const draft = draftEdits.get(document.id.id)
-      return draft
-        ? {
-            ...document,
-            metadata: {...document.metadata, ...draft.metadata},
-            isCollection: draft.isCollection ?? document.isCollection,
-          }
-        : document
-    })
     const unpublished = drafts.flatMap((draft) => {
       const {editId, locationId} = draft as HMListedDraftWithLocation
       if (!locationId || (editId && !isDraftPlaceholderPath(editId.path, draft.id))) return []
       const path = [...(locationId.path ?? []), `-${draft.id}`]
       return [
         {
-          id: hmId(locationId.uid, {path}),
+          id: editId ?? hmId(locationId.uid, {path}),
           path,
           metadata: draft.metadata,
           isCollection: draft.isCollection ?? false,
@@ -107,15 +90,16 @@ export function SiteFileBrowser({
       ]
     })
     return {
-      documents: [...published, ...unpublished],
+      documents: [...(directory ?? []), ...unpublished],
       unpublishedDraftIds: new Set(unpublished.map((draft) => draft.id.id)),
     }
   }, [directory, drafts])
-  const tree = useMemo(() => buildDocumentTree(documents), [documents])
-  const rows = useMemo(() => flattenTree(tree, expandedPaths), [expandedPaths, tree])
   const matches = useMemo(() => filterDocumentsByTitle(documents, query), [documents, query])
-  const visibleDocuments = query.trim() ? matches : rows.map((row) => row.doc)
-  const rowById = useMemo(() => new Map(rows.map((row) => [row.doc.id.id, row])), [rows])
+  const navigation: CardNavigationProps = {
+    activeDocumentId,
+    onNavigate,
+    onPrefetch,
+  }
   const createItems = createMenuItem?.children?.filter((item) =>
     [
       'new-document',
@@ -127,21 +111,13 @@ export function SiteFileBrowser({
     ].includes(item.key),
   )
 
-  function toggle(pathKey: string) {
-    setExpandedPaths((current) => {
-      const next = new Set(current)
-      if (next.has(pathKey)) next.delete(pathKey)
-      else next.add(pathKey)
-      return next
-    })
-  }
-
   function closeSearch() {
     setQuery('')
     onSearchVisibleChange?.(false)
   }
 
-  const isHomeActive = activeDocumentId?.uid === siteId.uid && !activeDocumentId.path?.length
+  const homeId = latestId(hmId(siteId.uid))
+  const isHomeActive = activeDocumentId?.id === homeId.id
   const createButton = createItems?.length ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -233,75 +209,247 @@ export function SiteFileBrowser({
               type="button"
               aria-current={isHomeActive ? 'page' : undefined}
               className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 pl-5 text-left text-sm outline-none focus-visible:ring-2"
-              onClick={() => onNavigate(siteId)}
+              onClick={() => onNavigate(homeId)}
             >
               <Home className="size-4 shrink-0" />
               <span className="truncate">Home</span>
             </button>{' '}
             {!showHeader && createButton}{' '}
           </div>
-          {isLoading ? (
-            <div className="flex h-24 items-center justify-center" aria-label="Loading documents">
-              <Spinner />
-            </div>
-          ) : visibleDocuments.length === 0 ? (
-            <p className="text-muted-foreground p-6 text-center text-sm">
-              {query.trim() ? 'No documents found' : 'No documents to browse'}
-            </p>
-          ) : (
-            <div role={query.trim() ? 'list' : 'tree'} aria-label="Space documents">
-              {visibleDocuments.map((doc) => {
-                const row = rowById.get(doc.id.id)
-                const isFiltered = !!query.trim()
-                const isActive = doc.id.id === activeDocumentId?.id
-                const isExpanded = row ? expandedPaths.has(row.pathKey) : false
-                const navigationId = unpublishedDraftIds.has(doc.id.id) ? doc.id : latestId(doc.id)
-                const kind = getDocumentKind(doc)
-                return (
-                  <div
-                    key={doc.id.id}
-                    role={isFiltered ? 'listitem' : 'treeitem'}
-                    aria-expanded={!isFiltered && row?.hasChildren ? isExpanded : undefined}
-                    style={{paddingLeft: isFiltered ? 0 : (row?.depth ?? 0) * 16}}
-                    className={cn(
-                      'flex min-w-0 items-center rounded-md',
-                      isActive && 'bg-accent text-accent-foreground',
-                    )}
-                  >
-                    {!isFiltered && row?.hasChildren ? (
+          {searching ? (
+            isLoading ? (
+              <div className="flex h-24 items-center justify-center" aria-label="Loading documents">
+                <Spinner />
+              </div>
+            ) : matches.length === 0 ? (
+              <p className="text-muted-foreground p-6 text-center text-sm">No documents found</p>
+            ) : (
+              <div role="list" aria-label="Space documents">
+                {matches.map((doc) => {
+                  const isActive = doc.id.id === activeDocumentId?.id
+                  const navigationId = unpublishedDraftIds.has(doc.id.id) ? doc.id : latestId(doc.id)
+                  const kind = getDocumentKind(doc)
+                  return (
+                    <div
+                      key={doc.id.id}
+                      role="listitem"
+                      className={cn(
+                        'flex min-w-0 items-center rounded-md',
+                        isActive && 'bg-accent text-accent-foreground',
+                      )}
+                    >
+                      <span className="h-8 w-5 shrink-0" />
                       <button
                         type="button"
-                        className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 w-5 shrink-0 items-center justify-center rounded-md p-0 outline-none focus-visible:ring-2"
-                        aria-label={isExpanded ? `Collapse ${titleOf(doc)}` : `Expand ${titleOf(doc)}`}
-                        onClick={() => toggle(row.pathKey)}
+                        aria-current={isActive ? 'page' : undefined}
+                        onPointerEnter={() => onPrefetch?.(navigationId)}
+                        onFocus={() => onPrefetch?.(navigationId)}
+                        onClick={() => onNavigate(navigationId)}
+                        className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
                       >
-                        {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                        {kind === 'document' && unpublishedDraftIds.has(doc.id.id) ? (
+                          <FileText aria-label="Unpublished draft" className="size-4 shrink-0 text-yellow-500" />
+                        ) : (
+                          <DocumentKindIcon kind={kind} className="size-4 shrink-0" />
+                        )}
+                        <span className="truncate">{titleOf(doc)}</span>
                       </button>
-                    ) : (
-                      <span className="h-8 w-5 shrink-0" />
-                    )}
-                    <button
-                      type="button"
-                      aria-current={isActive ? 'page' : undefined}
-                      onPointerEnter={() => onPrefetch?.(navigationId)}
-                      onFocus={() => onPrefetch?.(navigationId)}
-                      onClick={() => onNavigate(navigationId)}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
-                    >
-                      {kind === 'document' && unpublishedDraftIds.has(doc.id.id) ? (
-                        <FileText aria-label="Unpublished draft" className="size-4 shrink-0 text-yellow-500" />
-                      ) : (
-                        <DocumentKindIcon kind={kind} className="size-4 shrink-0" />
-                      )}
-                      <span className="truncate">{titleOf(doc)}</span>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+            <>
+              <div role="tree" aria-label="Space documents">
+                <CardNavigationBranch key={homeId.id} id={homeId} ancestors={[]} {...navigation} />
+              </div>
+              {unpublishedDraftIds.size > 0 && (
+                <div role="list" aria-label="Unpublished drafts" className="mt-3 border-t pt-2">
+                  <p className="text-muted-foreground px-5 py-1 text-xs">Drafts</p>
+                  {documents
+                    .filter((doc) => unpublishedDraftIds.has(doc.id.id))
+                    .map((doc) => (
+                      <div key={doc.id.id} role="listitem">
+                        <button
+                          type="button"
+                          aria-current={doc.id.id === activeDocumentId?.id ? 'page' : undefined}
+                          className={cn(
+                            'hover:bg-accent/60 focus-visible:ring-ring flex h-8 w-full items-center gap-2 rounded-md pr-2 pl-5 text-left text-sm outline-none focus-visible:ring-2',
+                            doc.id.id === activeDocumentId?.id && 'bg-accent text-accent-foreground',
+                          )}
+                          onClick={() => onNavigate(doc.id)}
+                        >
+                          <FileText aria-label="Unpublished draft" className="size-4 shrink-0 text-yellow-500" />
+                          <span className="truncate">{titleOf(doc)}</span>
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </ScrollArea>
+    </div>
+  )
+}
+
+type CardNavigationProps = Pick<SiteFileBrowserProps, 'activeDocumentId' | 'onNavigate' | 'onPrefetch'>
+
+/**
+ * One navigation row and, once expanded, its Card targets. Navigation follows Card embeds only; document paths play no
+ * part in it. A row reads the indexer's document info, which carries the title, kind, and navigation Cards, so it never
+ * loads document content. Only an address the info cannot answer, because it moved or is missing, loads the resource
+ * to follow redirects. Collapsed descendants never mount. Rows read what is already available without subscribing: the
+ * app syncs followed spaces on its own, and a Card into another space must not start syncing that space just by
+ * rendering its row.
+ */
+function CardNavigationBranch(props: CardNavigationProps & {id: UnpackedHypermediaId; ancestors: string[]}) {
+  // A Card may name its target by domain (hm://example.com/page). Resolve it to the
+  // account first, as embeds do: document queries need an account ID.
+  const isDomain = props.id.uid.includes('.')
+  const resolved = useResolvedHmId(isDomain ? props.id.id : undefined)
+  if (!isDomain) return <CardNavigationRow {...props} />
+  if (resolved.id) {
+    return <CardNavigationRow {...props} id={latestId(hmId(resolved.id.uid, {path: resolved.id.path}))} />
+  }
+  return (
+    <div role="status" className="text-muted-foreground flex h-8 items-center gap-2 pl-5 text-xs">
+      {resolved.isLoading ? (
+        <>
+          <Spinner />
+          Loading…
+        </>
+      ) : (
+        `Could not resolve ${props.id.id}.`
+      )}
+    </div>
+  )
+}
+
+function CardNavigationRow({
+  id,
+  ancestors,
+  ...props
+}: CardNavigationProps & {
+  id: UnpackedHypermediaId
+  ancestors: string[]
+}) {
+  const info = useDocumentInfo(id, {useErrorBoundary: false})
+  const indexed = info.data && !info.data.redirectInfo ? info.data : null
+  const resource = useResource(info.isInitialLoading || indexed ? null : id, {useErrorBoundary: false})
+  const document = resource.data?.type === 'document' ? resource.data.document : undefined
+  const resolvedId = indexed
+    ? latestId(hmId(indexed.id.uid, {path: indexed.id.path}))
+    : resource.data?.type === 'document'
+      ? latestId(hmId(resource.data.id.uid, {path: resource.data.id.path}))
+      : id
+  const branchIds = [...ancestors, id.id, resolvedId.id]
+  const navigationCards = indexed ? indexed.navigationCards ?? [] : document?.navigationCards ?? null
+  const targets = useMemo(
+    () =>
+      navigationCards
+        ? getIndexedCardNavigationTargets(navigationCards)
+        : getCardNavigationTargets(document?.content ?? []),
+    [navigationCards, document?.content],
+  )
+  const children = targets.filter((target) => !branchIds.includes(target.id))
+  const isRoot = ancestors.length === 0
+  const active = props.activeDocumentId
+  const containsActive = children.some((child) => child.id === active?.id)
+  const [expanded, setExpanded] = useState(containsActive)
+  useEffect(() => {
+    if (containsActive) setExpanded(true)
+  }, [containsActive])
+
+  // A moved address can resolve back to an ancestor even when its written link differs.
+  if (ancestors.includes(resolvedId.id)) return null
+
+  const metadata = indexed ? indexed.metadata : document?.metadata
+  const title = metadata?.name || id.path?.at(-1) || 'Untitled Document'
+  const isActive = active?.id === id.id || active?.id === resolvedId.id
+  const isLoading = info.isInitialLoading || (!indexed && (resource.isInitialLoading || resource.isDiscovering))
+  const unavailable = !isLoading && !indexed && (!document || resource.isError)
+  const hasChildren = children.length > 0
+  const contents = (
+    <>
+      {isLoading ? (
+        <div
+          role="status"
+          aria-label={`Loading ${isRoot ? 'navigation' : title}`}
+          className="text-muted-foreground flex h-8 items-center gap-2 pl-5 text-xs"
+        >
+          <Spinner />
+          Loading…
+        </div>
+      ) : unavailable ? (
+        <div role="status" className="text-muted-foreground py-2 pl-5 text-xs">
+          Could not load {isRoot ? 'navigation' : 'page'}.
+          <button
+            type="button"
+            className="ml-1 underline"
+            onClick={() => {
+              void info.refetch()
+              void resource.refetch()
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        children.map((child) => <CardNavigationBranch key={child.id} id={child} ancestors={branchIds} {...props} />)
+      )}
+      {isRoot && !isLoading && !unavailable && children.length === 0 ? (
+        <p className="text-muted-foreground px-5 py-2 text-xs">No pages in navigation</p>
+      ) : null}
+    </>
+  )
+  if (isRoot) return contents
+  return (
+    <div role="treeitem" aria-expanded={hasChildren ? expanded : undefined}>
+      <div className={cn('flex min-w-0 items-center rounded-md', isActive && 'bg-accent text-accent-foreground')}>
+        {hasChildren ? (
+          <button
+            type="button"
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
+            className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 w-5 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          </button>
+        ) : (
+          <span className="h-8 w-5 shrink-0" />
+        )}
+        <button
+          type="button"
+          aria-current={isActive ? 'page' : undefined}
+          onPointerEnter={() => props.onPrefetch?.(resolvedId)}
+          onFocus={() => props.onPrefetch?.(resolvedId)}
+          onClick={() => props.onNavigate(resolvedId)}
+          className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
+        >
+          <DocumentKindIcon
+            kind={getDocumentKind(
+              indexed
+                ? {metadata: indexed.metadata, visibility: indexed.visibility, isCollection: indexed.isCollection}
+                : {
+                    metadata: document?.metadata,
+                    visibility: document?.visibility,
+                    isCollection: deriveDocumentType(document?.content, resolvedId) === 'collection',
+                  },
+            )}
+            className="size-4 shrink-0"
+          />
+          <span className="truncate">{title}</span>
+        </button>
+      </div>
+      {expanded && hasChildren ? (
+        <div role="group" className="pl-4">
+          {contents}
+        </div>
+      ) : null}
+      {!hasChildren && unavailable ? <div className="pl-4">{contents}</div> : null}
     </div>
   )
 }

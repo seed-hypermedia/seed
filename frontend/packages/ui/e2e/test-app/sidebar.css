@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+@source '../../src';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-icon: var(--icon);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
+
+body:has(.sidebar-fixture) {
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+#root:has(.sidebar-fixture) {
+  max-width: none;
+}
+
+.sidebar-fixture {
+  display: flex;
+  min-height: 100dvh;
+}
+
+.sidebar-fixture > aside {
+  width: 280px;
+  height: 100dvh;
+  flex-shrink: 0;
+}
+
+.sidebar-fixture > main {
+  padding: 64px 48px;
+  max-width: 680px;
+}
+
+.sidebar-fixture h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 12px 0;
+}
+
+.sidebar-fixture main p {
+  color: var(--muted-foreground);
+  margin-bottom: 24px;
+}
+
+.fixture-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.sidebar-fixture main button,
+.sidebar-fixture output {
+  display: block;
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.sidebar-fixture main button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}

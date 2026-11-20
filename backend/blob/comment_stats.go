@@ -2,7 +2,10 @@ package blob
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
+	"seed/backend/core"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -11,7 +14,7 @@ import (
 )
 
 // Comment activity is maintained here, in two tables, instead of being derived on
-// every read (see the schema comments on comment_live and document_comment_stats).
+// every read (see the schema comments on comments_live and document_comment_stats).
 //
 // Two facts have to be settled to answer "how many comments does this document
 // have, and what's the latest one":
@@ -19,7 +22,7 @@ import (
 //  1. Which blob is the live version of each comment. Comments are edited and
 //     deleted by publishing further blobs that share a TSID, so the live version
 //     is the newest one, and it counts only if it isn't a tombstone. That's
-//     comment_live, settled per TSID as blobs arrive.
+//     comments_live, settled per TSID as blobs arrive.
 //
 //  2. Which document a comment belongs to. That's the genesis of the document its
 //     target version belongs to -- an identity, not a location. A document keeps
@@ -38,63 +41,104 @@ import (
 // tombstone arriving before the comment it deletes, or an edit arriving before the
 // version it supersedes, both land on the same answer as any other order.
 //
-// genesis is the target document's genesis, resolved by the caller. Every version
-// of one comment targets the same document, so it's the same for every blob sharing
-// the TSID, and it's safe to stamp the caller's value onto whichever blob wins.
-func updateCommentLive(conn *sqlite.Conn, tsid TSID, genesis string) error {
+// Each version retains its own resolved genesis in index metadata. A signed edit
+// can change targets, so neither the winner's genesis nor the affected stats can
+// be inferred from the version currently being indexed. The caller recomputes
+// the stats of every document and space it returns.
+func updateCommentLive(conn *sqlite.Conn, authority core.Principal, tsid TSID, id int64, genesis string) (affected commentLiveChange, err error) {
 	if tsid == "" {
-		return fmt.Errorf("BUG: updateCommentLive called with empty TSID")
+		return affected, fmt.Errorf("BUG: updateCommentLive called with empty TSID")
 	}
 
-	if genesis == "" {
-		return fmt.Errorf("BUG: updateCommentLive called with empty genesis for tsid %s", tsid)
+	if err := sqlitex.Exec(conn, qSetCommentGenesis(), nil, id, genesis); err != nil {
+		return affected, fmt.Errorf("failed to record comment genesis: %w", err)
 	}
 
-	if err := sqlitex.Exec(conn, qDeleteCommentLive(), nil, string(tsid)); err != nil {
-		return fmt.Errorf("failed to clear live comment for tsid %s: %w", tsid, err)
+	// RETURNING captures both sides of a move or deletion without extra queries.
+	// The common case touches just one document and one space.
+	collect := func(stmt *sqlite.Stmt) error {
+		g := stmt.ColumnText(0)
+		space, _, _ := strings.Cut(strings.TrimPrefix(stmt.ColumnText(1), "hm://"), "/")
+
+		if !slices.Contains(affected.genesises, g) {
+			affected.genesises = append(affected.genesises, g)
+		}
+
+		if !slices.Contains(affected.spaces, space) {
+			affected.spaces = append(affected.spaces, space)
+		}
+
+		return nil
+	}
+	if err := sqlitex.Exec(conn, qDeleteCommentLive(), collect, authority, string(tsid)); err != nil {
+		return affected, fmt.Errorf("failed to clear live comment for tsid %s: %w", tsid, err)
 	}
 
-	if err := sqlitex.Exec(conn, qInsertCommentLive(), nil, string(tsid), genesis); err != nil {
-		return fmt.Errorf("failed to record live comment for tsid %s: %w", tsid, err)
+	if err := sqlitex.Exec(conn, qInsertCommentLive(), collect, authority, string(tsid)); err != nil {
+		return affected, fmt.Errorf("failed to record live comment for tsid %s: %w", tsid, err)
 	}
 
-	return nil
+	return affected, nil
 }
 
-var qDeleteCommentLive = dqb.Str(`
-	DELETE FROM comment_live WHERE tsid = ?1;
+// commentLiveChange lists the documents (by genesis) and spaces whose comment
+// stats a live-version change touched: the previous winner's and the new one's.
+type commentLiveChange struct {
+	genesises []string
+	spaces    []string
+}
+
+var qSetCommentGenesis = dqb.Str(`
+	UPDATE structural_blobs
+	SET extra_attrs = json_set(extra_attrs, '$.genesis', NULLIF(?2, ''))
+	WHERE id = ?1;
 `)
 
-// The winner is the highest (ts, id) among the blobs sharing the TSID, and it's
-// inserted only when it's live: a tombstone winning the TSID leaves no row, which
+var qDeleteCommentLive = dqb.Str(`
+	DELETE FROM comments_live
+	WHERE authority = (SELECT id FROM public_keys WHERE principal = ?1)
+	AND tsid = ?2
+	RETURNING genesis, (SELECT iri FROM resources WHERE id = resource);
+`)
+
+// The winner is the highest (timestamp, hash) among the blobs sharing the
+// authority and TSID, where hash is the version's hash prefix (see
+// commentVersionHash). It is stable across replicas, unlike the local database ID,
+// and both columns come straight from structural_blobs_by_tsid.
+// It is inserted only when it's live: a tombstone winning the TSID leaves no row, which
 // is how deleted comments drop out of every count.
 //
 // Numbered parameters, not named: SQLite assigns named parameters their indices in
 // order of first appearance in the text, so ?1/?2 keeps the binding order tied to
 // the Go call rather than to where each name happens to sit in the query.
 var qInsertCommentLive = dqb.Str(`
-	INSERT INTO comment_live (tsid, blob_id, genesis, resource, ts)
-	SELECT tsid, id, ?2, resource, ts
+	INSERT INTO comments_live (authority, tsid, blob_id, genesis, resource, ts, hash)
+	SELECT authority, tsid, id, genesis, resource, ts, hash
 	FROM (
 		SELECT
+			COALESCE(sb.extra_attrs->>'account', sb.author) AS authority,
 			sb.extra_attrs->>'tsid' AS tsid,
 			sb.id AS id,
 			sb.resource AS resource,
 			sb.ts AS ts,
-			sb.extra_attrs->>'deleted' AS deleted
-		FROM structural_blobs sb
+			sb.extra_attrs->>'deleted' AS deleted,
+			sb.extra_attrs->>'genesis' AS genesis,
+			sb.extra_attrs->>'hash' AS hash
+		FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 		WHERE sb.extra_attrs->>'tsid' IS NOT NULL
-		AND sb.extra_attrs->>'tsid' = ?1
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = ?1)
+		AND sb.extra_attrs->>'tsid' = ?2
 		AND sb.type = 'Comment'
-		ORDER BY sb.ts DESC, sb.id DESC
+		ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC
 		LIMIT 1
 	)
-	WHERE deleted IS NULL AND resource IS NOT NULL;
+	WHERE deleted IS NULL AND resource IS NOT NULL AND genesis IS NOT NULL
+	RETURNING genesis, (SELECT iri FROM resources WHERE id = resource);
 `)
 
 // updateDocumentCommentStats recomputes one document's comment activity.
 //
-// No walk of any kind: the document is the genesis, and comment_live is indexed by
+// No walk of any kind: the document is the genesis, and comments_live is indexed by
 // it. This replaces a pair of recursive redirect walks that used to run here, and
 // that had to be reasoned about carefully because they could reach only part of a
 // chain when blobs were replayed out of order.
@@ -120,12 +164,14 @@ func updateDocumentCommentStats(conn *sqlite.Conn, genesis string) error {
 
 var qUpsertDocumentCommentStats = dqb.Str(`
 	WITH live AS (
-		SELECT blob_id, ts FROM comment_live WHERE genesis = :genesis
+		SELECT l.blob_id, l.ts, l.hash
+		FROM comments_live l
+		WHERE l.genesis = :genesis
 	)
 	INSERT INTO document_comment_stats (genesis, last_comment, last_comment_time, comment_count)
 	SELECT
 		:genesis,
-		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		(SELECT blob_id FROM live ORDER BY ts DESC, hash DESC LIMIT 1),
 		COALESCE((SELECT MAX(ts) FROM live), 0),
 		(SELECT COUNT(*) FROM live)
 	ON CONFLICT (genesis) DO UPDATE SET
@@ -143,7 +189,7 @@ var qPruneDocumentCommentStats = dqb.Str(`
 // updateSpaceCommentStats recomputes one space's comment activity.
 //
 // Space totals are attributed by location, not identity: a comment counts for the
-// space of the path it was written against. So this reads comment_live by resource
+// space of the path it was written against. So this reads comments_live by resource
 // while the document counts above read it by genesis, and the two are independent.
 //
 // It recomputes rather than adjusting a delta, for the same reason as everything
@@ -172,8 +218,8 @@ func updateSpaceCommentStats(conn *sqlite.Conn, spaceID string) error {
 // character after '/') -- the same trick the document listings use.
 var qUpsertSpaceCommentStats = dqb.Str(`
 	WITH live AS (
-		SELECT l.blob_id, l.ts
-		FROM comment_live l
+		SELECT l.blob_id, l.ts, l.hash
+		FROM comments_live l
 		JOIN resources r ON r.id = l.resource
 		WHERE r.iri = 'hm://' || :space
 		OR (r.iri >= 'hm://' || :space || '/' AND r.iri < 'hm://' || :space || '0')
@@ -181,7 +227,7 @@ var qUpsertSpaceCommentStats = dqb.Str(`
 	INSERT INTO spaces (id, last_comment, last_comment_time, comment_count)
 	SELECT
 		:space,
-		(SELECT blob_id FROM live ORDER BY ts DESC, blob_id DESC LIMIT 1),
+		(SELECT blob_id FROM live ORDER BY ts DESC, hash DESC LIMIT 1),
 		COALESCE((SELECT MAX(ts) FROM live), 0),
 		(SELECT COUNT(*) FROM live)
 	ON CONFLICT (id) DO UPDATE SET

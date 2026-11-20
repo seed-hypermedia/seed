@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +47,19 @@ func testEncodedRemoteAuthKey(t *testing.T) string {
 	return base64.RawURLEncoding.EncodeToString(authKey)
 }
 
+// withoutNetwork keeps a test vault off the network. Tests that connect to a
+// fake remote URL would otherwise sync with a real host in the background
+// after every local change.
+func withoutNetwork() RemoteOption {
+	return WithHTTPClient(&http.Client{Transport: noNetworkTransport{}})
+}
+
+type noNetworkTransport struct{}
+
+func (noNetworkTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("tests make no network requests: %s", req.URL)
+}
+
 func TestRemote(t *testing.T) {
 	ctx := context.Background()
 	dataDir := t.TempDir()
@@ -55,7 +69,7 @@ func TestRemote(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	connectTestRemoteVault(t, ks, remoteURL, 0, time.Time{})
 
@@ -116,7 +130,7 @@ func TestRemoteDeleteKeyRecordsTombstone(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	connectTestRemoteVault(t, ks, remoteURL, 0, time.Time{})
 
@@ -403,7 +417,7 @@ func TestRemoteSyncUploadsOldVaultFileToBackfillSyncedLocalVersion(t *testing.T)
 	remoteKey, err := remoteVaultKEKName(server.URL, testRemoteUserID)
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(remoteKey, testRemoteCredentialID, remoteCredential))
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, WithHTTPClient(server.Client()))
 	require.NoError(t, err)
 
 	require.NoError(t, ks.ForceSyncNow(ctx))
@@ -570,7 +584,7 @@ func TestRemoteKeepsLocalEnvelopeLocalUntilConnect(t *testing.T) {
 	localSecretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, localSecretStore.Store(localVaultKEKName, "", keyMaterial))
-	local, err := New(dataDir, localSecretStore)
+	local, err := New(dataDir, localSecretStore, withoutNetwork())
 	require.NoError(t, err)
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
@@ -579,7 +593,7 @@ func TestRemoteKeepsLocalEnvelopeLocalUntilConnect(t *testing.T) {
 	remoteSecretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, remoteSecretStore.Store(localVaultKEKName, "", keyMaterial))
-	ks, err := New(dataDir, remoteSecretStore)
+	ks, err := New(dataDir, remoteSecretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	got, err := ks.GetKey(ctx, "main")
@@ -605,7 +619,7 @@ func TestRemoteMergeKeepsNewerDeleteTombstone(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	connectTestRemoteVault(t, ks, remoteURL, 0, time.Time{})
 
@@ -645,7 +659,7 @@ func TestDisconnectCanClearLocalVaultWithoutTombstones(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	connectTestRemoteVault(t, ks, "https://example.com/vault", 1, time.Now())
 
@@ -937,7 +951,7 @@ func TestRemotePreservesSyncMetadataAndBumpsLocalVersion(t *testing.T) {
 	remoteKey, err := remoteVaultKEKName(remoteURL, testRemoteUserID)
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(remoteKey, testRemoteCredentialID, remoteCredential))
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -969,7 +983,7 @@ func TestRemoteConnectCreatesEnvelopeWhenMissing(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	connectTestRemoteVault(t, ks, remoteURL, 7, time.Unix(1234, 0).UTC())
@@ -998,7 +1012,7 @@ func TestNewMigratesLegacyLocalCredentialRecord(t *testing.T) {
 	require.NoError(t, backend.Set(legacyVaultKEKKeychainService, localVaultKEKName, legacyEncoded))
 	secretStore := newTestOSKeychainSecretStore(backend)
 
-	_, err := New(dataDir, secretStore)
+	_, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	legacyStored, ok := backend.Secret(legacyVaultKEKKeychainService, localVaultKEKName)
@@ -1029,7 +1043,7 @@ func TestNewMigratesLegacyRemoteCredentialRecord(t *testing.T) {
 	require.NoError(t, backend.Set(legacyVaultKEKKeychainService, legacyName, legacyEncoded))
 	secretStore := newTestOSKeychainSecretStore(backend)
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	status, err := ks.Status()
 	require.NoError(t, err)
@@ -1066,7 +1080,7 @@ func TestNewKeepsExistingRemoteSecretBundle(t *testing.T) {
 	require.NoError(t, secretStore.Store(remoteKey, testRemoteCredentialID, remoteSecret))
 	require.NoError(t, secretStore.Store(remoteKey, "cred-2", bytes.Repeat([]byte{0x44}, vaultSecretSize)))
 
-	_, err = New(dataDir, secretStore)
+	_, err = New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	credentialIDs, err := secretStore.ListCredentialIDs(remoteKey)
@@ -1092,7 +1106,7 @@ func TestNewRejectsUndecryptableLegacyRemoteCredentialRecord(t *testing.T) {
 	require.NoError(t, backend.Set(legacyVaultKEKKeychainService, legacyName, base64.StdEncoding.EncodeToString(wrongRemoteSecret)))
 	secretStore := newTestOSKeychainSecretStore(backend)
 
-	_, err = New(dataDir, secretStore)
+	_, err = New(dataDir, secretStore, withoutNetwork())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to verify legacy remote vault secret")
 	remoteKey, err := remoteVaultKEKName(remoteURL, testRemoteUserID)
@@ -1108,7 +1122,7 @@ func TestRemoteRecordsSyncFailureWithoutRemoteIsNoop(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	ks.recordSyncFailure("temporary failure")
@@ -1122,7 +1136,7 @@ func TestRemoteRejectsInvalidConfiguration(t *testing.T) {
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", []byte("0123456789abcdef0123456789abcdef")))
-	_, err = New("relative/path", secretStore)
+	_, err = New("relative/path", secretStore, withoutNetwork())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "must be absolute")
 
@@ -1279,11 +1293,11 @@ func TestRemoteLoadRemoteSyncStateLoadsStoredRemoteSecretAfterRestart(t *testing
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	connectTestRemoteVault(t, ks, remoteURL, 7, time.Unix(1234, 0).UTC())
 
-	reopened, err := New(dataDir, secretStore)
+	reopened, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 
 	remote, credential, remoteSecret, enabled, err := reopened.loadRemoteSyncState()
@@ -1338,7 +1352,7 @@ func TestProbeConnectionCredentialsTriesStoredCredentialsUntilOneConnects(t *tes
 	require.NoError(t, secretStore.Store(remoteKey, "bad-credential", badSecret))
 	require.NoError(t, secretStore.Store(remoteKey, testRemoteCredentialID, goodSecret))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, WithHTTPClient(server.Client()))
 	require.NoError(t, err)
 	start, err := ks.StartConnection(server.URL, false)
 	require.NoError(t, err)

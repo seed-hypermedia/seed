@@ -144,6 +144,10 @@ describe('pending-intent', () => {
     })
     expect(secondResult).toEqual(firstResult)
     expect(mocks.createCommentMock).toHaveBeenCalledTimes(1)
+    expect(mocks.createCommentMock).toHaveBeenCalledWith(
+      expect.objectContaining({account: 'account-1'}),
+      expect.anything(),
+    )
     expect(mocks.publishMock).toHaveBeenCalledTimes(2)
     expect(mocks.clearPendingIntentMock).toHaveBeenCalledTimes(1)
   })

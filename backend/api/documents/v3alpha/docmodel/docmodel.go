@@ -46,8 +46,8 @@ type Document struct {
 	// Blocks that we've deleted in this change.
 	deletedBlocks map[string]struct{}
 
-	dirtyBlocks   map[string]mvRegValue[blob.Block]
-	dirtyMetadata *btree.Map[[]string, mvRegValue[metadataValue]]
+	dirtyBlocks   map[string]blob.Block
+	dirtyMetadata *btree.Map[[]string, metadataValue]
 
 	Generation maybe.Value[int64]
 
@@ -224,11 +224,10 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = btree.New[[]string, mvRegValue[metadataValue]](8, slices.Compare)
+		dm.dirtyMetadata = btree.New[[]string, metadataValue](8, slices.Compare)
 	}
 
 	exactKey := slices.Clone(keyPath)
-
 	// Writes of the same mutation apply in the order they are made, and a write to a key
 	// replaces everything below it. So the pending writes below this key are superseded,
 	// no matter whether this write ends up being stored or not.
@@ -239,9 +238,9 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	for k := range dm.dirtyMetadata.Keys() {
 		switch {
-		case isKeyAncestor(exactKey, k):
+		case isMetadataAncestor(exactKey, k):
 			superseded = append(superseded, k)
-		case isKeyAncestor(k, exactKey):
+		case isMetadataAncestor(k, exactKey):
 			hasPendingParent = true
 		}
 	}
@@ -250,7 +249,6 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 		dm.dirtyMetadata.Delete(k)
 	}
 
-	var preds []opID
 	if reg := dm.crdt.stateMetadata.GetMaybe(exactKey); reg != nil {
 		latest := reg.GetLatest()
 
@@ -259,24 +257,17 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 		//
 		// Unless there's a pending write above this key: it removes the committed value,
 		// so this one is not redundant (see pendingAttributes for how those are reduced).
-		if !hasPendingParent && attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
+		// Also, a tombstone left above newer child attributes compares equal to a
+		// deletion, but the deletion still has to replace those children.
+		if !hasPendingParent && attrValuesEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) && !dm.crdt.hasLiveMetadataDescendant(exactKey) {
 			dm.dirtyMetadata.Delete(exactKey)
 			return nil
 		}
-		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyMetadata.Set(exactKey, mvRegValue[metadataValue]{
-		Value: metadataValue{Key: slices.Clone(keyPath), Value: newValue},
-		Preds: preds,
-	})
+	dm.dirtyMetadata.Set(exactKey, metadataValue{Key: slices.Clone(keyPath), Value: newValue})
 
 	return nil
-}
-
-// isKeyAncestor reports whether key path a is a strict prefix of key path b.
-func isKeyAncestor(a, b []string) bool {
-	return len(a) < len(b) && slices.Equal(a, b[:len(a)])
 }
 
 // pendingAttributes returns the attribute writes to store for the current mutation.
@@ -297,7 +288,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 
 	pending := make([]blob.KeyValue, 0, dm.dirtyMetadata.Len())
 	for _, v := range dm.dirtyMetadata.Items() {
-		pending = append(pending, blob.KeyValue{Key: v.Value.Key, Value: v.Value.Value})
+		pending = append(pending, blob.KeyValue{Key: v.Key, Value: v.Value})
 	}
 
 	// Keys are sorted, so the writes below a key directly follow it.
@@ -305,7 +296,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		parent := pending[i].Key
 
 		end := i + 1
-		for end < len(pending) && isKeyAncestor(parent, pending[end].Key) {
+		for end < len(pending) && isMetadataAncestor(parent, pending[end].Key) {
 			end++
 		}
 
@@ -318,7 +309,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		// So there's nothing left for the parent write to remove, and the writes below it
 		// repeat nothing: they all stay, and only the parent write goes.
 		// Writes above the parent were already looked at, so those still pending are stored.
-		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, parent) }) {
+		if slices.ContainsFunc(pending[:i], func(other blob.KeyValue) bool { return isMetadataAncestor(other.Key, parent) }) {
 			pending = slices.Delete(pending, i, i+1)
 			i--
 
@@ -332,11 +323,11 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		var nRedundant int
 
 		for j, kv := range below {
-			if j+1 < len(below) && isKeyAncestor(kv.Key, below[j+1].Key) {
+			if j+1 < len(below) && isMetadataAncestor(kv.Key, below[j+1].Key) {
 				continue
 			}
 
-			if slices.ContainsFunc(below[:j], func(other blob.KeyValue) bool { return isKeyAncestor(other.Key, kv.Key) }) {
+			if slices.ContainsFunc(below[:j], func(other blob.KeyValue) bool { return isMetadataAncestor(other.Key, kv.Key) }) {
 				continue
 			}
 
@@ -345,7 +336,9 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 				continue
 			}
 
-			if latest, ok := reg.GetLatestOK(); ok && attrValuesEqual(kv.Value, latest.Value) {
+			// A tombstone left above newer child attributes compares equal to a deletion,
+			// but the deletion still has to replace those children.
+			if latest, ok := reg.GetLatestOK(); ok && attrValuesEqual(kv.Value, latest.Value) && !dm.crdt.hasLiveMetadataDescendant(kv.Key) {
 				redundant[j] = true
 				nRedundant++
 			}
@@ -355,7 +348,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 		var cleared []blob.KeyValue
 
 		for k, reg := range dm.crdt.stateMetadata.Items() {
-			if !isKeyAncestor(parent, k) {
+			if !isMetadataAncestor(parent, k) {
 				continue
 			}
 
@@ -364,7 +357,7 @@ func (dm *Document) pendingAttributes() []blob.KeyValue {
 			}
 
 			replaced := slices.ContainsFunc(below, func(kv blob.KeyValue) bool {
-				return slices.Equal(kv.Key, k) || isKeyAncestor(kv.Key, k) || isKeyAncestor(k, kv.Key)
+				return slices.Equal(kv.Key, k) || isMetadataAncestor(kv.Key, k) || isMetadataAncestor(k, kv.Key)
 			})
 			if !replaced {
 				cleared = append(cleared, blob.KeyValue{Key: slices.Clone(k), Value: nil})
@@ -426,7 +419,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 	}
 
 	if dm.dirtyBlocks == nil {
-		dm.dirtyBlocks = make(map[string]mvRegValue[blob.Block])
+		dm.dirtyBlocks = make(map[string]blob.Block)
 	}
 
 	blk, err := BlockFromProto(blkpb)
@@ -436,17 +429,15 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
-	var preds []opID
 	if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
 		oldValue, ok := reg.GetLatestOK()
 		if ok && blocksEqual(oldValue, blk) {
 			delete(dm.dirtyBlocks, blkpb.Id)
 			return nil
 		}
-		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyBlocks[blk.ID()] = mvRegValue[blob.Block]{Value: blk, Preds: preds}
+	dm.dirtyBlocks[blk.ID()] = blk
 
 	if _, ok := dm.crdt.tree.sublists.Get(blk.ID()); !ok {
 		dm.crdt.tree.sublists.Set(blk.ID(), newRGAList[string]())
@@ -669,7 +660,7 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 		if !ok {
 			panic("BUG: dirty block not found")
 		}
-		addOp(blob.NewOpReplaceBlock(blk.Value), 1)
+		addOp(blob.NewOpReplaceBlock(blk), 1)
 	}
 
 	return out, nil
@@ -739,7 +730,8 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			Genesis:    e.cids[0].String(),
 			Generation: dm.Generation.Value(),
 		},
-		Visibility: VisibilityToProto(dm.visibility),
+		Visibility:      VisibilityToProto(dm.visibility),
+		NavigationCards: &documents.NavigationCards{Targets: dm.NavigationCards()},
 	}
 
 	docpb.UpdateTime = timestamppb.New(last.Ts)
@@ -883,79 +875,59 @@ func (dm *Document) FirstContentImage() string {
 	return ""
 }
 
-// ReferenceSummary returns the distinct document identities explicitly linked
-// from visible content and whether any visible Query targets this document's
-// children. Versions and block fragments are removed from returned identities.
-func (dm *Document) ReferenceSummary() ([]string, bool) {
+// NavigationCards returns the documents this document links as Card embeds, in
+// reading order, once each, as hm:// IRIs of the whole document without version
+// or fragment. Nested blocks count. Only Cards that follow the latest version
+// count: a link with no version, or with a version and the latest flag. A Card
+// pinned to a version is not navigation. The sidebar is built from these.
+func (dm *Document) NavigationCards() []string {
 	if dm.mut != nil {
-		return nil, false
+		// A document with uncommitted changes has no stable committed state.
+		return nil
 	}
 
-	space, path, err := dm.crdt.id.SpacePath()
-	if err != nil {
-		return nil, false
-	}
+	var out []string
 
-	refs := map[string]struct{}{}
-	selfQuery := false
-	add := func(link string) {
-		u, err := url.Parse(link)
-		if err != nil || u.Scheme != "hm" || u.Host == "" {
-			return
-		}
-		u.RawQuery = ""
-		u.Fragment = ""
-		refs[strings.TrimSuffix(u.String(), "/")] = struct{}{}
-	}
-
+	seen := make(map[string]bool)
 	for pair := range dm.crdt.tree.State().DFT("") {
 		bs := dm.crdt.stateBlocks[pair.Child]
 		if bs == nil {
 			continue
 		}
+
 		_, blk, ok := bs.GetLatestWithID()
-		if !ok {
+		if !ok || blk.Type != "Embed" || blk.Attributes()["view"] != "Card" {
 			continue
 		}
-		if blk.Type == "Embed" {
-			add(blk.Link)
-		}
-		for _, annotation := range blk.Annotations {
-			if annotation.Type == "Link" || annotation.Type == "Embed" {
-				add(annotation.Link)
-			}
-		}
-		if blk.Type == "Query" && queryExplicitlyTargetsDocument(blk, space.String(), path) {
-			selfQuery = true
+
+		target, ok := navigationTarget(blk.Link)
+		if ok && !seen[target] {
+			seen[target] = true
+			out = append(out, target)
 		}
 	}
 
-	out := slices.Collect(maps.Keys(refs))
-	sort.Strings(out)
-	return out, selfQuery
+	return out
 }
 
-func queryExplicitlyTargetsDocument(blk blob.Block, space, path string) bool {
-	query, ok := blk.Attributes()["query"].(map[string]any)
-	if !ok {
-		return false
+// navigationTarget returns the document a latest-following hm:// link points to.
+func navigationTarget(link string) (string, bool) {
+	u, err := url.Parse(link)
+	if err != nil || u.Scheme != "hm" || u.Host == "" || u.Host == "c" {
+		return "", false
 	}
-	includes, ok := query["includes"].([]any)
-	if !ok {
-		return false
+
+	q := u.Query()
+	if q.Get("v") != "" && !q.Has("l") {
+		return "", false
 	}
-	for _, raw := range includes {
-		include, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		includeSpace, _ := include["space"].(string)
-		includePath, _ := include["path"].(string)
-		if includeSpace == space && strings.Trim(includePath, "/") == strings.Trim(path, "/") {
-			return true
-		}
-	}
-	return false
+
+	// Document paths have no escaping layer: the client splits hm:// links as raw
+	// text and never percent-decodes them, so take the link as written rather than
+	// rebuilding it from url.URL's decoded Path.
+	target, _, _ := strings.Cut(link, "#")
+	target, _, _ = strings.Cut(target, "?")
+	return strings.TrimSuffix(target, "/"), true
 }
 
 // BlockFromProto converts a protobuf block into our internal representation.

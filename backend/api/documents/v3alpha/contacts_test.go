@@ -2,17 +2,106 @@ package documents
 
 import (
 	"context"
+	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestContactIngestionRequiresAccountAuthority(t *testing.T) {
+	t.Parallel()
+
+	for _, tombstone := range []bool{false, true} {
+		for _, grant := range []string{"writer", "agent", "writer-agent"} {
+			t.Run(fmt.Sprintf("tombstone=%t/%s", tombstone, grant), func(t *testing.T) {
+				ctx := t.Context()
+				alice := newTestDocsAPI(t, "alice")
+				bob := coretest.NewTester("bob")
+				carol := coretest.NewTester("carol")
+				owner := alice.me.Account.Principal()
+				ts := time.Now().Round(blob.ClockPrecision)
+
+				original, err := blob.NewContact(alice.me.Account, "", owner, carol.Account.Principal(), "Carol", nil, ts)
+				require.NoError(t, err)
+				require.NoError(t, alice.idx.Put(ctx, original))
+
+				var id blob.TSID
+
+				subject := carol.Account.Principal()
+
+				if tombstone {
+					id = original.TSID()
+					subject = nil
+				}
+
+				contact, err := blob.NewContact(bob.Account, id, owner, subject, "Delegated", nil, ts.Add(time.Second))
+				require.NoError(t, err)
+				require.NoError(t, alice.idx.Put(ctx, contact))
+				recordID := blob.RecordID{Authority: owner, TSID: contact.TSID()}.String()
+
+				got, err := alice.GetContact(ctx, &documents.GetContactRequest{Id: recordID})
+				if tombstone {
+					require.NoError(t, err)
+					require.Equal(t, "Carol", got.Name, "unauthorized tombstones must not hide the owner's contact")
+				} else {
+					require.NoError(t, err)
+					require.Nil(t, got, "unauthorized contacts must not be admitted")
+				}
+
+				// A scoped writer cannot manage the account's root-level contacts.
+				scoped, err := blob.NewCapability(alice.me.Account, bob.Account.Principal(), owner, "/other", blob.RoleWriter, "", ts)
+				require.NoError(t, err)
+				require.NoError(t, alice.idx.Put(ctx, scoped))
+
+				got, err = alice.GetContact(ctx, &documents.GetContactRequest{Id: recordID})
+				if tombstone {
+					require.NoError(t, err)
+					require.Equal(t, "Carol", got.Name)
+				} else {
+					require.NoError(t, err)
+					require.Nil(t, got)
+				}
+
+				role := blob.RoleWriter
+				delegate := bob.Account.Principal()
+
+				switch grant {
+				case "agent":
+					role = blob.RoleAgent
+				case "writer-agent":
+					delegate = carol.Account.Principal()
+					agent, err := blob.NewCapability(carol.Account, bob.Account.Principal(), carol.Account.Principal(), "", blob.RoleAgent, "", ts)
+					require.NoError(t, err)
+					require.NoError(t, alice.idx.Put(ctx, agent))
+				}
+
+				capability, err := blob.NewCapability(alice.me.Account, delegate, owner, "", role, "", ts)
+				require.NoError(t, err)
+				require.NoError(t, alice.idx.Put(ctx, capability))
+
+				// A late valid grant must retry the signed blob without resubmitting it.
+				got, err = alice.GetContact(ctx, &documents.GetContactRequest{Id: recordID})
+				if tombstone {
+					require.Equal(t, codes.NotFound, status.Code(err))
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, "Delegated", got.Name)
+					require.Equal(t, bob.Account.Principal().String(), got.Signer)
+				}
+			})
+		}
+	}
+}
 
 func TestCreateContact(t *testing.T) {
 	t.Parallel()
@@ -126,6 +215,25 @@ func TestDelegatedContactSigner(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Contacts, 1)
 	testutil.StructsEqual(contact, resp.Contacts[0]).Compare(t, "delegated contact list mismatch")
+
+	// The canonical address names the account, not the signing delegate.
+	conn, release, err := alice.db.ReadConn(ctx)
+	require.NoError(t, err)
+	var contactCID cid.Cid
+
+	require.NoError(t, sqlitex.Exec(conn, `SELECT b.codec, b.multihash FROM blobs b JOIN structural_blobs sb ON sb.id = b.id WHERE sb.type = 'Contact'`, func(stmt *sqlite.Stmt) error {
+		contactCID = cid.NewCidV1(uint64(stmt.ColumnInt64(0)), stmt.ColumnBytes(1))
+		return nil
+	}))
+	release()
+	for _, iri := range []string{
+		"hm://" + contact.Id,
+		"hm://" + contact.Id + "?v=" + contactCID.String(),
+	} {
+		res, err := alice.GetResource(ctx, &documents.GetResourceRequest{Iri: iri})
+		require.NoError(t, err, iri)
+		require.Equal(t, "Delegated Subject", res.GetContact().GetName(), iri)
+	}
 }
 
 func TestListContacts(t *testing.T) {

@@ -8,6 +8,51 @@ CREATE TABLE kv (
     value TEXT
 ) WITHOUT ROWID;
 
+-- Interned authority graph identities with earliest-mention provenance.
+-- ts is the signed Unix millisecond timestamp; blob_key is the canonical CID
+-- used to break timestamp ties independently of local blob IDs.
+-- Reference-only identities have all three provenance columns NULL.
+CREATE TABLE keyline_nodes (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL CHECK (name != ''),
+    blob_id INTEGER CHECK (blob_id > 0),
+    ts INTEGER,
+    blob_key TEXT CHECK (blob_key != ''),
+    CHECK ((blob_id IS NULL AND ts IS NULL AND blob_key IS NULL) OR (blob_id IS NOT NULL AND ts IS NOT NULL AND blob_key IS NOT NULL))
+) STRICT;
+
+CREATE TABLE keyline_delegations (
+    id TEXT PRIMARY KEY CHECK (id != ''),
+    issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE keyline_revocations (
+    id TEXT PRIMARY KEY CHECK (id != ''),
+    issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    target TEXT NOT NULL CHECK (target != ''),
+    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX keyline_outgoing ON keyline_delegations (subject, issuer);
+CREATE INDEX keyline_delegations_by_issuer ON keyline_delegations (issuer);
+CREATE INDEX keyline_delegations_by_audience ON keyline_delegations (audience);
+CREATE INDEX keyline_targeting ON keyline_revocations (target);
+CREATE INDEX keyline_revocations_by_issuer ON keyline_revocations (issuer);
+
+-- Effective authority memberships derived from the Keyline graph.
+CREATE TABLE keyline_members (
+    subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    member INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+    PRIMARY KEY (subject, member)
+) WITHOUT ROWID;
+
+CREATE INDEX keyline_members_by_member ON keyline_members (member, subject);
+
 -- Stores the public keys that we know about.
 -- The public key is stored in a principal encoding,
 -- which is `<pub-key-type-multicodec><pub-key-bytes>`.
@@ -120,8 +165,12 @@ CREATE INDEX structural_blobs_by_type ON structural_blobs (type, ts, resource, a
 -- structural_blobs instead of scanning all of resource_links) from 250ms to 0.06ms.
 CREATE INDEX structural_blobs_by_ts ON structural_blobs (ts, id);
 
--- Index for tsid.
-CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', author) WHERE extra_attrs->>'tsid' IS NOT NULL;
+-- Index for tsid. Records are looked up by (tsid, account-or-author), and the
+-- latest version is ordered by (ts, hash). Compare the account-or-author expression
+-- against a value without affinity, such as `(SELECT +id FROM public_keys ...)`:
+-- an INTEGER-affinity operand makes SQLite skip the expression's index column.
+CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', COALESCE(extra_attrs->>'account', author), ts DESC, extra_attrs->>'hash' DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+CREATE INDEX comments_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author)) WHERE type = 'Comment';
 
 -- Index for querying capabilities by delegate.
 CREATE INDEX capabilities_by_delegate ON structural_blobs (extra_attrs->>'del', resource, author) WHERE type = 'Capability';
@@ -217,26 +266,6 @@ CREATE TABLE document_generations (
 -- Index to fullfill the rule of having an index on all foreign keys.
 CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
 
--- Reference facts derived from the current published content of a document.
--- Status is 1 for success and 2 for a failed derivation. Keeping failures
--- explicit prevents readers from treating unknown content as reference-free.
-CREATE TABLE document_reference_summaries (
-    resource INTEGER PRIMARY KEY REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE,
-    generation INTEGER NOT NULL,
-    genesis TEXT NOT NULL,
-    heads JSON NOT NULL,
-    status INTEGER NOT NULL CHECK (status IN (1, 2)),
-    has_self_query INTEGER NOT NULL DEFAULT 0
-) WITHOUT ROWID;
-
-CREATE TABLE document_reference_targets (
-    parent INTEGER NOT NULL REFERENCES document_reference_summaries (resource) ON UPDATE CASCADE ON DELETE CASCADE,
-    target_iri TEXT NOT NULL,
-    PRIMARY KEY (parent, target_iri)
-) WITHOUT ROWID;
-
-CREATE INDEX document_reference_targets_by_target ON document_reference_targets (target_iri, parent);
-
 -- Document attribute names, interned by their exact global identity.
 -- `search_key` is the Unicode case-folded form used only for autocomplete.
 CREATE TABLE document_attribute_keys (
@@ -275,19 +304,20 @@ CREATE TABLE document_attributes (
 
 CREATE INDEX document_attributes_by_key ON document_attributes (key, kind, value);
 
--- The live version of each comment thread-scoped ID.
+-- The live version of each account-scoped comment ID.
 --
 -- A comment can be edited or deleted, and each version is a separate blob sharing
--- one TSID. The live version is the highest (ts, id) among them, and it counts only
+-- one authority + TSID. The live version is the highest (ts, hash) among them, and it counts only
 -- if it isn't a tombstone -- deleted comments have no row here at all.
 --
 -- Deriving this at query time is what it replaces: the listing queries used to run a
 -- ROW_NUMBER() window over every comment blob in the requested scope on every
 -- request, which was 37ms of a 60ms ListDirectory call on a 6.2 GB production
--- database. Which blob wins a TSID is a fact about the data, not about the request,
+-- database. Which blob wins an authority + TSID is a fact about the data, not about the request,
 -- so it's settled once, when the blob is indexed (see updateCommentLive).
-CREATE TABLE comment_live (
-    tsid TEXT PRIMARY KEY,
+CREATE TABLE comments_live (
+    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    tsid TEXT NOT NULL,
     -- The winning blob. Also the value listings report as `last_comment`.
     blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
     -- Genesis CID of the document this comment targets, resolved from the comment's
@@ -298,12 +328,16 @@ CREATE TABLE comment_live (
     -- The resource the comment targeted: its *location* when it was written. Used
     -- only to attribute the comment to a space, never to a document.
     resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
-    ts INTEGER NOT NULL
+    ts INTEGER NOT NULL,
+    -- The winning blob's hash prefix (extra_attrs->>'hash' on its structural blob),
+    -- which breaks timestamp ties when picking the latest comment.
+    hash TEXT NOT NULL,
+    PRIMARY KEY (authority, tsid)
 ) WITHOUT ROWID;
 
-CREATE INDEX comment_live_by_genesis ON comment_live (genesis, ts);
-CREATE INDEX comment_live_by_resource ON comment_live (resource, ts);
-CREATE INDEX comment_live_by_blob ON comment_live (blob_id);
+CREATE INDEX comments_live_by_genesis ON comments_live (genesis, ts, hash);
+CREATE INDEX comments_live_by_resource ON comments_live (resource, ts);
+CREATE INDEX comments_live_by_blob ON comments_live (blob_id);
 
 -- Comment activity per document, keyed by genesis: what the listings read.
 --

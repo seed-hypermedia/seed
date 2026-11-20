@@ -1,0 +1,16 @@
+# Upstream pin for the Keyline port, read by upstream.sh. See AGENTS.md for the bump routine.
+repo https://github.com/inkandswitch/keyhive.git
+commit 092c8d60c38d00b5089834d3dde0bfcacb60f8dc
+
+# Upstream paths whose changes may need porting: the contract, evaluator, rule design notes, and conformance suite.
+track keyline/src
+track keyline/tests
+track keyline_memory/src
+track design/keyline
+
+# Conformance cases deliberately not ported: skip <module>::<case> <reason>.
+# Every other case needs an "// upstream: <module>::<case>" marker on the Go test that ports it.
+skip scenarios::second_signature_is_the_same_certificate Callers authenticate facts; certificates and signatures are not ported.
+skip scenarios::signed_certificates_agree_with_fixtures Callers authenticate facts; certificates and signatures are not ported.
+skip scenarios::retain_distinguishes_certificates_not_authority Go revocations have no retain field (content-layer watermarks evaluation never reads).
+skip laws::retain_is_inert Go revocations have no retain field (content-layer watermarks evaluation never reads).

@@ -90,10 +90,20 @@ func ValidateCapabilityLabel(label string) error {
 	return nil
 }
 
+// capabilityTypeMatch is the CBOR encoding of a Capability's type field.
+var capabilityTypeMatch = makeCBORTypeMatch(TypeCapability)
+
+// mayBeCapability reports whether a blob could be a Capability, using the same
+// byte match that gates the Capability indexer. Callers use it to index
+// capabilities before other blobs; a false positive is indexed normally.
+func mayBeCapability(codec multicodec.Code, data []byte) bool {
+	return codec == multicodec.DagCbor && bytes.Contains(data, capabilityTypeMatch)
+}
+
 func init() {
 	cbornode.RegisterCborType(Capability{})
 
-	matcher := makeCBORTypeMatch(TypeCapability)
+	matcher := capabilityTypeMatch
 	registerIndexer(TypeCapability,
 		func(c cid.Cid, data []byte) (eb Encoded[*Capability], err error) {
 			codec, _ := ipfs.DecodeCID(c)
@@ -119,7 +129,7 @@ func init() {
 	)
 }
 
-func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error {
+func indexCapability(ictx *indexingCtx, id int64, eb Encoded[*Capability]) error {
 	c, v := eb.CID, eb.Decoded
 
 	iri, err := NewIRI(v.Space(), v.Path)
@@ -160,11 +170,7 @@ func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error 
 		return err
 	}
 
-	// A new capability changes writer-validity outcomes, so drop the memoized
-	// isValidWriter results before re-validating the blobs it unstashes. Keyed on
-	// the Capability blob type, this invalidation also covers any future
-	// capability change (e.g. revocation) without further code changes.
-	ictx.writerCache.clear()
-
-	return reindexStashedBlobs(ictx.childOpts(), ictx.conn, stashReasonPermissionDenied, v.Delegate.String(), ictx.blockStore, ictx.log, ictx.writerCache, ictx.hookIDs)
+	// The members cache and blobs waiting for this grant are refreshed when
+	// the batch flushes. See indexBatch.
+	return projectAuthorityCapability(ictx.conn, ictx.batch, id, c, v)
 }

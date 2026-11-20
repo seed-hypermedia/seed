@@ -29,6 +29,7 @@ import {Query} from './api-query'
 import {QueryBlock} from './api-query-block'
 import {Resource, ResourceParams} from './api-resource'
 import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
+import {DocumentInfo, DocumentInfoParams} from './api-document-info'
 import {Search} from './api-search'
 import {MentionCandidates} from './api-mention-candidates'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
@@ -36,6 +37,7 @@ import {HMRequestImplementation, HMRequestParams} from './api-types'
 export const APIQueries = {
   Resource,
   ResourceMetadata,
+  DocumentInfo,
   Account,
   Comment,
   AccountContacts,
@@ -88,6 +90,7 @@ export const APIParams: {
   Account: AccountParams,
   Resource: ResourceParams,
   ResourceMetadata: ResourceMetadataParams,
+  DocumentInfo: DocumentInfoParams,
   ListCitations: ListCitationsParams,
   ListChanges: ListChangesParams,
   ListCapabilities: ListCapabilitiesParams,

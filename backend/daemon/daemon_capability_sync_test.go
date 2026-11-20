@@ -2,21 +2,33 @@ package daemon
 
 import (
 	"context"
+	crand "crypto/rand"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"seed/backend/api/apitest"
+	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	activity "seed/backend/genproto/activity/v1alpha"
 	documents "seed/backend/genproto/documents/v3alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // This file holds the end-to-end regression tests for capability propagation
@@ -327,4 +339,223 @@ func TestCapabilitiesSyncAfterScopeQuiesced(t *testing.T) {
 		return err == nil && len(notes.Capabilities) == 3
 	}, time.Second*15, time.Millisecond*200,
 		"capabilities granted after the relay's scopes materialized must still reach the subscriber")
+}
+
+// TestExactChildSyncWithTransitiveAgents exercises original signed capabilities
+// across author -> relay -> subscriber, including an off-tree grant arriving
+// after the relay has materialized the subscriber's exact-child scope.
+func TestExactChildSyncWithTransitiveAgents(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	newApp := func(name string) *App {
+		cfg := makeTestConfig(t)
+		cfg.Syncing.NoPull = true // Every discovery below has an explicit completion boundary.
+		cfg.P2P.NoPeerSharing = true
+		return makeTestApp(t, name, cfg, true)
+	}
+	author := newApp("alice")
+	relay := newApp("bob")
+	subscriber := newApp("carol")
+	owner := coretest.NewTester("alice").Account
+	writer := coretest.NewTester("david").Account
+	session := coretest.NewTester("carol").Account
+	agent, err := core.GenerateKeyPair(core.Ed25519, crand.Reader)
+	require.NoError(t, err)
+	lateSession, err := core.GenerateKeyPair(core.Ed25519, crand.Reader)
+	require.NoError(t, err)
+	for name, key := range map[string]*core.KeyPair{"writer": writer, "agent": agent, "session": session} {
+		require.NoError(t, author.RPC.Daemon.RegisterAccount(ctx, name, key))
+	}
+
+	require.NoError(t, subscriber.RPC.Daemon.RegisterAccount(ctx, "late-session", lateSession))
+
+	publish := func(key, account, path, title string, visibility documents.ResourceVisibility) *documents.Document {
+		t.Helper()
+		doc, err := createTestDocumentChange(ctx, t, author, &apitest.DocumentChangeRequest{
+			SigningKeyName: key,
+			Account:        account,
+			Path:           path,
+			Visibility:     visibility,
+			Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: title},
+			}}},
+		})
+		require.NoError(t, err)
+		return doc
+	}
+	grant := func(key, account, delegate, path string, role documents.Role) *documents.Capability {
+		t.Helper()
+		capability, err := author.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+			SigningKeyName: key,
+			Account:        account,
+			Delegate:       delegate,
+			Path:           path,
+			Role:           role,
+		})
+		require.NoError(t, err)
+		return capability
+	}
+
+	// Project the owner namespace and the writer identity from private content
+	// first. Their local provenance must not become a sync dependency of grants.
+	privateOwner := publish("main", owner.String(), "/private", "Owner secret", documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE)
+	privateWriter := publish("writer", writer.String(), "/private", "Writer secret", documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE)
+	home := publish("main", owner.String(), "", "Podcast space", documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC)
+	parent := publish("main", owner.String(), "/podcasts", "Podcasts", documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC)
+	sibling := publish("main", owner.String(), "/podcasts/episode-2", "Unrequested sibling", documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC)
+	siblingGrant := grant("main", owner.String(), coretest.NewTester("bob").Account.String(), sibling.Path, documents.Role_WRITER)
+
+	// Both AGENT capabilities live outside the owner's resource tree. The
+	// session has no direct WRITER grant, only writer -> agent -> session.
+	capabilities := []*documents.Capability{
+		grant("main", owner.String(), writer.String(), parent.Path, documents.Role_WRITER),
+		grant("writer", writer.String(), agent.String(), "", documents.Role_AGENT),
+		grant("agent", agent.String(), session.String(), "", documents.Role_AGENT),
+	}
+	published := publish("session", owner.String(), "/podcasts/episode-1", "Delegated episode", documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC)
+	childIRI := blob.IRI("hm://" + owner.String() + published.Path)
+
+	// Read raw storage rather than an access-filtered document listing: a
+	// hidden-but-downloaded private blob is still a replication failure.
+	assertAbsent := func(app *App, docs ...*documents.Document) {
+		t.Helper()
+		for _, doc := range docs {
+			_, err := app.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{Account: doc.Account, Path: doc.Path})
+			require.Error(t, err, "unrequested document %s%s", doc.Account, doc.Path)
+			principal, err := core.DecodePrincipal(doc.Account)
+			require.NoError(t, err)
+			refs, err := author.RPC.DocumentsV3.ListRefs(blob.WithAuthenticatedCaller(ctx, principal), &documents.ListRefsRequest{
+				Account: doc.Account,
+				Path:    doc.Path,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, refs.Refs)
+			ids := []string{doc.Version}
+			for _, ref := range refs.Refs {
+				ids = append(ids, ref.Id)
+			}
+
+			for _, id := range ids {
+				c, err := cid.Decode(id)
+				require.NoError(t, err)
+				count, err := sqlitex.QueryOnePool[int64](ctx, app.Storage.DB(), dqb.Str(`
+					SELECT COUNT(*) FROM blobs WHERE multihash = ? AND size >= 0;
+				`)(), []byte(c.Hash()))
+				require.NoError(t, err)
+				require.Zero(t, count, "unrequested Ref/Change %s for %s%s", id, doc.Account, doc.Path)
+			}
+		}
+	}
+	assertCapabilities := func(app *App, caps []*documents.Capability) {
+		t.Helper()
+		for _, capability := range caps {
+			got, err := app.RPC.DocumentsV3.GetCapability(ctx, &documents.GetCapabilityRequest{Id: capability.Id})
+			require.NoError(t, err)
+			require.True(t, proto.Equal(capability, got), "capability %s must retain its original fields", capability.Id)
+			c, err := cid.Decode(capability.Id)
+			require.NoError(t, err)
+			original, err := author.Index.Get(ctx, c)
+			require.NoError(t, err)
+			received, err := app.Index.Get(ctx, c)
+			require.NoError(t, err)
+			require.Equal(t, original.RawData(), received.RawData(), "signed capability bytes must not change")
+		}
+	}
+	syncScope := func(app *App, iri blob.IRI, recursive bool, want *documents.Document, caps []*documents.Capability) {
+		t.Helper()
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			waveCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			progress := syncing.NewDiscoveryProgress()
+			version, err := app.Syncing.DiscoverObjectWithProgress(waveCtx, iri, "", recursive, false, nil, progress)
+			require.NoError(collect, err)
+			require.Equal(collect, want.Version, version.String())
+			require.Positive(collect, progress.PeersSyncedOK.Load(), "the explicit wave must reconcile with a real peer")
+			for _, capability := range caps {
+				_, err := app.RPC.DocumentsV3.GetCapability(ctx, &documents.GetCapabilityRequest{Id: capability.Id})
+				require.NoError(collect, err, "sync must deliver capability %s", capability.Id)
+			}
+		}, 10*time.Second, 100*time.Millisecond)
+		got, err := app.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{Account: want.Account, Path: want.Path})
+		require.NoError(t, err)
+		require.True(t, proto.Equal(want, got), "the peer must reconstruct the same published document")
+		assertCapabilities(app, caps)
+	}
+
+	require.NoError(t, relay.Net.ForceConnect(ctx, author.Net.AddrInfo()))
+	// The relay holds the sibling and its grant too, so their absence on the
+	// subscriber tests serving isolation, not missing source data.
+	syncScope(relay, blob.IRI("hm://"+owner.String()), true, home, append(append([]*documents.Capability{}, capabilities...), siblingGrant))
+	gotSibling, err := relay.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{Account: owner.String(), Path: sibling.Path})
+	require.NoError(t, err)
+	require.Equal(t, sibling.Version, gotSibling.Version)
+	assertAbsent(relay, privateOwner, privateWriter)
+
+	var contactedOtherPeer atomic.Bool
+
+	notifier := &network.NotifyBundle{ConnectedF: func(_ network.Network, conn network.Conn) {
+		if conn.RemotePeer() != relay.Net.AddrInfo().ID {
+			contactedOtherPeer.Store(true)
+		}
+	}}
+	subscriber.Net.Libp2p().Network().Notify(notifier)
+	t.Cleanup(func() { subscriber.Net.Libp2p().Network().StopNotify(notifier) })
+	require.NoError(t, subscriber.Net.ForceConnect(ctx, relay.Net.AddrInfo()))
+	syncScope(subscriber, childIRI, false, published, capabilities)
+	assertAbsent(subscriber, parent, sibling, privateOwner, privateWriter)
+	_, err = subscriber.RPC.DocumentsV3.GetCapability(ctx, &documents.GetCapabilityRequest{Id: siblingGrant.Id})
+	require.Error(t, err, "an unrelated sibling grant must not replicate")
+
+	warmScope, err := sqlitex.QueryOnePool[int64](ctx, relay.Storage.DB(), dqb.Str(`
+		SELECT id FROM rbsr_scope WHERE iri = ? AND kind = 0 AND materialized = 1;
+	`)(), string(childIRI))
+	require.NoError(t, err, "the relay's exact scope must be materialized before the late grant")
+	require.Positive(t, warmScope)
+
+	refRequest := func(key, path string) *documents.CreateRefRequest {
+		return &documents.CreateRefRequest{
+			SigningKeyName: key,
+			Account:        owner.String(),
+			Path:           path,
+			Target: &documents.RefTarget{Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{Genesis: published.Genesis, Version: published.Version},
+			}},
+		}
+	}
+	_, err = subscriber.RPC.DocumentsV3.CreateRef(ctx, refRequest("late-session", published.Path))
+	require.Equal(t, codes.PermissionDenied, status.Code(err), "a local key without a grant must be denied")
+	_, err = subscriber.RPC.DocumentsV3.CreateRef(ctx, refRequest("main", "/outside-podcasts"))
+	require.Equal(t, codes.PermissionDenied, status.Code(err), "transitive agents must not escape the WRITER subtree")
+	_, err = subscriber.RPC.DocumentsV3.CreateRef(ctx, refRequest("main", published.Path))
+	require.NoError(t, err, "the cold synced chain must authorize the subscriber's session through the API")
+
+	// A new leaf off the same identity chain must join an already-served exact
+	// scope without subscribing to the writer's or agent's account roots.
+	lateGrant := grant("agent", agent.String(), lateSession.String(), "", documents.Role_AGENT)
+	capabilities = append(capabilities, lateGrant)
+	syncScope(relay, childIRI, false, published, capabilities)
+	syncScope(subscriber, childIRI, false, published, capabilities)
+	_, err = subscriber.RPC.DocumentsV3.CreateRef(ctx, refRequest("late-session", published.Path))
+	require.NoError(t, err, "the late off-tree AGENT grant must enable transitive API authority")
+	_, err = subscriber.RPC.DocumentsV3.CreateRef(ctx, refRequest("late-session", "/outside-podcasts"))
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	updated, err := createTestDocumentChange(ctx, t, subscriber, &apitest.DocumentChangeRequest{
+		SigningKeyName: "late-session",
+		Account:        owner.String(),
+		Path:           published.Path,
+		BaseVersion:    published.Version,
+		Changes: []*documents.DocumentChange{{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Edited through the late session"},
+		}}},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, published.Version, updated.Version)
+	require.Equal(t, "Edited through the late session", updated.Metadata.Fields["title"].GetStringValue())
+	assertAbsent(subscriber, parent, sibling, privateOwner, privateWriter)
+	_, err = subscriber.RPC.DocumentsV3.GetCapability(ctx, &documents.GetCapabilityRequest{Id: siblingGrant.Id})
+	require.Error(t, err)
+	require.False(t, contactedOtherPeer.Load(), "the subscriber must never contact the author or any peer except the relay")
+	require.ElementsMatch(t, []peer.ID{relay.Net.AddrInfo().ID}, subscriber.Net.Libp2p().Network().Peers())
 }

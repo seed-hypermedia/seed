@@ -92,7 +92,8 @@ func NewDiscoveryProgress() *Progress {
 // (e.g. ["Profile", "Ref", "Change"]). When nil/empty, all blob types are
 // discovered (default). Filtering avoids pulling unrelated blobs (e.g.
 // Capability/Comment/Contact) when the caller only needs a subset — useful
-// for "render an avatar" use-cases.
+// for "render an avatar" use-cases. Authority and linked dependencies are
+// included even when their types are not in the allowlist.
 //
 // recursive and depthOne are mutually exclusive: recursive walks the entire
 // subtree below entityID, depthOne only its direct children.
@@ -955,6 +956,11 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 
 func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
+	authorityResources := make(map[blob.IRI]struct{}, len(dkeys))
+	for key := range dkeys {
+		authorityResources[key.IRI] = struct{}{}
+	}
+
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 		return err
 	}
@@ -1036,7 +1042,7 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 				FROM resource_links
 				JOIN structural_blobs ON structural_blobs.id = resource_links.source
 				JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-				JOIN public_keys ON public_keys.id = structural_blobs.author
+				JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 				LEFT JOIN resources r
 				ON r.genesis_blob = CASE
 						WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
@@ -1077,6 +1083,43 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 		if err := fillTables(conn, linkIRIs, true); err != nil {
 			return err
 		}
+		for key := range linkIRIs {
+			authorityResources[key.IRI] = struct{}{}
+		}
+	}
+
+	// Collect resource identities before adding authority blobs: a capability's
+	// own anchor must not expand discovery to unrelated content in its issuer's
+	// space. Include selected descendants and linked/cited resources, plus the
+	// explicit requests above even when their content has not arrived locally.
+	const qAuthorityResources = `
+		SELECT iri FROM resources WHERE id IN rbsr_iris
+		UNION
+		SELECT r.iri
+		FROM rbsr_blobs rb
+		JOIN structural_blobs sb ON sb.id = rb.id
+		JOIN resources r ON r.id = sb.resource;`
+
+	if err := sqlitex.Exec(conn, qAuthorityResources, func(stmt *sqlite.Stmt) error {
+		authorityResources[blob.IRI(stmt.ColumnText(0))] = struct{}{}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// AuthorityBlobIDs may open a savepoint, so no cached statement may still
+	// be active here. Evaluate once per resource, independently of type filters.
+	for resource := range authorityResources {
+		ids, err := blob.AuthorityBlobIDs(context.Background(), conn, resource)
+		if err != nil {
+			return err
+		}
+
+		for _, id := range ids {
+			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_blobs (id) VALUES (?)`, nil, id); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Find recursively all the agent capabilities for authors of the blobs
@@ -1085,9 +1128,12 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 	// Avoids the two SELECT count() probes per iteration of the previous
 	// design (which ran 4 INSERTs even when iter 1 already converged, since
 	// it needed an explicit equality check to break).
-	// Skip when the caller's type allowlist excludes Capability — without
-	// Capability the recursion would never insert anything.
-	if hasType(effectiveBlobTypeFilter(dkeys), "Capability") {
+	// When the caller's type allowlist excludes Capability, only the proofs of
+	// delegated comments are still needed: a comment signed on behalf of another
+	// account can't be indexed by the receiver without the AGENT chain that lets
+	// its signer act for that account.
+	allTypes := hasType(effectiveBlobTypeFilter(dkeys), "Capability")
+	{
 		// Probe once for the empty-seed case so we don't run a wasted
 		// INSERT (its IN-subquery would scan all Capability rows for nothing).
 		var hasAny bool
@@ -1107,11 +1153,12 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 					SELECT DISTINCT author
 					FROM structural_blobs
 					WHERE id IN rbsr_blobs
+					AND (:all OR type = 'Capability' OR (type = 'Comment' AND extra_attrs->>'account' IS NOT NULL))
 				)
 				AND sb.extra_attrs->>'role' = 'AGENT';`
 
 			for {
-				if err := sqlitex.Exec(conn, q, nil); err != nil {
+				if err := sqlitex.Exec(conn, q, nil, allTypes); err != nil {
 					return err
 				}
 				if conn.Changes() == 0 {
@@ -1163,7 +1210,8 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 				SELECT id
 				FROM structural_blobs
 				WHERE extra_attrs->>'tsid' = :tsid
-				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
+				AND COALESCE(extra_attrs->>'account', author) = (SELECT +id FROM public_keys WHERE principal = :principal);`
+
 			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
 				return err
 			}
@@ -1272,6 +1320,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 
 	// Fill All authors and their related blobs.
 	if includeAccounts {
+		// Comments represent their account even when an agent signs them.
+		// Match account material by resource owner, since its Ref/Profile
+		// may itself be signed by a different delegated key.
 		// Fill All authors.
 		if hasType(typeFilter, "Ref") {
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -1279,7 +1330,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					sb.id as id
 					FROM resources r
 					JOIN structural_blobs sb ON sb.resource = r.id
-					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs)
+					WHERE r.owner IN (SELECT COALESCE(extra_attrs->>'account', author) FROM structural_blobs WHERE id IN rbsr_blobs)
 					AND type = 'Ref'
 					AND r.iri GLOB 'hm://*'
 					AND r.iri NOT GLOB 'hm://*/*';`
@@ -1295,9 +1346,10 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
+					JOIN resources r ON r.id = sb.resource
 					WHERE sb.type = 'Profile'
-					AND sb.author IN (
-						SELECT DISTINCT author
+					AND r.owner IN (
+						SELECT DISTINCT COALESCE(extra_attrs->>'account', author)
 						FROM structural_blobs
 						WHERE id IN rbsr_blobs AND author IS NOT NULL
 					);`

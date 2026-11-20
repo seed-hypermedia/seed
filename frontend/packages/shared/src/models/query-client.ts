@@ -83,12 +83,12 @@ export function invalidateQueries(queryKey: QueryKey, options?: InvalidateQuerie
 }
 
 /**
- * Immediately set cached data for all queries matching a key prefix.
+ * Immediately set cached data for all queries matching a key prefix, or only those whose key passes filter.
  * Use after mutations to prevent stale-while-revalidate flashes.
  */
-export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
+export function setQueriesDataByKey(queryKey: QueryKey, data: unknown, filter?: (key: QueryKey) => boolean) {
   if (registeredClient) {
-    registeredClient.setQueriesData({queryKey}, data)
+    registeredClient.setQueriesData({queryKey, predicate: filter && ((query) => filter(query.queryKey))}, data)
   }
 }
 

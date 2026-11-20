@@ -3,6 +3,19 @@
 import type {QueryKey} from '@tanstack/react-query'
 import {abbreviateCid} from '../utils'
 
+/**
+ * Key of a document's indexed info. It sits under the entity's key, so invalidating the entity refreshes it too, but
+ * it holds an HMDocumentInfo, not an HMResource: writes of resource data under the entity's key must skip it.
+ */
+export function documentInfoQueryKey(id: string | undefined) {
+  return [queryKeys.ENTITY, id, 'info'] as const
+}
+
+/** Whether a query key belongs to a document's indexed info. See {@link documentInfoQueryKey}. */
+export function isDocumentInfoQueryKey(key: QueryKey): boolean {
+  return key[0] === queryKeys.ENTITY && key[2] === 'info'
+}
+
 export const queryKeys = {
   // Organized by the model file that is responsible for querying + mutating the keys
 
@@ -37,7 +50,6 @@ export const queryKeys = {
 
   // documents
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
-  DOC_LIST_UNREFERENCED: 'DOC_LIST_UNREFERENCED', // site account UID
   QUERY_BLOCK: 'QUERY_BLOCK',
   DRAFT: 'DRAFT', // , id: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //

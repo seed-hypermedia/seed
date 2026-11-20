@@ -454,7 +454,7 @@ describe('hasSelfQueryBlockInEditorContent', () => {
   })
 })
 
-// `UnreferencedDocuments` relies on `editorBlocksToHMBlockNodes` to convert
+// Callers rely on `editorBlocksToHMBlockNodes` to convert
 // in-memory draft content (BlockNote `EditorBlock[]`) into the published
 // `HMBlockNode[]` shape so the existing ref/query extraction utilities work
 // uniformly. These tests pin that conversion path.

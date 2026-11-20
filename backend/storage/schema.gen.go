@@ -94,24 +94,28 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
-// Table comment_live.
+// Table comments_live.
 const (
-	CommentLive         sqlitegen.Table  = "comment_live"
-	CommentLiveBlobID   sqlitegen.Column = "comment_live.blob_id"
-	CommentLiveGenesis  sqlitegen.Column = "comment_live.genesis"
-	CommentLiveResource sqlitegen.Column = "comment_live.resource"
-	CommentLiveTs       sqlitegen.Column = "comment_live.ts"
-	CommentLiveTsid     sqlitegen.Column = "comment_live.tsid"
+	CommentsLive          sqlitegen.Table  = "comments_live"
+	CommentsLiveAuthority sqlitegen.Column = "comments_live.authority"
+	CommentsLiveBlobID    sqlitegen.Column = "comments_live.blob_id"
+	CommentsLiveGenesis   sqlitegen.Column = "comments_live.genesis"
+	CommentsLiveHash      sqlitegen.Column = "comments_live.hash"
+	CommentsLiveResource  sqlitegen.Column = "comments_live.resource"
+	CommentsLiveTs        sqlitegen.Column = "comments_live.ts"
+	CommentsLiveTsid      sqlitegen.Column = "comments_live.tsid"
 )
 
-// Table comment_live. Plain strings.
+// Table comments_live. Plain strings.
 const (
-	T_CommentLive         = "comment_live"
-	C_CommentLiveBlobID   = "comment_live.blob_id"
-	C_CommentLiveGenesis  = "comment_live.genesis"
-	C_CommentLiveResource = "comment_live.resource"
-	C_CommentLiveTs       = "comment_live.ts"
-	C_CommentLiveTsid     = "comment_live.tsid"
+	T_CommentsLive          = "comments_live"
+	C_CommentsLiveAuthority = "comments_live.authority"
+	C_CommentsLiveBlobID    = "comments_live.blob_id"
+	C_CommentsLiveGenesis   = "comments_live.genesis"
+	C_CommentsLiveHash      = "comments_live.hash"
+	C_CommentsLiveResource  = "comments_live.resource"
+	C_CommentsLiveTs        = "comments_live.ts"
+	C_CommentsLiveTsid      = "comments_live.tsid"
 )
 
 // Table document_attribute_keys.
@@ -216,42 +220,6 @@ const (
 	C_DocumentGenerationsResource             = "document_generations.resource"
 	C_DocumentGenerationsVisibility           = "document_generations.visibility"
 	C_DocumentGenerationsVisibilityTimestamp  = "document_generations.visibility_timestamp"
-)
-
-// Table document_reference_summaries.
-const (
-	DocumentReferenceSummaries             sqlitegen.Table  = "document_reference_summaries"
-	DocumentReferenceSummariesGeneration   sqlitegen.Column = "document_reference_summaries.generation"
-	DocumentReferenceSummariesGenesis      sqlitegen.Column = "document_reference_summaries.genesis"
-	DocumentReferenceSummariesHasSelfQuery sqlitegen.Column = "document_reference_summaries.has_self_query"
-	DocumentReferenceSummariesHeads        sqlitegen.Column = "document_reference_summaries.heads"
-	DocumentReferenceSummariesResource     sqlitegen.Column = "document_reference_summaries.resource"
-	DocumentReferenceSummariesStatus       sqlitegen.Column = "document_reference_summaries.status"
-)
-
-// Table document_reference_summaries. Plain strings.
-const (
-	T_DocumentReferenceSummaries             = "document_reference_summaries"
-	C_DocumentReferenceSummariesGeneration   = "document_reference_summaries.generation"
-	C_DocumentReferenceSummariesGenesis      = "document_reference_summaries.genesis"
-	C_DocumentReferenceSummariesHasSelfQuery = "document_reference_summaries.has_self_query"
-	C_DocumentReferenceSummariesHeads        = "document_reference_summaries.heads"
-	C_DocumentReferenceSummariesResource     = "document_reference_summaries.resource"
-	C_DocumentReferenceSummariesStatus       = "document_reference_summaries.status"
-)
-
-// Table document_reference_targets.
-const (
-	DocumentReferenceTargets          sqlitegen.Table  = "document_reference_targets"
-	DocumentReferenceTargetsParent    sqlitegen.Column = "document_reference_targets.parent"
-	DocumentReferenceTargetsTargetIRI sqlitegen.Column = "document_reference_targets.target_iri"
-)
-
-// Table document_reference_targets. Plain strings.
-const (
-	T_DocumentReferenceTargets          = "document_reference_targets"
-	C_DocumentReferenceTargetsParent    = "document_reference_targets.parent"
-	C_DocumentReferenceTargetsTargetIRI = "document_reference_targets.target_iri"
 )
 
 // Table domains.
@@ -512,6 +480,82 @@ const (
 	C_FtsIndexTs          = "fts_index.ts"
 	C_FtsIndexType        = "fts_index.type"
 	C_FtsIndexVersion     = "fts_index.version"
+)
+
+// Table keyline_delegations.
+const (
+	KeylineDelegations         sqlitegen.Table  = "keyline_delegations"
+	KeylineDelegationsAudience sqlitegen.Column = "keyline_delegations.audience"
+	KeylineDelegationsBlobID   sqlitegen.Column = "keyline_delegations.blob_id"
+	KeylineDelegationsID       sqlitegen.Column = "keyline_delegations.id"
+	KeylineDelegationsIssuer   sqlitegen.Column = "keyline_delegations.issuer"
+	KeylineDelegationsPower    sqlitegen.Column = "keyline_delegations.power"
+	KeylineDelegationsSubject  sqlitegen.Column = "keyline_delegations.subject"
+)
+
+// Table keyline_delegations. Plain strings.
+const (
+	T_KeylineDelegations         = "keyline_delegations"
+	C_KeylineDelegationsAudience = "keyline_delegations.audience"
+	C_KeylineDelegationsBlobID   = "keyline_delegations.blob_id"
+	C_KeylineDelegationsID       = "keyline_delegations.id"
+	C_KeylineDelegationsIssuer   = "keyline_delegations.issuer"
+	C_KeylineDelegationsPower    = "keyline_delegations.power"
+	C_KeylineDelegationsSubject  = "keyline_delegations.subject"
+)
+
+// Table keyline_members.
+const (
+	KeylineMembers        sqlitegen.Table  = "keyline_members"
+	KeylineMembersMember  sqlitegen.Column = "keyline_members.member"
+	KeylineMembersPower   sqlitegen.Column = "keyline_members.power"
+	KeylineMembersSubject sqlitegen.Column = "keyline_members.subject"
+)
+
+// Table keyline_members. Plain strings.
+const (
+	T_KeylineMembers        = "keyline_members"
+	C_KeylineMembersMember  = "keyline_members.member"
+	C_KeylineMembersPower   = "keyline_members.power"
+	C_KeylineMembersSubject = "keyline_members.subject"
+)
+
+// Table keyline_nodes.
+const (
+	KeylineNodes        sqlitegen.Table  = "keyline_nodes"
+	KeylineNodesBlobID  sqlitegen.Column = "keyline_nodes.blob_id"
+	KeylineNodesBlobKey sqlitegen.Column = "keyline_nodes.blob_key"
+	KeylineNodesID      sqlitegen.Column = "keyline_nodes.id"
+	KeylineNodesName    sqlitegen.Column = "keyline_nodes.name"
+	KeylineNodesTs      sqlitegen.Column = "keyline_nodes.ts"
+)
+
+// Table keyline_nodes. Plain strings.
+const (
+	T_KeylineNodes        = "keyline_nodes"
+	C_KeylineNodesBlobID  = "keyline_nodes.blob_id"
+	C_KeylineNodesBlobKey = "keyline_nodes.blob_key"
+	C_KeylineNodesID      = "keyline_nodes.id"
+	C_KeylineNodesName    = "keyline_nodes.name"
+	C_KeylineNodesTs      = "keyline_nodes.ts"
+)
+
+// Table keyline_revocations.
+const (
+	KeylineRevocations       sqlitegen.Table  = "keyline_revocations"
+	KeylineRevocationsBlobID sqlitegen.Column = "keyline_revocations.blob_id"
+	KeylineRevocationsID     sqlitegen.Column = "keyline_revocations.id"
+	KeylineRevocationsIssuer sqlitegen.Column = "keyline_revocations.issuer"
+	KeylineRevocationsTarget sqlitegen.Column = "keyline_revocations.target"
+)
+
+// Table keyline_revocations. Plain strings.
+const (
+	T_KeylineRevocations       = "keyline_revocations"
+	C_KeylineRevocationsBlobID = "keyline_revocations.blob_id"
+	C_KeylineRevocationsID     = "keyline_revocations.id"
+	C_KeylineRevocationsIssuer = "keyline_revocations.issuer"
+	C_KeylineRevocationsTarget = "keyline_revocations.target"
 )
 
 // Table kv.
@@ -804,11 +848,13 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
-		CommentLiveBlobID:                       {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveGenesis:                      {Table: CommentLive, SQLType: "TEXT"},
-		CommentLiveResource:                     {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveTs:                           {Table: CommentLive, SQLType: "INTEGER"},
-		CommentLiveTsid:                         {Table: CommentLive, SQLType: "TEXT"},
+		CommentsLiveAuthority:                   {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveBlobID:                      {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveGenesis:                     {Table: CommentsLive, SQLType: "TEXT"},
+		CommentsLiveHash:                        {Table: CommentsLive, SQLType: "TEXT"},
+		CommentsLiveResource:                    {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveTs:                          {Table: CommentsLive, SQLType: "INTEGER"},
+		CommentsLiveTsid:                        {Table: CommentsLive, SQLType: "TEXT"},
 		DocumentAttributeKeysID:                 {Table: DocumentAttributeKeys, SQLType: "INTEGER"},
 		DocumentAttributeKeysKey:                {Table: DocumentAttributeKeys, SQLType: "TEXT"},
 		DocumentAttributeKeysSearchKey:          {Table: DocumentAttributeKeys, SQLType: "TEXT"},
@@ -841,14 +887,6 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsVisibility:           {Table: DocumentGenerations, SQLType: "TEXT"},
 		DocumentGenerationsVisibilityTimestamp:  {Table: DocumentGenerations, SQLType: "INTEGER"},
-		DocumentReferenceSummariesGeneration:    {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
-		DocumentReferenceSummariesGenesis:       {Table: DocumentReferenceSummaries, SQLType: "TEXT"},
-		DocumentReferenceSummariesHasSelfQuery:  {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
-		DocumentReferenceSummariesHeads:         {Table: DocumentReferenceSummaries, SQLType: "JSON"},
-		DocumentReferenceSummariesResource:      {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
-		DocumentReferenceSummariesStatus:        {Table: DocumentReferenceSummaries, SQLType: "INTEGER"},
-		DocumentReferenceTargetsParent:          {Table: DocumentReferenceTargets, SQLType: "INTEGER"},
-		DocumentReferenceTargetsTargetIRI:       {Table: DocumentReferenceTargets, SQLType: "TEXT"},
 		DomainsDomain:                           {Table: Domains, SQLType: "TEXT"},
 		DomainsLastCheck:                        {Table: Domains, SQLType: "INTEGER"},
 		DomainsLastConfig:                       {Table: Domains, SQLType: "JSON"},
@@ -904,6 +942,24 @@ var Schema = sqlitegen.Schema{
 		FtsIndexTs:                              {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexType:                            {Table: FtsIndex, SQLType: "TEXT"},
 		FtsIndexVersion:                         {Table: FtsIndex, SQLType: "TEXT"},
+		KeylineDelegationsAudience:              {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsBlobID:                {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsID:                    {Table: KeylineDelegations, SQLType: "TEXT"},
+		KeylineDelegationsIssuer:                {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineDelegationsPower:                 {Table: KeylineDelegations, SQLType: "TEXT"},
+		KeylineDelegationsSubject:               {Table: KeylineDelegations, SQLType: "INTEGER"},
+		KeylineMembersMember:                    {Table: KeylineMembers, SQLType: "INTEGER"},
+		KeylineMembersPower:                     {Table: KeylineMembers, SQLType: "TEXT"},
+		KeylineMembersSubject:                   {Table: KeylineMembers, SQLType: "INTEGER"},
+		KeylineNodesBlobID:                      {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineNodesBlobKey:                     {Table: KeylineNodes, SQLType: "TEXT"},
+		KeylineNodesID:                          {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineNodesName:                        {Table: KeylineNodes, SQLType: "TEXT"},
+		KeylineNodesTs:                          {Table: KeylineNodes, SQLType: "INTEGER"},
+		KeylineRevocationsBlobID:                {Table: KeylineRevocations, SQLType: "INTEGER"},
+		KeylineRevocationsID:                    {Table: KeylineRevocations, SQLType: "TEXT"},
+		KeylineRevocationsIssuer:                {Table: KeylineRevocations, SQLType: "INTEGER"},
+		KeylineRevocationsTarget:                {Table: KeylineRevocations, SQLType: "TEXT"},
 		KVKey:                                   {Table: KV, SQLType: "TEXT"},
 		KVValue:                                 {Table: KV, SQLType: "TEXT"},
 		PeersAddresses:                          {Table: Peers, SQLType: "TEXT"},

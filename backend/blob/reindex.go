@@ -143,60 +143,76 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 		const q = "SELECT * FROM blobs WHERE " + indexableFilter + " ORDER BY id"
 
-		// One writer-validity cache for the whole reindex: the entire pass runs in
-		// this single transaction over one consistent snapshot, single-threaded, and
-		// indexCapability clears it whenever a capability is (re)indexed — so it is
-		// safe to share across every blob and collapses the repeated transitive
-		// writer query the same way the sync path does. See writerValidityCache.
-		reindexWriterCache := newWriterValidityCache()
+		// One indexing state for the whole reindex: it runs in this single
+		// transaction over one consistent snapshot. See indexBatch.
+		batch := newIndexBatch()
 
+		// Two passes over the same rows. The first indexes only capabilities,
+		// then fills the members cache once, so the second pass authorizes
+		// every other blob against complete grants instead of stashing blobs
+		// signed before their capability's blob ID and evaluating the
+		// authority graph per capability. A reset leaves no blob types, so the
+		// first pass sniffs decompressed bytes, which costs well under a second.
 		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
 		blobLoopStart := time.Now()
-		if err := sqlitex.ExecTransient(conn, q, func(stmt *sqlite.Stmt) error {
-			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
+		for _, capabilities := range []bool{true, false} {
+			if err := sqlitex.ExecTransient(conn, q, func(stmt *sqlite.Stmt) error {
+				codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
 
-			id := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsID.ShortName()))
-			hash := stmt.ColumnBytes(stmt.ColumnIndex(storage.BlobsMultihash.ShortName()))
-			size := stmt.ColumnInt(stmt.ColumnIndex(storage.BlobsSize.ShortName()))
-			compressed := stmt.ColumnBytesUnsafe(stmt.ColumnIndex(storage.BlobsData.ShortName()))
+				id := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsID.ShortName()))
+				hash := stmt.ColumnBytes(stmt.ColumnIndex(storage.BlobsMultihash.ShortName()))
+				size := stmt.ColumnInt(stmt.ColumnIndex(storage.BlobsSize.ShortName()))
+				compressed := stmt.ColumnBytesUnsafe(stmt.ColumnIndex(storage.BlobsData.ShortName()))
 
-			scratch = scratch[:0]
-			scratch = slices.Grow(scratch, size)
-			scratch, err = idx.bs.decoder.DecodeAll(compressed, scratch)
-			if err != nil {
-				return fmt.Errorf("failed to decompress block: %w", err)
+				scratch = scratch[:0]
+				scratch = slices.Grow(scratch, size)
+
+				scratch, err = idx.bs.decoder.DecodeAll(compressed, scratch)
+				if err != nil {
+					return fmt.Errorf("failed to decompress block: %w", err)
+				}
+
+				if mayBeCapability(multicodec.Code(codec), scratch) != capabilities {
+					return nil
+				}
+
+				c := cid.NewCidV1(uint64(codec), hash)
+
+				data := make([]byte, len(scratch))
+				if copy(data, scratch) != len(scratch) {
+					return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
+				}
+
+				// Full reindex rebuilds the derived tables (incl. the RBSR index) from
+				// scratch, so no incremental hook is needed here — pass nil.
+				//
+				// A nil DeriveDocFields is load-bearing, not an omission: it is
+				// what disables the per-Ref derivation, which replays a document's
+				// entire history on every Ref that advances its heads and so costs
+				// O(refs × changes) across a full reindex. deriveAllDocFields
+				// below does the same work once per generation after the loop. The nil
+				// also rides into the unstash cascade via childOpts(), which is what we
+				// want — the end pass covers every generation regardless of how it got
+				// built.
+				err = indexBlob(indexOpts{}, conn, id, c, data, idx.bs, idx.log, batch, nil)
+				blobsIndexed++
+
+				// We batch updates for progress reporting.
+				// The chosen number is a bit arbitrary.
+				const reportBatchSize = 30
+
+				if blobsIndexed%reportBatchSize == 0 {
+					idx.reindexing.blobsIndexed.Store(blobsIndexed)
+				}
+
+				return err
+			}, args...); err != nil {
+				return err
 			}
 
-			c := cid.NewCidV1(uint64(codec), hash)
-			data := make([]byte, len(scratch))
-			if copy(data, scratch) != len(scratch) {
-				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
+			if err := batch.flush(indexOpts{}, conn, idx.bs, idx.log, nil); err != nil {
+				return err
 			}
-
-			// Full reindex rebuilds the derived tables (incl. the RBSR index) from
-			// scratch, so no incremental hook is needed here — pass nil.
-			//
-			// A nil DeriveDocFields is load-bearing, not an omission: it is
-			// what disables the per-Ref derivation, which replays a document's
-			// entire history on every Ref that advances its heads and so costs
-			// O(refs × changes) across a full reindex. deriveAllDocFields
-			// below does the same work once per generation after the loop. The nil
-			// also rides into the unstash cascade via childOpts(), which is what we
-			// want — the end pass covers every generation regardless of how it got
-			// built.
-			err = indexBlob(indexOpts{}, conn, id, c, data, idx.bs, idx.log, reindexWriterCache, nil)
-			blobsIndexed++
-
-			// We batch updates for progress reporting.
-			// The chosen number is a bit arbitrary.
-			const reportBatchSize = 30
-			if blobsIndexed%reportBatchSize == 0 {
-				idx.reindexing.blobsIndexed.Store(blobsIndexed)
-			}
-
-			return err
-		}, args...); err != nil {
-			return err
 		}
 		blobLoopDur = time.Since(blobLoopStart)
 
@@ -206,6 +222,10 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			return err
 		}
 		coverDur = time.Since(coverStart)
+
+		if err := sqlitex.Exec(conn, qAuthoritySetVersion(), nil, authorityVersion); err != nil {
+			return err
+		}
 
 		return dbSetReindexTime(conn, time.Now().UTC().String())
 	}); err != nil {
@@ -230,6 +250,10 @@ func (idx *Index) MaybeReindex(ctx context.Context) error {
 	}
 
 	if res != "" {
+		if err := idx.backfillAuthority(conn); err != nil {
+			return err
+		}
+
 		idx.reindexing.state.Store(int32(ReindexStateNotNeeded)) //nolint:gosec
 		return nil
 	}

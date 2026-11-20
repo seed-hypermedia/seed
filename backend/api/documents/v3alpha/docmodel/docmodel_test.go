@@ -124,6 +124,39 @@ func TestFirstContentImage(t *testing.T) {
 	})
 }
 
+func TestNavigationCards(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	card := must.Do2(structpb.NewStruct(map[string]any{"view": "Card"}))
+	content := must.Do2(structpb.NewStruct(map[string]any{"view": "Content"}))
+
+	doc := must.Do2(New("mydoc", cclock.New()))
+	blocks := []struct {
+		id, parent, left string
+		block            *documents.Block
+	}{
+		{"team", "", "", &documents.Block{Type: "Embed", Link: "hm://alice/team", Attributes: card}},
+		{"nested", "team", "", &documents.Block{Type: "Embed", Link: "hm://bob/notes?l", Attributes: card}},
+		{"latest", "", "team", &documents.Block{Type: "Embed", Link: "hm://carol?v=bafy1&l#block", Attributes: card}},
+		{"pinned", "", "latest", &documents.Block{Type: "Embed", Link: "hm://dave?v=bafy1", Attributes: card}},
+		{"content", "", "pinned", &documents.Block{Type: "Embed", Link: "hm://erin", Attributes: content}},
+		{"again", "", "content", &documents.Block{Type: "Embed", Link: "hm://alice/team/", Attributes: card}},
+		{"comment", "", "again", &documents.Block{Type: "Embed", Link: "hm://c/bafy2", Attributes: card}},
+		{"para", "", "comment", &documents.Block{Type: "Paragraph", Text: "hm://frank"}},
+		{"as written", "", "para", &documents.Block{Type: "Embed", Link: "hm://alice/plan%23draft?l", Attributes: card}},
+	}
+	for _, b := range blocks {
+		must.Do(doc.MoveBlock(b.id, b.parent, b.left))
+		b.block.Id = b.id
+		must.Do(doc.ReplaceBlock(b.block))
+	}
+
+	loaded := must.Do2(New("mydoc", cclock.New()))
+	c := must.Do2(doc.SignChange(alice))
+	must.Do(loaded.ApplyChange(c.CID, c.Decoded))
+	require.Equal(t, []string{"hm://alice/team", "hm://bob/notes", "hm://carol", "hm://alice/plan%23draft"}, loaded.NavigationCards(),
+		"latest Cards in reading order, nested included, once per document, escapes kept; pinned, Content, comment and text links excluded")
+}
+
 func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
 	t.Parallel()
 
@@ -152,7 +185,39 @@ func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
 
 	doc = load(parent, child, deletedChild)
 	require.Empty(t, doc.crdt.GetMetadata(), "deleting a child must not resurrect the scalar parent it replaced")
-	require.Equal(t, 1, doc.crdt.stateMetadata.Len(), "only the winning child tombstone must remain")
+	require.Zero(t, valueEntries(doc.crdt), "only tombstones may remain")
+}
+
+func TestMetadataDeletingReplacedScalarRemovesChildren(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account
+	load := func(changes ...blob.Encoded[*blob.Change]) *Document {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		for _, change := range changes {
+			must.Do(doc.ApplyChange(change.CID, change.Decoded))
+		}
+
+		return doc
+	}
+
+	doc := load()
+	must.Do(doc.SetAttribute("", []string{"obj"}, "scalar"))
+	scalar := must.Do2(doc.SignChange(alice))
+
+	// The children replace the scalar, which leaves a tombstone at obj.
+	doc = load(scalar)
+	must.Do(doc.SetAttribute("", []string{"obj", "a"}, "1"))
+	must.Do(doc.SetAttribute("", []string{"obj", "b"}, "2"))
+	must.Do(doc.SetAttribute("", []string{"obj", "c"}, "3"))
+	children := must.Do2(doc.SignChange(alice))
+
+	doc = load(scalar, children)
+	must.Do(doc.SetAttribute("", []string{"obj"}, nil))
+	deleted := must.Do2(doc.SignChange(alice))
+
+	doc = load(scalar, children, deleted)
+	require.Empty(t, doc.crdt.GetMetadata(), "deleting obj must remove the children that replaced its scalar")
 }
 
 func TestBug_RedundantReplaces(t *testing.T) {
@@ -581,32 +646,4 @@ func TestIsCollection(t *testing.T) {
 		must.Do(doc.ReplaceBlock(queryBlock("q1", self("/notes"))))
 		require.False(t, doc.IsCollection(), "a dirty document has no stable committed state")
 	})
-}
-
-func TestReferenceSummary(t *testing.T) {
-	alice := coretest.NewTester("alice").Account
-	space := alice.Principal().String()
-	iri := blob.IRI("hm://" + space + "/parent")
-	doc := must.Do2(New(iri, cclock.New()))
-	must.Do(doc.MoveBlock("outer", "", ""))
-	must.Do(doc.ReplaceBlock(&documents.Block{Id: "outer", Type: "Paragraph"}))
-	must.Do(doc.MoveBlock("card", "outer", ""))
-	must.Do(doc.ReplaceBlock(&documents.Block{
-		Id: "card", Type: "Embed", Link: "hm://" + space + "/child?v=abc#block",
-		Annotations: []*documents.Annotation{{Type: "Link", Link: "hm://" + space + "/other?version=def"}},
-	}))
-	must.Do(doc.MoveBlock("query", "", "outer"))
-	must.Do(doc.ReplaceBlock(&documents.Block{
-		Id: "query", Type: "Query",
-		Attributes: must.Do2(structpb.NewStruct(map[string]any{
-			"query": map[string]any{"includes": []any{map[string]any{"space": space, "path": "/parent", "mode": "Children"}}},
-		})),
-	}))
-	change := must.Do2(doc.SignChange(alice))
-	loaded := must.Do2(New(iri, cclock.New()))
-	must.Do(loaded.ApplyChange(change.CID, change.Decoded))
-
-	refs, selfQuery := loaded.ReferenceSummary()
-	require.Equal(t, []string{"hm://" + space + "/child", "hm://" + space + "/other"}, refs)
-	require.True(t, selfQuery)
 }

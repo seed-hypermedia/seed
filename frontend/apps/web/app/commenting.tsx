@@ -169,6 +169,7 @@ export default function WebCommenting({
     onCommentSubmitted,
     onSuccess,
     myAccount: undefined as ReturnType<typeof useAccount> | undefined,
+    delegatedAccountUid: undefined as string | undefined,
     createAccount: undefined as (() => void) | undefined,
     docVersion,
     replyCommentId,
@@ -195,6 +196,8 @@ export default function WebCommenting({
         const payloadBase = {
           docId,
           docVersion,
+          // A delegated key signs on behalf of its account, which owns the comment.
+          account: latestRef.current.delegatedAccountUid,
           replyCommentVersion,
           rootReplyCommentVersion,
           quoting,
@@ -223,7 +226,8 @@ export default function WebCommenting({
           : null
         const optimisticComment = await buildOptimisticComment({
           commentPayload,
-          authorUid: accountUid,
+          // The signer may be a session key; the comment belongs to the account it acts for.
+          authorUid: latestRef.current.delegatedAccountUid ?? accountUid,
           docId,
           docVersion,
           contentBlocks: capturedBlocks,
@@ -381,7 +385,8 @@ export default function WebCommenting({
     },
   })
 
-  const myAccount = useAccount(userKeyPair?.id || undefined)
+  // A delegated session key writes as its account, so that's whose profile the composer shows.
+  const myAccount = useAccount(userKeyPair?.delegatedAccountUid || userKeyPair?.id || undefined)
 
   const {content: emailNotificationsPromptContent, open: openEmailNotificationsPrompt} =
     useAppDialog(EmailNotificationsPrompt)
@@ -434,6 +439,7 @@ export default function WebCommenting({
     onCommentSubmitted,
     onSuccess,
     myAccount,
+    delegatedAccountUid: userKeyPair?.delegatedAccountUid,
     createAccount,
     docVersion,
     replyCommentId,

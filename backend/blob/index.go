@@ -1,15 +1,18 @@
 package blob
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"net/url"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
+	"seed/backend/keyline"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
@@ -320,13 +323,9 @@ type DerivedDocFields struct {
 	// IsCollection reports the structurally derived Collection status.
 	IsCollection bool
 
-	// ReferencedDocuments contains distinct, unversioned hm document IRIs
-	// explicitly referenced by visible content.
-	ReferencedDocuments []string
-
-	// HasSelfQuery reports whether visible content contains a query targeting
-	// this document's children.
-	HasSelfQuery bool
+	// NavigationCards lists the documents linked as latest-following Card
+	// embeds, in reading order. The sidebar is built from them.
+	NavigationCards []string
 }
 
 // DeriveDocFields derives DerivedDocFields for a document from the changes that
@@ -443,7 +442,7 @@ type indexOpts struct {
 
 // indexBlob runs the per-blob indexers and (optionally) forward visibility
 // propagation.
-func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
+func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *indexBatch, hookIDs *[]int64) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -492,7 +491,7 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 	ictx.fromNetwork = opts.FromNetwork
 	ictx.blobSize = len(data)
 	ictx.kinds = opts.Kinds
-	ictx.writerCache = wc
+	ictx.batch = wc
 	ictx.hookIDs = hookIDs
 	ictx.deriveDocFields = opts.DeriveDocFields
 	if err := ictx.Unstash(); err != nil {
@@ -791,7 +790,43 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		outErr = errors.Join(outErr, check())
 	}
 
-	return it, check
+	return causalOrder(it), check
+}
+
+// causalOrder puts dependencies first among changes with the same timestamp.
+// qIterChangesFromHeads orders changes by timestamp, but a change may carry
+// the same timestamp as a change it depends on, and its depth is always
+// greater. Only runs of equal timestamps are buffered.
+func causalOrder(changes iter.Seq[ChangeRecord]) iter.Seq[ChangeRecord] {
+	return func(yield func(ChangeRecord) bool) {
+		var run []ChangeRecord
+
+		flush := func() bool {
+			slices.SortStableFunc(run, compareChangeDepth)
+			for _, c := range run {
+				if !yield(c) {
+					return false
+				}
+			}
+
+			run = run[:0]
+			return true
+		}
+
+		for c := range changes {
+			if len(run) > 0 && !run[0].Data.Ts.Equal(c.Data.Ts) && !flush() {
+				return
+			}
+
+			run = append(run, c)
+		}
+
+		flush()
+	}
+}
+
+func compareChangeDepth(a, b ChangeRecord) int {
+	return cmp.Compare(a.Data.Depth, b.Data.Depth)
 }
 
 var qIterChangesFromHeads = dqb.Str(`
@@ -903,7 +938,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		outErr = errors.Join(outErr, check())
 	}
 
-	return it, check
+	return causalOrder(it), check
 }
 
 // ResolveVersion resolves the generation and visibility an explicit version of
@@ -1095,6 +1130,11 @@ func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, 
 		return nil, err
 	}
 
+	// Rows come in timestamp order; ties put dependencies first. See causalOrder.
+	slices.SortStableFunc(out, func(a, b ChangeRecord) int {
+		return cmp.Or(a.Data.Ts.Compare(b.Data.Ts), compareChangeDepth(a, b))
+	})
+
 	return out, nil
 }
 
@@ -1213,62 +1253,81 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 	return out, nil
 }
 
-// writerValidityCache memoizes isValidWriter results within a single write
-// transaction (one PutMany batch plus the reindex cascade it triggers). During a
-// cold bulk sync, a capability that arrives after the blobs it authorizes
-// unstashes many Refs that share a writer, and each one re-runs the ~1000x
-// transitive AGENT-capability query for the very same (owner, writer,
-// breadcrumbs) tuple — profiled as the dominant cold-sync persist cost. The cache
-// collapses those repeats to a single query.
+// indexBatch is state shared by every blob indexed in one write transaction:
+// one PutMany batch, a single Put, or a full reindex, plus the unstash cascades
+// they trigger. The transaction runs single-threaded over a consistent
+// snapshot, so the batch needs no locking and never sees another connection's
+// uncommitted state.
 //
-// Scope and safety: the cache is confined to one batch transaction, which runs
-// single-threaded over a consistent SQLite snapshot — so it needs no locking and
-// can never serve a result from another connection's uncommitted state. It is
-// cleared whenever a Capability blob is indexed in the same batch (see
-// indexCapability). That invalidation is keyed on the blob *type*, so it already
-// covers any future capability change — including revocation — meaning a cached
-// "valid" can never outlive the grant that justified it. A nil cache disables
-// memoization and is passed by the read-only / standalone validation paths.
-type writerValidityCache struct {
-	m map[string]bool
+// It memoizes isValidWriter results and collects the authority subjects that
+// capabilities changed. Indexing a capability only stores its delegation;
+// flushAuthority later refreshes the keyline_members cache once for all
+// pending subjects, drops the memoized writer results, and retries blobs that
+// were denied before the grants arrived. It also defers per-space comment
+// totals. Callers must flush before relying on the index and before committing.
+type indexBatch struct {
+	writers map[string]bool
+
+	// authoritySubjects are delegation subjects whose cached members are stale.
+	authoritySubjects map[keyline.Node]bool
+	// authorityDelegates are key nodes that received a grant. Blobs they, or
+	// keys acting for them, signed may now be authorized.
+	authorityDelegates map[keyline.Node]bool
+
+	// commentSpaces are spaces whose comment totals are stale.
+	commentSpaces map[string]bool
 }
 
-func newWriterValidityCache() *writerValidityCache {
-	return &writerValidityCache{m: make(map[string]bool)}
+func newIndexBatch() *indexBatch {
+	return &indexBatch{
+		writers:            make(map[string]bool),
+		authoritySubjects:  make(map[keyline.Node]bool),
+		authorityDelegates: make(map[keyline.Node]bool),
+		commentSpaces:      make(map[string]bool),
+	}
 }
 
-// writerCacheKey builds the writerValidityCache key from the exact inputs that
-// determine an isValidWriter result: the owner and writer DB ids and the
-// resource breadcrumbs JSON (all three are the bind args of the writer queries).
+// flush finishes the batch's deferred work before the caller relies on the
+// index or commits: the authority refresh with its unstash cascade, then the
+// comment totals of every space a settled comment touched.
+func (b *indexBatch) flush(opts indexOpts, conn *sqlite.Conn, bs *blockStore, log *zap.Logger, hookIDs *[]int64) error {
+	if err := b.flushAuthority(opts, conn, bs, log, hookIDs); err != nil {
+		return err
+	}
+
+	for _, space := range slices.Sorted(maps.Keys(b.commentSpaces)) {
+		if err := updateSpaceCommentStats(conn, space); err != nil {
+			return err
+		}
+	}
+
+	clear(b.commentSpaces)
+	return nil
+}
+
+// writerCacheKey builds the memoized writer-validity key from the exact inputs
+// that determine an isValidWriter result: the owner and writer DB ids and the
+// resource breadcrumbs JSON.
 func writerCacheKey(ownerID, writerID int64, parentsJSON string) string {
 	return strconv.FormatInt(ownerID, 10) + "|" + strconv.FormatInt(writerID, 10) + "|" + parentsJSON
 }
 
-func (c *writerValidityCache) get(key string) (valid bool, ok bool) {
-	if c == nil {
+func (b *indexBatch) get(key string) (valid bool, ok bool) {
+	if b == nil {
 		return false, false
 	}
-	v, ok := c.m[key]
+	v, ok := b.writers[key]
 	return v, ok
 }
 
-func (c *writerValidityCache) put(key string, valid bool) {
-	if c == nil {
+func (b *indexBatch) put(key string, valid bool) {
+	if b == nil {
 		return
 	}
-	c.m[key] = valid
+	b.writers[key] = valid
 }
 
-// clear drops all memoized results. Called when a Capability blob is indexed,
-// because that is the only event that can change a writer-validity outcome.
-func (c *writerValidityCache) clear() {
-	if c == nil {
-		return
-	}
-	clear(c.m)
-}
-
-func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *writerValidityCache) (valid bool, err error) {
+func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *indexBatch) (valid bool, err error) {
 	owner, _, err := resource.SpacePath()
 	if err != nil {
 		return false, err
@@ -1279,47 +1338,45 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *writerVa
 		return false, err
 	}
 
+	if writerID == 0 {
+		return false, nil
+	}
+
 	if ownerID == writerID {
 		return true, nil
 	}
 
-	parentsJSON := unsafeutil.StringFromBytes(
-		must.Do2(
-			json.Marshal(resource.Breadcrumbs()),
-		),
-	)
+	parentsJSON := authorityScopesJSON(resource)
 
-	// (ownerID, writerID, parentsJSON) are exactly the bind args of both writer
-	// queries below, so they fully determine the result and form the cache key.
+	// The cache never crosses a transaction or a capability-indexing boundary.
 	cacheKey := writerCacheKey(ownerID, writerID, parentsJSON)
 	if v, ok := wc.get(cacheKey); ok {
 		return v, nil
 	}
 
-	// Two-step instead of a single UNION. The direct-delegation branch
-	// (qIsValidWriterDirect) is one indexed seek and matches the common case (the
-	// space owner granted this writer directly). The transitive AGENT-chain branch
-	// (qIsValidWriterAgent) is ~1000x more expensive, and a UNION would force
-	// SQLite to evaluate it on every call even when the direct branch already
-	// matched — which dominated cold structure-sync wall-clock (~6ms/Ref). Check
-	// direct first and only fall back on a miss; semantics are identical
-	// (valid = direct OR agent).
-	valid, err = capabilityRowExists(conn, qIsValidWriterDirect(), ownerID, writerID, parentsJSON)
+	// Keyline computes this relation in the same transaction that indexes the
+	// grants. Breadcrumbs also cover preflight checks for not-yet-created paths.
+	valid, err = capabilityRowExists(conn, qAuthorityCanWrite(), writerID, parentsJSON)
 	if err != nil {
 		return false, err
-	}
-	if !valid {
-		valid, err = capabilityRowExists(conn, qIsValidWriterAgent(), ownerID, writerID, parentsJSON)
-		if err != nil {
-			return false, err
-		}
 	}
 	wc.put(cacheKey, valid)
 	return valid, nil
 }
 
-// capabilityRowExists reports whether the capability lookup query (taking owner,
-// writer, breadcrumbs as ?1,?2,?3) returns at least one row.
+// authorityScopesJSON lists the authority nodes of resource and its ancestor
+// scopes as a JSON array, for checking cached members of any of them.
+func authorityScopesJSON(resource IRI) string {
+	breadcrumbs := resource.Breadcrumbs()
+	nodes := make([]keyline.Node, len(breadcrumbs))
+	for i, iri := range breadcrumbs {
+		nodes[i] = resourceNode(iri)
+	}
+
+	return unsafeutil.StringFromBytes(must.Do2(json.Marshal(nodes)))
+}
+
+// capabilityRowExists reports whether an authority lookup returns a row.
 func capabilityRowExists(conn *sqlite.Conn, query string, args ...any) (found bool, err error) {
 	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
@@ -1382,127 +1439,36 @@ const sqlCanWriteRootByOwnerID = `EXISTS (
 		%[1]s = caller.id
 		OR EXISTS (
 			SELECT 1
-			FROM resources root_resource
-			JOIN structural_blobs direct ON direct.resource = root_resource.id
-			WHERE root_resource.iri GLOB 'hm://*'
-			AND root_resource.iri NOT GLOB 'hm://*/*'
-			AND direct.type = 'Capability'
-			AND direct.author = %[1]s
-			AND direct.extra_attrs->>'del' = caller.id
-			AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-		)
-		OR EXISTS (
-			SELECT 1
-			FROM structural_blobs agent
-			WHERE agent.type = 'Capability'
-			AND agent.extra_attrs->>'del' = caller.id
-			AND agent.extra_attrs->>'role' = 'AGENT'
-			AND (
-				agent.author = %[1]s
-				OR EXISTS (
-					SELECT 1
-					FROM resources root_resource
-					JOIN structural_blobs parent_writer ON parent_writer.resource = root_resource.id
-					WHERE root_resource.iri GLOB 'hm://*'
-					AND root_resource.iri NOT GLOB 'hm://*/*'
-					AND parent_writer.type = 'Capability'
-					AND parent_writer.author = %[1]s
-					AND parent_writer.extra_attrs->>'del' = agent.author
-					AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-				)
-			)
+			FROM keyline_members m
+			JOIN public_keys owner ON owner.id = %[1]s
+			WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'space:z' || base58btc_encode(owner.principal))
+			AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
+			AND m.power IN ('w', 'a')
 		)
 	)
 )`
 
 var qCanWriteRootByID = dqb.Str(`
 	SELECT 1
-	WHERE ?1 = ?2
+	WHERE (?1 != 0 AND ?1 = ?2)
 	OR EXISTS (
 		SELECT 1
-		FROM resources root_resource
-		JOIN structural_blobs direct ON direct.resource = root_resource.id
-		WHERE root_resource.iri GLOB 'hm://*'
-		AND root_resource.iri NOT GLOB 'hm://*/*'
-		AND direct.type = 'Capability'
-		AND direct.author = ?1
-		AND direct.extra_attrs->>'del' = ?2
-		AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-	)
-	OR EXISTS (
-		SELECT 1
-		FROM structural_blobs agent
-		WHERE agent.type = 'Capability'
-		AND agent.extra_attrs->>'del' = ?2
-		AND agent.extra_attrs->>'role' = 'AGENT'
-		AND (
-			agent.author = ?1
-			OR EXISTS (
-				SELECT 1
-				FROM resources root_resource
-				JOIN structural_blobs parent_writer ON parent_writer.resource = root_resource.id
-				WHERE root_resource.iri GLOB 'hm://*'
-				AND root_resource.iri NOT GLOB 'hm://*/*'
-				AND parent_writer.type = 'Capability'
-				AND parent_writer.author = ?1
-				AND parent_writer.extra_attrs->>'del' = agent.author
-				AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-			)
-		)
+		FROM keyline_members m
+		JOIN public_keys owner ON owner.id = ?1
+		JOIN public_keys caller ON caller.id = ?2
+		WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'space:z' || base58btc_encode(owner.principal))
+		AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
+		AND m.power IN ('w', 'a')
 	)
 `)
 
-// qIsValidWriter is split into a cheap direct-delegation check and an expensive
-// transitive AGENT-chain check (see isValidWriter for why). The two together are
-// equivalent to the previous single UNION query: valid = direct OR agent.
-
-// qIsValidWriterDirect matches when the space owner delegated WRITER/AGENT
-// directly to the writer, scoped to the resource or one of its ancestors. This
-// is a single seek on capabilities_by_delegate and covers the overwhelmingly
-// common case.
-var qIsValidWriterDirect = dqb.Str(`
-	-- owner, writer, breadcrumbs
+var qAuthorityCanWrite = dqb.Str(`
 	SELECT 1 AS valid
-	FROM structural_blobs direct
-	WHERE direct.type = 'Capability'
-	AND direct.author = ?1
-	AND direct.extra_attrs->>'del' = ?2
-	AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-	AND direct.resource IN (
-		SELECT r.id
-		FROM resources r
-		JOIN json_each(?3) each ON each.value = r.iri
-	)
-`)
-
-// qIsValidWriterAgent matches the transitive case: an AGENT capability delegates
-// to the writer, and the agent's author is either the owner or itself holds a
-// WRITER/AGENT capability from the owner (the parent_writer chain). This is the
-// expensive branch (correlated subquery + json_each); it only runs when the
-// direct check misses.
-var qIsValidWriterAgent = dqb.Str(`
-	-- owner, writer, breadcrumbs
-	SELECT 1 AS valid
-	FROM structural_blobs agent
-	WHERE agent.type = 'Capability'
-	AND agent.extra_attrs->>'del' = ?2
-	AND agent.extra_attrs->>'role' = 'AGENT'
-	AND (
-		agent.author = ?1
-		OR EXISTS (
-			SELECT 1
-			FROM structural_blobs parent_writer
-			WHERE parent_writer.type = 'Capability'
-			AND parent_writer.author = ?1
-			AND parent_writer.extra_attrs->>'del' = agent.author
-			AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
-			AND parent_writer.resource IN (
-				SELECT r.id
-				FROM resources r
-				JOIN json_each(?3) each ON each.value = r.iri
-			)
-		)
-	)
+	FROM keyline_members m
+	JOIN public_keys caller ON caller.id = ?1
+	WHERE m.subject IN (SELECT id FROM keyline_nodes WHERE name IN (SELECT value FROM json_each(?2)))
+	AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
+	AND m.power IN ('w', 'a')
 `)
 
 func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
@@ -1517,13 +1483,16 @@ func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid
 	return valid, err
 }
 
+// qIsValidAgentKey checks that delegate holds Write over issuer's key, which an
+// AGENT capability chain in either direction grants.
 var qIsValidAgentKey = dqb.Str(`
 	SELECT 1
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND author = :issuer
-	AND extra_attrs->>'del' = :delegate
-	AND extra_attrs->>'role' = 'AGENT'
+	FROM keyline_members m
+	JOIN public_keys issuer ON issuer.id = :issuer
+	JOIN public_keys delegate ON delegate.id = :delegate
+	WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(issuer.principal))
+	AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(delegate.principal))
+	AND m.power IN ('w', 'a')
 	LIMIT 1
 `)
 
@@ -1733,10 +1702,10 @@ type indexingCtx struct {
 
 	lookup *LookupCache
 
-	// writerCache memoizes isValidWriter across this transaction's indexBlob
-	// calls (including the reindex cascade); shared by every ictx derived from the
-	// same batch. May be nil (caching disabled). See writerValidityCache.
-	writerCache *writerValidityCache
+	// batch is the transaction's shared indexing state, including the
+	// reindex cascade. Capability indexing records pending authority work in
+	// it, so it is never nil while indexing. See indexBatch.
+	batch *indexBatch
 
 	// hookIDs, if non-nil, accumulates the ids of every blob indexed in this
 	// transaction — including ones re-indexed by the unstash cascade
@@ -2417,11 +2386,11 @@ var qLookupRecordID = dqb.Str(`
 	JOIN blobs b INDEXED BY blobs_metadata_by_hash
 		ON b.id = sb.id
 		AND (b.codec, b.multihash) = (:codec, :multihash)
-	JOIN public_keys pk ON pk.id = sb.author
+	JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
 	LIMIT 1
 `)
 
-func reindexStashedBlobs(opts indexOpts, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
+func reindexStashedBlobs(opts indexOpts, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *indexBatch, hookIDs *[]int64) (err error) {
 	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match).All()
 	defer discard(&err)
 

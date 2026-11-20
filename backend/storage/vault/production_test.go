@@ -155,7 +155,7 @@ func TestNewProductionSkipsArchivingLegacyKeysWhenMigrationSkipped(t *testing.T)
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
 
-	local, err := New(dataDir, secretStore)
+	local, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	localKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x55}, 64)))
 	require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
-	existingLocal, err := New(dataDir, secretStore)
+	existingLocal, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	localOnlyKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x21}, 64)))
 	require.NoError(t, err)
@@ -233,7 +233,7 @@ func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", bytes.Repeat([]byte{0x55}, 32)))
 
-	ks, err := New(dataDir, secretStore)
+	ks, err := New(dataDir, secretStore, withoutNetwork())
 	require.NoError(t, err)
 	firstKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x12}, 64)))
 	require.NoError(t, err)

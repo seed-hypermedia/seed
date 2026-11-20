@@ -3,6 +3,8 @@ package documents
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"seed/backend/api/apitest"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -48,35 +50,53 @@ func TestGetResource(t *testing.T) {
 		require.Contains(t, st.Message(), "only [hm http https] schemes are supported")
 	})
 
-	t.Run("HTTPSchemeNotImplemented", func(t *testing.T) {
+	t.Run("GetDocumentViaSiteConfig", func(t *testing.T) {
 		t.Parallel()
 		srv := newTestDocsAPI(t, "carol")
+		ctx := t.Context()
+		account := srv.me.Account.Principal().String()
 
-		_, err := srv.GetResource(context.Background(), &documents.GetResourceRequest{
-			Iri: "http://example.com/test",
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        account,
+			Path:           "/test",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Site URL Test"},
+				}},
+			},
 		})
+		require.NoError(t, err)
 
-		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
-		require.Error(t, err)
-		st := status.Convert(err)
-		require.Equal(t, codes.NotFound, st.Code())
-		require.Contains(t, st.Message(), "failed to resolve site config")
+		// A local site whose config names the account. Any other path, including
+		// the config of a site with no registered account, is answered with 404.
+		site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/hm/api/config" {
+				http.NotFound(w, r)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"peerId":"12D3KooWQj83ZdXN7WzdT6Th5uN7ggdYMTCh14uASZzfG4U3VwGa","addrs":[],"registeredAccountUid":%q}`, account)
+		}))
+		t.Cleanup(site.Close)
+
+		resp, err := srv.GetResource(ctx, &documents.GetResourceRequest{Iri: site.URL + "/test"})
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetDocument())
+		require.Equal(t, account, resp.GetDocument().Account, "the site's registered account owns the document")
+		require.Equal(t, "/test", resp.GetDocument().Path)
+		require.Equal(t, "Site URL Test", resp.GetDocument().Metadata.Fields["title"].GetStringValue())
+
+		// A site without a Seed config can't be resolved.
+		missing := httptest.NewServer(http.NotFoundHandler())
+		t.Cleanup(missing.Close)
+
+		_, err = srv.GetResource(ctx, &documents.GetResourceRequest{Iri: missing.URL + "/test"})
+		require.Equal(t, codes.NotFound, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), "failed to resolve site config")
 	})
 
-	t.Run("HTTPSSchemeNotImplemented", func(t *testing.T) {
-		t.Parallel()
-		srv := newTestDocsAPI(t, "david")
-
-		_, err := srv.GetResource(context.Background(), &documents.GetResourceRequest{
-			Iri: "https://example.com/test",
-		})
-
-		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
-		require.Error(t, err)
-		st := status.Convert(err)
-		require.Equal(t, codes.NotFound, st.Code())
-		require.Contains(t, st.Message(), "failed to resolve site config")
-	})
 	t.Run("InvalidAccount", func(t *testing.T) {
 		t.Parallel()
 		srv := newTestDocsAPI(t, "alice")
@@ -585,7 +605,7 @@ func TestGetResource(t *testing.T) {
 func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, id blob.TSID, space core.Principal, path string, version []cid.Cid, threadRoot, replyParent cid.Cid, body []blob.CommentBlock, ts time.Time) blob.Encoded[*blob.Comment] {
 	t.Helper()
 
-	eb, err := blob.NewComment(u.Account, id, space, path, version, threadRoot, replyParent, body, blob.VisibilityPublic, ts.Round(blob.ClockPrecision))
+	eb, err := blob.NewComment(u.Account, id, u.Account.Principal(), space, path, version, threadRoot, replyParent, body, blob.VisibilityPublic, ts.Round(blob.ClockPrecision))
 	require.NoError(t, err)
 
 	// eb implements blocks.Block directly

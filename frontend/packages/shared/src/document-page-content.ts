@@ -272,7 +272,11 @@ export async function documentPageContent({
     const result = await client.request<HMRequest['key']>(key, input, {signal: authorized})
     authorized.throwIfAborted()
     // Check the resolved resource as well: a redirect must not widen a resource or site grant.
-    if ((key === 'Resource' || key === 'ResourceMetadata') && result && typeof result === 'object') {
+    if (
+      (key === 'Resource' || key === 'ResourceMetadata' || key === 'DocumentInfo') &&
+      result &&
+      typeof result === 'object'
+    ) {
       const resolved = result as {id?: {uid?: string; path?: string[]}; document?: {account?: string; path?: string}}
       const uid = resolved.document?.account || resolved.id?.uid
       const path = resolved.document?.path?.split('/').filter(Boolean) ?? resolved.id?.path ?? []
@@ -429,7 +433,14 @@ export async function documentPageContent({
       : visibility
     if (input.target && targetDocument?.type !== 'document') throw new Error('Comment target is not a document.')
     const payload = await hm.createComment(
-      {docId, docVersion: version, content, visibility: targetVisibility === 'PRIVATE' ? 'Private' : ''},
+      {
+        docId,
+        docVersion: version,
+        content,
+        visibility: targetVisibility === 'PRIVATE' ? 'Private' : '',
+        // On web a session key signs; the comment names the account it signs on behalf of.
+        account: account ?? undefined,
+      },
       signer,
     )
     const commentId = await hm.commentRecordIdFromBlob(payload.blobs[0]!.data)
@@ -441,7 +452,11 @@ export async function documentPageContent({
     const name = method.slice(3)
     if (Object.hasOwn(DOCUMENT_PAGE_SIGNING_HELPERS, name)) {
       const helper = DOCUMENT_PAGE_SIGNING_HELPERS[name as keyof typeof DOCUMENT_PAGE_SIGNING_HELPERS]
-      const result = await helper(object.input as never, signer)
+      // A session key signs on behalf of the selected account, so new comments name that account.
+      // The host sets it: a page can't attribute a comment to another account.
+      const input =
+        name === 'createComment' ? {...(object.input as object), account: account ?? undefined} : object.input
+      const result = await helper(input as never, signer)
       authorized.throwIfAborted()
       return result
     }

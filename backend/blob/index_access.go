@@ -328,6 +328,11 @@ var qWriterSpacesByDelegate = dqb.Str(`
 	SELECT DISTINCT pk.principal
 	FROM structural_blobs sb INDEXED BY capabilities_by_delegate
 	JOIN public_keys pk ON pk.id = sb.author
+	JOIN public_keys delegate ON delegate.id = sb.extra_attrs->>'del'
+	JOIN resources r ON r.id = sb.resource
+	JOIN keyline_members m ON m.subject = (SELECT id FROM keyline_nodes WHERE name = ` + sqlAuthorityNode("r.iri") + `)
+		AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(delegate.principal))
+		AND m.power IN ('w', 'a')
 	WHERE sb.type = 'Capability'
 	AND sb.extra_attrs->>'del' = :del
 	AND sb.extra_attrs->>'role' = 'WRITER';

@@ -322,20 +322,28 @@ var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)
 var qMarkMaterialized = dqb.Str(`
 	UPDATE rbsr_scope SET materialized = 1, last_access = :now WHERE id = :scope;`)
 
-// materializeScope (re)builds a scope's persisted blob set from collectBlobs —
-// the one place the expensive closure runs. Idempotent: it clears and refills
-// the scope's rbsr_item rows, then marks it materialized.
+var qMarkMaterializedPreserveAccess = dqb.Str(`
+	UPDATE rbsr_scope SET materialized = 1 WHERE id = :scope;`)
+
+// materializeScope rebuilds a served scope and records its access time.
 func materializeScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error {
-	if err := collectBlobs(conn, map[DiscoveryKey]struct{}{dkey: {}}, false); err != nil {
-		return err
-	}
-	if err := sqlitex.Exec(conn, qMaterializeClear(), nil, scopeID); err != nil {
-		return err
-	}
-	if err := sqlitex.Exec(conn, qMaterializeReplace, nil, scopeID); err != nil {
+	if err := replaceScopeItems(conn, scopeID, dkey); err != nil {
 		return err
 	}
 	return sqlitex.Exec(conn, qMarkMaterialized(), nil, time.Now().Unix(), scopeID)
+}
+
+// replaceScopeItems replaces membership from collectBlobs without changing
+// scope metadata, so maintenance can preserve actual access recency.
+func replaceScopeItems(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error {
+	if err := collectBlobs(conn, map[DiscoveryKey]struct{}{dkey: {}}, false); err != nil {
+		return err
+	}
+
+	if err := sqlitex.Exec(conn, qMaterializeClear(), nil, scopeID); err != nil {
+		return err
+	}
+	return sqlitex.Exec(conn, qMaterializeReplace, nil, scopeID)
 }
 
 // qScopeItems mirrors loadRBSRStore's result query but sources the blob set from
@@ -464,9 +472,10 @@ var qStaleMarkAllScopes = dqb.Str(`
 // equal to a fresh materialization under live sync, not just the dominant
 // document-edit path: (1) the resource-anchored forward seed/closure, (2) the
 // late-arrival reverse edge for forward targets that arrived after their member,
-// (3) inbound Contact-by-subject, and (4) the recursive agent-capability
-// delegation closure. The shadow-verify sweep remains a backstop for anything
-// these miss, but no longer carries the steady-state load.
+// (3) inbound Contact-by-subject, (4) resource authority dependencies, and (5)
+// the recursive author-based agent-capability closure. Capability batches rebuild
+// the materialized scopes because their authority effects can cross resource
+// boundaries; ordinary document edits remain incremental.
 func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 	keys, idsByKey, err := loadMaterializedScopes(conn)
 	if err != nil {
@@ -478,7 +487,7 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 
 	// Reverse map for per-scope allowlist checks: SQL-driven edges below
 	// (scopesWithAuthor, scopesLinkingTo) return bare scope ids, but the
-	// capability closure must honor the scope's blob-type filter.
+	// author-based capability closure honors the scope's blob-type filter.
 	dkeyByScope := make(map[int64]DiscoveryKey, len(keys))
 	for dkey, ids := range idsByKey {
 		for _, id := range ids {
@@ -491,6 +500,9 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 	// member can be a blob authored by a capability's delegate — which pulls that
 	// delegate's capabilities into the scope (and theirs, transitively).
 	touched := map[int64]struct{}{}
+	// Record ordinary selections even when they are already scope members via
+	// authority. Authority-only additions must not expand their own anchors.
+	selectedByScope := map[int64][]int64{}
 	insertItem := func(scopeID, blobID int64) error {
 		if err := sqlitex.Exec(conn, qInsertItem(), nil, scopeID, blobID); err != nil {
 			return err
@@ -539,6 +551,7 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		}
 		for dkey, ids := range inserts {
 			for _, scopeID := range idsByKey[dkey] {
+				selectedByScope[scopeID] = append(selectedByScope[scopeID], ids...)
 				for _, bid := range ids {
 					if err := insertItem(scopeID, bid); err != nil {
 						return err
@@ -561,6 +574,7 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 				return err
 			}
 			for _, scopeID := range lateScopes {
+				selectedByScope[scopeID] = append(selectedByScope[scopeID], closure...)
 				for _, bid := range closure {
 					if err := insertItem(scopeID, bid); err != nil {
 						return err
@@ -576,14 +590,19 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 	if err != nil {
 		return err
 	}
+	authorityChanged := false
 	for _, f := range facts {
+		if f.typ == "Capability" {
+			authorityChanged = true
+		}
+
 		// Comment-TSID edge (independent of the type-keyed edges below): a
 		// state-based resource blob (a comment, or an edit of one — edits share
 		// the TSID) belongs to any scope addressed by the resource's own IRI.
 		// The IRI construction must byte-match the fillTables TSID seed and the
 		// comment IRIs produced at discovery time (hm://<author>/<tsid>).
-		if f.tsid != "" && len(f.author) > 0 {
-			if scopes := scopesByIRI[blob.IRI("hm://"+core.Principal(f.author).String()+"/"+f.tsid)]; len(scopes) > 0 {
+		if f.tsid != "" && len(f.authority) > 0 {
+			if scopes := scopesByIRI[blob.IRI("hm://"+core.Principal(f.authority).String()+"/"+f.tsid)]; len(scopes) > 0 {
 				// The blob's downloaded forward closure rides along, mirroring
 				// the media walk collectBlobs runs from the tsid seed (reply
 				// parents' media, target-version changes, embedded files).
@@ -592,6 +611,7 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 					return err
 				}
 				for _, scopeID := range scopes {
+					selectedByScope[scopeID] = append(selectedByScope[scopeID], closure...)
 					for _, bid := range closure {
 						if err := insertItem(scopeID, bid); err != nil {
 							return err
@@ -611,17 +631,15 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 			delete(incomplete, f.id)
 			if f.subject != 0 {
 				for _, scopeID := range rootBySubject[f.subject] {
+					selectedByScope[scopeID] = append(selectedByScope[scopeID], f.id)
 					if err := insertItem(scopeID, f.id); err != nil {
 						return err
 					}
 				}
 			}
 		case f.typ == "Capability" && f.role != "AGENT":
-			// A non-AGENT capability (WRITER et al.) enters collectBlobs only
-			// via resource anchoring — the delegation closure walks AGENT roles
-			// exclusively — so the resource-anchored seed above is exhaustive
-			// for it. This is the case that used to silently under-advertise:
-			// the incompleteness flag was discarded and nothing compensated.
+			// Resource seeding covers its direct membership. The authority
+			// rebuild below covers grants inherited by other resource scopes.
 			delete(incomplete, f.id)
 		case f.typ == "Capability" && f.role == "AGENT" && f.del == 0:
 			// An AGENT capability without a delegate cannot match the
@@ -631,10 +649,8 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		case f.typ == "Capability" && f.role == "AGENT" && f.del != 0:
 			// A fresh AGENT capability joins any scope whose member its delegate
 			// authored; mark those scopes so the closure below inserts it.
-			// Only scopes whose allowlist admits Capability: collectBlobs skips
-			// the capability closure entirely for filtered scopes (dirStructure),
-			// so seeding them here would create permanent drift vs a fresh
-			// materialization.
+			// This author-based edge only applies when the allowlist admits
+			// Capability. Resource authority dependencies are handled separately.
 			ss, err := scopesWithAuthor(conn, f.del)
 			if err != nil {
 				return err
@@ -645,9 +661,7 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 					touched[scopeID] = struct{}{}
 				}
 			}
-			// The delegation closure below (edge 4) re-runs to a fixpoint for
-			// every touched scope, which is exactly the non-forward path an
-			// AGENT capability takes into a scope.
+			// The delegation closure runs to a fixpoint for every touched scope.
 			delete(incomplete, f.id)
 		}
 	}
@@ -684,11 +698,93 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		}
 	}
 
-	// (4) Agent-capability delegation closure for every touched scope whose
-	// allowlist admits Capability, to a fixpoint — the dominant edge the oracle
-	// previously deferred to shadow-verify. Scopes get touched by Ref/Change/media
-	// inserts too, so the gate is needed here even though the trigger above
-	// already filters: a dirStructure scope must never gain capabilities.
+	// A late grant can connect already-known AGENT chains to resources outside
+	// the grant's anchor. Rebuild once per scope per capability batch so both
+	// additions and any changed closure membership match the collector exactly.
+	// This is maintenance, not a serve: preserve last_access for cold skipping.
+	if authorityChanged {
+		for key, ids := range idsByKey {
+			for _, id := range ids {
+				if err := replaceScopeItems(conn, id, key); err != nil {
+					return err
+				}
+
+				if err := sqlitex.Exec(conn, qMarkMaterializedPreserveAccess(), nil, id); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// (4) New resources and newly selected forward targets bring their authority
+	// dependencies even when the scope's type filter excludes Capability. Gather
+	// all resource identities first, then evaluate each once across this batch.
+	resourceScopes := map[blob.IRI]map[int64]struct{}{}
+	addResource := func(resource blob.IRI, scopeID int64) {
+		if resourceScopes[resource] == nil {
+			resourceScopes[resource] = map[int64]struct{}{}
+		}
+
+		resourceScopes[resource][scopeID] = struct{}{}
+	}
+	for _, f := range facts {
+		if f.resource == "" {
+			continue
+		}
+
+		for key, ids := range idsByKey {
+			if scopeCovers(key, f.resource) {
+				for _, id := range ids {
+					addResource(f.resource, id)
+				}
+			}
+		}
+	}
+
+	var selectedIDs []int64
+
+	for _, ids := range selectedByScope {
+		selectedIDs = append(selectedIDs, ids...)
+	}
+
+	selectedFacts, err := structuralFactsForBatch(conn, selectedIDs)
+	if err != nil {
+		return err
+	}
+
+	resourcesByBlob := make(map[int64]blob.IRI, len(selectedFacts))
+	for _, f := range selectedFacts {
+		resourcesByBlob[f.id] = f.resource
+	}
+
+	for scopeID, ids := range selectedByScope {
+		for _, id := range ids {
+			if resource := resourcesByBlob[id]; resource != "" {
+				addResource(resource, scopeID)
+			}
+		}
+	}
+
+	for resource, scopes := range resourceScopes {
+		ids, err := blob.AuthorityBlobIDs(context.Background(), conn, resource)
+		if err != nil {
+			return err
+		}
+
+		for scopeID := range scopes {
+			for _, id := range ids {
+				if err := insertItem(scopeID, id); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// (5) Preserve the author-based AGENT closure for signers that need not be
+	// members of a resource. This optional material follows the type filter;
+	// resource authority dependencies above do not.
 	for scopeID := range touched {
 		dk, ok := dkeyByScope[scopeID]
 		if !ok || !scopeAllowsType(dk, "Capability") {
@@ -704,13 +800,14 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 
 // structuralFact carries the batch-level attributes MaintainRBSRIndex keys on.
 type structuralFact struct {
-	id      int64
-	typ     string
-	subject int64 // extra_attrs->>'subject' (public_keys.id) for Contacts
-	del     int64 // extra_attrs->>'del' (public_keys.id) for Capabilities
-	role    string
-	tsid    string // extra_attrs->>'tsid' for state-based resources (Comments et al.)
-	author  []byte // author's principal bytes, for the tsid-scope IRI
+	id        int64
+	typ       string
+	subject   int64 // extra_attrs->>'subject' (public_keys.id) for Contacts
+	del       int64 // extra_attrs->>'del' (public_keys.id) for Capabilities
+	role      string
+	tsid      string // extra_attrs->>'tsid' for state-based resources (Comments et al.)
+	authority []byte // record authority principal bytes, for the tsid-scope IRI
+	resource  blob.IRI
 }
 
 var qStructuralFactsBatch = dqb.Str(`
@@ -719,9 +816,11 @@ var qStructuralFactsBatch = dqb.Str(`
 		CAST(sb.extra_attrs->>'del' AS INTEGER),
 		sb.extra_attrs->>'role',
 		COALESCE(sb.extra_attrs->>'tsid', ''),
-		pk.principal
+		pk.principal,
+		COALESCE(r.iri, '')
 	FROM structural_blobs sb
-	LEFT JOIN public_keys pk ON pk.id = sb.author
+	LEFT JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
+	LEFT JOIN resources r ON r.id = sb.resource
 	WHERE sb.id IN (SELECT value FROM json_each(:ids));`)
 
 func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFact, err error) {
@@ -730,13 +829,14 @@ func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFa
 	}
 	err = sqlitex.Exec(conn, qStructuralFactsBatch(), func(stmt *sqlite.Stmt) error {
 		out = append(out, structuralFact{
-			id:      stmt.ColumnInt64(0),
-			typ:     stmt.ColumnText(1),
-			subject: stmt.ColumnInt64(2),
-			del:     stmt.ColumnInt64(3),
-			role:    stmt.ColumnText(4),
-			tsid:    stmt.ColumnText(5),
-			author:  stmt.ColumnBytes(6),
+			id:        stmt.ColumnInt64(0),
+			typ:       stmt.ColumnText(1),
+			subject:   stmt.ColumnInt64(2),
+			del:       stmt.ColumnInt64(3),
+			role:      stmt.ColumnText(4),
+			tsid:      stmt.ColumnText(5),
+			authority: stmt.ColumnBytes(6),
+			resource:  blob.IRI(stmt.ColumnText(7)),
 		})
 		return nil
 	}, int64SliceJSON(ids))

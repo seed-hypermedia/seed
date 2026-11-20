@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -229,8 +230,8 @@ func TestDisconnect(t *testing.T) {
 }
 
 func TestHandleVaultConnect(t *testing.T) {
-	srv := newTestServer(t, "alice")
 	remoteServer := newRemoteVaultServer(t)
+	srv := newTestServer(t, "alice", vault.WithHTTPClient(remoteServer.Client()))
 
 	startResp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
 		VaultUrl: remoteServer.URL,
@@ -246,8 +247,8 @@ func TestHandleVaultConnect(t *testing.T) {
 }
 
 func TestHandleVaultConnectProbeConnectsStoredCredential(t *testing.T) {
-	srv := newTestServer(t, "alice")
 	remoteServer := newRemoteVaultServer(t)
+	srv := newTestServer(t, "alice", vault.WithHTTPClient(remoteServer.Client()))
 
 	firstStart, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
 		VaultUrl: remoteServer.URL,
@@ -271,8 +272,8 @@ func TestHandleVaultConnectProbeConnectsStoredCredential(t *testing.T) {
 }
 
 func TestHandleVaultConnectSecretlessFinishRequiresStoredCredential(t *testing.T) {
-	srv := newTestServer(t, "alice")
 	remoteServer := newRemoteVaultServer(t)
+	srv := newTestServer(t, "alice", vault.WithHTTPClient(remoteServer.Client()))
 
 	startResp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
 		VaultUrl: remoteServer.URL,
@@ -707,6 +708,17 @@ func TestSignData(t *testing.T) {
 	})
 }
 
+// withoutNetwork keeps a test vault from dialing any remote host.
+func withoutNetwork() vault.RemoteOption {
+	return vault.WithHTTPClient(&http.Client{Transport: noNetworkTransport{}})
+}
+
+type noNetworkTransport struct{}
+
+func (noNetworkTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("tests make no network requests: %s", req.URL)
+}
+
 func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Server {
 	u := coretest.NewTester(name)
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
@@ -715,7 +727,9 @@ func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Serve
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store("local", "", keyMaterial))
 
-	ks, err := vault.New(dataDir, secretStore, opts...)
+	// Tests that connect to a fake remote must not sync with a real host;
+	// a test that runs its own remote passes that server's client instead.
+	ks, err := vault.New(dataDir, secretStore, append([]vault.RemoteOption{withoutNetwork()}, opts...)...)
 	require.NoError(t, err)
 
 	store, err := storage.Open(dataDir, u.Device.Libp2pKey(), ks, "debug")

@@ -1685,11 +1685,6 @@ export function useMoveDocument() {
     onSuccess: (moves, {from, to}) => {
       const idsToInvalidate = moves || [{from, to}]
       invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
-      new Set(idsToInvalidate.flatMap(({from: sourceId, to: targetId}) => [sourceId.uid, targetId.uid])).forEach(
-        (uid) => {
-          invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
-        },
-      )
       idsToInvalidate.forEach(({from: sourceId, to: targetId}) => {
         invalidateQueries([queryKeys.ENTITY, sourceId.id])
         invalidateQueries([queryKeys.ENTITY, targetId.id])

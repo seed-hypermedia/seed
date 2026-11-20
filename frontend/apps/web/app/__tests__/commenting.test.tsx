@@ -16,6 +16,9 @@ const {
   navigation,
   mountedInitialBlocks,
   emittedContent,
+  keyPair,
+  optimisticParams,
+  accountLookups,
 } = vi.hoisted(() => ({
   navigation: {
     route: {key: 'document', panel: null} as any,
@@ -27,12 +30,15 @@ const {
   publishMock: vi.fn(),
   mountedInitialBlocks: [] as any[],
   emittedContent: {current: null as null | {blocks: any[]; mediaRefs?: Record<string, string>}},
+  keyPair: {current: {id: 'alice'} as {id: string; delegatedAccountUid?: string}},
+  optimisticParams: [] as any[],
+  accountLookups: [] as (string | undefined)[],
 }))
 
 vi.mock('@/auth', () => ({
   useCreateAccount: () => ({
     content: null,
-    userKeyPair: {id: 'alice'},
+    userKeyPair: keyPair.current,
     createAccount: vi.fn(),
   }),
 }))
@@ -103,7 +109,10 @@ vi.mock('@shm/shared/models/entity', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared/models/entity')>()
   return {
     ...actual,
-    useAccount: () => ({data: {id: {uid: 'alice'}, metadata: {name: 'Alice'}}}),
+    useAccount: (uid?: string) => {
+      accountLookups.push(uid)
+      return {data: {id: {uid: 'alice'}, metadata: {name: 'Alice'}}}
+    },
     useResource: () => ({
       data: {type: 'document', document: {version: 'doc-version', visibility: 'PUBLIC'}},
       isLoading: false,
@@ -118,19 +127,23 @@ vi.mock('@shm/shared/models/query-client', async (importOriginal) => ({
 
 vi.mock('@shm/shared/optimistic-comment', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared/optimistic-comment')>()),
-  buildOptimisticComment: async ({docId, replyParentId}: any) => ({
-    id: 'alice/new-comment',
-    version: 'optimistic-pending',
-    author: 'alice',
-    targetAccount: docId.uid,
-    targetPath: '/doc',
-    targetVersion: 'doc-version',
-    replyParent: replyParentId || '',
-    content: [],
-    visibility: 'PUBLIC',
-    createTime: '2026-01-01T00:00:00Z',
-    updateTime: '2026-01-01T00:00:00Z',
-  }),
+  buildOptimisticComment: async (params: any) => {
+    optimisticParams.push(params)
+    const {docId, replyParentId, authorUid} = params
+    return {
+      id: 'alice/new-comment',
+      version: 'optimistic-pending',
+      author: authorUid,
+      targetAccount: docId.uid,
+      targetPath: '/doc',
+      targetVersion: 'doc-version',
+      replyParent: replyParentId || '',
+      content: [],
+      visibility: 'PUBLIC',
+      createTime: '2026-01-01T00:00:00Z',
+      updateTime: '2026-01-01T00:00:00Z',
+    }
+  },
 }))
 
 vi.mock('@shm/shared/translation', () => ({
@@ -221,6 +234,9 @@ afterEach(() => {
   navigation.onNavigate = undefined
   mountedInitialBlocks.length = 0
   emittedContent.current = null
+  keyPair.current = {id: 'alice'}
+  optimisticParams.length = 0
+  accountLookups.length = 0
 })
 
 describe('WebCommenting publication state', () => {
@@ -293,5 +309,41 @@ describe('WebCommenting publication state', () => {
       draftId: 'd',
       mediaId: 'm',
     })
+  })
+
+  it('attributes a session-key comment to the account it acts for', async () => {
+    keyPair.current = {id: 'session', delegatedAccountUid: 'alice'}
+    navigation.route = {key: 'comments', id: hmId('alice', {path: ['doc']}), openComment: 'bob/context'}
+    localStorage.setItem(
+      'comment-draft-hm://alice/doc-reply-bob/context',
+      JSON.stringify({
+        docId: 'hm://alice/doc',
+        replyCommentId: 'bob/context',
+        blocks: [{block: {id: 'draft-block', type: 'Paragraph', text: 'reply', attributes: {}}, children: []}],
+        timestamp: Date.now(),
+      }),
+    )
+    createCommentMock.mockResolvedValue({blobs: [{data: new Uint8Array([1])}]})
+    commentRecordIdMock.mockResolvedValue('alice/new-comment')
+    publishMock.mockResolvedValue({cids: ['published-comment-cid']})
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    providerQueryClient = new QueryClient({
+      defaultOptions: {queries: {retry: false}, mutations: {retry: false}},
+    })
+    renderWebCommenting()
+    await flush()
+    await flush()
+
+    await act(async () => {
+      container.querySelector('button')?.click()
+    })
+    await vi.waitFor(() => expect(optimisticParams).toHaveLength(1))
+
+    expect(createCommentMock.mock.calls[0]?.[0]?.account).toBe('alice')
+    expect(optimisticParams[0].authorUid).toBe('alice')
+    expect(accountLookups).not.toContain('session')
   })
 })

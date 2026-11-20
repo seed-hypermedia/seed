@@ -141,11 +141,41 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		return err
 	}
 
+	accountID, err := ictx.ensurePubKey(account)
+	if err != nil {
+		return err
+	}
+
+	signer, err := ictx.ensurePubKey(v.Signer)
+	if err != nil {
+		return err
+	}
+
+	allowed, err := isValidWriter(ictx.conn, signer, iri, ictx.batch)
+	if err != nil {
+		return err
+	}
+
+	if !allowed {
+		return stashError{
+			Reason: stashReasonPermissionDenied,
+			Metadata: stashMetadata{
+				DeniedSigners: []core.Principal{v.Signer},
+			},
+		}
+	}
+
 	// Contact blobs have public visibility, so no visibility spaces.
 	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, account, time.Time{}, VisibilityPublic, nil)
 
 	extraAttrs := map[string]any{
 		"tsid": eb.TSID(),
+	}
+
+	// Like delegated comments, a contact signed on behalf of its account is
+	// addressed by that account, so snapshot lookups by (authority, TSID) find it.
+	if !account.Equal(v.Signer) {
+		extraAttrs["account"] = accountID
 	}
 
 	// For active contacts, add subject and name

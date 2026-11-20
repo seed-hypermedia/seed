@@ -290,7 +290,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	// If we've got a Ref but this member is not valid yet/anymore, we don't want to populate our indexes.
-	ok, err := isValidWriter(conn, memberID, iri, ictx.writerCache)
+	ok, err := isValidWriter(conn, memberID, iri, ictx.batch)
 	if err != nil {
 		return err
 	}
@@ -465,45 +465,26 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	// collection may well carry an icon. Only the storing of FirstImage stays
 	// gated.
 	if !isTombstone && appliedNewChanges && ictx.deriveDocFields != nil && len(dg.Heads) > 0 {
-		isCurrentGeneration, err := sqlitex.QueryOne[int](conn, `
-			SELECT NOT EXISTS (
-				SELECT 1 FROM document_generations
-				WHERE resource = ? AND generation > ?
-			)
-		`, dg.ResourceID, dg.Generation)
-		if err != nil {
-			return err
-		}
 		headIDs := slices.Collect(maps.Keys(dg.Heads))
 		changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
 		if cerr != nil {
 			ictx.log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(iri)), zap.Error(cerr))
 		} else if fields, derr := ictx.deriveDocFields(iri, changes); derr != nil {
 			ictx.log.Warn("FailedToDeriveDocFields", zap.String("iri", string(iri)), zap.Error(derr))
-			if isCurrentGeneration != 0 {
-				if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-					return err
-				}
-			}
 		} else {
-			// The timestamp rides at the generation's latest alive Ref time so that
-			// a late-arriving older Ref which completes the merge still wins the LWW
-			// register over a value derived from fewer heads.
+			// Derived values replace the previous ones outright (see setDerived), so
+			// the timestamp is only informational.
 			ts := max(refTime, dg.LastAliveRefTime)
 
 			// Always record the result — empty means "derived: no image" — so a
 			// value derived at older heads can never outlive the image's removal,
 			// and clients can skip the fallback document fetch entirely.
 			if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-				dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
+				dg.Metadata.setDerived(FirstImageInContentAttr, fields.FirstImage, ts)
 			}
 
-			dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
-			if isCurrentGeneration != 0 {
-				if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, fields.ReferencedDocuments, fields.HasSelfQuery, true); err != nil {
-					return err
-				}
-			}
+			dg.Metadata.setDerived(IsCollectionAttr, fields.IsCollection, ts)
+			dg.Metadata.setDerived(NavigationCardsAttr, navigationCardsJSON(fields.NavigationCards), ts)
 		}
 	}
 
@@ -1033,10 +1014,26 @@ const FirstImageInContentAttr = "$db.firstImageInContent"
 // "$db." prefix keeps it out of the public metadata map; it reaches clients as
 // the typed DocumentInfo.is_collection field.
 //
-// A missing key means derivation hasn't run yet, which is what lets the
-// backfill be asynchronous: the read path treats "not derived" as "not known to
-// be a Collection", so a lagging backfill only delays the Collection icon.
+// Indexing derives it for every document generation with heads.
 const IsCollectionAttr = "$db.isCollection"
+
+// NavigationCardsAttr is the internal indexed-attrs key holding the derived
+// navigation Cards (DerivedDocFields.NavigationCards) as a JSON array of hm://
+// IRIs, because attribute values are scalars. Clients read it as the typed
+// DocumentInfo.navigation_cards field, so the sidebar never loads documents.
+//
+// It is written in the same derivation as IsCollectionAttr, for every document
+// generation with heads, so readers never need to load the document instead.
+const NavigationCardsAttr = "$db.navigationCards"
+
+// navigationCardsJSON encodes navigation Cards for NavigationCardsAttr.
+func navigationCardsJSON(cards []string) string {
+	if cards == nil {
+		cards = []string{}
+	}
+
+	return unsafeutil.StringFromBytes(must.Do2(json.Marshal(cards)))
+}
 
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
@@ -1045,10 +1042,10 @@ type DocIndexedAttrs map[string]IndexedValue
 // fields (fallback cover image, collection flag) for a single generation, from
 // that generation's final merged heads.
 //
-// Best-effort by construction: a generation whose changes fail to load is
-// logged and skipped, and a generation whose derivation fails still records the
-// collection flag so the asynchronous backfill treats it as handled. See the
-// failure branch for why that stamp covers the collection flag only.
+// A generation whose changes fail to load, or whose derivation fails, is logged
+// and still records the collection flag and navigation Cards as empty: the
+// model cannot rebuild it, so it has no navigation and no Collection shape.
+// See the failure branch for why the cover image is left alone.
 func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields, k generationKey) (changesReplayed int, stored bool, err error) {
 	var dg documentGeneration
 	if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
@@ -1066,13 +1063,9 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
 	if cerr != nil {
 		log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(k.IRI)), zap.Error(cerr))
-		if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-			return 0, false, err
-		}
-		// Stamp the legacy marker independently as well, so neither half of the
-		// combined worker can select this permanently unreadable generation in a
-		// tight loop. Readers still see the failed reference status as incomplete.
-		dg.Metadata.set(IsCollectionAttr, false, dg.LastAliveRefTime)
+		// An unreadable document has no navigation and no Collection shape.
+		dg.Metadata.setDerived(IsCollectionAttr, false, dg.LastAliveRefTime)
+		dg.Metadata.setDerived(NavigationCardsAttr, navigationCardsJSON(nil), dg.LastAliveRefTime)
 		if err := dg.save(conn); err != nil {
 			return 0, false, err
 		}
@@ -1089,21 +1082,16 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	if derr != nil {
 		log.Warn("FailedToDeriveDocFields", zap.String("iri", string(k.IRI)), zap.Error(derr))
 
-		// Record the collection flag's zero value even though nothing was
-		// derived. Its presence is this backfill's only bookkeeping, so leaving
-		// it absent would make every future pass re-pick the same undecodable
-		// document, forever. Recording false is also very likely right: a
-		// document the model cannot rebuild is in practice an enormous one, which
-		// is overwhelmingly unlikely to have the minimal Collection shape.
+		// A document the model cannot rebuild has no navigation Cards and, in
+		// practice, is an enormous one, which is overwhelmingly unlikely to have
+		// the minimal Collection shape.
 		//
 		// The cover image is deliberately left alone. Empty there does not mean
 		// "unknown", it means "derived, this document has no content image", and
 		// clients act on it by skipping their fallback fetch — a claim this
 		// failure gives no grounds to make.
-		dg.Metadata.set(IsCollectionAttr, false, ts)
-		if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, nil, false, false); err != nil {
-			return changesReplayed, false, err
-		}
+		dg.Metadata.setDerived(IsCollectionAttr, false, ts)
+		dg.Metadata.setDerived(NavigationCardsAttr, navigationCardsJSON(nil), ts)
 		if err := dg.save(conn); err != nil {
 			return changesReplayed, false, err
 		}
@@ -1115,56 +1103,16 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 	// hasNonEmptyAttr treats a nil value and an empty string as absent but any
 	// non-string value as present, which metadata->>'$.cover.v' cannot express.
 	if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-		dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
+		dg.Metadata.setDerived(FirstImageInContentAttr, fields.FirstImage, ts)
 	}
-	dg.Metadata.set(IsCollectionAttr, fields.IsCollection, ts)
-	if err := replaceDocumentReferenceSummary(conn, dg.ResourceID, dg.Generation, dg.Genesis, dg.Heads, fields.ReferencedDocuments, fields.HasSelfQuery, true); err != nil {
-		return changesReplayed, false, err
-	}
+	dg.Metadata.setDerived(IsCollectionAttr, fields.IsCollection, ts)
+	dg.Metadata.setDerived(NavigationCardsAttr, navigationCardsJSON(fields.NavigationCards), ts)
 
 	if err := dg.save(conn); err != nil {
 		return changesReplayed, false, err
 	}
 
 	return changesReplayed, true, nil
-}
-
-func replaceDocumentReferenceSummary(conn *sqlite.Conn, resource, generation int64, genesis string, heads map[int64]struct{}, targets []string, hasSelfQuery, success bool) error {
-	// Temporarily keep the unreferenced-document index dormant while its issues
-	// are addressed. The schema remains in place so this can be re-enabled
-	// without another migration.
-	const enabled = false
-	if !enabled {
-		return nil
-	}
-
-	headIDs := slices.Collect(maps.Keys(heads))
-	slices.Sort(headIDs)
-	headsJSON, err := json.Marshal(headIDs)
-	if err != nil {
-		return err
-	}
-	status := 2
-	if success {
-		status = 1
-	}
-	if err := sqlitex.Exec(conn, `INSERT INTO document_reference_summaries (resource, generation, genesis, heads, status, has_self_query)
-		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(resource) DO UPDATE SET generation=excluded.generation, genesis=excluded.genesis,
-		heads=excluded.heads, status=excluded.status, has_self_query=excluded.has_self_query`, nil,
-		resource, generation, genesis, string(headsJSON), status, hasSelfQuery); err != nil {
-		return err
-	}
-	if err := sqlitex.Exec(conn, `DELETE FROM document_reference_targets WHERE parent = ?`, nil, resource); err != nil {
-		return err
-	}
-	if success {
-		for _, target := range targets {
-			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO document_reference_targets (parent, target_iri) VALUES (?, ?)`, nil, resource, target); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // deriveAllDocFields derives the document-level derived fields once per document
@@ -1273,75 +1221,115 @@ func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 	m.setOrdered(k, v, ts, 0, 0)
 }
 
+// setDerived stores a value the indexer derived from a generation's merged
+// heads. Unlike authored attributes it is not a last-writer-wins register: each
+// derivation already reflects every change applied so far, so it replaces the
+// previous value unconditionally. Ordering it by timestamp would be wrong — a
+// late Ref with an older timestamp can still change the merged heads, and the
+// value derived from them must win over one derived from fewer heads.
+// Derived keys are flat "$db." keys with no ancestors or descendants.
+func (m DocIndexedAttrs) setDerived(k string, v any, ts int64) {
+	kind, _, err := documentAttributeValue(v)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid derived attribute value %T: %w", v, err))
+	}
+
+	m[k] = IndexedValue{Key: k, Value: v, Ts: ts, Kind: kind}
+}
+
+// setOrdered applies a write to an attribute key path. Key paths are dotted, and
+// they form a tree: a write replaces everything above and below it that is
+// older. The result must equal applying every write sorted by
+// (ts, operation, actor) — the same order as docmodel's op IDs — whatever order
+// the writes are indexed in, because changes reach the index across separate
+// Refs and transactions in any order. The map holds at most one entry per path,
+// a value or a tombstone (kind null), and a write follows these rules:
+//
+//  1. If the path itself or any ancestor has an entry at least as new, the
+//     write is superseded and ignored. An exact tie on the same path falls back
+//     to comparing the encoded values, so the winner stays deterministic.
+//  2. Otherwise it replaces the path's entry and deletes every older descendant.
+//  3. If a newer descendant exists, the write was already replaced by it, so it
+//     is stored as a tombstone instead of a value.
+//  4. Older ancestors holding a value become tombstones at their own order.
+//
+// A tombstone keeps its order because it still supersedes older writes below it
+// that arrive later. Readers skip tombstones. This mirrors docmodel's
+// setMetadata exactly; the two must agree.
 func (m DocIndexedAttrs) setOrdered(k string, v any, ts int64, operation int, actor uint64) {
 	kind, _, err := documentAttributeValue(v)
 	if err != nil {
 		panic(fmt.Errorf("BUG: invalid indexed attribute value %T: %w", v, err))
 	}
 	vNew := IndexedValue{Key: k, Value: v, Ts: ts, Operation: operation, Actor: actor, Kind: kind}
-	vOld, ok := m[k]
-	accepted := false
-	if !ok {
-		m[k] = vNew
-		accepted = true
-	} else {
-		switch order := compareIndexedOrder(vOld, vNew); {
-		case order < 0:
-			m[k] = vNew
-			accepted = true
-		case order == 0:
-			// When timestamps are equal, we use values as tie-breaker.
-			// To deterministically compare unknown values we simply encode them as deterministic CBOR,
-			// and compare the resulting byte slices. If new value is greater — it wins.
 
-			newValue, err := cbornode.DumpObject(vNew.Value)
-			if err != nil {
-				panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", v, err))
-			}
+	// Decide everything before mutating the map, so the outcome doesn't depend
+	// on map iteration order.
+	var olderDescendants, olderAncestors []string
 
-			oldValue, err := cbornode.DumpObject(vOld.Value)
-			if err != nil {
-				panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", v, err))
-			}
-
-			if bytes.Compare(newValue, oldValue) > 0 {
-				m[k] = vNew
-				accepted = true
-			}
-		case order > 0:
-			break // Leaving the old value.
-		default:
-			panic("BUG: unreachable")
-		}
-	}
-	if !accepted {
-		return
-	}
-
-	// Keep only the structural LWW frontier. Tombstones participate so an old
-	// parent or child cannot reappear when the replacing path is later deleted.
+	newerDescendant := false
 	for otherKey, other := range m {
-		if otherKey == k {
-			continue
-		}
-
-		otherIsAncestor := len(otherKey) < len(k) &&
-			k[len(otherKey)] == '.' &&
-			k[:len(otherKey)] == otherKey
-		otherIsDescendant := len(k) < len(otherKey) &&
-			otherKey[len(k)] == '.' &&
-			otherKey[:len(k)] == k
-		if !otherIsAncestor && !otherIsDescendant {
-			continue
-		}
-
 		order := compareIndexedOrder(other, vNew)
-		if order > 0 || order == 0 && otherIsDescendant {
-			delete(m, k)
-			return
+		switch {
+		case otherKey == k:
+			if order > 0 || order == 0 && !indexedValueWinsTie(vNew, other) {
+				return
+			}
+		case isAttrAncestor(otherKey, k):
+			if order >= 0 {
+				return
+			}
+
+			olderAncestors = append(olderAncestors, otherKey)
+		case isAttrAncestor(k, otherKey):
+			if order > 0 {
+				newerDescendant = true
+			} else {
+				olderDescendants = append(olderDescendants, otherKey)
+			}
 		}
+	}
+
+	if newerDescendant {
+		vNew.Value = nil
+		vNew.Kind = documentAttributeNull
+	}
+
+	m[k] = vNew
+
+	for _, otherKey := range olderDescendants {
 		delete(m, otherKey)
 	}
+
+	for _, otherKey := range olderAncestors {
+		ancestor := m[otherKey]
+		if ancestor.Value != nil {
+			ancestor.Value = nil
+			ancestor.Kind = documentAttributeNull
+			m[otherKey] = ancestor
+		}
+	}
+}
+
+// indexedValueWinsTie breaks an exact order tie between two writes to the same
+// path by their deterministic CBOR encoding: the greater encoding wins.
+func indexedValueWinsTie(vNew, vOld IndexedValue) bool {
+	newValue, err := cbornode.DumpObject(vNew.Value)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", vNew.Value, err))
+	}
+
+	oldValue, err := cbornode.DumpObject(vOld.Value)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", vOld.Value, err))
+	}
+
+	return bytes.Compare(newValue, oldValue) > 0
+}
+
+// isAttrAncestor reports whether dotted path a is a strict ancestor of b.
+func isAttrAncestor(a, b string) bool {
+	return len(a) < len(b) && b[len(a)] == '.' && b[:len(a)] == a
 }
 
 func compareIndexedOrder(a, b IndexedValue) int {

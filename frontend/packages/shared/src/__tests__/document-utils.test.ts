@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {Comment, Document} from '../client'
+import {Comment, Document, NavigationCards} from '../client'
 import {
   canCreateChildDocuments,
   disablePreparedDocumentCache,
@@ -46,6 +46,17 @@ describe('prepareHMDocument', () => {
     expect(result).toBeDefined()
     expect(result.account).toBeDefined()
     expect(result.account).toBe('test-account')
+  })
+
+  it('flattens navigation Cards into a list of targets', () => {
+    const withCards = prepareHMDocument(
+      new Document({account: 'site', navigationCards: new NavigationCards({targets: ['hm://site/a', 'hm://site/b']})}),
+    )
+    expect(withCards.navigationCards).toEqual(['hm://site/a', 'hm://site/b'])
+    expect(
+      prepareHMDocument(new Document({account: 'site', navigationCards: new NavigationCards()})).navigationCards,
+    ).toEqual([])
+    expect(prepareHMDocument(new Document({account: 'site'})).navigationCards).toBeUndefined()
   })
 
   it('returns document even when schema validation fails', () => {

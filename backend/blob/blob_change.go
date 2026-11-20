@@ -546,13 +546,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
-	if err := reindexStashedBlobs(ictx.childOpts(), ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log, ictx.writerCache, ictx.hookIDs); err != nil {
-		return err
-	}
-
-	// Comments pinned to this change that arrived before it were indexed but
-	// couldn't be attributed to a document. Now they can.
-	if err := resettleComments(ictx, qPendingCommentsTargetingChange(), id); err != nil {
+	if err := reindexStashedBlobs(ictx.childOpts(), ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log, ictx.batch, ictx.hookIDs); err != nil {
 		return err
 	}
 

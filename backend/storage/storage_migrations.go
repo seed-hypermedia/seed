@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"seed/backend/core"
+	"seed/backend/keyline/keylinesqlite"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -63,6 +64,86 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Comment identity is account authority + TSID. Comments signed by an agent key
+	// on behalf of an account belong to the account, so rebuild the live-comment
+	// table (renamed to comments_live) with that compound key: rotating delegated keys keeps one comment, and
+	// unrelated authorities can never compete for the same TSID.
+	{Version: "2026-11-17.072139", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS structural_blobs_by_tsid;
+			CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', COALESCE(extra_attrs->>'account', author), ts DESC, extra_attrs->>'hash' DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+			CREATE INDEX IF NOT EXISTS comments_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author)) WHERE type = 'Comment';
+
+			DROP TABLE IF EXISTS comment_live;
+			CREATE TABLE comments_live (
+			    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    tsid TEXT NOT NULL,
+			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    ts INTEGER NOT NULL,
+			    hash TEXT NOT NULL,
+			    PRIMARY KEY (authority, tsid)
+			) WITHOUT ROWID;
+			CREATE INDEX comments_live_by_genesis ON comments_live (genesis, ts, hash);
+			CREATE INDEX comments_live_by_resource ON comments_live (resource, ts);
+			CREATE INDEX comments_live_by_blob ON comments_live (blob_id);
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
+	// Derive navigation Cards and the other derived document fields for every
+	// document. They change what readers see (the sidebar is built from them),
+	// so they are derived during indexing, never by a lagging background job.
+	{Version: "2026-11-17.003358", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
+
+	// Rebuild document_attributes with order-independent structural resolution.
+	// Changes reach the index across separate Refs in any order, and a write to a
+	// key path (theme) racing writes to its children (theme.Color) used to leave
+	// a result that depended on that order. A full reindex recomputes every row
+	// under the corrected rules.
+	{Version: "2026-11-16.163739", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
+
+	// Drop the unreferenced-document index. Its writes and its RPC were disabled
+	// on 2026-09-15 and the tables have stayed empty since; sidebar navigation now
+	// comes from Card embeds on the client. Nothing reads them, so no reindex.
+	{Version: "2026-11-16.135116", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS document_reference_targets_by_target;
+			DROP TABLE IF EXISTS document_reference_targets;
+			DROP TABLE IF EXISTS document_reference_summaries;
+		`))
+	}},
+
+	// Initialize the derived authority graph with earliest-mention provenance
+	// and its membership cache. MaybeReindex backfills them from validated
+	// structural blobs before startup completes, without a full reindex or
+	// recomputing embeddings.
+	{Version: "2026-11-03.104504", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := keylinesqlite.Init(context.Background(), conn); err != nil {
+			return err
+		}
+
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS keyline_members (
+				subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				member INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
+				PRIMARY KEY (subject, member)
+			) WITHOUT ROWID;
+			CREATE INDEX IF NOT EXISTS keyline_members_by_member ON keyline_members (member, subject);
+			UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;
+			DELETE FROM kv WHERE key = 'keyline_projection_version';
+		`))
+	}},
+
 	// Give the feed an index holding only redirecting Refs, so resolving moved
 	// documents for a page no longer walks every blob sharing a genesis. Index
 	// only: one scan of structural_blobs at startup, no reindex.

@@ -41,7 +41,7 @@ import {
   queryRawResource,
   queryResource,
 } from './queries'
-import {queryKeys} from './query-keys'
+import {documentInfoQueryKey, queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
@@ -89,6 +89,7 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
     ...docInfo,
     metadata: prepareHMDocumentMetadata(doc.metadata),
     isCollection: docInfo.isCollection,
+    navigationCards: docInfo.navigationCards ? docInfo.navigationCards.targets : undefined,
     type: 'document',
     createTime,
     updateTime: prepareHMDate(docInfo.updateTime),
@@ -429,6 +430,24 @@ function useDiscoveryStates(entityIds: (string | undefined)[]): DiscoveryStateIn
   }, [streams, client.discovery])
 
   return states
+}
+
+/**
+ * Indexed information about the latest published version of a document, without its content. Its query key sits
+ * under the entity's key, so invalidating the entity refreshes it too. Resolves to null when it cannot be read.
+ */
+export function useDocumentInfo(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: UseQueryOptions<HMDocumentInfo | null>,
+) {
+  const client = useUniversalClient()
+  const target = id ? hmId(id.uid, {path: id.path}) : null
+  return useQuery({
+    queryKey: documentInfoQueryKey(target?.id),
+    queryFn: ({signal}) => (target ? client.request('DocumentInfo', target, {signal}) : null),
+    enabled: !!target,
+    ...options,
+  })
 }
 
 export function useResources(

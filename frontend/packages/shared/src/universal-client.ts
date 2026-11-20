@@ -1,6 +1,5 @@
 import type {
   DiscoveryState,
-  HMDocumentInfo,
   HMDraft,
   HMListedDraft,
   HMPrepareDocumentChangeInput,
@@ -57,11 +56,6 @@ export type DiscoveryService = {
 export type UniversalClient = {
   /** Writable roots delegated to this identity, including path-scoped grants. */
   listWritableLocations?: (accountUid: string) => Promise<UnpackedHypermediaId[]>
-  /** Lists published documents not referenced by their immediate published parent. */
-  listUnreferencedDocuments?: (
-    request: {siteAccount: string; pageSize: number; pageToken: string},
-    options?: UniversalClientRequestOptions,
-  ) => Promise<{documents: HMDocumentInfo[]; nextPageToken?: string; indexIncomplete?: boolean}>
   /** Queries document metadata using the daemon's recursive attribute filter API. */
   queryDocuments?: (
     request: QueryDocumentsRequest,
