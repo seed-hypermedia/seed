@@ -477,6 +477,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		// scan even though the filter is semantically a no-op.
 		var queryStr string
 		var args []interface{}
+		var sourceOrdered bool
+
 		if noResourceFilter {
 			queryStr = listMentionsCoreNoTargets
 			args = []interface{}{cursorValue}
@@ -505,6 +507,17 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			eidsJSON := "[" + strings.Join(eids, ",") + "]"
 			queryStr = listMentionsCore
+			var err error
+
+			sourceOrdered, err = useSourceOrderedMentions(conn, eidsJSON, req.PageSize)
+			if err != nil {
+				return err
+			}
+
+			if sourceOrdered {
+				queryStr = listMentionsCoreBroad
+			}
+
 			args = []interface{}{eidsJSON, cursorValue}
 		}
 		if !orderByObserved {
@@ -527,6 +540,34 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 		args = append(args, req.PageSize)
 		queryStr = strings.TrimSpace(queryStr)
+
+		if sourceOrdered {
+			// A different join order can select different rows when LIMIT splits
+			// a cursor tie. Keep the legacy selection for those pages.
+			probeArgs := slices.Clone(args)
+			probeArgs[len(probeArgs)-1] = int64(req.PageSize) + 1
+
+			cursorColumn := mentionColumnStructuralTimestamp
+			if orderByObserved {
+				cursorColumn = mentionColumnBlobID
+			}
+
+			var previous, last int64
+			var count int
+
+			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
+				previous, last = last, stmt.ColumnInt64(cursorColumn)
+				count++
+				return nil
+			}, probeArgs...); err != nil {
+				return err
+			}
+
+			if count > int(req.PageSize) && previous == last {
+				queryStr = strings.Replace(queryStr, mentionsSourceJoin, mentionsTargetJoin, 1)
+			}
+		}
+
 		if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
 			mentionsRawCount++
 			var (
@@ -535,7 +576,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 				author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
 				// Structural timestamp (ms) is the event's authored timestamp.
-				structTsMillis = stmt.ColumnInt64(4)
+				structTsMillis = stmt.ColumnInt64(mentionColumnStructuralTimestamp)
 				eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
 				blobType       = stmt.ColumnText(5)
 
@@ -545,7 +586,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				fragment      = stmt.ColumnText(9)
 
 				linkType    = stmt.ColumnText(10)
-				blobID      = stmt.ColumnInt64(11)
+				blobID      = stmt.ColumnInt64(mentionColumnBlobID)
 				observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 				tsid        = blob.TSID(stmt.ColumnText(13))
 				//extraAttrs  = stmt.ColumnText(14)
@@ -1039,6 +1080,11 @@ WHERE lp.rn = 1
 AND lp.alias_id = (SELECT id FROM target);
 `)
 
+const (
+	mentionColumnStructuralTimestamp = 4
+	mentionColumnBlobID              = 11
+)
+
 // listMentionsCoreSelect is the shared SELECT/FROM/JOIN prefix for the
 // mentions query. The trailing WHERE clause is appended by callers via
 // listMentionsCore (filtered) or listMentionsCoreNoTargets (unfiltered).
@@ -1093,6 +1139,33 @@ var listMentionsCore = listMentionsCoreSelect + `
 WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
 AND structural_blobs.id <= :idx
 `
+
+const mentionsTargetJoin = `FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source`
+
+const mentionsSourceJoin = `FROM structural_blobs
+CROSS JOIN resource_links INDEXED BY resource_links_by_source ON structural_blobs.id = resource_links.source`
+
+var listMentionsCoreBroad = strings.Replace(listMentionsCore, mentionsTargetJoin, mentionsSourceJoin, 1)
+
+var qCountMentionCandidates = dqb.Str(`
+SELECT count(*), coalesce((SELECT max(id) FROM resource_links), 0)
+FROM resource_links INDEXED BY resource_links_by_target
+WHERE target IN (SELECT value FROM json_each(:targets_json))
+`)
+
+// useSourceOrderedMentions compares estimated source traversal work with target sorting work.
+func useSourceOrderedMentions(conn *sqlite.Conn, targetsJSON string, pageSize int32) (bool, error) {
+	var sourceOrdered bool
+
+	err := sqlitex.ExecTransient(conn, qCountMentionCandidates(), func(stmt *sqlite.Stmt) error {
+		candidates, total := float64(stmt.ColumnInt64(0)), float64(stmt.ColumnInt64(1))
+		// Compare sorting C candidates with scanning pageSize*T/C links.
+		sourceOrdered = candidates > 0 && candidates*candidates > float64(pageSize)*total
+		return nil
+	}, targetsJSON)
+	return sourceOrdered, err
+}
 
 // listMentionsCoreNoTargets drops the target IN(...) predicate. Used in the
 // unfiltered path where the IN list would otherwise expand to every known
