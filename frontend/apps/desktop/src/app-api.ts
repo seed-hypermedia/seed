@@ -1,3 +1,4 @@
+import {reconcileSavedWindows} from './utils/window-session'
 import {parseDeepLink} from '@/utils/deep-links'
 import {getPageWebContents} from './app-web-browser'
 import {setupBrowserSessionPolicy} from './browser-session-policy'
@@ -19,7 +20,7 @@ import {getDaemonState, restartDaemon, subscribeDaemonState} from './daemon'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {documentCardCleanupApi, startDocumentCardCleanupCoordinator} from './app-document-card-cleanup'
-import {draftsApi} from './app-drafts'
+import {draftsApi, getListedDraft} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
 import {notificationConfigApi} from './app-notification-config'
@@ -44,6 +45,9 @@ import {welcomingApi} from './app-welcoming'
 import {getOnboardingState} from './app-onboarding-store'
 import {
   closeAppWindow,
+  beginWindowSessionRestore,
+  finishWindowSessionRestore,
+  openRouteInWindow,
   createAppWindow,
   createAppWindowInputSchema,
   dispatchAllWindowsAppEvent,
@@ -166,52 +170,31 @@ export function getDefaultStartupRoute(): NavRoute {
 
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
-
-  // Drop history entries whose route no longer exists (a page removed in an update) instead of the whole window.
-  const isValidRoute = (route: unknown) => navRouteSchema.safeParse(route).success
-  const validWindowEntries = Object.entries(windowsState).flatMap(([windowId, window]) => {
-    if (!window || !Array.isArray(window.routes)) return []
-    const routes = window.routes.filter(isValidRoute)
-    if (routes.length === 0) return []
-    // Keep pointing at the same entry, or at the closest earlier one if that entry was dropped.
-    const keptUpToCurrent = window.routes.slice(0, window.routeIndex + 1).filter(isValidRoute).length
-    return [[windowId, {...window, routes, routeIndex: Math.max(0, keptUpToCurrent - 1)}] as const]
-  })
   await getFirstAvailableAccount()
-  if (!validWindowEntries.length) {
-    await trpc.createAppWindow({
-      routes: [getDefaultStartupRoute()],
-    })
-    return
-  }
   try {
-    // Awaited, not fire-and-forget: the startup caller clears the isStartingUp
-    // guard as soon as this resolves, and that guard is what stops the
-    // window-all-closed fired by the closing loading window from quitting the
-    // app. It has to outlive the actual BrowserWindow construction, which
-    // happens after an async daemon round-trip inside createAppWindow.
-    await Promise.all(
-      validWindowEntries.map(([windowId, window]) =>
-        trpc.createAppWindow({
-          routes: window.routes,
-          routeIndex: window.routeIndex,
-          selectedIdentity: window.selectedIdentity,
-          sidebarLocked: window.sidebarLocked,
-          sidebarWidth: window.sidebarWidth,
-          accessoryWidth: window.accessoryWidth,
-          bounds: window.bounds,
-          assistantOpen: window.assistantOpen,
-          assistantSessionId: window.assistantSessionId,
-          id: windowId,
-        }),
-      ),
-    )
-  } catch (error: unknown) {
-    const e = error as Error
-    log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
-    await getFirstAvailableAccount()
+    // Resolve all identities before changing the saved session or mounting any editor.
+    const reconciled = reconcileSavedWindows(windowsState, getListedDraft)
+    beginWindowSessionRestore()
+    const entries = Object.entries(reconciled.windows)
+    if (!entries.length) {
+      await trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
+    } else {
+      // Stable restoration order also reserves ownership before the next window is created.
+      for (const [windowId, window] of entries) {
+        await trpc.createAppWindow({...window, bounds: window.bounds ?? undefined, id: windowId})
+      }
+    }
+    finishWindowSessionRestore(Array.from(getAllWindows().keys()))
+    if (reconciled.removed.length) log.info('[MAIN]: Reconciled duplicate saved windows', {removed: reconciled.removed})
+  } catch (error) {
+    log.error('[MAIN]: Could not restore saved windows; original session retained', {error: String(error)})
+    // Keep the saved session recoverable even when an old draft cannot be resolved.
+    beginWindowSessionRestore()
     await trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
-    return
+    dialog.showErrorBox(
+      'Could not restore windows',
+      'Your saved session has been preserved for the next restart. ' + String(error),
+    )
   }
 }
 
@@ -223,13 +206,7 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
 }
 
 export async function openRoute(route: NavRoute) {
-  // Keep one window per resource: routes to a document or singleton page that
-  // is already open focus that window instead of navigating the focused one.
-  if (focusWindowForRoute(route)) return
-  const focusedWindow = getFocusedWindow()
-  if (focusedWindow) {
-    focusedWindow.webContents.send('open_route', route)
-  } else {
+  if (!openRouteInWindow(route, getFocusedWindow() ?? undefined)) {
     await getFirstAvailableAccount()
     trpc.createAppWindow({routes: [route], routeIndex: 0})
   }
@@ -390,14 +367,10 @@ export const router = t.router({
     await getFirstAvailableAccount()
     const browserWindow = createAppWindow(input)
 
-    // createAppWindow may return a window that already shows the requested
-    // route instead of opening a new one; attaching twice is not needed.
     if (!trpcAttachedWindows.has(browserWindow)) {
       trpcAttachedWindows.add(browserWindow)
       trpcHandlers.attachWindow(browserWindow)
-      browserWindow.on('close', () => {
-        trpcHandlers.detachWindow(browserWindow)
-      })
+      // electron-trpc detaches on webContents.destroyed.
     }
   }),
 

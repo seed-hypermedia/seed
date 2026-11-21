@@ -39,6 +39,7 @@ vi.mock('electron', async () => {
     close() {
       if (BrowserWindow.focused === this) BrowserWindow.focused = null
       this.emit('close')
+      this.emit('closed')
     }
     loadURL() {}
     loadFile() {}
@@ -51,13 +52,17 @@ vi.mock('electron', async () => {
     screen: {getAllDisplays: () => [{workArea: {x: 0, y: 0, width: 4000, height: 3000}}]},
   }
 })
+vi.mock('../app-drafts', () => ({
+  createBrowserArchiveDraft: vi.fn(),
+  getListedDraft: (id: string) => (id === 'd1' ? {id, locationUid: 'alice', locationPath: ['docs']} : undefined),
+}))
 vi.mock('../errors', () => ({default: vi.fn()}))
 vi.mock('../app-web-browser', () => ({setupWebBrowser: vi.fn(), getPageWebContents: vi.fn()}))
 vi.mock('../app-window-security', () => ({installWindowGuards: vi.fn()}))
 vi.mock('../app-focus', () => ({markAppWindowFocused: vi.fn(), markAppWindowBlurred: vi.fn()}))
 vi.mock('../app-recents', () => ({updateRecentRoute: vi.fn()}))
 vi.mock('../app-settings', () => ({getAppTheme: () => 'light', shouldUseDarkColors: () => false}))
-vi.mock('../app-store.mjs', () => ({appStore: {get: vi.fn(), set: vi.fn()}}))
+vi.mock('../app-store.mjs', () => ({appStore: {get: vi.fn(), set: vi.fn(), delete: vi.fn()}}))
 vi.mock('../daemon', () => ({getDaemonState: () => ({}), subscribeDaemonState: () => () => {}}))
 vi.mock('../logger', () => ({
   isQuietNodeLogsEnabled: () => true,
@@ -67,9 +72,12 @@ vi.mock('../logger', () => ({
 }))
 vi.mock('../memory-profiler-window', () => ({logWindowOpen: vi.fn(), logWindowClose: vi.fn()}))
 
+import {appStore} from '../app-store.mjs'
 import {defaultRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
+  beginWindowSessionRestore,
+  finishWindowSessionRestore,
   createAppWindow,
   createAppWindowInputSchema,
   focusWindowForRoute,
@@ -203,7 +211,7 @@ describe('duplicate window prevention', () => {
     expect(result).toBe(first)
     expect(getAllWindows().size).toBe(1)
     // The window already shows the exact route, so no navigation is sent.
-    expect(first.webContents.send).not.toHaveBeenCalledWith('open_route', expect.anything())
+    expect(first.webContents.send).not.toHaveBeenCalledWith('navigation_commit', expect.anything())
   })
 
   it('navigates the existing window when the requested route differs', () => {
@@ -213,7 +221,11 @@ describe('duplicate window prevention', () => {
     const result = createAppWindow({routes: [versionedRoute]})
     expect(result).toBe(first)
     expect(getAllWindows().size).toBe(1)
-    expect(first.webContents.send).toHaveBeenCalledWith('open_route', versionedRoute)
+    first.webContents.ipc.emit('navigation_ready', {})
+    expect(first.webContents.send).toHaveBeenCalledWith(
+      'navigation_commit',
+      expect.objectContaining({state: expect.objectContaining({routes: [docRoute, versionedRoute]})}),
+    )
   })
 
   it('still opens a new window for a different document', () => {
@@ -255,7 +267,7 @@ describe('focusWindowForRoute', () => {
     createAppWindow({id: 'second', routes: [otherRoute]})
     expect(focusWindowForRoute(docRoute, 'second')).toBe(true)
     // Same route already shown: focused only, no extra navigation.
-    expect(first.webContents.send).not.toHaveBeenCalledWith('open_route', expect.anything())
+    expect(first.webContents.send).not.toHaveBeenCalledWith('navigation_commit', expect.anything())
   })
 
   it('returns false when only the requesting window shows the resource', () => {
@@ -267,5 +279,67 @@ describe('focusWindowForRoute', () => {
   it('returns false for routes no window shows', () => {
     createAppWindow({id: 'first', routes: [defaultRoute]})
     expect(focusWindowForRoute({key: 'document', id: hmId('alice')}, 'first')).toBe(false)
+  })
+})
+
+describe('document window ownership', () => {
+  it('returns the existing document window even before its renderer is ready', () => {
+    const route = {key: 'document', id: hmId('alice', {path: ['one']})} as const
+    const first = createAppWindow({routes: [route]})
+    expect(createAppWindow({routes: [route]})).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+  })
+
+  it('does not release a document when closing is cancelled', () => {
+    const route = {key: 'document', id: hmId('alice', {path: ['one']})} as const
+    const first = createAppWindow({id: 'owner', routes: [route]})
+    first.emit('close', {preventDefault() {}})
+    expect(getAllWindows().get('owner')).toBe(first)
+    expect(createAppWindow({routes: [route]})).toBe(first)
+  })
+})
+
+describe('session restoration checkpoint', () => {
+  it('retains the original session until every survivor is ready', () => {
+    const original = getWindowsState()
+    beginWindowSessionRestore()
+    expect(appStore.set).toHaveBeenCalledWith('WindowRestoreCheckpoint-v001', original)
+    vi.mocked(appStore.set).mockClear()
+    const restored = createAppWindow({id: 'restored', routes: [defaultRoute]})
+    finishWindowSessionRestore(['restored'])
+    expect(appStore.set).not.toHaveBeenCalledWith('WindowState-v004', expect.anything())
+    restored.webContents.ipc.emit('windowIsReady', {})
+    restored.webContents.ipc.emit('navigation_ready', {})
+    expect(appStore.set).toHaveBeenCalledWith(
+      'WindowState-v004',
+      expect.objectContaining({restored: expect.anything()}),
+    )
+    expect(appStore.delete).toHaveBeenCalledWith('WindowRestoreCheckpoint-v001')
+  })
+
+  it('settles a restored window that closes before its handshake', () => {
+    beginWindowSessionRestore()
+    const first = createAppWindow({id: 'survivor', routes: [defaultRoute]})
+    const second = createAppWindow({id: 'closed-early', routes: [defaultRoute]})
+    finishWindowSessionRestore(['survivor', 'closed-early'])
+    first.webContents.ipc.emit('windowIsReady', {})
+    first.webContents.ipc.emit('navigation_ready', {})
+    vi.mocked(appStore.set).mockClear()
+    second.close()
+    expect(appStore.set).toHaveBeenCalledWith(
+      'WindowState-v004',
+      expect.objectContaining({survivor: expect.anything()}),
+    )
+    expect(getWindowsState()).not.toHaveProperty('closed-early')
+    finishWindowSessionRestore([])
+  })
+
+  it('does not overwrite the checkpoint when a partial restoration fails', () => {
+    beginWindowSessionRestore()
+    vi.mocked(appStore.set).mockClear()
+    createAppWindow({id: 'partial', routes: [defaultRoute]})
+    beginWindowSessionRestore()
+    expect(appStore.set).not.toHaveBeenCalledWith('WindowRestoreCheckpoint-v001', expect.anything())
+    finishWindowSessionRestore([])
   })
 })
