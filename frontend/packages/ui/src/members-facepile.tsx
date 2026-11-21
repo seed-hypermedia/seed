@@ -1,60 +1,11 @@
-import {HMListDocumentCollaboratorsOutput, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useAccountsMetadata, useDocumentCollaborators} from '@shm/shared/models/entity'
+import {HMListDocumentCollaboratorsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useDocumentCollaborators} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {useMemo} from 'react'
 import {AccountAvatar} from './account-avatar'
 import {getRenderedCollaboratorsCount} from './collaborators-page'
-import {cn} from './utils'
 
 const MAX_AVATARS = 3
-
-interface MembersFacepileProps {
-  members: HMSiteMember[]
-  siteId: UnpackedHypermediaId
-  description?: string
-  className?: string
-}
-
-export function MembersFacepile({members, siteId, description, className}: MembersFacepileProps) {
-  const totalCount = members.length
-
-  const displayUids = useMemo(() => members.slice(0, MAX_AVATARS).map((m) => m.account.uid), [members])
-
-  const accountsMeta = useAccountsMetadata(displayUids)
-
-  const peopleLinkProps = useRouteLink({
-    key: 'collaborators',
-    id: {...siteId, latest: true, version: null},
-  })
-
-  if (totalCount === 0) return null
-
-  return (
-    <div
-      className={cn(
-        'bg-muted hover:bg-muted/80 flex cursor-pointer items-center gap-3 rounded-lg px-5 py-4 transition-colors',
-        className,
-      )}
-    >
-      <div className="flex -space-x-2">
-        {displayUids.map((uid, idx) => {
-          const member = members[idx]
-          if (!member) return null
-          const meta = accountsMeta.data[uid]
-          return (
-            <div key={uid} className="ring-muted rounded-full ring-2" style={{zIndex: MAX_AVATARS - idx}}>
-              <AccountAvatar id={member.account} name={meta?.metadata?.name} icon={meta?.metadata?.icon} size={32} />
-            </div>
-          )
-        })}
-      </div>
-      <a {...peopleLinkProps} className="text-muted-foreground text-sm hover:underline">
-        {description || `${totalCount} member${totalCount !== 1 ? 's' : ''} collaborating`}
-      </a>
-    </div>
-  )
-}
 
 /** Returns the account rows used by the document's People list, in the same order. */
 export function getCommentAudienceAccountUids(
