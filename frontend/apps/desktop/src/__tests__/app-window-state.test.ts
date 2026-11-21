@@ -193,6 +193,30 @@ describe('getFocusedWindowNewWindowRoute', () => {
     expect(getWindowsState().source).not.toHaveProperty('sidebarSpaceUid')
     expect(getWindowNavState().source.sidebarSpaceUid).toBe('space-a')
   })
+
+  it('falls back to the default route when a window already shows the space home', () => {
+    const source = createAppWindow({id: 'source', routes: [{key: 'document', id: hmId('space-a')}]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('falls back to the default route when another window shows the space home', () => {
+    const first = createAppWindow({id: 'first', routes: [{key: 'document', id: hmId('space-a')}]})
+    const second = createAppWindow({id: 'second', routes: [{key: 'document', id: hmId('space-a', {path: ['doc']})}]})
+    second.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    second.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+    // first is unchanged and still open
+    expect(getAllWindows().get('first')).toBe(first)
+  })
+
+  it('opens a new window when requested from the space home', () => {
+    const source = createAppWindow({id: 'source', routes: [{key: 'document', id: hmId('space-a')}]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    const result = createAppWindow({routes: [getFocusedWindowNewWindowRoute()]})
+    expect(result).not.toBe(source)
+    expect(getAllWindows().size).toBe(2)
+  })
 })
 
 describe('duplicate window prevention', () => {
