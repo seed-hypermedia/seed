@@ -81,6 +81,17 @@ async function clickBlockBody(page: Page, blockId: string) {
     }
   }
   if (!box) throw new Error(`could not measure block ${blockId}`)
+  // A block above can still be growing (KaTeX, button, media) after the first
+  // measure, pushing this one down: the click then lands on the block above and
+  // selects it. Click only once two measures a frame apart agree.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await page.waitForTimeout(100)
+    const next = await content.boundingBox({timeout: 5000})
+    if (!next) break
+    const stable = Math.abs(next.y - box.y) < 0.5 && Math.abs(next.height - box.height) < 0.5
+    box = next
+    if (stable) break
+  }
   // Some styled atomic blocks put interactive controls or links at their
   // center. Select those blocks via the frame/body gutter instead, and leave
   // link/control-specific behavior to the dedicated tests below.
