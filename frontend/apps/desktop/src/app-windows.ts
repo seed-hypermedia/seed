@@ -374,11 +374,18 @@ export function getLastFocusedWindow(): BrowserWindow | null {
   return anyWindow || null
 }
 
-/** Route for a user-requested new window: the focused window's sidebar space home, or the welcome page. */
+/**
+ * Route for a user-requested new window: the focused window's sidebar space
+ * home, or the welcome page. Falls back to the welcome page when a window is
+ * already showing that space home, since one document is kept in one window.
+ */
 export function getFocusedWindowNewWindowRoute(): NavRoute {
   const focusedWindow = getLastFocusedWindow()
   const focusedWindowId = Array.from(allWindows.entries()).find(([, window]) => window === focusedWindow)?.[0]
-  return getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+  const route = getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+  // A window already showing the space home would absorb the request (one
+  // document per window), so open the welcome page instead.
+  return findWindowForRoute(route) ? defaultRoute : route
 }
 
 let isExpectingQuit = false
