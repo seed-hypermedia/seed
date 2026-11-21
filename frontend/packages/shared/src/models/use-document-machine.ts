@@ -6,7 +6,7 @@ import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom, enqueueActions} from 'xstate'
 import {getBlockText} from '../content'
-import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
+import {applyRebasePlan, classifyRebase, collectChangedBlockIds} from '../utils/document-changes'
 import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
   documentMachine,
@@ -1135,13 +1135,17 @@ export function useAutoRebase({
         mineNodes = baseBlocks
       }
 
-      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+      // Union persisted touch tracking with blocks the publish diff would
+      // write, so an incomplete mineTouchedIds list (e.g. a restored draft)
+      // does not let a remote change silently overwrite a user edit.
+      const mineTouchedUnion = Array.from(new Set([...mineTouched, ...collectChangedBlockIds(baseBlocks, mineNodes)]))
+      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouchedUnion, newCids)
       console.log('[Rebase hook] classification', {
         autoMergeable: classification.autoMergeable,
         conflictedBlockIds: classification.conflictedBlockIds,
         planMineBlocks: Array.from(classification.plan.mineBlocks),
         planTheirsBlocks: Array.from(classification.plan.theirsBlocks),
-        mineTouchedInput: mineTouched,
+        mineTouchedInput: mineTouchedUnion,
         baseBlockIds: baseBlocks.map((n) => n.block?.id),
         mineBlockIds: mineNodes.map((n) => n.block?.id),
         theirsBlockIds: (remoteDoc.content ?? []).map((n) => n.block?.id),
@@ -1177,7 +1181,7 @@ export function useAutoRebase({
           base: summarize(baseMap.get(id)),
           mine: summarize(mineMap.get(id)),
           theirs: summarize(theirsMap.get(id)),
-          mineTouched: mineTouched.includes(id),
+          mineTouched: mineTouchedUnion.includes(id),
           theirsRevisionInNewCids: (() => {
             const rev = (theirsMap.get(id)?.block as any)?.revision
             return typeof rev === 'string' ? newCids.has(rev) : null
@@ -1190,7 +1194,7 @@ export function useAutoRebase({
           newCidsCount: newCids.size,
           newCids: Array.from(newCids),
           remoteVersion: remoteDoc.version,
-          mineTouched,
+          mineTouched: mineTouchedUnion,
           baseBlockIdSet: Array.from(baseMap.keys()),
           mineBlockIdSet: Array.from(mineMap.keys()),
           theirsBlockIdSet: Array.from(theirsMap.keys()),
