@@ -1,5 +1,6 @@
 import {
   BUILTIN_METADATA_KEYS,
+  SCHEMA_BINDING_METADATA_KEYS,
   type HMAccountsMetadata,
   type HMDocumentInfo,
   type HMQueryBlockFilterOptions,
@@ -8,7 +9,11 @@ import {
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, normalizeDate, unpackHmId, type AnyTimestamp} from '@shm/shared'
-import {getQueryBlockRefKey, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
+import {
+  getQueryBlockRefKey,
+  hasQueryAttributeValue,
+  matchesQueryFilterEquality,
+} from '@shm/shared/models/query-block-filter'
 
 /** Primitive presentation types inferred for custom Query table attributes. */
 export type QueryTableAttributeType = 'text' | 'number' | 'boolean' | 'date' | 'list'
@@ -43,8 +48,6 @@ export function getQueryTableAccountIds(value: unknown, context?: QueryTableValu
   })
 }
 
-const RESERVED_METADATA_KEYS = BUILTIN_METADATA_KEYS
-
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   const present = values.filter((value) => value !== null && value !== undefined && value !== '')
@@ -63,10 +66,17 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   return 'text'
 }
 
-/** Builds the stable core columns and discovered metadata columns for Query table rows. */
+/**
+ * Builds the stable core columns and discovered metadata columns for Query table rows.
+ * Metadata columns are the union of: keys present on the items (excluding built-in and
+ * schema-binding keys, and only when at least one item has a non-empty value), keys
+ * already in the filter options, and schema-declared attribute keys (excluding built-in
+ * and binding keys, so a schema's fields show up even before any document sets them).
+ */
 export function buildQueryTableColumns(
   items: HMDocumentInfo[] = [],
   filterOptions?: HMQueryBlockFilterOptions,
+  schemaAttributeKeys: readonly string[] = [],
 ): QueryTableColumn[] {
   const coreColumns: QueryTableColumn[] = [
     {id: 'title', label: 'Name', type: 'text', defaultVisible: true},
@@ -79,12 +89,16 @@ export function buildQueryTableColumns(
     {id: 'created', label: 'Created', type: 'date', defaultVisible: false},
     {id: 'path', label: 'Path', type: 'text', defaultVisible: false},
   ]
+  const isUserAttributeKey = (key: string) => !BUILTIN_METADATA_KEYS.has(key) && !SCHEMA_BINDING_METADATA_KEYS.has(key)
   const metadataKeys = Array.from(
     new Set([
-      ...items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key))),
+      ...Array.from(new Set(items.flatMap((item) => Object.keys(item.metadata)))).filter(
+        (key) => isUserAttributeKey(key) && items.some((item) => hasQueryAttributeValue(item.metadata[key])),
+      ),
       ...Object.keys(filterOptions ?? {})
         .filter((id) => id.startsWith('metadata:'))
         .map((id) => id.slice('metadata:'.length)),
+      ...schemaAttributeKeys.filter(isUserAttributeKey),
     ]),
   ).sort()
 

@@ -227,8 +227,10 @@ import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
 import {useSchemaRegistry} from './schema/schema-registry-cid'
+import {structFields} from '@seed-hypermedia/client/schema-engine'
 import {
   classifyRef,
+  metadataSchemaOf,
   useConformanceSchema,
   useEffectiveDocSchema,
   useParentDraftChildAttributesSchema,
@@ -3415,7 +3417,14 @@ function DocumentBody({
               activeView={activeView}
               collection={
                 isCollection ? (
-                  <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+                  <DocumentCollection
+                    docId={docId}
+                    queryBlock={collectionQueryBlock}
+                    canEdit={canEditCurrentRoute}
+                    childAttributesSchema={
+                      typeof metadata.childAttributesSchema === 'string' ? metadata.childAttributesSchema : undefined
+                    }
+                  />
                 ) : undefined
               }
             >
@@ -4526,16 +4535,24 @@ export function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
+  childAttributesSchema,
 }: {
   docId: UnpackedHypermediaId
   queryBlock: EditorBlock | null
   canEdit: boolean
+  /** Reference (hm:// URL or ipfs CID) to the schema the collection's children conform to. */
+  childAttributesSchema?: string
 }) {
   const {DraftSlot} = useQueryBlockDrafts()
   const client = useUniversalClient()
   const showCollectionControls = useSpaceSettings(docId.uid).showCollectionControls || canEdit
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
+  const {schema, registry} = useResolvedSchema(childAttributesSchema ?? null)
+  const schemaAttributeKeys = useMemo(
+    () => structFields(metadataSchemaOf(schema, registry)).map((field) => field.name),
+    [schema, registry],
+  )
   const props = queryBlock?.type === 'query' ? queryBlock.props : undefined
   const includes = useMemo<HMBlockQuery['attributes']['query']['includes']>(() => {
     try {
@@ -4670,6 +4687,7 @@ export function DocumentCollection({
         filterOptions={query.data?.filterOptions}
         isUpdating={query.isFetching && !query.isLoading}
         viewerQueryApplied={query.data?.totalMatches !== undefined}
+        schemaAttributeKeys={schemaAttributeKeys}
       />
     )
   }

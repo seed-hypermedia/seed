@@ -121,6 +121,25 @@ describe('getQueryBlockFilterOptions', () => {
       }),
     ).toEqual([doc])
   })
+
+  it('omits all-empty keys and schema-binding keys, keeps keys with at least one non-empty value', () => {
+    const options = getQueryBlockFilterOptions([
+      item('One', {
+        Priority: 'High',
+        Assignee: '',
+        Empty: null,
+        Blank: [],
+        attributesSchema: 'hm://hyper.media/example/article',
+        childAttributesSchema: 'hm://hyper.media/example/article',
+      }),
+      item('Two', {Priority: 'Low', Assignee: '', Empty: '', Blank: []}),
+    ])
+    expect(
+      Object.keys(options)
+        .filter((id) => id.startsWith('metadata:'))
+        .sort(),
+    ).toEqual(['metadata:Priority'])
+  })
 })
 
 describe('getQueryBlockRefKey', () => {

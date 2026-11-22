@@ -215,6 +215,44 @@ describe('query block table model', () => {
   })
 })
 
+describe('buildQueryTableColumns schema attribute keys', () => {
+  it('lists schema-declared keys alongside discovered keys, deduped and sorted', () => {
+    const columns = buildQueryTableColumns([item('One', {Status: 'Done'})], undefined, [
+      'Status',
+      'Project',
+      'Depends On',
+    ])
+    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([
+      'Depends On',
+      'Project',
+      'Status',
+    ])
+  })
+
+  it('omits keys empty on every item, keeps keys with one non-empty value, and counts object values', () => {
+    const columns = buildQueryTableColumns([
+      item('One', {Priority: 'High', Assignee: '', Empty: null, Blank: []}),
+      item('Two', {Priority: 'Low', Assignee: '', Empty: '', Blank: []}),
+      item('Three', {Object: {id: 'x'}, Assignee: ''}),
+    ])
+    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual(['Object', 'Priority'])
+  })
+
+  it('never lists schema-binding keys, even when non-empty or passed as schema keys', () => {
+    const columns = buildQueryTableColumns(
+      [
+        item('One', {
+          attributesSchema: 'hm://hyper.media/example/article',
+          childAttributesSchema: 'hm://hyper.media/example/article',
+        }),
+      ],
+      undefined,
+      ['attributesSchema', 'childAttributesSchema'],
+    )
+    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([])
+  })
+})
+
 describe('account reference fallback matching', () => {
   const context = {
     accountsMetadata: {owneruid: {id: hmId('owneruid'), metadata: {name: 'horacio'}}},

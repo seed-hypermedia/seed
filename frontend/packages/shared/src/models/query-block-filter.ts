@@ -1,5 +1,6 @@
 import {
   BUILTIN_METADATA_KEYS,
+  SCHEMA_BINDING_METADATA_KEYS,
   type HMDocumentInfo,
   type HMQueryBlockInput,
   type HMQueryBlockFilterOptions,
@@ -116,6 +117,15 @@ export function matchesQueryFilterEquality(value: unknown, expected: string): bo
   return (Array.isArray(value) ? value : [value]).some((entry) => scalarOption(entry)?.toLocaleLowerCase() === needle)
 }
 
+/**
+ * Whether a metadata value counts as a non-empty attribute for the Query table's
+ * column discovery: present, not the empty string, and not an empty array. An
+ * object value counts (it may carry structured attribute data the table renders).
+ */
+export function hasQueryAttributeValue(value: unknown): boolean {
+  return value != null && value !== '' && !(Array.isArray(value) && value.length === 0)
+}
+
 /** Collects existing filter values and column types from all documents in the collection scope. */
 export function getQueryBlockFilterOptions(
   items: HMDocumentInfo[],
@@ -131,7 +141,12 @@ export function getQueryBlockFilterOptions(
     comments: 'number',
   }
   const metadataKeys = new Set(
-    items.flatMap((item) => Object.keys(item.metadata).filter((key) => !BUILTIN_METADATA_KEYS.has(key))),
+    Array.from(new Set(items.flatMap((item) => Object.keys(item.metadata)))).filter(
+      (key) =>
+        !BUILTIN_METADATA_KEYS.has(key) &&
+        !SCHEMA_BINDING_METADATA_KEYS.has(key) &&
+        items.some((item) => hasQueryAttributeValue(item.metadata[key])),
+    ),
   )
   for (const key of Array.from(metadataKeys)) {
     const present = items.map((item) => item.metadata[key]).filter((value) => value != null && value !== '')
