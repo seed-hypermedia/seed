@@ -40,16 +40,20 @@ export function ActiveFilterChip({
   children,
   onRemove,
   removeLabel,
+  title,
 }: {
   children: ReactNode
   onRemove: () => void
   removeLabel: string
+  /** Full chip text, shown as a native tooltip when the visible text is shortened. */
+  title?: string
 }) {
   return (
     <button
       type="button"
       onClick={onRemove}
       aria-label={removeLabel}
+      title={title}
       className="border-border bg-muted/40 hover:bg-muted inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors"
     >
       {children}
