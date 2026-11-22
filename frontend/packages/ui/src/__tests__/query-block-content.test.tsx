@@ -594,6 +594,34 @@ describe('QueryBlockContent Card attribute layout', () => {
   })
 })
 
+describe('QueryBlockContent Attributes popover saved attribute keys', () => {
+  it('lists saved keys including empty-on-all keys, omits schema-binding keys', () => {
+    const items = makeItems(2)
+    items[0].metadata.Priority = 'High'
+    items[0].metadata.childAttributesSchema = 'hm://hyper.media/example/article'
+    // Assignee is empty on every item
+    items[0].metadata.Assignee = ''
+    items[1].metadata.Assignee = ''
+
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} />
+        </TooltipProvider>,
+      )
+    })
+
+    const attributesButton = container.querySelector('button[aria-label="Attributes"]') as HTMLButtonElement
+    expect(attributesButton).toBeTruthy()
+    act(() => attributesButton.click())
+
+    const popoverText = document.body.textContent ?? ''
+    expect(popoverText).toContain('Priority')
+    expect(popoverText).toContain('Assignee')
+    expect(popoverText).not.toContain('Child Attributes Schema')
+  })
+})
+
 describe('QueryBlockContent list view with prepended draft items', () => {
   it('renders prepended draft items even when no published documents match the query', () => {
     act(() => {

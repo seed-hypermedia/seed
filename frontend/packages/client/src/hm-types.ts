@@ -651,6 +651,9 @@ export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 /** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
 export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
 
+/** Metadata keys that bind a document or its children to an attributes schema: structure, not user attributes. */
+export const SCHEMA_BINDING_METADATA_KEYS: ReadonlySet<string> = new Set(['attributesSchema', 'childAttributesSchema'])
+
 /** User-facing explanations for document attributes understood by Seed. */
 export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   name: 'Document or space title.',
