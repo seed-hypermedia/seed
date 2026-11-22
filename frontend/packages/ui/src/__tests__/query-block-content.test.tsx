@@ -594,8 +594,8 @@ describe('QueryBlockContent Card attribute layout', () => {
   })
 })
 
-describe('QueryBlockContent Attributes popover schema keys', () => {
-  it('lists schema-declared keys and non-empty discovered keys, omits empty and binding keys', () => {
+describe('QueryBlockContent Attributes popover saved attribute keys', () => {
+  it('lists saved keys including empty-on-all keys, omits schema-binding keys', () => {
     const items = makeItems(2)
     items[0].metadata.Priority = 'High'
     items[0].metadata.childAttributesSchema = 'hm://hyper.media/example/article'
@@ -606,7 +606,7 @@ describe('QueryBlockContent Attributes popover schema keys', () => {
     act(() => {
       root.render(
         <TooltipProvider>
-          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} schemaAttributeKeys={['Depends On']} />
+          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} />
         </TooltipProvider>,
       )
     })
@@ -616,9 +616,8 @@ describe('QueryBlockContent Attributes popover schema keys', () => {
     act(() => attributesButton.click())
 
     const popoverText = document.body.textContent ?? ''
-    expect(popoverText).toContain('Depends On')
     expect(popoverText).toContain('Priority')
-    expect(popoverText).not.toContain('Assignee')
+    expect(popoverText).toContain('Assignee')
     expect(popoverText).not.toContain('Child Attributes Schema')
   })
 })

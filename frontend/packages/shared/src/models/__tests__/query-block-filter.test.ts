@@ -122,7 +122,7 @@ describe('getQueryBlockFilterOptions', () => {
     ).toEqual([doc])
   })
 
-  it('omits all-empty keys and schema-binding keys, keeps keys with at least one non-empty value', () => {
+  it('keeps all-empty keys and omits schema-binding keys', () => {
     const options = getQueryBlockFilterOptions([
       item('One', {
         Priority: 'High',
@@ -138,7 +138,7 @@ describe('getQueryBlockFilterOptions', () => {
       Object.keys(options)
         .filter((id) => id.startsWith('metadata:'))
         .sort(),
-    ).toEqual(['metadata:Priority'])
+    ).toEqual(['metadata:Assignee', 'metadata:Blank', 'metadata:Empty', 'metadata:Priority'])
   })
 })
 

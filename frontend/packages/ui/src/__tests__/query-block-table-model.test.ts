@@ -215,30 +215,22 @@ describe('query block table model', () => {
   })
 })
 
-describe('buildQueryTableColumns schema attribute keys', () => {
-  it('lists schema-declared keys alongside discovered keys, deduped and sorted', () => {
-    const columns = buildQueryTableColumns([item('One', {Status: 'Done'})], undefined, [
-      'Status',
-      'Project',
-      'Depends On',
-    ])
-    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([
-      'Depends On',
-      'Project',
-      'Status',
-    ])
-  })
-
-  it('omits keys empty on every item, keeps keys with one non-empty value, and counts object values', () => {
+describe('buildQueryTableColumns attribute key discovery', () => {
+  it('lists keys saved on any item, including keys empty on every item', () => {
     const columns = buildQueryTableColumns([
       item('One', {Priority: 'High', Assignee: '', Empty: null, Blank: []}),
       item('Two', {Priority: 'Low', Assignee: '', Empty: '', Blank: []}),
       item('Three', {Object: {id: 'x'}, Assignee: ''}),
     ])
-    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual(['Object', 'Priority'])
+    expect(
+      columns
+        .filter((c) => c.id.startsWith('metadata:'))
+        .map((c) => c.label)
+        .sort(),
+    ).toEqual(['Assignee', 'Blank', 'Empty', 'Object', 'Priority'].sort())
   })
 
-  it('never lists schema-binding keys, even when non-empty or passed as schema keys', () => {
+  it('never lists schema-binding keys, whether they come from items or from filterOptions metadata keys', () => {
     const columns = buildQueryTableColumns(
       [
         item('One', {
@@ -246,8 +238,10 @@ describe('buildQueryTableColumns schema attribute keys', () => {
           childAttributesSchema: 'hm://hyper.media/example/article',
         }),
       ],
-      undefined,
-      ['attributesSchema', 'childAttributesSchema'],
+      {
+        'metadata:attributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+        'metadata:childAttributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+      },
     )
     expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([])
   })

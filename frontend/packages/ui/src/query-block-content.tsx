@@ -157,8 +157,6 @@ export interface QueryBlockContentProps {
   filterOptions?: HMQueryBlockFilterOptions
   isUpdating?: boolean
   viewerQueryApplied?: boolean
-  /** Attribute keys declared by the collection's children schema, listed even when no document sets them yet. */
-  schemaAttributeKeys?: string[]
 }
 
 /** Renders collection controls and results while retaining viewer state across view changes. */
@@ -192,15 +190,14 @@ export function QueryBlockContent({
   filterOptions,
   isUpdating,
   viewerQueryApplied = true,
-  schemaAttributeKeys,
 }: QueryBlockContentProps) {
   const availableFilterOptions = useMemo(
     () => filterOptions ?? getQueryBlockFilterOptions(items),
     [filterOptions, items],
   )
   const descriptors = useMemo(
-    () => buildQueryTableColumns(items, availableFilterOptions, schemaAttributeKeys ?? []),
-    [items, availableFilterOptions, schemaAttributeKeys],
+    () => buildQueryTableColumns(items, availableFilterOptions),
+    [items, availableFilterOptions],
   )
 
   const citationSummaries = useInteractionSummaries(items.map((item) => item.id))
