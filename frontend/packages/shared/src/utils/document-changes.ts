@@ -585,6 +585,33 @@ export type RebaseClassification = {
 }
 
 /**
+ * Collect ids of blocks present in both trees whose block differs by `isBlocksEqual`.
+ *
+ * `isBlocksEqual` already normalizes editor defaults (e.g. `childrenType: 'Group'`
+ * on childless media/embed blocks), so an untouched image written outside the
+ * editor does not count as a change. These are the edits a publish diff would
+ * write, so a rebase must treat them as the user's even when persisted touch
+ * tracking (`mineTouchedIds`) missed them — for example a draft restored from
+ * disk whose touch list was incomplete.
+ */
+export function collectChangedBlockIds(base: HMBlockNode[], mine: HMBlockNode[]): string[] {
+  const baseMap = flattenBlocks(base)
+  const changed: string[] = []
+  const walk = (ns: HMBlockNode[]) => {
+    for (const n of ns) {
+      const id = n.block?.id
+      if (id) {
+        const baseBlock = baseMap.get(id)
+        if (baseBlock && !isBlocksEqual(baseBlock, n.block)) changed.push(id)
+      }
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(mine)
+  return changed
+}
+
+/**
  * Classify a rebase given three-way knowledge.
  *
  * - `base`: published blocks at edit-start time.

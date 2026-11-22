@@ -1,6 +1,6 @@
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {applyRebasePlan, classifyRebase, computeTheirsTouches} from './document-changes'
+import {applyRebasePlan, classifyRebase, collectChangedBlockIds, computeTheirsTouches} from './document-changes'
 
 type BlockOverrides = {
   id: string
@@ -407,5 +407,82 @@ describe('applyRebasePlan', () => {
       conflictedBlockIds: [],
     })
     expect((merged[0]?.children?.[0]?.block as any)?.text).toBe('mine child')
+  })
+})
+
+describe('collectChangedBlockIds', () => {
+  it('returns the id of an edited paragraph and ignores an unchanged image lacking childrenType', () => {
+    const base: HMBlockNode[] = [
+      node({id: 'p1', text: 'Intro'}),
+      // Image block written outside the editor: no childrenType attribute.
+      {
+        block: {type: 'Image', id: 'img1', link: 'ipfs://old', attributes: {}} as HMBlockNode['block'],
+        children: [],
+      },
+    ]
+    const mine: HMBlockNode[] = [
+      node({id: 'p1', text: 'Intro mine'}),
+      // Editor-reported image: childrenType defaults to 'Group', which
+      // isBlocksEqual treats as equal to the base's missing childrenType.
+      {
+        block: {
+          type: 'Image',
+          id: 'img1',
+          link: 'ipfs://old',
+          attributes: {childrenType: 'Group'},
+        } as HMBlockNode['block'],
+        children: [],
+      },
+    ]
+    expect(collectChangedBlockIds(base, mine)).toEqual(['p1'])
+  })
+
+  it('ignores ids present on only one side', () => {
+    const base: HMBlockNode[] = [node({id: 'onlyBase', text: 'x'})]
+    const mine: HMBlockNode[] = [node({id: 'onlyMine', text: 'x'})]
+    expect(collectChangedBlockIds(base, mine)).toEqual([])
+  })
+})
+
+describe('issue scenario: stale draft with incomplete mineTouched', () => {
+  it('auto-merges a remote image change with a local paragraph edit when mineTouched missed the paragraph', () => {
+    const base: HMBlockNode[] = [
+      node({id: 'p1', text: 'Intro', revision: 'r0'}),
+      {
+        block: {type: 'Image', id: 'img1', link: 'ipfs://old', attributes: {}, revision: 'r0'} as HMBlockNode['block'],
+        children: [],
+      },
+    ]
+    const theirs: HMBlockNode[] = [
+      node({id: 'p1', text: 'Intro', revision: 'r0'}),
+      {
+        block: {type: 'Image', id: 'img1', link: 'ipfs://new', attributes: {}, revision: 'r1'} as HMBlockNode['block'],
+        children: [],
+      },
+    ]
+    const mine: HMBlockNode[] = [
+      node({id: 'p1', text: 'Intro mine'}),
+      {
+        block: {
+          type: 'Image',
+          id: 'img1',
+          link: 'ipfs://old',
+          attributes: {childrenType: 'Group'},
+        } as HMBlockNode['block'],
+        children: [],
+      },
+    ]
+    // Persisted touch tracking missed the paragraph edit.
+    const persistedMineTouched: string[] = []
+    const newCids = new Set(['r1'])
+    const union = [...new Set([...persistedMineTouched, ...collectChangedBlockIds(base, mine)])]
+    const result = classifyRebase(base, mine, theirs, union, newCids)
+    expect(result.autoMergeable).toBe(true)
+    expect(result.conflictedBlockIds).toEqual([])
+    const merged = applyRebasePlan(mine, theirs, result.plan, {})
+    const p1 = merged.find((n) => n.block?.id === 'p1')
+    const img1 = merged.find((n) => n.block?.id === 'img1')
+    expect((p1?.block as any)?.text).toBe('Intro mine')
+    expect((img1?.block as any)?.link).toBe('ipfs://new')
   })
 })
