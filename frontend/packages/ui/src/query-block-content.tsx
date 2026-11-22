@@ -779,14 +779,16 @@ function FilterPopover({
                 const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
                 const condition =
                   filter.operator === 'equals' ? 'IS' : filter.operator === 'notEquals' ? 'IS NOT' : filter.operator
-                const text = `${label} ${condition} ${filter.value}`
+                const value = filterOptions[filter.columnId]?.labels?.[filter.value] ?? filter.value
+                const text = `${label} ${condition} ${value}`
                 return (
                   <ActiveFilterChip
                     key={`${filter.columnId}:${index}`}
                     removeLabel={`Remove filter: ${text}`}
+                    title={text}
                     onRemove={() => setFilters(filters.filter((_, filterIndex) => filterIndex !== index))}
                   >
-                    {text}
+                    {`${label} ${condition} ${truncateFilterValue(value)}`}
                   </ActiveFilterChip>
                 )
               })}
@@ -916,6 +918,12 @@ function FilterPopover({
       </PopoverContent>
     </Popover>
   )
+}
+
+const MAX_FILTER_PILL_VALUE_LENGTH = 18
+
+function truncateFilterValue(value: string) {
+  return value.length > MAX_FILTER_PILL_VALUE_LENGTH ? `${value.slice(0, MAX_FILTER_PILL_VALUE_LENGTH - 1)}…` : value
 }
 
 function FilterValuePicker({
