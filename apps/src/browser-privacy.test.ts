@@ -130,10 +130,10 @@ test('journal-only browser calls redact later journal pages and workflow source 
   expect(JSON.stringify(privacy.forViewer(run, 'reader'))).not.toContain('private page')
 })
 
-test('cross-thread reads propagate privacy and canonical private-memory aliases are recognized', () => {
+test('cross-thread reads propagate privacy', () => {
   db.run('INSERT INTO session_events VALUES (?, 1, ?)', [
     'browser-session',
-    cbor.encode({type: 'tool_call', name: 'read', input: {address: '~/memory//./private/browser/archive.md'}}),
+    cbor.encode({type: 'tool_call', name: 'browser', input: {action: 'snapshot'}}),
   ])
   db.run('INSERT INTO session_events VALUES (?, 1, ?)', [
     'other',
@@ -166,7 +166,11 @@ test('ordinary prose and unrelated paths do not make a session private', () => {
   expect(containsPrivateData({name: 'search', input: {path: 'private/file.md'}})).toBe(false)
   expect(containsPrivateData({path: 'private/file.md'})).toBe(false)
   expect(containsPrivateData({name: 'write', input: {path: 'private-notes.md'}})).toBe(false)
-  // Reading a public document that documents the private-memory path (the Agent Guide does).
+  // Memory has no private area, and a tool's output naming the browser is not a browser call.
+  for (const address of ['~/memory/private/file.md', '~/memory//./private/browser/archive.md'])
+    expect(containsPrivateData({type: 'tool_call', name: 'read', input: {address}})).toBe(false)
+  expect(containsPrivateData('Read ~/memory/private/browser/archive.md')).toBe(false)
+  expect(containsPrivateData({type: 'tool_result', name: 'read', output: {tools: [{name: 'browser'}]}})).toBe(false)
   expect(
     containsPrivateData({
       type: 'tool_result',
@@ -182,21 +186,12 @@ test('ordinary prose and unrelated paths do not make a session private', () => {
   expect(privacy.forViewer(frame, 'reader')).toEqual(frame)
 })
 
-test('browser tools and structured memory paths are private, including nested call envelopes', () => {
+test('browser tools are private, including nested call envelopes', () => {
   for (const value of [
     {type: 'tool_call', name: 'browser', input: {action: 'snapshot'}},
     {type: 'tool_result', name: 'browser', output: 'page'},
     {kind: 'call', tool: 'browser', input: {action: 'snapshot'}},
-    {name: 'read', input: {address: '~/memory/private/file.md'}},
-    {name: 'memory_read', input: {path: 'private/file.md'}},
-    {name: 'memory_write', input: {path: './private/file.md'}},
-    {name: 'publish', input: {path: '/private/file.md'}},
-    {name: 'write', input: {address: 'ipfs://', options: {fromPath: 'private/file.md'}}},
-    {name: 'call', input: {tool: 'memory_publish_document', input: {path: 'private/file.md'}}},
-    {kind: 'call', tool: 'read', input: {path: 'private'}},
-    {name: 'memory', args: {path: 'private/file.md'}},
-    'Read [capture](~/memory/private/browser/archive.md)',
-    'Read ~/memory//./private/browser/archive.md',
+    {name: 'call', input: {tool: 'browser', input: {action: 'snapshot'}}},
   ])
     expect(containsPrivateData(value)).toBe(true)
 })
@@ -221,7 +216,7 @@ test('negative session and journal caches scan new sequences and propagate late 
   ])
   db.run('INSERT INTO run_journal VALUES (?, 1, ?)', [
     'root',
-    cbor.encode({kind: 'call', tool: 'memory_read', input: {path: 'private/file.md'}}),
+    cbor.encode({kind: 'call', tool: 'browser', input: {action: 'snapshot'}}),
   ])
   for (const id of ['other', 'child', 'successor']) expect(privacy.sessionIsPrivate(id)).toBe(true)
   expect(privacy.runIsPrivate('workflow')).toBe(true)
@@ -240,7 +235,7 @@ test('appended private events and journal entries are marked before any history 
       sessionId: 'other',
       seq: 1,
       createdAt: 1,
-      event: {type: 'tool_call', name: 'read', input: {path: 'private/file.md'}},
+      event: {type: 'tool_call', name: 'browser', input: {action: 'snapshot'}},
     })
     privacy.recordRunEntry({
       runId: 'workflow',

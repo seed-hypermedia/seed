@@ -41,8 +41,8 @@ Discover the tool with `read ~/tools/browser`, then invoke `call` with `tool: "b
 - `navigate` opens an HTTP(S) URL on an allowed website, or asks the user first. Agents cannot open Seed links; the user
   opens those. A plain `http://` address is tried over https first, like every navigation in the pane; when only
   unencrypted http answers, the command is refused and the pane shows the user the warning, which only they can accept.
-- `archive` creates an editable desktop draft and saves a Markdown copy in the owner-only `~/memory/private/browser/`
-  folder. Images are fetched once and stored locally, so the draft never loads the source site.
+- `archive` creates an editable desktop draft and saves nothing to agent memory. Images are fetched once and stored
+  locally, so the draft never loads the source site.
 
 The panel’s **Browser activity** disclosure shows the last 20 commands with time, action, origin and `ok`/`refused`
 outcome. **Copy log** copies the complete in-memory list for that panel session. It includes no page content, typed
@@ -58,8 +58,6 @@ Browser results stay with the owner:
 
 - Session transcripts, run journals, WebSocket updates, continuation handoffs and search show readers a fixed stub in
   place of browser calls and anything derived from them. The owner and the owner's own turns see the full content.
-- `private/` in agent memory is owner-only in every memory API and verb, and it is kept outside the shared code sandbox
-  mount. Existing `memory/private/` folders and old `browser/archive-*.md` captures move there on startup.
 - The assistant message context only names the website (origin and path, no query or fragment) while access is
   connected. Otherwise it says a website is open without naming it.
 

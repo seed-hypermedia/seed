@@ -13,11 +13,10 @@ The tool has two operations: `convert` (the default) and `postprocess_seed`. The
 
 # Credential boundary <!-- id:M_qNC5VE -->
 
-Conversion needs the requester's Datalab API key. The caller puts the key in a **private memory file** and passes its path as `api_key_file`. Never show or publish the key. <!-- id:PWyNZkXB -->
+Conversion needs the requester's Datalab API key. The caller puts the key in a memory file and passes its path as `api_key_file`. Anyone the agent is shared with can read memory, so do this only on an agent that is not shared, and delete the file when the conversion is done. Never show or publish the key. <!-- id:PWyNZkXB -->
 
 - `postprocess_seed` does not call Datalab and needs no key.
 - When the requester chooses local or simple recognition, do not ask for a Datalab key.
-- `private/` [memory](./memory.md) can only be read in a run the owner started. A [trigger](../trigger.md) firing cannot read a key stored there.
 
 # Convert invocation <!-- id:FbOXgBsr -->
 
@@ -25,7 +24,7 @@ Conversion needs the requester's Datalab API key. The caller puts the key in a *
 {
   "operation": "convert",
   "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "private/datalab-api-key",
+  "api_key_file": "datalab-api-key",
   "output_dir": "datalab-imports",
   "prepare_seed": true,
   "render_complete_figures": true,
@@ -73,7 +72,7 @@ Example: <!-- id:WT3764Hp -->
 ```json <!-- id:GcQqlUoW -->
 {
   "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "private/datalab-api-key",
+  "api_key_file": "datalab-api-key",
   "structured_fields": ["title", "authors", "publication_year"],
   "extraction_mode": "accurate"
 }

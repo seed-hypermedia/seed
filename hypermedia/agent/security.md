@@ -186,7 +186,7 @@ Mitigations present: <!-- id:bz47yFmI -->
 # Agent memory safety <!-- id:lSwfN2YZ -->
 
 Agent [memory](./memory.md) exposes a real filesystem directory to model-controlled input, so path handling is strict: <!-- id:APChYsrg -->
-  - every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth (16) and length (512 bytes) bounded, and the resolved absolute path re-verified to sit inside `<stateDir>/memory`, or inside `<stateDir>/private-memory` for `~/memory/private/`; <!-- id:dC2437Id -->
+  - every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth (16) and length (512 bytes) bounded, and the resolved absolute path re-verified to sit inside `<stateDir>/memory`; <!-- id:dC2437Id -->
   - symlinks are refused as read and write targets and skipped in listings, so memory operations cannot follow a planted link out of the sandbox; <!-- id:jjO2uEQq -->
   - ownership is checked through the agent row before any filesystem operation, so accounts cannot touch other accounts' memory; <!-- id:s6XqDvic -->
   - binary memory files are never sent to the model: a memory read returns only metadata for binary content. Their raw bytes are returned to the owning user over the signed API for preview and download; <!-- id:mVO90UmT -->
@@ -201,7 +201,7 @@ Agent [memory](./memory.md) exposes a real filesystem directory to model-control
 
 [`execute`](./code-execution.md) runs model-written code, so isolation comes from hardware virtualization. Process sandboxing is not used: <!-- id:VPSYqRA7 -->
   - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_APPS_EXEC_WARM_POOL=1`), one reused only for the same account, agent, session and image; no VM is ever shared across those. The VM runs on the embedded `microsandbox` runtime (libkrun on macOS and Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
-  - the only part of the host's file system that code can see is the agent's own memory directory, without `~/memory/private/`, mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
+  - the only part of the host's file system that code can see is the agent's own memory directory, mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
   - guest-created symlinks inside the memory directory cannot trick host-side reads. Memory reads refuse symlinks and listings skip them; <!-- id:-VQDLseP -->
   - nothing is interpreted by a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so model code containing quotes, newlines, or `$` needs no escaping; <!-- id:oxwzfHCg -->
   - sandbox networking is on by default but constrained to a **non-local egress policy**. Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_APPS_EXEC_DNS`) and never the host's. `SEED_APPS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
@@ -230,7 +230,7 @@ Several rules keep the log from quietly disagreeing with what really happened. T
 
 Diagnostic logs carry ids (account, agent, session, run, partial), event counts, byte lengths, status codes, content types, durations, the names of active tools, and the model and provider. They never carry plaintext secrets, decrypted keys, provider secret config, signed request bodies, full prompts, or large tool outputs.
 
-One thing is not a log line but lands in the same place. While a model writes a reply, the server also writes the reply text to standard output. So the output of the server process holds the text of replies. The server does not do this for a session that used the browser or [private memory](./memory.md#private-memory). An operator who keeps the server's output keeps that text too. See [logs](../operate/logs.md).
+One thing is not a log line but lands in the same place. While a model writes a reply, the server also writes the reply text to standard output. So the output of the server process holds the text of replies. The server does not do this for a session that used the browser. An operator who keeps the server's output keeps that text too. See [logs](../operate/logs.md).
 
 # See also <!-- id:zMjUwvqz -->
 

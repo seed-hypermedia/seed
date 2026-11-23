@@ -1,48 +1,22 @@
 /**
  * Per-agent persistent memory filesystem.
  *
- * Every agent owns a private directory at `<stateDir>/memory`. Agent sessions read and write it
+ * Every agent owns a directory at `<stateDir>/memory`. Agent sessions read and write it
  * through the `memory_*` tools, and users get full read/write access through the signed
  * `*AgentMemory*` actions rendered in the desktop Memory tab. All paths are relative to the memory
- * namespace and are strictly sandboxed: no `..` traversal or symlink targets. The reserved
- * `private/` namespace is owner-only and stored at `<stateDir>/private-memory`, outside the shared
- * directory mounted into code sandboxes. Owners access it through the memory APIs and verbs.
+ * namespace and are strictly sandboxed: no `..` traversal or symlink targets. One access rule
+ * covers the whole tree: readers of the agent can read it and writers can change it.
  *
  * Files can be UTF-8 text (editable in the Memory tab, readable by the model) or binary (media and
  * other downloads, previewable/downloadable in the Memory tab and publishable to IPFS for use in
  * Hypermedia content).
  */
 
-import * as asyncHooks from 'node:async_hooks'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-const ownerAccess = new asyncHooks.AsyncLocalStorage<boolean>()
-
-/** Scopes memory access to the authenticated owner, including asynchronous tool calls. */
-export function withOwnerAccess<T>(owner: boolean, run: () => T): T {
-  return ownerAccess.run(owner, run)
-}
-
-/**
- * Whether the current request or run may access owner-only memory. Closed by default: code that
- * runs outside an explicit `withOwnerAccess(true, …)` scope (a signed action from the agent owner,
- * an interactive run they started) sees reader memory only.
- */
-export function hasOwnerAccess(): boolean {
-  return ownerAccess.getStore() === true
-}
-
-/** Identifies a canonical path in the owner-only memory area. */
-export function isPrivatePath(relativePath: string): boolean {
-  return relativePath === 'private' || relativePath.startsWith('private/')
-}
-
 /** Name of the memory directory inside an agent's state directory. */
 export const MEMORY_DIR_NAME = 'memory'
-
-/** Owner-only storage, deliberately outside the memory mount used by code sandboxes. */
-export const PRIVATE_MEMORY_DIR_NAME = 'private-memory'
 
 /** Maximum length of a normalized relative memory path in bytes. */
 export const MAX_MEMORY_PATH_BYTES = 512
@@ -154,37 +128,6 @@ export function memoryRootPath(stateDir: string): string {
   return path.join(stateDir, MEMORY_DIR_NAME)
 }
 
-/** Moves pre-upgrade private files and browser archives out of the shared sandbox mount. */
-export function migratePrivateMemory(stateDir: string): void {
-  assertNoSymlinkComponents(stateDir, '')
-  assertNoSymlinkComponents(stateDir, 'private')
-  const sharedRoot = memoryRootPath(stateDir)
-  const privateRoot = path.join(stateDir, PRIVATE_MEMORY_DIR_NAME)
-  const legacyPrivate = path.join(sharedRoot, 'private')
-  const legacyStat = lstatOrNull(legacyPrivate)
-  if (legacyStat) {
-    if (!lstatOrNull(privateRoot) && legacyStat.isDirectory()) fs.renameSync(legacyPrivate, privateRoot)
-    else {
-      fs.mkdirSync(privateRoot, {recursive: true})
-      fs.renameSync(legacyPrivate, path.join(privateRoot, `legacy-${crypto.randomUUID()}`))
-    }
-  }
-  const browserRoot = path.join(sharedRoot, 'browser')
-  if (!lstatOrNull(browserRoot)?.isDirectory()) return
-  assertNoSymlinkComponents(stateDir, 'private/browser')
-  for (const name of fs.readdirSync(browserRoot)) {
-    if (!/^archive-[a-zA-Z0-9-]+\.md$/.test(name)) continue
-    const source = path.join(browserRoot, name)
-    if (!lstatOrNull(source)?.isFile()) continue
-    const destination = path.join(privateRoot, 'browser', name)
-    fs.mkdirSync(path.dirname(destination), {recursive: true})
-    fs.renameSync(
-      source,
-      lstatOrNull(destination) ? path.join(privateRoot, 'browser', `archive-${crypto.randomUUID()}.md`) : destination,
-    )
-  }
-}
-
 /**
  * Validates a user- or model-supplied relative path and resolves it inside the memory root.
  * Returns the normalized relative path (always `/`-separated) and the absolute filesystem path.
@@ -202,24 +145,22 @@ export function resolveMemoryPath(stateDir: string, rawPath: unknown): {relPath:
     if (segment === '..') throw new AgentMemoryError(400, 'Memory path cannot contain ".."')
   }
   const relPath = segments.join('/')
-  if (isPrivatePath(relPath) && !hasOwnerAccess())
-    throw new AgentMemoryError(403, 'Only the agent owner can access private/ memory')
   if (new TextEncoder().encode(relPath).byteLength > MAX_MEMORY_PATH_BYTES) {
     throw new AgentMemoryError(400, 'Memory path is too long')
   }
-  const root = isPrivatePath(relPath) ? path.join(stateDir, PRIVATE_MEMORY_DIR_NAME) : memoryRootPath(stateDir)
-  const absPath = path.join(root, ...(isPrivatePath(relPath) ? segments.slice(1) : segments))
+  const root = memoryRootPath(stateDir)
+  const absPath = path.join(root, ...segments)
   const relative = path.relative(root, absPath)
-  if ((!relative && relPath !== 'private') || relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new AgentMemoryError(400, 'Memory path escapes the memory directory')
   }
   return {relPath, absPath}
 }
 
 function assertNoSymlinkComponents(stateDir: string, relPath: string): void {
-  let current = isPrivatePath(relPath) ? path.join(stateDir, PRIVATE_MEMORY_DIR_NAME) : memoryRootPath(stateDir)
+  let current = memoryRootPath(stateDir)
   const segments = relPath.split('/').filter(Boolean)
-  for (const segment of ['', ...(isPrivatePath(relPath) ? segments.slice(1) : segments)]) {
+  for (const segment of ['', ...segments]) {
     if (segment) current = path.join(current, segment)
     const stat = lstatOrNull(current)
     if (!stat) return
@@ -267,7 +208,6 @@ export function listMemory(
         return
       }
       const rel = dirRel ? `${dirRel}/${dirent.name}` : dirent.name
-      if (!dirRel && dirent.name === 'private') continue
       const abs = path.join(dirAbs, dirent.name)
       if (dirent.isSymbolicLink()) continue
       if (dirent.isDirectory()) {
@@ -288,16 +228,6 @@ export function listMemory(
     }
   }
   walk(root, '', 1)
-  const privateRoot = path.join(stateDir, PRIVATE_MEMORY_DIR_NAME)
-  const privateStat = hasOwnerAccess() ? lstatOrNull(privateRoot) : null
-  if (privateStat?.isDirectory()) {
-    if (entries.length >= maxEntries) truncated = true
-    else {
-      entries.push({path: 'private', type: 'dir', size: 0, updatedAt: Math.round(privateStat.mtimeMs)})
-      if (maxDepth > 1) walk(privateRoot, 'private', 2)
-      else truncated = true
-    }
-  }
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   return {entries, totalBytes, truncated}
 }
@@ -333,7 +263,6 @@ export async function listMemoryAsync(
         return
       }
       const rel = dirRel ? `${dirRel}/${dirent.name}` : dirent.name
-      if (!dirRel && dirent.name === 'private') continue
       const abs = path.join(dirAbs, dirent.name)
       if (dirent.isSymbolicLink()) continue
       if (dirent.isDirectory()) {
@@ -354,16 +283,6 @@ export async function listMemoryAsync(
     }
   }
   await walk(root, '', 1)
-  const privateRoot = path.join(stateDir, PRIVATE_MEMORY_DIR_NAME)
-  const privateStat = hasOwnerAccess() ? lstatOrNull(privateRoot) : null
-  if (privateStat?.isDirectory()) {
-    if (entries.length >= maxEntries) truncated = true
-    else {
-      entries.push({path: 'private', type: 'dir', size: 0, updatedAt: Math.round(privateStat.mtimeMs)})
-      if (maxDepth > 1) await walk(privateRoot, 'private', 2)
-      else truncated = true
-    }
-  }
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   return {entries, totalBytes, truncated}
 }
@@ -398,7 +317,6 @@ export function listMemoryDir(
   for (const dirent of names) {
     if (dirent.isSymbolicLink()) continue
     const rel = relPath ? `${relPath}/${dirent.name}` : dirent.name
-    if (!relPath && dirent.name === 'private') continue
     const abs = path.join(absPath, dirent.name)
     const stat = statOrNull(abs)
     if (!stat) continue
@@ -412,18 +330,6 @@ export function listMemoryDir(
       totalBytes += stat.size
       entries.push(fileEntry(rel, stat))
     }
-  }
-  if (atRoot && hasOwnerAccess()) {
-    const privateRoot = path.join(stateDir, PRIVATE_MEMORY_DIR_NAME)
-    const stat = lstatOrNull(privateRoot)
-    if (stat?.isDirectory())
-      entries.push({
-        path: 'private',
-        type: 'dir',
-        size: 0,
-        updatedAt: Math.round(stat.mtimeMs),
-        entryCount: fs.readdirSync(privateRoot).length,
-      })
   }
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   return {path: relPath, entries, totalBytes}

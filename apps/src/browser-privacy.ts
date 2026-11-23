@@ -1,38 +1,37 @@
+import {AsyncLocalStorage} from 'node:async_hooks'
 import type {Database} from 'bun:sqlite'
 import type * as api from '@seed-hypermedia/apps-protocol'
 import * as cbor from '@/cbor'
 import {stmt} from '@/statements'
+
+const ownerAccess = new AsyncLocalStorage<boolean>()
+
+/** Scopes a request or run to the agent's owner, including its asynchronous tool calls. */
+export function withOwnerAccess<T>(owner: boolean, run: () => T): T {
+  return ownerAccess.run(owner, run)
+}
+
+/**
+ * Whether the current request or run may see browser transcripts unredacted. Closed by default:
+ * only a signed action from the agent owner, or an interactive run they started, opens it.
+ */
+export function hasOwnerAccess(): boolean {
+  return ownerAccess.getStore() === true
+}
 
 /** Safe replacement for browser data; summaries never come from the page or the model. */
 export function privateStub(action = 'browser'): Record<string, unknown> {
   return {redacted: true, action, summary: 'Private content is only available to the agent owner'}
 }
 
-/** Recognizes browser calls and private-memory references, including call envelopes and journals. */
+/** Recognizes browser calls, including call envelopes and journals. */
 export function containsPrivateData(value: unknown): boolean {
-  // Plain prose about privacy is not a memory reference. Explicit memory addresses are, even
-  // when embedded in markdown or workflow source. Match the aliases accepted at the memory boundary.
-  if (typeof value === 'string') return /~[\\/]memory[\\/](?:[\\/]|\.[\\/])*private(?:[\\/]|$)/.test(value)
   if (!value || typeof value !== 'object' || value instanceof Uint8Array) return false
   const record = value as Record<string, unknown>
   const tools = [record.name, record.tool, record.toolName]
   if (tools.includes('browser')) return true
-  if (
-    tools.some((tool) => typeof tool === 'string' && /^(?:memory(?:_.*)?|read|write|publish|ipfs_write)$/.test(tool))
-  ) {
-    const privatePath = (input: unknown): boolean => {
-      if (!input || typeof input !== 'object' || input instanceof Uint8Array) return false
-      return Object.entries(input).some(([key, field]) => {
-        if (['path', 'address', 'fromPath', 'memoryPath', 'toPath'].includes(key) && typeof field === 'string')
-          return /^(?:~[\\/]memory[\\/])?(?:[\\/]|\.[\\/])*private(?:[\\/]|$)/.test(field)
-        return (key === 'options' || key === 'input') && privatePath(field)
-      })
-    }
-    if (privatePath(record.input) || privatePath(record.args)) return true
-  }
-  // A tool's output is what it fetched, not what the transcript referenced: a public document that
-  // mentions `~/memory/private/` (the Agent Guide does) is not private data. A private read is
-  // caught at its call above, and browser output by its tool name.
+  // A tool's output is what it fetched, not a call it made: a tool listing that names `browser` is
+  // not browser data. Browser output is caught above by its own tool name.
   const isToolRecord = tools.some((tool) => typeof tool === 'string')
   return Object.entries(record).some(
     ([key, field]) => !(isToolRecord && key === 'output') && containsPrivateData(field),
@@ -80,7 +79,7 @@ export type BrowserPrivacyOptions = {
 }
 
 /**
- * Reader projection of browser-bearing transcripts. Once a transcript contains private data,
+ * Reader projection of browser-bearing transcripts. Once a transcript contains browser data,
  * model-authored text, tool calls, plans and handoffs may quote it too. Hide those derivatives as
  * well as the original call. This never changes the durable log or the owner's model context.
  *
@@ -159,17 +158,14 @@ export class BrowserPrivacy {
         session_id: string | null
         parent_run_id: string | null
         input_cbor: Uint8Array | null
-        source_text: string | null
       },
       [string]
-    >(this.db, 'SELECT session_id, parent_run_id, input_cbor, source_text FROM runs WHERE id = ?').get(runId)
+    >(this.db, 'SELECT session_id, parent_run_id, input_cbor FROM runs WHERE id = ?').get(runId)
     if (!run) return undefined
     const state = emptyScan()
     if (run.session_id) state.sessions.add(run.session_id)
     if (run.parent_run_id) state.runs.add(run.parent_run_id)
-    state.private =
-      containsPrivateData(run.source_text) ||
-      Boolean(run.input_cbor && containsPrivateData(cbor.decode(run.input_cbor)))
+    state.private = Boolean(run.input_cbor && containsPrivateData(cbor.decode(run.input_cbor)))
     return state
   }
 

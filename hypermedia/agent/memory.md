@@ -1,12 +1,14 @@
 ---
 name: Memory
-summary: An agent's memory is its own tree of files, read and written with the verbs, mounted into the code sandbox as /workspace, and open to the people the agent is shared with except for its private folder.
+summary: An agent's memory is its own tree of files, read and written with the verbs, mounted into the code sandbox as /workspace, and open to the people the agent is shared with.
 ---
-An [agent](../agent.md)'s **memory** is its own file tree, `~/memory/` in its [Space](./space.md). It belongs to one agent, and all of that agent's [sessions](./session.md) share it. An agent keeps notes, drafts and code there, for example `~/memory/notes/topic.md`. Anyone the agent is shared with can browse it on the Memory tab of the [app](./in-the-app.md), except `~/memory/private/`, which only the owner can reach.
+An [agent](../agent.md)'s **memory** is its own file tree, `~/memory/` in its [Space](./space.md). It belongs to one agent, and all of that agent's [sessions](./session.md) share it. An agent keeps notes, drafts and code there, for example `~/memory/notes/topic.md`. Anyone the agent is shared with can read it on the Memory tab of the [app](./in-the-app.md), and anyone with write access can change it.
+
+Do not keep passwords, API keys or other secrets in memory. Declare a key an [app tool](../tool.md) needs in the app's private config instead.
 
 Memory is a directory on the [app environment](../software/app-environment.md), the server that runs the agent. Files are UTF-8 text or binary. The agent reaches memory with [read](./read.md) and [write](./write.md). Code run by [execute](./code-execution.md) sees it as `/workspace`.
 
-This page says how memory is read and written, what the `private/` part is, and what is unsafe to keep there.
+This page says how memory is read and written, and what is unsafe to keep there.
 
 # Reading and writing
 
@@ -15,10 +17,6 @@ This page says how memory is read and written, what the `private/` part is, and 
 - Memory writes never need a [grant](./grants.md), and memory has no quota. A path can be at most 512 bytes and 16 levels deep.
 - Each turn's [Space index](./space-index.md) carries a one-line summary of the top level of memory.
 - A memory markdown file can be published as a [document](../protocol/documents.md) with `options.fromPath` on an `hm://` write. Any memory file can be published to IPFS. Both need the publish grant.
-
-# Private memory
-
-The path `~/memory/private/` is for the owner alone. It is stored outside the directory that is mounted into code sandboxes, so code run by `execute` cannot see it. Only two things can read or write it: a [signed action](../build/signed-api.md) from the agent's owner, and an interactive run the owner started. Every other run gets a 403.
 
 # What not to keep in /workspace
 

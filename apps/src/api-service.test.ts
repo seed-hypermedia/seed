@@ -348,7 +348,7 @@ describe('api service', () => {
     }
   })
 
-  test('private memory is owner-only through API, tool reads, uploads, and directory totals', async () => {
+  test('memory follows the agent access policy, with no special private folder', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
     try {
@@ -368,41 +368,20 @@ describe('api service', () => {
       })
       await send(writer, {_: 'AcceptAgentInvite', agentId})
       await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
-      await send(owner, {
-        _: 'WriteAgentMemoryFile',
-        agentId,
-        path: 'private/browser/archive.md',
-        content: 'private secret',
-      })
-      await send(owner, {_: 'WriteAgentMemoryFile', agentId, path: 'public.txt', content: 'hello'})
-      for (const signer of [writer, stranger]) {
-        for (const action of [
-          {_: 'ReadAgentMemoryFile', agentId, path: '/./private/browser/archive.md'},
-          {_: 'ListAgentMemoryDir', agentId, path: 'private'},
-          {_: 'UploadAgentMemoryFileToIpfs', agentId, path: 'private/browser/archive.md'},
-          {_: 'WriteAgentMemoryFile', agentId, path: 'private/new.md', content: 'bad'},
-          {_: 'DeleteAgentMemoryFile', agentId, path: 'private'},
-          {_: 'DownloadAgentMemoryFile', agentId, path: 'private/new.md', url: 'https://example.invalid/file'},
-          {_: 'BeginFileUpload', target: {kind: 'memory', agentId, path: 'private/upload.bin'}, size: 3},
-        ] as const)
-          await expect(send(signer, action)).rejects.toMatchObject({status: 403})
-        const listed = await send(signer, {_: 'ListAgentMemory', agentId})
-        expect(listed).toMatchObject({entries: [{path: 'public.txt'}], totalBytes: 5})
-        const directory = await send(signer, {_: 'ListAgentMemoryDir', agentId})
-        expect(directory).toMatchObject({entries: [{path: 'public.txt'}], totals: {files: 1, bytes: 5}})
-        const tools = await send(signer, {_: 'ListAgentTools', agentId})
-        expect(JSON.stringify(tools)).not.toContain('private secret')
+      await send(owner, {_: 'WriteAgentMemoryFile', agentId, path: 'private/notes.md', content: 'hello'})
+      for (const signer of [owner, writer, stranger]) {
+        expect(await send(signer, {_: 'ReadAgentMemoryFile', agentId, path: 'private/notes.md'})).toMatchObject({
+          file: {content: 'hello'},
+        })
+        expect(await send(signer, {_: 'ListAgentMemory', agentId})).toMatchObject({
+          entries: [{path: 'private'}, {path: 'private/notes.md'}],
+          totalBytes: 5,
+        })
       }
-      expect(await send(owner, {_: 'ReadAgentMemoryFile', agentId, path: 'private/browser/archive.md'})).toMatchObject({
-        file: {content: 'private secret'},
-      })
-      const toolRead = await send(writer, {
-        _: 'InvokeSessionTool',
-        sessionId,
-        verb: 'read',
-        input: {address: '~/memory/private/browser/archive.md'},
-      })
-      expect(JSON.stringify(toolRead)).not.toContain('private secret')
+      await send(writer, {_: 'WriteAgentMemoryFile', agentId, path: 'private/writer.md', content: 'ok'})
+      await expect(
+        send(stranger, {_: 'WriteAgentMemoryFile', agentId, path: 'private/reader.md', content: 'bad'}),
+      ).rejects.toMatchObject({status: 403})
     } finally {
       svc.stopRunQueue()
       sqlite.closeDatabase(db)

@@ -35,7 +35,7 @@ type ExecuteInput = {
 
 # Files in /workspace
 
-`/workspace` is the agent's [memory](./memory.md). The `private/` part of memory is not mounted. Other [runs](./runs.md) of the same agent, and the [read](./read.md) and [write](./write.md) [verbs](./tools.md) on the host, reach the same files. So some kinds of file are unsafe there. Read [what not to keep in /workspace](./memory.md#what-not-to-keep-in-workspace).
+`/workspace` is the agent's [memory](./memory.md). Other [runs](./runs.md) of the same agent, and the [read](./read.md) and [write](./write.md) [verbs](./tools.md) on the host, reach the same files. So some kinds of file are unsafe there. Read [what not to keep in /workspace](./memory.md#what-not-to-keep-in-workspace).
 
 # See also
 
