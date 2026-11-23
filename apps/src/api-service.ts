@@ -117,11 +117,13 @@ import {
   followRedirects,
   followToDocument,
   resolveCapability,
-  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
   resolveIdWithClient,
   updateComment,
+  clientBuiltDocumentUpdateBlobs,
+  documentUpdateBlobs,
+  sameDocumentVersion,
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
@@ -15182,6 +15184,9 @@ function withPageResult(
   folder: WritePageFolder | undefined,
   tool?: WriteToolFolder,
 ): Record<string, unknown> {
+  // A write that changed nothing published nothing: its message already says so, and "is
+  // published" beside it would read as a new revision.
+  const unchanged = result.unchanged === true
   if (tool && !result.error)
     return {
       ...result,
@@ -15189,8 +15194,12 @@ function withPageResult(
       code: tool.code,
       toolFiles: tool.files,
       toolBytes: tool.bytes,
-      instructions:
-        'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+      ...(unchanged
+        ? {}
+        : {
+            instructions:
+              'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+          }),
     }
   if (!folder) return result
   const id = typeof result.id === 'string' ? result.id : undefined
@@ -15203,7 +15212,7 @@ function withPageResult(
     pageBytes: folder.bytes,
     pageValidation: {...folder.validation, bundle: folder.html},
     ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
-    ...(id
+    ...(id && !(unchanged && !result.dryRun)
       ? {
           instructions:
             (result.dryRun
@@ -18546,6 +18555,8 @@ async function writeDocumentUpdate(
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
   // Content changes follow redirects and publish at the final live document. The requested address
   // remains a redirect; publishing there would revive an old path as an independent document.
+  // (The document and its heads come from two reads; resolveEditableDocument reads both again,
+  // once, when a write landed between them.)
   const base = await resolveEditableDocument(client, id).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
@@ -18578,8 +18589,10 @@ async function writeDocumentUpdate(
     )
     contentOps = computeReplaceOps(oldMap, newTree)
   }
-  const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
-  if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
+  // Nothing asked for at all is a mistake in the call. Content or metadata that the document already
+  // holds is not: that write ends as "already up to date" below.
+  if (!hasContent && !Object.values(metadata).some((value) => value !== undefined))
+    throw new APIError(400, 'No document updates specified — provide content and/or metadata')
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -18594,8 +18607,18 @@ async function writeDocumentUpdate(
     ...resource.document.metadata,
     ...metadata,
   })
+  const plan = planDocumentUpdate(base, metadata, contentOps)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
+      // Known without asking the site: the body diffs to nothing and every attribute already
+      // holds the value written. (A write that does differ here can still end unchanged, when
+      // the site finds the document already reads that way.)
+      ...(plan.differs
+        ? {}
+        : {
+            unchanged: true,
+            message: `${request.command}: dry run — the document already holds this content and metadata, so the write would publish no new version.`,
+          }),
       id: packHmId(id),
       resolvedDocumentId: packHmId(targetId),
       redirectHops: base.redirects.map((hop) => ({
@@ -18608,50 +18631,267 @@ async function writeDocumentUpdate(
       ...typed,
       dryRun: true,
     })
-  const state = base.state
-  const {unsignedBytes, ts} = createChangeOps({
-    ops,
-    genesisCid: CID.parse(state.genesis),
-    deps: state.heads.map((head) => CID.parse(head)),
-    depth: state.headDepth + 1,
+  const redirectHops = base.redirects.map((hop) => ({
+    from: packHmId(hop.from),
+    to: packHmId(hop.to),
+    republish: hop.republish,
+  }))
+  const update = await writeUpdateBlobs({
+    client,
+    signer: signer.signer,
+    base,
+    plan,
+    capability,
   })
-  const changeBlock = await createChange(unsignedBytes, signer.signer)
-  const refInput = await createVersionRef(
-    {
-      space: targetId.uid,
-      path: hmIdPathToEntityQueryPath(targetId.path),
-      genesis: state.genesis,
-      version: changeBlock.cid.toString(),
-      // The Ref lands on the live document (redirects were followed), so it stays in its generation.
-      generation: editRefGeneration(base.document, Number(ts)),
-      capability,
-    },
-    signer.signer,
-  )
-  const published = await client.publish({
-    blobs: [
-      {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-      ...refInput.blobs,
-      ...extraBlobs,
-    ],
-  })
+  // Blobs the document refers to (a page bundle, a code folder, uploaded files) are stored whether
+  // or not the document itself changes: they may be what an earlier attempt failed to store.
+  const blobs = [...update.blobs, ...extraBlobs]
+  const published = blobs.length ? await client.publish({blobs}) : {cids: []}
   // A tool, page or trigger its app or agent does not list (a card lost to a race, or never added)
   // is listed again when it is updated.
   const relisted = await relistInHost(client, signer, targetId, {...resource.document.metadata, ...metadata}.type)
+  const version = update.changed ? update.version : resource.document.version
   return writeToolResult(request.command, signer, {
+    ...(update.changed
+      ? {}
+      : {
+          // The site compared the write with the document and found nothing to change. Saying
+          // "completed" with a version would read as a new version having been published.
+          unchanged: true,
+          message: `${request.command}: the document is already up to date — it already holds this content and metadata, so no new version was published. \`version\` is its current version.`,
+        }),
     id: packHmId(id),
     resolvedDocumentId: packHmId(targetId),
     ...(relisted ? {listedInApp: true, app: relisted} : {}),
-    redirectHops: base.redirects.map((hop) => ({
-      from: packHmId(hop.from),
-      to: packHmId(hop.to),
-      republish: hop.republish,
-    })),
-    version: changeBlock.cid.toString(),
+    redirectHops,
+    version,
     cids: published.cids,
     ...typed,
-    ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
+    // Nothing was published when nothing changed, so there is no new version to read back; the
+    // assets were checked before the publish either way.
+    ...(update.changed ? await readBackDocumentAssets(client, packHmId(targetId), version, assets) : {}),
   })
+}
+
+type AttributeWrite = {key: string[]; value: unknown}
+
+/** The leaf writes that set `value` at `key`: a map is one write per entry, anything else is one value. */
+function attributeLeaves(key: string[], value: unknown, out: AttributeWrite[] = []): AttributeWrite[] {
+  if (isPlainMap(value))
+    for (const [child, childValue] of Object.entries(value)) attributeLeaves([...key, child], childValue, out)
+  else if (value !== undefined) out.push({key, value})
+  return out
+}
+
+/**
+ * Whether the site's `PrepareDocumentChange` can carry this attribute write. It takes strings, whole
+ * numbers, booleans and null under key segments without dots that do not start with `$`. A list, a
+ * fraction, an IPLD link or an unusual key can only be written in a Change built here.
+ */
+function preparableAttribute({key, value}: AttributeWrite): boolean {
+  if (!key.length || !key.every((segment) => segment && !segment.includes('.') && !segment.startsWith('$')))
+    return false
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isSafeInteger(value))
+  )
+}
+
+/** Whether two attribute values are the same value. A null and an absent key are: a null removes the key. */
+function sameAttributeValue(a: unknown, b: unknown): boolean {
+  if (a === b || ((a === undefined || a === null) && (b === undefined || b === null))) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, index) => sameAttributeValue(item, b[index]))
+    )
+  }
+  if (!isPlainRecord(a) || !isPlainRecord(b)) return false
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((key) => key in b && sameAttributeValue(a[key], b[key]))
+}
+
+/**
+ * The attribute writes that make a document's metadata hold `next` for every key `next` names,
+ * given the metadata it holds now (`current`), for an update the site prepares.
+ *
+ * A Change built here says "this key is exactly this map" as a clear followed by every entry
+ * ({@link metadataToWriteSetAttributes}). The site cannot be sent that: it leaves out every entry
+ * whose value is unchanged and keeps the clear, which then removes the whole map (seen on a real
+ * daemon, 2026-11-16). So a map is written as its entries plus a null for each entry the document
+ * has and the new map does not; an entry replaced by a map, or a map by an entry, needs no null,
+ * because a write at a key removes what was stored above and below it.
+ *
+ * `prepared` goes to `PrepareDocumentChange`, which drops what is already true. `verbatim` holds the
+ * writes it cannot carry (see {@link preparableAttribute}) whose value differs from the current one;
+ * they are stored as written, in a Change built here.
+ */
+export function metadataUpdateAttributes(
+  current: Record<string, unknown> | undefined,
+  next: HMMetadata,
+): {prepared: AttributeWrite[]; verbatim: AttributeWrite[]} {
+  const prepared: AttributeWrite[] = []
+  const verbatim: AttributeWrite[] = []
+  const currentAt = (key: string[]) => {
+    let value: unknown = current
+    for (const segment of key) value = isPlainRecord(value) ? value[segment] : undefined
+    return value
+  }
+  const related = (a: string[], b: string[]) => a.slice(0, b.length).every((segment, index) => segment === b[index])
+  for (const [key, value] of Object.entries(next)) {
+    if (value === undefined) continue
+    const writes = attributeLeaves([key], value)
+    if (isPlainMap(value)) {
+      const before = attributeLeaves([key], current?.[key])
+      if (!writes.length) {
+        // An empty map: whatever is there goes.
+        if (before.length) writes.push({key: [key], value: null})
+      } else {
+        const kept = writes.map((write) => write.key)
+        for (const leaf of before) {
+          const replaced = kept.some((keptKey) =>
+            keptKey.length <= leaf.key.length ? related(leaf.key, keptKey) : related(keptKey, leaf.key),
+          )
+          if (!replaced) writes.push({key: leaf.key, value: null})
+        }
+      }
+    }
+    for (const write of writes) {
+      if (preparableAttribute(write)) prepared.push(write)
+      else if (!sameAttributeValue(currentAt(write.key), write.value)) verbatim.push(write)
+    }
+  }
+  return {prepared, verbatim}
+}
+
+type DocumentUpdateBlobs =
+  | {changed: true; blobs: CollectedBlob[]; version: string}
+  | {changed: false; blobs: CollectedBlob[]}
+
+/** An update of a document, split by who can write each part. */
+type DocumentUpdatePlan = {
+  /** What the site is asked to prepare: the content ops and the attribute writes its API can carry. */
+  preparedOps: DocumentOperation[]
+  /** Attribute writes the site's API cannot carry that differ from the document; stored as written. */
+  verbatimOps: DocumentOperation[]
+  /** The whole update as a Change built here stores it, for when the site's Change is not used. */
+  wholeOps: DocumentOperation[]
+  /**
+   * Whether anything in the update differs from the document as it was read: a block to write,
+   * move or delete, or an attribute that does not already hold the value. False means the write
+   * publishes nothing, known without asking the site.
+   */
+  differs: boolean
+}
+
+/** Plans an update of `base.document` to hold `metadata` and the content `contentOps` produce. */
+function planDocumentUpdate(
+  base: Awaited<ReturnType<typeof resolveEditableDocument>>,
+  metadata: HMMetadata,
+  contentOps: DocumentOperation[],
+): DocumentUpdatePlan {
+  const {document, state} = base
+  const attributes = metadataUpdateAttributes(document.metadata, metadata)
+  const current = (key: string[]) =>
+    key.reduce<unknown>((value, segment) => (isPlainRecord(value) ? value[segment] : undefined), document.metadata)
+  const changes = (write: AttributeWrite) => !sameAttributeValue(current(write.key), write.value)
+  // The site compares whole numbers strictly and writes an equal one again. When the document read
+  // here is the version the change is prepared on, an unchanged number is left out.
+  const prepared = sameDocumentVersion(document.version, state.version)
+    ? attributes.prepared.filter((write) => typeof write.value !== 'number' || changes(write))
+    : attributes.prepared
+  const attrs = (writes: AttributeWrite[]): DocumentOperation[] =>
+    writes.length ? [{type: 'SetAttributes', attrs: writes} as DocumentOperation] : []
+  return {
+    preparedOps: attrs(prepared).concat(contentOps),
+    verbatimOps: attrs(attributes.verbatim),
+    wholeOps: metadataToWriteSetAttributes(metadata).concat(contentOps),
+    differs: contentOps.length > 0 || attributes.verbatim.length > 0 || attributes.prepared.some(changes),
+  }
+}
+
+/** The clock that stamps Changes built here. Tests replace it to stand in for a machine whose clock is off. */
+let documentUpdateNow: (() => number) | undefined
+
+/** Replaces the clock used for Changes the write tool builds itself; `undefined` restores `Date.now`. */
+export function setDocumentUpdateClockForTests(now: (() => number) | undefined) {
+  documentUpdateNow = now
+}
+
+/**
+ * The signed blobs for an update of an existing document: its next version, or nothing when the
+ * document already reads this way.
+ *
+ * The update goes through the client package's `documentUpdateBlobs`. The site computes the Change
+ * (`PrepareDocumentChange`), so only what differs from the document is stored: a block already in
+ * place is not moved again, an unchanged block is not replaced, an attribute already set is not set
+ * again. Two things are built here, each stored as written and stamped later than what it builds on:
+ *
+ * - attribute values the site's API cannot carry (lists, fractions, links, unusual keys): a second
+ *   Change on top of the prepared one, holding only those writes that differ from the document;
+ * - the whole update, in one Change, whenever the site's Change is not used. `documentUpdateBlobs`
+ *   lists when: the site cannot be asked for these ops, refuses or does not answer, or answers
+ *   with a Change that is not plausible for the request. The service logs the reason.
+ */
+async function writeUpdateBlobs({
+  client,
+  signer,
+  base,
+  plan,
+  capability,
+}: {
+  client: ReturnType<typeof createSeedClient>
+  signer: HMSigner
+  base: Awaited<ReturnType<typeof resolveEditableDocument>>
+  plan: DocumentUpdatePlan
+  capability?: string
+}): Promise<DocumentUpdateBlobs> {
+  const {state, targetId, document} = base
+  const target = {
+    signer,
+    account: targetId.uid,
+    path: hmIdPathToEntityQueryPath(targetId.path),
+    capability,
+    // An edit stays in the document's generation (see editRefGeneration); a document that reports
+    // none gets the new Change's timestamp.
+    currentGeneration: document.generationInfo?.generation,
+    now: documentUpdateNow,
+  }
+  const update = await documentUpdateBlobs({
+    ...target,
+    client,
+    state,
+    ops: plan.preparedOps,
+    localOps: plan.wholeOps,
+    content: document.content ?? [],
+    documentVersion: document.version,
+  })
+  if (update.changed && update.builtBy === 'local') {
+    // The whole update, the writes the site cannot carry included, is in this one Change.
+    console.warn('[Agents Write] Building the document change here instead of on the site', {
+      document: packHmId(targetId),
+      why: update.localReason,
+    })
+    return update
+  }
+  if (!plan.verbatimOps.length) return update.changed ? update : {changed: false, blobs: []}
+  // The writes the site could not carry go on top of what it prepared, or on the heads when it
+  // found nothing to change. One Ref, to this Change, so the document moves to its new version in
+  // one step. The Change is stamped after the one under it, which carries the site's clock.
+  const preparedChange = update.changed ? update.blobs.find((blob) => blob.cid === update.version) : undefined
+  if (update.changed && !preparedChange) throw new Error('The prepared change is missing from its own blobs')
+  const onTop = await clientBuiltDocumentUpdateBlobs({
+    ...target,
+    state: update.changed
+      ? {genesis: state.genesis, heads: [update.version], headDepth: update.depth, headTs: update.ts}
+      : state,
+    ops: plan.verbatimOps,
+  })
+  return {...onTop, blobs: preparedChange ? [preparedChange, ...onTop.blobs] : onTop.blobs}
 }
 
 /** Adds a child's missing card to its host after an update; returns the host id when it did. */
@@ -19298,7 +19538,12 @@ async function publishMemoryDocument(
     : `${existing ? 'Updated' : 'Published'} ${file.path} ${existing ? 'at' : 'as'} ${target}${imagesNote}.`
   return {
     ...result,
-    summary: result.published === true ? result.message : summary,
+    summary:
+      result.published === true
+        ? result.message
+        : result.unchanged === true
+          ? `${file.path} is already published at ${target}${imagesNote}: nothing changed, so no new version was published.`
+          : summary,
     memoryPath: file.path,
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
