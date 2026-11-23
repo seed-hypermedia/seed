@@ -708,14 +708,17 @@ describe('implausiblePreparedChange', () => {
     expect(implausiblePreparedChange(unsignedChange([]), changes)).toBeNull()
   })
 
-  it('refuses repeated moves, blocks the request did not name, and an oversized Change', () => {
+  it('refuses repeated moves, more moves than asked, other blocks replaced or deleted, and an oversized Change', () => {
     const repeated = unsignedChange([
       {type: 'MoveBlocks', blocks: ['x', 'y', 'z'], parent: 'p'},
       {type: 'MoveBlocks', blocks: ['x'], parent: 'p'},
     ])
     expect(implausiblePreparedChange(repeated, changes)).toContain('places block x 2 times, the request once')
-    const stranger = unsignedChange([{type: 'MoveBlocks', blocks: ['q'], parent: 'p'}])
-    expect(implausiblePreparedChange(stranger, changes)).toContain('moves block q')
+    // The daemon may reach the same order by moving a sibling the request left in place.
+    const sibling = unsignedChange([{type: 'MoveBlocks', blocks: ['q'], parent: 'p'}])
+    expect(implausiblePreparedChange(sibling, changes)).toBeNull()
+    const tooMany = unsignedChange([{type: 'MoveBlocks', blocks: ['q', 'r', 's', 't'], parent: 'p'}])
+    expect(implausiblePreparedChange(tooMany, changes)).toContain('places blocks 4 times for 3 requested')
     const deletes = unsignedChange([{type: 'DeleteBlocks', blocks: ['x']}])
     expect(implausiblePreparedChange(deletes, changes)).toContain('deletes block x')
     const replaces = unsignedChange([{type: 'ReplaceBlock', block: {id: 'z', type: 'Paragraph'}}])
@@ -868,7 +871,7 @@ describe('documentUpdateBlobs', () => {
     expect(asked()).toBe(1)
   })
 
-  it('does not sign a Change that repeats moves, names other blocks, or is too large', async () => {
+  it('does not sign a Change that repeats moves, moves more blocks than asked, or is too large', async () => {
     const repeated = setup(async () => ({
       unsignedChange: unsignedChange([
         {type: 'MoveBlocks', blocks: ['n']},
@@ -882,7 +885,7 @@ describe('documentUpdateBlobs', () => {
 
     const stranger = setup(async () => ({unsignedChange: unsignedChange([{type: 'MoveBlocks', blocks: ['a', 'n']}])}))
     const second = await documentUpdateBlobs({...stranger.input, ops: append})
-    expect(second.changed && second.localReason).toContain('moves block a, which the request does not')
+    expect(second.changed && second.localReason).toContain('places blocks 2 times for 1 requested')
 
     const large = setup(prepared)
     const third = await documentUpdateBlobs({...large.input, ops: append, maxPreparedChangeBytes: 32})

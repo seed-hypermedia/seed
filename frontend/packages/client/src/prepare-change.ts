@@ -1054,13 +1054,17 @@ function errorText(error: unknown): string {
 /**
  * Why an unsigned Change from the daemon is not a plausible answer to `changes`, or null when it is.
  *
- * The daemon writes a subset of what was asked: a block already in place is not moved, a block
+ * The daemon writes no more than what was asked: a block already in place is not moved, a block
  * already holding the content is not replaced. So a prepared Change never places more blocks than
- * the request has `moveBlock` changes, and never moves, replaces or deletes a block the request
- * did not name. (It stores one `MoveBlocks` per run of neighbours, so the count is of blocks
- * placed, not of ops.) A daemon that repeats moves (seen in 2026: every move once per stale entry
- * of each ancestor, compounding with depth) breaks the first rule and is caught here, before
- * anything is signed.
+ * the request has `moveBlock` changes, never places one block more often than the request does,
+ * and never replaces or deletes a block the request did not name. (It stores one `MoveBlocks` per
+ * run of neighbours, so the count is of blocks placed, not of ops.) A daemon that repeats moves
+ * (seen in 2026: every move once per stale entry of each ancestor, compounding with depth) breaks
+ * the first two rules and is caught here, before anything is signed.
+ *
+ * The blocks it moves need not be the ones the request moved. The daemon derives its moves from
+ * the resulting order, and where two sets of moves give the same order it may pick the other one:
+ * asked to put `c` after `d` in `[a, b, c, d]`, it may store `d` after `b`.
  */
 export function implausiblePreparedChange(
   unsignedChange: Uint8Array,
@@ -1093,8 +1097,7 @@ export function implausiblePreparedChange(
     if (op.type === 'MoveBlocks') {
       for (const block of blocks) {
         const id = String(block)
-        const wanted = moved.get(id)
-        if (wanted === undefined) return `it moves block ${id}, which the request does not`
+        const wanted = moved.get(id) ?? 1
         const times = (placedTimes.get(id) ?? 0) + 1
         if (times > wanted)
           return `it places block ${id} ${times} times, the request ${wanted === 1 ? 'once' : `${wanted} times`}`
