@@ -128,6 +128,7 @@ export {
   describeRedirect,
   followRedirects,
   followToDocument,
+  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
 } from './document-state'

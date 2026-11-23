@@ -230,7 +230,8 @@ export async function followToDocument(
  *
  * Edits at a redirected address must build the Change on the redirect target's DAG (the source
  * path has no changes of its own — `ListChanges` returns nothing for it) and publish a Version
- * Ref at the source path with a fresh generation, which supersedes the redirect Ref.
+ * Ref at the source path with a fresh generation, which supersedes the redirect Ref. Every other
+ * edit keeps the document's generation: see {@link editRefGeneration}.
  */
 export async function resolveEditableDocument(
   client: Pick<SeedClient, 'request'>,
@@ -239,6 +240,27 @@ export async function resolveEditableDocument(
   const followed = await followToDocument(client, id)
   const state = await resolveDocumentState(client, packHmId(followed.targetId))
   return {...followed, state}
+}
+
+/**
+ * The generation for the Version Ref of an edit to an existing document.
+ *
+ * A generation identifies one life of a document at a path; an edit continues that life, so its
+ * Ref must carry the generation the document already has. Stamping each Ref with a new timestamp
+ * instead opens a new generation per edit. A fresh generation (`fresh`, normally the new Change's
+ * timestamp) is right only when the Ref takes over a path from a redirect (`supersedesRedirect`),
+ * or when the document reports no generation to continue.
+ */
+export function editRefGeneration(
+  document: Pick<HMDocument, 'generationInfo'>,
+  fresh: number,
+  supersedesRedirect = false,
+): number {
+  if (supersedesRedirect) return fresh
+  const current = document.generationInfo?.generation
+  if (current === undefined || current === null) return fresh
+  const generation = Number(current)
+  return Number.isFinite(generation) ? generation : fresh
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   followToDocument,
   packHmId,
   resolveCapability,
+  editRefGeneration,
   resolveEditableDocument,
   type DocumentOperation,
   type CollectedBlob,
@@ -705,7 +706,9 @@ export function registerDocumentCommands(program: Command) {
         const capability = await resolveCapability(client, docAccount, key.accountId, docPath)
         const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
         const changeBlock = await createChange(unsignedBytes, signer)
-        const generation = Number(ts)
+        // An edit stays in the document's generation; only taking a path over from a redirect
+        // needs a fresh one.
+        const generation = editRefGeneration(existingDoc, Number(ts), base.redirect !== null)
         const refInput = await createVersionRef(
           {
             space: docAccount,

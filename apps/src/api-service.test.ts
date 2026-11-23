@@ -7255,6 +7255,104 @@ describe('api service', () => {
     }
   })
 
+  test('an agent edit keeps the document in its generation instead of starting a new one', async () => {
+    // Bug: every agent edit signed its Ref with the new Change's timestamp as the generation, so
+    // each edit opened a new generation of the document. An edit continues the same document, so
+    // its Ref must carry the generation the document already has.
+    const DOCUMENT_GENERATION = 1000
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const genesis = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      let signerPublicKey = ''
+      // The generation of every Ref the server publishes, in order.
+      let publishedGenerations: number[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          const {blobs: published} = cbor.decode<{blobs: {data: Uint8Array}[]}>(
+            new Uint8Array(init?.body as ArrayBuffer),
+          )
+          for (const blob of published) {
+            const decoded = cbor.decode<{type?: string; generation?: number}>(new Uint8Array(blob.data))
+            if (decoded.type === 'Ref') publishedGenerations.push(Number(decoded.generation))
+          }
+          return Response.json(serialize({cids: published.map((_, index) => `published-${index}`)}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: genesis, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          // An existing document, living in generation 1000.
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: unpackHmId(`hm://${signerPublicKey}/notes`),
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'Original text.'}, children: []}],
+                version: genesis,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/notes',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Notes'},
+                genesis,
+                generationInfo: {genesis, generation: DOCUMENT_GENERATION},
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Editor', clientRequestId: 'editor'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'Edit documents.', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+        signingKeys: [identity.identity.name],
+      })
+      const editDocument = async (content: string) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {
+              _: 'InvokeSessionTool',
+              sessionId,
+              verb: 'write',
+              input: {address: `hm://${signerPublicKey}/notes`, content, options: {action: 'update'}},
+              continueAgent: false,
+            },
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('unexpected response')
+        expect(response.error).toBeUndefined()
+      }
+
+      // Setup published the signing account's own home document; only the edits count from here.
+      publishedGenerations = []
+      await editDocument('First edit.')
+      await editDocument('Second edit.')
+
+      // Two edits, two Refs, both still in the document's generation.
+      expect(publishedGenerations).toEqual([DOCUMENT_GENERATION, DOCUMENT_GENERATION])
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('write action "update" edits the document at the write address, including metadata-only', async () => {
     // Live incident (session 5298a18a): every {action: "update"} write failed with "Document edit
     // target is required" because the address-form envelope never forwarded the address as the
