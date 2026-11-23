@@ -479,16 +479,16 @@ describe('prepareDocumentUpdateBlobs', () => {
     expect(request.mock.calls[0]![1].path).toBe('')
   })
 
-  it('uses the given generation as it is, and never goes below the current one otherwise', async () => {
+  it('uses the given generation as it is, and keeps the current one otherwise', async () => {
     const request = vi.fn(async () => ({unsignedChange: unsignedChange([{type: 'x'}], 1000)}))
     const base = {client: {request} as any, signer: makeSigner(), account: ACCOUNT, baseVersion: HEAD, ops, content: []}
     const generationOf = async (extra: object) => {
       const result = await prepareDocumentUpdateBlobs({...base, ...extra})
       return result.changed ? result.generation : null
     }
-    expect(await generationOf({})).toBe(1000) // the Change's timestamp
-    expect(await generationOf({currentGeneration: 500n})).toBe(1000)
-    expect(await generationOf({currentGeneration: '2000'})).toBe(2000) // a writer whose clock ran ahead
+    expect(await generationOf({})).toBe(1000) // none to keep: the Change's timestamp
+    expect(await generationOf({currentGeneration: 500n})).toBe(500) // an edit stays in the generation
+    expect(await generationOf({currentGeneration: '2000'})).toBe(2000)
     expect(await generationOf({generation: 7, currentGeneration: 2000})).toBe(7)
   })
 
@@ -567,7 +567,7 @@ describe('createDocumentUpdateBlobs', () => {
     const prepare = seedClient.request.mock.calls.find((call: unknown[]) => call[0] === 'PrepareDocumentChange')
     expect(prepare[1]).toMatchObject({account: ACCOUNT, path: '/apps/weather', baseVersion: HEAD})
     const ref = cborDecode(update.blobs[1]!.data) as Record<string, any>
-    expect(ref.generation).toBe(4321) // the Change's timestamp, as before
+    expect(ref.generation).toBe(5) // an edit keeps the document's generation
     expect(String(ref.genesisBlob)).toBe(GENESIS)
   })
 
@@ -631,7 +631,7 @@ describe('createDocumentUpdateBlobs', () => {
 })
 
 describe('clientBuiltDocumentUpdateBlobs', () => {
-  it('stores the ops as given on the given heads, and keeps the generation floor', async () => {
+  it('stores the ops as given on the given heads, and keeps the generation of the document', async () => {
     const ops: DocumentOperation[] = [{type: 'MoveBlocks', blocks: ['c', 'd', 'a', 'b'], parent: ''}]
     const result = await clientBuiltDocumentUpdateBlobs({
       signer: makeSigner(),

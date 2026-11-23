@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import type {SeedClient} from './client'
 import {
   describeRedirect,
+  editRefGeneration,
   followRedirects,
   resolveDocumentState,
   resolveEditableDocument,
@@ -284,5 +285,22 @@ describe('followRedirects (what a reader sees at a redirected address)', () => {
       },
     })
     await expect(followRedirects(client, a)).rejects.toThrow('Redirect cycle detected')
+  })
+})
+
+describe('editRefGeneration (an edit never opens a new generation)', () => {
+  const FRESH = 1_763_000_000_000
+
+  it('keeps the generation the document already has', () => {
+    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 1000n}}, FRESH)).toBe(1000)
+    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 0n}}, FRESH)).toBe(0)
+  })
+
+  it('takes a fresh generation to supersede a redirect at the edited path', () => {
+    expect(editRefGeneration({generationInfo: {genesis: GENESIS, generation: 1000n}}, FRESH, true)).toBe(FRESH)
+  })
+
+  it('falls back to a fresh generation when the document reports none', () => {
+    expect(editRefGeneration({}, FRESH)).toBe(FRESH)
   })
 })

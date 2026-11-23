@@ -565,15 +565,15 @@ export type PrepareDocumentUpdateInput = {
   /** Genesis for the Ref. Defaults to the genesis the prepared Change names. */
   genesis?: string
   /**
-   * Generation for the Ref, used as given. Pass the document's current generation to stay in it.
-   * Left out, the generation is the prepared Change's timestamp (the daemon's clock), raised to
-   * `currentGeneration` when that is higher.
+   * Generation for the Ref, used as given. Left out, the Ref keeps `currentGeneration`, or takes
+   * the prepared Change's timestamp (the daemon's clock) when that is left out too.
    */
   generation?: number | bigint
   /**
-   * The generation the path holds now (`document.generationInfo.generation`). A Ref below it is
-   * published and then ignored, which a clock running behind the last writer's would cause; with
-   * this set, the Ref never goes below it. Ignored when `generation` is given.
+   * The generation the document has now (`document.generationInfo.generation`). An edit continues
+   * that generation, so the Ref carries it as it is (see `editRefGeneration`). Leave it out only
+   * when the Ref must open a new generation: to take a path over from a redirect, or for a
+   * document that reports none. Ignored when `generation` is given.
    */
   currentGeneration?: number | bigint | string
   /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
@@ -660,10 +660,7 @@ async function signPreparedChange(
   const decoded = cborDecode(unsignedChange) as {ts?: number | bigint; depth?: number | bigint}
   const changeTs = Number(decoded.ts ?? 0)
   let generation = input.generation
-  if (generation == null && input.currentGeneration != null) {
-    const current = Number(input.currentGeneration)
-    if (Number.isFinite(current) && current > changeTs) generation = current
-  }
+  if (generation == null) generation = keptGeneration(input.currentGeneration, changeTs)
 
   const signed = await signDocumentChange(
     {
@@ -714,7 +711,7 @@ export type ClientBuiltDocumentUpdateInput = {
   ops: DocumentOperation[]
   /** Writer capability CID, when the signer writes into another account's space. */
   capability?: string
-  /** The lowest generation the Ref may take; the Ref's generation is otherwise the Change's timestamp. */
+  /** The generation the document has now, which the Ref keeps. Left out, the Ref takes the Change's timestamp. */
   currentGeneration?: number | bigint | string
   /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
   visibility?: number
@@ -752,8 +749,7 @@ export async function clientBuiltDocumentUpdateBlobs(
     ts: BigInt(headTs !== undefined && Number.isFinite(headTs) && headTs >= now ? headTs + 1 : now),
   })
   const change = await createChange(unsignedBytes, input.signer)
-  const floor = input.currentGeneration == null ? NaN : Number(input.currentGeneration)
-  const generation = Number.isFinite(floor) && floor > Number(ts) ? floor : Number(ts)
+  const generation = keptGeneration(input.currentGeneration, Number(ts))
   const version = change.cid.toString()
   const ref = await createVersionRef(
     {
@@ -826,8 +822,9 @@ export type DocumentUpdateBlobsInput = {
   /** Writer capability CID, when the signer writes into another account's space. */
   capability?: string
   /**
-   * The lowest generation the new Ref may take: for an ordinary update the generation the path
-   * holds now (`document.generationInfo.generation`), for a redirect takeover the current time.
+   * The generation the document has now (`document.generationInfo.generation`), which the new Ref
+   * keeps: an edit does not open a new generation. Leave it out for a redirect takeover, so the
+   * Ref takes a fresh generation (the Change's timestamp) and outranks the redirect Ref.
    */
   currentGeneration?: number | bigint | string
   /** Proto `ResourceVisibility` (2 is private); only needed for a private document. */
@@ -1045,6 +1042,13 @@ function prepareRefusal(error: unknown): string | null {
   }
   const said = /"error"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(error.body ?? '')?.[1] ?? error.message
   return `the server could not prepare it (HTTP ${error.status}: ${said.slice(0, 200)})`
+}
+
+/** The document's generation when it reports one, otherwise `fresh`. The rule of `editRefGeneration`. */
+function keptGeneration(current: number | bigint | string | undefined | null, fresh: number): number {
+  if (current === undefined || current === null) return fresh
+  const generation = Number(current)
+  return Number.isFinite(generation) ? generation : fresh
 }
 
 function errorText(error: unknown): string {

@@ -177,7 +177,7 @@ One more thing a prepared update must not be sent:
 
 A site may also refuse a large request body with a 413 (some cap their API bodies at a few KB). `client.publish` gets around that by storing blob by blob; a prepare request has no such route, so the Change is built here (`clientBuiltDocumentUpdateBlobs`) when that happens.
 
-The Ref's generation is the new Change's timestamp unless you pass `generation`. Pass `currentGeneration` so the Ref never falls below the generation the path already has, which would leave the update published and ignored.
+An edit continues the document's generation. Pass `currentGeneration` (the document's `generationInfo.generation`) and the Ref keeps it. Leave it out only when the Ref must open a new generation, which is how an update takes a path over from a redirect. The Ref then takes the new Change's timestamp. `generation` sets it outright.
 
 **Build the Change yourself.** `createChangeOps({ops, genesisCid, deps, depth})`, `createChange(unsignedBytes, signer)` and `createVersionRef` are still there, and `resolveDocumentState` walks `ListChanges` to find the genesis, the heads and the head depth for them. A Change built this way is stored exactly as written: an op that changes nothing is kept in the document's history, and a `MoveBlocks` that lists a whole level moves every block of it again. Use these for a document's first Change (which `createDocumentBlobs` does for you) or when no Seed API is in reach. For an update, use `documentUpdateBlobs`.
 
