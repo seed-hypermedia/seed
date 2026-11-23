@@ -1750,6 +1750,11 @@ export type SessionEventMeta = {
   reasoningLevel?: ReasoningLevel | 'off' | 'default'
   /** Token usage for this one turn (not the run's cumulative total). */
   usage?: AgentRunUsage
+  /**
+   * Estimated tokens of `usage` that were images shown for that turn only. Later prompts do not
+   * carry them, so they count toward that request but not toward the conversation's context size.
+   */
+  ephemeralImageTokens?: number
   /** Wall time this message or tool call took, in milliseconds. */
   durationMs?: number
   /**

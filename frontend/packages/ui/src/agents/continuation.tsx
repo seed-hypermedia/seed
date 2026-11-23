@@ -1,7 +1,9 @@
 import {
   CONTINUATION_HANDOFF_KEYS,
   CONTINUATION_HOISTED_ARGS,
+  contextTokensOfReading,
   continuationSectionTitle,
+  eventContextReading,
 } from '@seed-hypermedia/apps-protocol'
 import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from './client'
 import {type ChatToolPart} from './chat-parts'
@@ -47,22 +49,15 @@ export function continuationReasonLabel(reason: string | undefined): string | un
 // ---------------------------------------------------------------------------------------------
 
 /**
- * How full the model's context was on the session's last completed turn: the prompt size stamped
- * on the newest assistant message (input plus cache reads and writes — the whole prompt as the
- * provider counted it). Undefined until a turn has completed.
+ * How full the model's context is: the prompt size stamped on the newest model response, whether
+ * it was text or only tool calls, without images that were shown for that turn alone. Undefined
+ * until a response has completed.
  */
 export function sessionContextTokens(events: SessionEvent[] | undefined): number | undefined {
   if (!events) return undefined
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const payload = events[index]!.event as {
-      type?: string
-      role?: string
-      meta?: {usage?: {input: number; cacheRead: number; cacheWrite: number}}
-    }
-    if (payload.type !== 'message' || payload.role !== 'assistant') continue
-    const usage = payload.meta?.usage
-    if (!usage) continue
-    return usage.input + usage.cacheRead + usage.cacheWrite
+    const reading = eventContextReading(events[index]!.event)
+    if (reading) return contextTokensOfReading(reading)
   }
   return undefined
 }

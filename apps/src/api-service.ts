@@ -16,7 +16,6 @@ import {
   type DelegationLimits,
   type Thoroughness,
   modelReasoningSupport,
-  modelContextWindow,
   modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
@@ -186,7 +185,9 @@ import * as piOpenAICodexResponses from '@earendil-works/pi-ai/api/openai-codex-
 import * as piOpenAICompletions from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import * as piOpenAIResponses from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import * as piOpenAICodexCatalog from '@earendil-works/pi-ai/providers/openai-codex.models'
+import * as piEstimate from '@earendil-works/pi-ai/utils/estimate'
 import * as durable from '@earendil-works/pi-durable'
+import * as contextAccounting from '@/context-accounting'
 import * as durableSession from '@/durable-session'
 import {loopLagSnapshot, providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
@@ -248,6 +249,10 @@ const CONTINUATION_PROJECTION_COMPILER = 'projection/1'
 const CONTEXT_PRESSURE_WARN_FRACTION = 0.7
 /** Context fullness at which the runtime tells the model to continue before answering. */
 const CONTEXT_PRESSURE_URGENT_FRACTION = 0.85
+/** How far back through a session's events the last context measurement is looked for. */
+const CONTEXT_READING_MAX_EVENTS = 2_000
+/** Events read at a time while looking for that measurement. */
+const CONTEXT_READING_PAGE = 64
 
 /** Dedicated title-generation model calls a session gets per process before the runtime stops trying. */
 const MAX_TITLE_GENERATION_ATTEMPTS = 3
@@ -5239,23 +5244,63 @@ export class Service {
 
   /** The plan as currently stored, or undefined for a session that has never published one. */
   /**
-   * The prompt size of the session's most recent model turn — input plus cache reads and writes,
-   * which together are the whole context the provider was sent — from the usage stamped on the
-   * last assistant message. Undefined until a turn has completed.
+   * The newest measured prompt in the session's log. A model response is recorded as an assistant
+   * message or, when it has no text, as tool calls; both carry its usage. Rows are read newest
+   * first and only as far as the first measurement.
    */
-  #lastPromptTokens(sessionId: string): number | undefined {
-    const rows = stmt<{event_cbor: Uint8Array}, [string]>(
-      this.#db,
-      `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 60`,
-    ).all(sessionId)
-    for (const row of rows) {
-      const payload = cbor.decode<{type?: string; role?: string; meta?: api.SessionEventMeta}>(row.event_cbor)
-      if (payload.type !== 'message' || payload.role !== 'assistant') continue
-      const usage = payload.meta?.usage
-      if (!usage) continue
-      return usage.input + usage.cacheRead + usage.cacheWrite
+  #lastContextReading(sessionId: string): protocol.EventContextReading | undefined {
+    let beforeSeq = Number.MAX_SAFE_INTEGER
+    for (let scanned = 0; scanned < CONTEXT_READING_MAX_EVENTS; scanned += CONTEXT_READING_PAGE) {
+      const rows = stmt<{seq: number; event_cbor: Uint8Array}, [string, number, number]>(
+        this.#db,
+        `SELECT seq, event_cbor FROM session_events WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`,
+      ).all(sessionId, beforeSeq, CONTEXT_READING_PAGE)
+      for (const row of rows) {
+        const reading = protocol.eventContextReading(cbor.decode(row.event_cbor))
+        if (reading) return reading
+        beforeSeq = row.seq
+      }
+      if (rows.length < CONTEXT_READING_PAGE) return undefined
     }
     return undefined
+  }
+
+  /**
+   * Carries a conversation the provider rejected as too large into a successor. The model could
+   * not write a handoff, so the runtime writes a plain one; the projection supplies the recent
+   * exchanges and the user's exact message. Undefined when this session cannot continue.
+   */
+  #continueAfterContextOverflow(
+    accountId: string,
+    sessionId: string,
+    runId: string | undefined,
+    continueSession: AgentServicePiToolContext['continueSession'],
+    live: RunningSession,
+  ): SessionContinuationOutcome | undefined {
+    if (!continueSession || !runId) return undefined
+    const session = this.#getSessionInfo(accountId, sessionId)
+    const title = session?.title?.trim() || 'Continued conversation'
+    try {
+      continueSession(`context-overflow:${runId}`, {
+        reason: 'context_pressure',
+        title,
+        description: session?.description?.trim() || 'Continued after the previous session filled its context window.',
+        handoff: {
+          purpose: `Continue the conversation from "${title}", which outgrew the model's context window.`,
+          currentRequest: 'Answer the user message that follows this handoff.',
+          cautions: [
+            'The runtime wrote this handoff because the previous session could no longer be sent to the model. Work done there may not be summarized here: read that session before relying on or repeating it.',
+          ],
+        },
+      })
+    } catch (error) {
+      console.warn('[agents/runtime] could not continue after context overflow', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return undefined
+    }
+    return live.continuation
   }
 
   #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
@@ -8600,6 +8645,7 @@ export class Service {
       models = piAi.createModels()
       auth = {apiKey: {name: `${providerName} API key`, resolve: async () => ({auth: {apiKey}})}}
     }
+    if (!subscription) await contextAccounting.discoverContextWindow(provider.type, baseUrl, definition.model)
     const model = piModelForDefinition(provider.type, providerName, baseUrl, definition, {subscription})
     models.setProvider(
       piAi.createProvider({
@@ -8890,7 +8936,7 @@ export class Service {
      * and never stored: everything before it — the system prompt included — stays byte-stable from
      * one turn to the next, and the turn's own requests share one prefix.
      */
-    const turnStateMessages = (): piAi.UserMessage[] => {
+    const turnStateMessages = (promptTokens: number | undefined): piAi.UserMessage[] => {
       // A reader's turn in a browser or private-memory session must not see the owner's plan or
       // status text; the private stub stands in for them.
       const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
@@ -8904,7 +8950,9 @@ export class Service {
         }),
         run ? delegationBudgetBlock(this.#delegationStatus(run)) : undefined,
         privateHistory ? undefined : planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
-        canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
+        canContinueSession && promptTokens !== undefined
+          ? contextUsageBlock(promptTokens, model.contextWindow)
+          : undefined,
         privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
         `<current_time>${new Date().toISOString()}</current_time>`,
         userTimeBlock(this.#accountTimezones.get(accountId)),
@@ -8938,6 +8986,7 @@ export class Service {
           cacheWrite: usage.cacheWrite,
           total: usage.input + usage.output + usage.cacheRead + usage.cacheWrite,
         },
+        ...(turnImageTokens() > 0 ? {ephemeralImageTokens: turnImageTokens()} : {}),
         ...(timing ? {turn: timing} : {}),
       }
     }
@@ -8947,6 +8996,27 @@ export class Service {
     // An image rides its tool result for the turn that asked for it and no further: the durable
     // result keeps the text, and the hook below adds the image back to this turn's requests.
     const turnImages = new Map<string, piAi.ToolResultMessage['content']>()
+    const contextModel = {providerType: provider.type, modelId: definition.model}
+    /** Tokens of the images this turn is currently sending along with its tool results. */
+    const turnImageTokens = (): number => {
+      let tokens = 0
+      for (const content of turnImages.values()) {
+        for (const part of content) {
+          if (part.type === 'image') {
+            tokens += contextAccounting.estimateImageTokens(provider.type, definition.model, part.data)
+          }
+        }
+      }
+      return tokens
+    }
+    // Pressure notices raised during this turn. Each stays at the position it was added so the
+    // prompt prefix, and with it the provider's cache, is unchanged from one request to the next.
+    const contextNotices: Array<{index: number; message: piAi.UserMessage}> = []
+    let contextBandTold = 0
+    const contextOverhead =
+      piEstimate.estimateTextTokens(systemPrompt) + piEstimate.estimateTextTokens(safeJSONStringify(offeredTools))
+    const carriedContext = this.#lastContextReading(sessionId)
+    let contextOverflowed = false
 
     // Streamed text reaches subscribers as the harness commits it: partial answers are committed
     // (and so published) at most every ~100 ms, which already batches a reasoning model's hundreds
@@ -9008,6 +9078,7 @@ export class Service {
         if (message.stopReason === 'error') {
           if (!live) return
           finalError = message.errorMessage || 'Agent run failed'
+          contextOverflowed = piAi.isContextOverflow(message, model.contextWindow)
           recordPerfCount(
             `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
           )
@@ -9464,19 +9535,73 @@ export class Service {
                   else signal.addEventListener('abort', () => reject(signal.reason), {once: true})
                 })
               }
-              turnState ??= {index: request.messages.length, messages: turnStateMessages()}
-              const messages = request.messages.map((message) => {
-                if (message.role !== 'toolResult') return message
-                const images = turnImages.get(message.toolCallId)
-                return images ? {...message, content: images} : message
-              })
-              return {
-                messages: [
-                  ...messages.slice(0, turnState.index),
-                  ...turnState.messages,
-                  ...messages.slice(turnState.index),
-                ],
+              const withImages = () =>
+                request.messages.map((message) => {
+                  if (message.role !== 'toolResult') return message
+                  const images = turnImages.get(message.toolCallId)
+                  return images ? {...message, content: images} : message
+                })
+              const estimate = (messages: readonly piAi.Message[]) =>
+                contextAccounting.estimateNextPromptTokens(messages, contextModel, {
+                  overheadTokens: contextOverhead,
+                  ...(carriedContext ? {carriedPromptTokens: protocol.contextTokensOfReading(carriedContext)} : {}),
+                  // Images measured in an earlier run are not part of this one's prompts.
+                  ...(turnCount === 0 && carriedContext
+                    ? {measuredDiscountTokens: carriedContext.ephemeralImageTokens}
+                    : {}),
+                })
+              let messages = withImages()
+              let promptTokens = estimate(messages)
+              // Images are the one part of a prompt that can be left out without losing the record:
+              // the tool result keeps its text. Oldest go first, and only when the prompt cannot fit.
+              const shedImages: string[] = []
+              for (const callId of [...turnImages.keys()]) {
+                if (promptTokens < model.contextWindow) break
+                turnImages.delete(callId)
+                shedImages.push(callId)
+                messages = withImages()
+                promptTokens = estimate(messages)
               }
+              if (!turnState) {
+                turnState = {
+                  index: request.messages.length,
+                  messages: turnStateMessages(carriedContext || turnCount > 0 ? promptTokens : undefined),
+                }
+                contextBandTold = contextPressureBand(promptTokens / model.contextWindow)
+              } else if (canContinueSession) {
+                const band = contextPressureBand(promptTokens / model.contextWindow)
+                if (band > contextBandTold) {
+                  contextBandTold = band
+                  contextNotices.push({
+                    index: request.messages.length,
+                    message: {
+                      role: 'user',
+                      content: contextUsageBlock(promptTokens, model.contextWindow)!,
+                      timestamp: Date.now(),
+                    },
+                  })
+                }
+              }
+              if (shedImages.length) {
+                contextNotices.push({
+                  index: request.messages.length,
+                  message: {
+                    role: 'user',
+                    content: `<context_notice>${shedImages.length} image(s) shown earlier in this turn were removed because the prompt no longer fit this model's context window. Their tool results remain as text.</context_notice>`,
+                    timestamp: Date.now(),
+                  },
+                })
+              }
+              const insertions = [
+                {index: turnState.index, messages: turnState.messages},
+                ...contextNotices.map((notice) => ({index: notice.index, messages: [notice.message]})),
+              ]
+              const sent: piAi.Message[] = []
+              for (let index = 0; index <= messages.length; index += 1) {
+                for (const insertion of insertions) if (insertion.index === index) sent.push(...insertion.messages)
+                if (index < messages.length) sent.push(messages[index]!)
+              }
+              return {messages: sent}
             },
           }),
         ],
@@ -9707,6 +9832,19 @@ export class Service {
           : settled.reason === 'no_model'
             ? `Model not found: ${model.provider}/${definition.model}`
             : `Agent run ended without an answer (${settled.reason})`
+    }
+    if (finalError && contextOverflowed) {
+      // The provider refused the prompt as too large, so this session cannot answer. When it can
+      // continue, the conversation moves to a successor that answers the same message.
+      const continued = this.#continueAfterContextOverflow(
+        accountId,
+        sessionId,
+        run?.id,
+        continuationToolContext.continueSession,
+        live,
+      )
+      if (continued) throw new SessionContinuedError(continued)
+      finalError = `This conversation no longer fits the context window of ${definition.model}. Start a new session or switch to a model with a larger window. (${finalError})`
     }
     if (finalError) {
       const recovery = await this.#recoverSubscriptionAuth(accountId, provider, finalError)
@@ -10859,10 +10997,11 @@ export class Service {
       this.#db,
       `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
     ).get(accountId, effective.modelProvider)
-    if (!providerRow) return modelContextWindow('', effective.model)
+    if (!providerRow) return protocol.modelContextWindow('', effective.model)
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const subscription = provider.authMode === 'subscription'
-    return piModelForDefinition(provider.type, provider.type, '', effective, {subscription}).contextWindow
+    const baseUrl = subscription ? '' : resolveProviderBaseUrl(provider.type, provider.baseUrl)
+    return piModelForDefinition(provider.type, provider.type, baseUrl, effective, {subscription}).contextWindow
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
@@ -14034,7 +14173,7 @@ function piModelForDefinition(
     // Image input gates whether view_attachment returns actual image content to the model.
     input: modelSupportsImageInput(type, definition.model) ? ['text', 'image'] : ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
-    contextWindow: modelContextWindow(type, definition.model),
+    contextWindow: contextAccounting.resolveContextWindow(type, definition.model, baseUrl),
     maxTokens: 16384,
   }
 }
@@ -19252,9 +19391,15 @@ function sessionStatusBlock(session: api.SessionInfo | null): string | undefined
   return lines.join('\n')
 }
 
-/** The per-turn context measurement, framed for the model. Nothing when no turn has run yet. */
-function contextUsageBlock(promptTokens: number | undefined, contextWindow: number): string | undefined {
-  if (promptTokens === undefined || contextWindow <= 0) return undefined
+/** Which pressure threshold a context fraction has crossed: 0 none, 1 warn, 2 urgent. */
+function contextPressureBand(fraction: number): number {
+  if (fraction >= CONTEXT_PRESSURE_URGENT_FRACTION) return 2
+  return fraction >= CONTEXT_PRESSURE_WARN_FRACTION ? 1 : 0
+}
+
+/** The context measurement, framed for the model. */
+function contextUsageBlock(promptTokens: number, contextWindow: number): string | undefined {
+  if (contextWindow <= 0) return undefined
   const fraction = Math.min(1, promptTokens / contextWindow)
   const percent = Math.round(fraction * 100)
   const guidance =
@@ -19265,7 +19410,7 @@ function contextUsageBlock(promptTokens: number | undefined, contextWindow: numb
         : 'No pressure yet. Continue only at a semantic boundary (subject change, phase change, refocus, user request).'
   return [
     `<context_usage tokens="${promptTokens}" window="${contextWindow}" percent="${percent}">`,
-    `Your last turn's prompt was about ${percent}% of this model's ${contextWindow.toLocaleString(
+    `This prompt is about ${percent}% of this model's ${contextWindow.toLocaleString(
       'en-US',
     )}-token context window. ${guidance}`,
     '</context_usage>',
