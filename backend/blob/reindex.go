@@ -2,11 +2,13 @@ package blob
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"seed/backend/storage"
 	"slices"
 	"time"
 
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -76,7 +78,13 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		gensScanned, gensDerived, coverChangesReplay int
 	)
 	defer func() {
-		idx.reindexing.state.Store(int32(ReindexStateCompleted)) //nolint:gosec
+		// A failed rebuild has already committed the truncation, so the index
+		// is empty: it stays InProgress, keeping syncing and blob storage
+		// gated, and the cleared reindex time makes the next start redo it.
+		if err == nil {
+			idx.reindexing.state.Store(int32(ReindexStateCompleted)) //nolint:gosec
+		}
+
 		idx.reindexing.blobsIndexed.Store(blobsIndexed)
 
 		idx.log.Info("ReindexingFinished",
@@ -100,18 +108,15 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 	// mid-run, and docFieldsDeriver() takes a RWMutex on every call.
 	deriver := idx.docFieldsDeriver()
 
-	if err := sqlitex.WithTx(conn, func() error {
-		truncateStart := time.Now()
-		for _, table := range storage.TableSpecs() {
-			if table.Kind != storage.TableKindDerived {
-				continue
-			}
-			if err := sqlitex.ExecTransient(conn, "DELETE FROM "+table.Name, nil); err != nil {
-				return err
-			}
-		}
-		truncateDur = time.Since(truncateStart)
+	truncateStart := time.Now()
 
+	if err := truncateDerivedTables(conn); err != nil {
+		return err
+	}
+
+	truncateDur = time.Since(truncateStart)
+
+	if err := sqlitex.WithTx(conn, func() error {
 		// Only blobs we can actually decode are visited; everything else (raw
 		// blobs, and blobs whose data we don't have) is filtered out in SQL.
 		const indexableFilter = "codec IN (?, ?) AND size > 0"
@@ -234,6 +239,79 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 	return nil
 }
+
+// truncateDerivedTables empties every derived table in a transaction of its
+// own, ahead of the rebuild.
+//
+// It runs with foreign keys off, because SQLite only applies its truncate
+// optimization, which frees a table's pages instead of deleting its rows one by
+// one, when no foreign key constraint is enforced. On a production database the
+// row-by-row deletes took about 40 seconds. Turning them off is safe because
+// only derived tables reference derived tables, and every one of them is
+// emptied here. Virtual tables (full-text search, embeddings) delete row by row
+// regardless, so they are dropped and recreated from their stored definition.
+//
+// The same transaction clears the reindex time, so if the rebuild doesn't
+// finish, the next start reindexes again instead of serving empty tables.
+func truncateDerivedTables(conn *sqlite.Conn) (err error) {
+	// PRAGMA foreign_keys has no effect inside a transaction, so it brackets it.
+	if err := sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = OFF;", nil); err != nil {
+		return err
+	}
+
+	defer func() {
+		err = errors.Join(err, sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = ON;", nil))
+	}()
+
+	return sqlitex.WithTx(conn, func() error {
+		for _, table := range storage.TableSpecs() {
+			if table.Kind != storage.TableKindDerived {
+				continue
+			}
+
+			createVirtual, err := virtualTableDefinition(conn, table.Name)
+			if err != nil {
+				return err
+			}
+
+			if createVirtual == "" {
+				if err := sqlitex.ExecTransient(conn, "DELETE FROM "+table.Name, nil); err != nil {
+					return err
+				}
+
+				continue
+			}
+
+			if err := sqlitex.ExecTransient(conn, "DROP TABLE "+table.Name, nil); err != nil {
+				return err
+			}
+
+			if err := sqlitex.ExecTransient(conn, createVirtual, nil); err != nil {
+				return fmt.Errorf("failed to recreate virtual table %s: %w", table.Name, err)
+			}
+		}
+
+		return dbSetReindexTime(conn, "")
+	})
+}
+
+// virtualTableDefinition returns the CREATE statement of a virtual table, or ""
+// if the table is an ordinary one.
+func virtualTableDefinition(conn *sqlite.Conn, table string) (sql string, err error) {
+	rows, discard, check := sqlitex.Query(conn, qVirtualTableDefinition(), table).All()
+	defer discard(&err)
+	for row := range rows {
+		sql = row.ColumnText(0)
+		break
+	}
+
+	return sql, check()
+}
+
+var qVirtualTableDefinition = dqb.Str(`
+	SELECT sql FROM sqlite_master
+	WHERE type = 'table' AND name = ?1 AND sql LIKE 'CREATE VIRTUAL TABLE%';
+`)
 
 // MaybeReindex will trigger reindexing of the entire database if needed,
 // i.e. if we've reset the last index timestamp in a migration.

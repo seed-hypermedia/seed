@@ -35,7 +35,7 @@ Together, these let a reader who holds a version's CIDs check three things, with
 - In default mode, gRPC and HTTP accept only connections from the same computer (loopback).
 - HTTP also requires the Host name to be exactly `localhost` or a loopback IP address. It checks the browser's fetch metadata and the exact origin.
 - `-api.allowed-origins` adds more trusted origins. It does not widen which connections or Host names the daemon accepts.
-- A program the daemon accepts can list keys, sign with stored keys, export keys, store blobs, create Refs and capabilities, and force a reindex.
+- A program the daemon accepts can list keys, sign with stored keys, export keys, store blobs, and create Refs and capabilities.
 - A write RPC checks whether the signing key may write. It does not check who the caller is.
 - Hosted sites use server mode (`-server-mode`, or `SEED_SERVER_MODE=true`). Server mode trusts the network the server runs in. It hides private content from HTTP requests with no token, and serves it to requests with an authorized bearer token.
 - Server mode does not turn writes off. Keep the daemon's API ports private, and proxy only the public `/ipfs/*` routes.

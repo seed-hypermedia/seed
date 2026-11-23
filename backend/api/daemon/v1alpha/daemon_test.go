@@ -285,56 +285,17 @@ func TestHandleVaultConnectSecretlessFinishRequiresStoredCredential(t *testing.T
 	require.Contains(t, rec.Body.String(), "remote credential not found")
 }
 
-func TestForceReindexTracksTaskWhileRemainingActive(t *testing.T) {
+func TestForceReindexDisabled(t *testing.T) {
 	srv := newTestServer(t, "alice")
-	srv.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
-
-	fake := &fakeBlobIndex{
-		reindexStarted: make(chan struct{}),
-		releaseReindex: make(chan struct{}),
-	}
-	fake.reindexFn = func(ctx context.Context) error {
-		fake.setReindexInfo(blob.ReindexInfo{State: blob.ReindexStateInProgress, BlobsTotal: 10, BlobsIndexed: 4})
-		close(fake.reindexStarted)
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-fake.releaseReindex:
-		}
-
-		fake.setReindexInfo(blob.ReindexInfo{State: blob.ReindexStateCompleted, BlobsTotal: 10, BlobsIndexed: 10})
+	fake := &fakeBlobIndex{}
+	fake.reindexFn = func(context.Context) error {
+		t.Fatal("ForceReindex must not reindex")
 		return nil
 	}
 	srv.blocks = fake
 
-	errc := make(chan error, 1)
-	go func() {
-		_, err := srv.ForceReindex(t.Context(), &daemon.ForceReindexRequest{})
-		errc <- err
-	}()
-
-	<-fake.reindexStarted
-
-	require.Eventually(t, func() bool {
-		info, err := srv.GetInfo(t.Context(), &daemon.GetInfoRequest{})
-		if err != nil {
-			return false
-		}
-
-		return info.State == daemon.State_ACTIVE && len(info.Tasks) == 1 && info.Tasks[0].TaskName == daemon.TaskName_REINDEXING
-	}, time.Second, 10*time.Millisecond)
-
-	close(fake.releaseReindex)
-	require.NoError(t, <-errc)
-
-	require.Eventually(t, func() bool {
-		info, err := srv.GetInfo(t.Context(), &daemon.GetInfoRequest{})
-		if err != nil {
-			return false
-		}
-		return len(info.Tasks) == 0
-	}, time.Second, 10*time.Millisecond)
+	_, err := srv.ForceReindex(t.Context(), &daemon.ForceReindexRequest{})
+	require.Equal(t, codes.Unimplemented, status.Code(err))
 }
 
 func TestStoreBlobsUnavailableDuringReindex(t *testing.T) {
@@ -873,13 +834,11 @@ func performVaultConnectRequest(t *testing.T, srv *Server, method string, body s
 }
 
 type fakeBlobIndex struct {
-	mu             sync.Mutex
-	reindexInfo    blob.ReindexInfo
-	reindexFn      func(context.Context) error
-	putManyErr     error
-	putManyCalls   int
-	reindexStarted chan struct{}
-	releaseReindex chan struct{}
+	mu           sync.Mutex
+	reindexInfo  blob.ReindexInfo
+	reindexFn    func(context.Context) error
+	putManyErr   error
+	putManyCalls int
 }
 
 func (f *fakeBlobIndex) PutMany(context.Context, []blocks.Block) error {

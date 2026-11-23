@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"seed/backend/blob"
 	"seed/backend/core"
-	"seed/backend/daemon/reindexing"
 	taskmanager "seed/backend/daemon/taskmanager"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
@@ -981,12 +980,10 @@ func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptyp
 }
 
 // ForceReindex implements the corresponding gRPC method.
-func (srv *Server) ForceReindex(ctx context.Context, in *daemon.ForceReindexRequest) (*daemon.ForceReindexResponse, error) {
-	if err := reindexing.RunBlobReindexTask(ctx, srv.blocks, srv.taskMgr, srv.log, srv.blocks.Reindex); err != nil {
-		return nil, err
-	}
-
-	return &daemon.ForceReindexResponse{}, nil
+// Disabled: a reindex empties the index before rebuilding it, so tying it to an
+// RPC whose cancellation aborts the rebuild would leave the index empty.
+func (srv *Server) ForceReindex(context.Context, *daemon.ForceReindexRequest) (*daemon.ForceReindexResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "ForceReindex is disabled")
 }
 
 // StoreBlobs implements the corresponding gRPC method.

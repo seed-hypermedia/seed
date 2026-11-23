@@ -102,7 +102,7 @@ Node management, keys, authentication, the [vault](../software/vault.md) connect
 | `SignData` | sign arbitrary bytes with any stored key <!-- id:E9Wj5A3z --> |
 | `StoreBlobs` | store blobs atomically; a given `cid` is verified against the data, an omitted one is computed with BLAKE2b; structural blobs are verified and indexed; refused with `Unavailable` during reindex <!-- id:byF9be6U --> |
 | `Authenticate` | prove an account key and receive a thirty-day bearer token; the principal must already appear in some blob the daemon holds <!-- id:OCk7HIdK --> |
-| `ForceReindex` | rebuild every derived table from the stored blobs, synchronously <!-- id:4GS93KkB --> |
+| `ForceReindex` | disabled; always returns `Unimplemented`. A reindex empties the index before it rebuilds it, so it must not depend on an RPC that a client can cancel. Stop the daemon and run `seed-daemon reindex` ([Daemon](../software/daemon.md)) instead <!-- id:4GS93KkB --> |
 | `ForceSync` | **Unimplemented** <!-- id:AdsoyRhN --> |
 | `GetVaultStatus`, `StartVaultConnection`, `DisconnectVault`, `GetVaultEmail`, `GetVaultEmailPrevalidation`, `ChangeVaultEmailStart`, `ChangeVaultEmailVerify`, `GetVaultPasswordStatus`, `SetVaultMasterPassword`, `GetVaultNotificationServer`, `SetVaultNotificationServer` | the connection between this daemon and a remote vault that holds the user's keys; see [identity](../protocol/identity.md) <!-- id:vU-8B5FH --> |
 | `GetDomain`, `ListDomains`, `AddDomain`, `RemoveDomain`, `CheckDomain` | the tracker that polls `https://<domain>/hm/api/config` and caches each site's peer id, registered account and gateway flag <!-- id:a8QmL8Y2 --> |
