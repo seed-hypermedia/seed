@@ -8,8 +8,9 @@ import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
-import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
+import {clientLoader as clientLoaderFn, DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+import {DocumentLoadErrorBoundary} from '@/document-load'
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {
   return await loaderFn({
@@ -17,6 +18,10 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     request,
   })
 }
+
+export const clientLoader = clientLoaderFn
+
+export const ErrorBoundary = DocumentLoadErrorBoundary
 
 export function shouldRevalidate({
   currentUrl,
