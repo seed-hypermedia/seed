@@ -33,6 +33,7 @@ function seedExperiments() {
   fs.mkdirSync(APPDATA, {recursive: true})
   const file = path.join(APPDATA, 'AppStore.json')
   const store = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+  store.GatewayPushOnPublish = 'never'
   store['Experiments-v001'] = {...(store['Experiments-v001'] ?? {}), hypermediaSchemas: true, developerTools: true}
   fs.writeFileSync(file, JSON.stringify(store, null, 2))
 }
@@ -50,6 +51,8 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
     // Fixture mode: this directory persists across launches and the daemon keeps its keys in
     // files under it, instead of the per-launch temp directory NODE_ENV=test would use.
     SEED_FIXTURE_DATA_DIR: APPDATA,
+    // Tests publish with a key that is in the repo: nothing may leave this machine.
+    SEED_P2P_ISOLATED: 'true',
     DAEMON_HTTP_PORT: String(PORTS.http),
     VITE_DESKTOP_P2P_PORT: String(PORTS.p2p),
     VITE_DESKTOP_HTTP_PORT: String(PORTS.http),
@@ -60,7 +63,15 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
     // Its own renderer static-server port, clear of a production app on the default 17654.
     SEED_LOCAL_SERVER_PORT: '58106',
   })
-  const app = await launchPackagedApp({executablePath: APP_EXECUTABLE, args: [], env, timeout: 90_000})
+  // Set STORY_VIDEO_DIR to keep a recording of the app window for each launch.
+  const videoDir = process.env.STORY_VIDEO_DIR
+  const app = await launchPackagedApp({
+    executablePath: APP_EXECUTABLE,
+    args: [],
+    env,
+    timeout: 90_000,
+    ...(videoDir ? {recordVideo: {dir: videoDir, size: {width: 1280, height: 800}}} : {}),
+  })
   app.process().stderr?.on('data', (d) => {
     const t = String(d)
     if (/EADDRINUSE|panic|FATAL/.test(t)) console.log('[app!]', t.trim().slice(0, 300))

@@ -11,6 +11,7 @@ import {CloudOff, UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {ExternalLink} from 'lucide-react'
+import type {ReactNode} from 'react'
 
 /** Site settings tab for publishing the space to a web domain, and removing it from one. */
 export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
@@ -49,22 +50,58 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   }
 
   const siteUrl = document.metadata.siteUrl
-  if (!siteUrl) {
-    return (
-      <>
-        {heading}
-        <SizableText color="muted">
-          This space is not published to a web domain yet. Publish it to make it available to anyone with a browser.
-        </SizableText>
-        <Button variant="default" className="self-start" onClick={() => publishSite.open({id: siteId})}>
-          Publish to Web Domain
-          <UploadCloud className="size-4" />
-        </Button>
-        {publishSite.content}
-      </>
-    )
-  }
+  // The dialogs render at one stable position: publishing sets siteUrl, and remounting the open
+  // publish dialog in the other branch would reset it to its first step instead of the success view.
+  return (
+    <>
+      {siteUrl ? (
+        <PublishedWebDomain
+          siteId={siteId}
+          siteUrl={siteUrl}
+          heading={heading}
+          host={host}
+          pendingDomain={pendingDomain}
+          onOpenUrl={openUrl}
+          onPublishCustomDomain={() => publishSite.open({id: siteId, step: 'seed-host-custom-domain'})}
+          onRemove={() => removeSiteDialog.open(siteId)}
+        />
+      ) : (
+        <>
+          {heading}
+          <SizableText color="muted">
+            This space is not published to a web domain yet. Publish it to make it available to anyone with a browser.
+          </SizableText>
+          <Button variant="default" className="self-start" onClick={() => publishSite.open({id: siteId})}>
+            Publish to Web Domain
+            <UploadCloud className="size-4" />
+          </Button>
+        </>
+      )}
+      {publishSite.content}
+      {removeSiteDialog.content}
+    </>
+  )
+}
 
+function PublishedWebDomain({
+  siteId,
+  siteUrl,
+  heading,
+  host,
+  pendingDomain,
+  onOpenUrl,
+  onPublishCustomDomain,
+  onRemove,
+}: {
+  siteId: UnpackedHypermediaId
+  siteUrl: string
+  heading: ReactNode
+  host: ReturnType<typeof useHostSession>
+  pendingDomain: {hostname: string} | undefined
+  onOpenUrl: (url: string) => void
+  onPublishCustomDomain: () => void
+  onRemove: () => void
+}) {
   // A custom domain can replace the free subdomain of the hosting service.
   const canPublishCustomDomain =
     host.loggedIn &&
@@ -75,7 +112,7 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
       {heading}
       <div className="flex flex-col gap-2">
         <SizableText weight="medium">Published at</SizableText>
-        <Button variant="outline" className="self-start" onClick={() => openUrl(siteUrl)}>
+        <Button variant="outline" className="self-start" onClick={() => onOpenUrl(siteUrl)}>
           {hostnameStripProtocol(siteUrl)}
           <ExternalLink className="size-4" />
         </Button>
@@ -92,11 +129,7 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
           <SizableText size="sm" color="muted">
             Publish this space to a domain that you own.
           </SizableText>
-          <Button
-            variant="default"
-            className="self-start"
-            onClick={() => publishSite.open({id: siteId, step: 'seed-host-custom-domain'})}
-          >
+          <Button variant="default" className="self-start" onClick={onPublishCustomDomain}>
             Publish Custom Domain
             <UploadCloud className="size-4" />
           </Button>
@@ -107,13 +140,11 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         <SizableText size="sm" color="muted">
           The space stays on the Hypermedia network. It is no longer available at this domain.
         </SizableText>
-        <Button variant="destructive" className="self-start" onClick={() => removeSiteDialog.open(siteId)}>
+        <Button variant="destructive" className="self-start" onClick={onRemove}>
           Remove Domain from Publication
           <CloudOff className="size-4" />
         </Button>
       </div>
-      {publishSite.content}
-      {removeSiteDialog.content}
     </>
   )
 }
