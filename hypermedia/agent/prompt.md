@@ -61,7 +61,7 @@ A per-turn block is a short piece of text inside a tag, such as `<space>`. These
 - **`<space>`**: the [Space index](./space-index.md), as it stands when the turn starts. <!-- id:uCVRRc7s -->
 - **`<delegation_budget>`**: how many children the run may still start. <!-- id:0ivQFy1q -->
 - **`<plan_state>`**: the checklist. The [plan](./plan.md) verb writes no event, so this block is how a resumed model sees the plan it published. A checklist that fully settled under an earlier run is not shown: the new turn starts with no plan, so a new request never brings back a finished list. <!-- id:CQBauD_N -->
-- **`<context_usage>`**: how full the model's context was on the last turn. It is sent only where the run may [continue the session](./session-continuation.md), and the guidance in it gets stronger at 70% and at 85%. <!-- id:1zQfJ6Uj -->
+- **`<context_usage>`**: how full the model's context is for this request. It is sent only where the run may [continue the session](./session-continuation.md), and the guidance in it gets stronger at 70% and at 85%. If a tool loop crosses one of those levels, a new one is added during the turn. <!-- id:1zQfJ6Uj -->
 - **`<session_status>`**: the session's current title and description, so a `status` call is a deliberate change and never a restatement. <!-- id:tDWRsJox -->
 - **`<current_time>`**: the time the turn started. <!-- id:9MNLj56N -->
 - **`<user_time>`**: the same moment in the user's time zone, when the server knows it, so "8:00" and "tonight" mean what the user means.
