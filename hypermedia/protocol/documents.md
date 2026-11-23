@@ -82,7 +82,7 @@ The [Seed app](../software/desktop.md) does not write operations by hand. It sen
 - then one `SetAttributes` with every changed attribute,
 - then one `ReplaceBlock` per changed block.
 
-Blocks created and deleted in the same change are dropped. The daemon computes `genesis`, `deps` (the heads, sorted) and `depth` from the loaded state. The [SDK](../build/sdk.md)'s `documentUpdateBlobs` sends block-level operations through the same call, checks the answer, and builds the Change itself when the daemon cannot be asked or does not give a usable one. App card lists and the parent auto-link use it. The SDK's `createChangeOps`, and the [CLI](../build/cli.md)'s `document update` on top of it, do not minimise anything. They encode the operations they are given.
+Blocks created and deleted in the same change are dropped. The daemon computes `genesis`, `deps` (the heads, sorted) and `depth` from the loaded state. The [SDK](../build/sdk.md)'s `documentUpdateBlobs` sends block-level operations through the same call, checks the answer, and builds the Change itself when the daemon cannot be asked or does not give a usable one. App card lists, the parent auto-link, and the [CLI](../build/cli.md)'s `document update` and `space import` use it, so an update that changes nothing publishes no version. The SDK's `createChangeOps` does not minimise anything. It encodes the operations it is given.
 
 # Heads and versions <!-- id:G27f_k6I -->
 
