@@ -8,27 +8,54 @@ import {chromium, firefox, webkit} from 'playwright'
 const bundle = await build({
   stdin: {
     contents:
-      'export * from "./document-page-sandbox"; export {createDocumentPageWatches} from "./document-page-watch"; export {createDocumentPageInput} from "./document-page-input"; export {pageParamsFromUrl, pageParamsQuery} from "@seed-hypermedia/client/page-input";',
+      'export * from "./document-page-sandbox"; export {createDocumentPageWatches} from "./document-page-watch"; export {createDocumentPageInput} from "./document-page-input"; export {pageParamsFromUrl, pageParamsQuery} from "@seed-hypermedia/client/page-input"; export {createChangeHub, encodeChangeStreamEvent, parseChangeStreamQuery} from "./change-signal"; export {createChangeStreamClient} from "./change-stream-client";',
     resolveDir: fileURLToPath(new URL('../../../packages/shared/src', import.meta.url)),
     sourcefile: 'page-browser-test.ts',
     loader: 'ts',
   },
   bundle: true,
   minify: true,
+  // The change stream code reads ids with the app's own parser, whose constants expect a build
+  // that defines the environment, as the web app's does.
+  define: {'process.env': '{}'},
   format: 'esm',
   write: false,
 })
 const code = bundle.outputFiles[0].text
-const {documentPageRunnerHTML, DOCUMENT_PAGE_SANDBOX_CSP} = await import(
-  `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
-)
+const {
+  documentPageRunnerHTML,
+  DOCUMENT_PAGE_SANDBOX_CSP,
+  createChangeHub,
+  encodeChangeStreamEvent,
+  parseChangeStreamQuery,
+} = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 const engines = {chromium, firefox, webkit}
 
 for (const engine of (process.env.PAGE_TEST_BROWSERS || 'chromium,firefox,webkit').split(',')) {
   test(`same-origin document page: ${engine}`, async (t) => {
     let origin
+    // Stands in for the node's activity feed: the test adds resources, the hub's next poll takes them.
+    let changed = []
+    const changeHub = createChangeHub({
+      maxListeners: 4,
+      intervalMs: 50,
+      follow: () => async () => ({resources: changed.splice(0)}),
+    })
     const server = createServer((req, res) => {
-      if (req.url.startsWith('/hm/page-runner')) {
+      if (req.url.startsWith('/hm/api/changes')) {
+        // The web app's change stream route, over the same shared hub and wire format.
+        const subscriptions = parseChangeStreamQuery(new URL(req.url, origin).searchParams)
+        const send = (event) => res.write(encodeChangeStreamEvent(event))
+        const stop = 'error' in subscriptions ? null : changeHub.subscribe(subscriptions, send)
+        if (!stop) {
+          res.writeHead('error' in subscriptions ? 400 : 503)
+          res.end()
+          return
+        }
+        res.writeHead(200, {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform'})
+        send({type: 'ready'})
+        res.on('close', stop)
+      } else if (req.url.startsWith('/hm/page-runner')) {
         res.writeHead(200, {'Content-Type': 'text/html', 'Content-Security-Policy': DOCUMENT_PAGE_SANDBOX_CSP})
         res.end(documentPageRunnerHTML(origin))
       } else if (req.url === '/runtime.js') {
@@ -538,6 +565,71 @@ for (const engine of (process.env.PAGE_TEST_BROWSERS || 'chromium,firefox,webkit
       // Stopping from the page releases the host's observer.
       await frame.evaluate(() => window.stopWatch())
       await page.waitForFunction(() => window.dataChanged === null && window.watches.size === 0)
+    })
+    await t.test('a change pushed over the server stream repaints a watched directory', async () => {
+      await page.evaluate(async () => {
+        window.session?.destroy()
+        window.rows = [{id: {id: 'hm://alice/entries/1', uid: 'alice', path: ['entries', '1']}, metadata: {}}]
+        window.streams = 0
+        window.live = []
+        const changes = window.createChangeStreamClient({
+          connect: (url) => {
+            window.streams++
+            return new EventSource(url)
+          },
+          // The host's query for the directory, reduced to its invalidation.
+          invalidate: (key) => {
+            if (key.join(' ') === 'DOC_LIST_DIRECTORY hm://alice/entries') window.directoryChanged?.()
+          },
+        })
+        window.watches = window.createDocumentPageWatches({
+          read: async () => structuredClone(window.rows),
+          observe: (_method, params, changed) => {
+            window.directoryChanged = changed
+            const stop = changes.watch({id: params.url, recursive: true}, (live) => window.live.push(live))
+            return () => {
+              window.directoryChanged = null
+              stop()
+            }
+          },
+          send: (message) => window.session.dataChanged(message),
+        })
+        window.session = window.mountDocumentPage({
+          container: document.querySelector('#page'),
+          storage: localStorage,
+          context: {protocol: 1, account: null, document: 'hm://alice/page', version: 'v1', page: 'v1'},
+          html: '<ul id="list"></ul><script>window.paints = 0; window.stopWatch = seed.watch.directory("hm://alice/entries", (records) => { window.paints++; document.querySelector("#list").innerHTML = records.map((record) => "<li>" + record.url + "</li>").join("") })</script>',
+          content: (method, params, signal) =>
+            method === 'watch.start' ? window.watches.start(params, signal) : window.watches.stop(params),
+        })
+        await window.session.ready
+      })
+      const frame = page.frames().find((item) => item.url().includes('/hm/page-runner'))
+      const list = () => frame.evaluate(() => [...document.querySelectorAll('li')].map((item) => item.textContent))
+      await frame.waitForFunction(() => window.paints === 1)
+      await page.waitForFunction(() => window.live.at(-1) === true)
+      assert.equal(changeHub.size, 1)
+
+      // A change elsewhere says nothing to this browser.
+      changed.push('hm://bob/entries/1')
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      assert.equal(await frame.evaluate(() => window.paints), 1)
+
+      // A new entry reaches the node: the server names it, the host re-reads, the page repaints.
+      await page.evaluate(() => {
+        window.rows.push({id: {id: 'hm://alice/entries/2', uid: 'alice', path: ['entries', '2']}, metadata: {}})
+      })
+      changed.push('hm://alice/entries/2')
+      await frame.waitForFunction(() => window.paints === 2)
+      assert.deepEqual(await list(), ['hm://alice/entries/1', 'hm://alice/entries/2'])
+      assert.equal(await page.evaluate(() => window.streams), 1)
+
+      // Stopping the watch closes the stream, and the server lets go of it.
+      await frame.evaluate(() => window.stopWatch())
+      await page.waitForFunction(() => window.watches.size === 0)
+      const deadline = Date.now() + 5_000
+      while (changeHub.size && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.equal(changeHub.size, 0)
     })
     await t.test('direct runner visit remains sandboxed and does not load a page', async () => {
       const direct = await browser.newPage()

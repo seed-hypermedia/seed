@@ -94,10 +94,14 @@ type PageRuntimeProps = DocumentPageViewProps & {
 }
 
 /**
- * How often a host with no change feed of its own (the web) checks watched data. The desktop
- * invalidates queries from its activity feed instead, so it never polls here.
+ * How often a host with no change signal at all checks watched data. The desktop invalidates
+ * queries from its activity feed and the web from the server's change stream, so neither polls
+ * here.
  */
 const PAGE_WATCH_FALLBACK_INTERVAL_MS = 5_000
+
+/** How often the web checks watched data while its change stream is down or still connecting. */
+const PAGE_WATCH_DISCONNECTED_INTERVAL_MS = 30_000
 
 /** Render only approved launches, then gate each data or signing capability independently. */
 export function DocumentPageView(props: DocumentPageViewProps) {
@@ -366,12 +370,22 @@ function DocumentPageSession({
       // A pinned version never changes, and a profile is not a document the host can observe here.
       if (!id || id.version || id.path?.[0] === ':profile') return () => {}
       if (method === 'resource' && id.id === documentId) return () => {}
-      const observer = new QueryObserver<unknown>(queryClient, {
-        ...(method === 'directory'
-          ? queryDirectory(client, id, params.all ? 'AllDescendants' : 'Children')
-          : queryResource(client, id)),
-        refetchInterval: client.subscribeEntity ? false : PAGE_WATCH_FALLBACK_INTERVAL_MS,
-      } as ConstructorParameters<typeof QueryObserver<unknown>>[1])
+      const recursive = method === 'directory'
+      const query = recursive
+        ? queryDirectory(client, id, params.all ? 'AllDescendants' : 'Children')
+        : queryResource(client, id)
+      // Poll only while nothing tells the host about changes.
+      const observed = (live: boolean) =>
+        ({
+          ...query,
+          refetchInterval:
+            client.subscribeEntity || live
+              ? false
+              : client.watchChanges
+                ? PAGE_WATCH_DISCONNECTED_INTERVAL_MS
+                : PAGE_WATCH_FALLBACK_INTERVAL_MS,
+        }) as ConstructorParameters<typeof QueryObserver<unknown>>[1]
+      const observer = new QueryObserver<unknown>(queryClient, observed(false))
       let seen = observer.getCurrentResult().dataUpdatedAt
       const unobserve = observer.subscribe((result) => {
         if (result.isFetching || !result.dataUpdatedAt || result.dataUpdatedAt === seen) return
@@ -379,10 +393,12 @@ function DocumentPageSession({
         changed()
       })
       // Watching also asks the node to keep this data synced, as an open document does.
-      const unsubscribe = client.subscribeEntity?.({id, recursive: method === 'directory'})
+      const unsubscribe = client.subscribeEntity?.({id, recursive})
+      const unwatch = client.watchChanges?.({id, recursive}, (live) => observer.setOptions(observed(live)))
       return () => {
         unobserve()
         unsubscribe?.()
+        unwatch?.()
       }
     },
   }
