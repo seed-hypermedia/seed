@@ -196,6 +196,11 @@ describe('api service', () => {
       expect(migrated).toContain('forecast')
       // It knows the server it runs on, so it can name it on an app it owns before running it.
       expect(migrated).toContain('You run on the app server https://agent.example')
+      // A custom agent gets connector setup guidance even before consulting the write guide.
+      expect(migrated).toContain('server-side tool')
+      expect(migrated).toContain('ctx.privateConfig')
+      expect(migrated).toContain('Settings → Run App')
+      expect(migrated).toContain('Settings → Private config')
     } finally {
       hm.stop(true)
       sqlite.closeDatabase(db)
