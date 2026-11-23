@@ -35,6 +35,7 @@ import {parseRequest} from './request'
 import {getServiceConfig} from './site-config.server'
 import {useLocalKeyPairLoaded} from './auth'
 import {isOpenPath} from './require-sign-in'
+import {shouldRevalidateRootRoute} from './routes/revalidation'
 import {requireSignInEnabled} from './require-sign-in.server'
 import {SignInLoading} from '@shm/ui/spinner'
 import slashMenuStyles from './slash-menu.css?url'
@@ -88,6 +89,11 @@ export async function loader({request}: LoaderFunctionArgs) {
   const result = {isProd, enableStats, domain, siteHost, seedHostUrl, isGateway, requireSignIn: requireSignInEnabled()}
 
   return json(result)
+}
+
+/** Keeps client-side navigations from refetching root data that only depends on the host. */
+export function shouldRevalidate(args: Parameters<typeof shouldRevalidateRootRoute>[0]) {
+  return shouldRevalidateRootRoute(args)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {

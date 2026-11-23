@@ -30,3 +30,29 @@ export function shouldRevalidateDocumentRoute({
 
   return true
 }
+
+/**
+ * Decides whether the root loader should re-run. Its data comes from the request host and the
+ * server environment, never from the path or query, so a client-side navigation cannot change it.
+ *
+ * Remix would otherwise refetch it on every search-param change, which includes each panel and
+ * comment-reply navigation. A failed refetch replaces the whole app with the root error page, so
+ * one rejected request (the proxy answers 429 when a page has too many requests in flight) turned
+ * a query-only navigation into a crash.
+ */
+export function shouldRevalidateRootRoute({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL
+  nextUrl: URL
+  formMethod?: string
+  defaultShouldRevalidate: boolean
+}) {
+  // Submissions and explicit revalidations keep Remix's default.
+  if (formMethod && formMethod.toUpperCase() !== 'GET') return defaultShouldRevalidate
+  if (currentUrl.href === nextUrl.href) return defaultShouldRevalidate
+  return currentUrl.origin !== nextUrl.origin
+}
