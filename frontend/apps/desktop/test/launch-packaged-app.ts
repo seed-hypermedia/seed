@@ -15,7 +15,7 @@ export async function launchPackagedApp(options: Parameters<typeof electron.laun
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'seed-playwright-'))
   const copy = path.join(temporary, path.basename(source))
   try {
-    await cp(source, copy, {recursive: true})
+    await cp(source, copy, {recursive: true, verbatimSymlinks: true})
     const executablePath = path.join(copy, path.relative(source, sourceExecutable))
     await flipFuses(process.platform === 'darwin' ? copy : executablePath, {
       version: FuseVersion.V1,
