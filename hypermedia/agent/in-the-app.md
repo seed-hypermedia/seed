@@ -76,7 +76,7 @@ Five toggle rows configure the [grant](./grants.md) set. The verbs are not grant
 | Search the web | `web_search` <!-- id:FxqkDPcL --> |
 | Execute code | [`execute`](./code-execution.md) <!-- id:SvNchL3a --> |
 | Use the integrated browser | `browser`: read and act on websites open in Seed, each site allowed by the user when asked |
-| Publish Seed content | `publish`: signed public documents, comments, and IPFS uploads; [private memory](./memory.md#private-memory) is always writable <!-- id:cWfzCnfP --> |
+| Publish Seed content | `publish`: signed public documents, comments, and IPFS uploads <!-- id:cWfzCnfP --> |
 
 A toggle saves when you change it. The server's health response says what is available: `web_search` is greyed out when no search backend is set up, and `execute` when the server reports that it cannot run code. When you can fix the cause on your computer, the row says how. Each row's info button opens the exact description and schemas the model sees. The `query` and `attributes` [callables](./callables.md) have no toggle, because they are always on (`attributes` reads a document's [attributes](../metadata.md)). With Publish enabled, the row says which identities the agent authors as and links to the identities page. <!-- id:U5HeS5l- -->
 

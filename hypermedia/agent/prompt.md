@@ -66,7 +66,7 @@ A per-turn block is a short piece of text inside a tag, such as `<space>`. These
 - **`<current_time>`**: the time the turn started. <!-- id:9MNLj56N -->
 - **`<user_time>`**: the same moment in the user's time zone, when the server knows it, so "8:00" and "tonight" mean what the user means.
 
-One exception: when a reader takes a turn in a session that used the browser or [private memory](./memory.md#private-memory), the turn does not get the owner's plan or status text.
+One exception: when a reader takes a turn in a session that used the browser, the turn does not get the owner's plan or status text.
 
 Three more blocks are attached to a message:
 

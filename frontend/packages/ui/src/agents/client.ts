@@ -83,7 +83,7 @@ export type McpToolInfo = AgentsProtocol.McpToolInfo
 export type McpServerStatus = AgentsProtocol.McpServerStatus
 /** Every editable field submitted when creating or updating an authored tool. */
 export type AgentToolInput = AgentsProtocol.AgentToolInput
-/** One file or directory inside an agent's private memory filesystem. */
+/** One file or directory inside an agent's memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */
 export type AgentMemoryFile = AgentsProtocol.AgentMemoryFile

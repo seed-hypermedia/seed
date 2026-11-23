@@ -29,8 +29,8 @@ The exact behaviour of each address is in the [read](./read.md) and [write](./wr
 
 `~/memory/` is a directory on the [app environment](../software/app-environment.md). It belongs to one agent, and all of that agent's sessions share it. An agent keeps notes, drafts and reusable code there between conversations.
 
-- Code run by [`execute`](./code-execution.md) sees the same directory as `/workspace`, except `~/memory/private/`.
-- `~/memory/private/` is for the owner only. Code never sees it.
+- Code run by [`execute`](./code-execution.md) sees the same directory as `/workspace`.
+- Anyone the agent is shared with can read it. Do not keep secrets there.
 - Memory has no size limit.
 
 See [memory](./memory.md).

@@ -42,7 +42,7 @@ import {
 import * as agentMemory from '@/agent-memory'
 import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
-import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
+import {BrowserPrivacy, containsPrivateData, hasOwnerAccess, privateStub, withOwnerAccess} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -1144,7 +1144,6 @@ export class Service {
       db,
       'SELECT id, account_id, state_dir FROM agents',
     ).all()) {
-      agentMemory.migratePrivateMemory(agent.state_dir)
       // Agents no longer hold private code tools; each authored one moves into the agent's memory.
       const moved = toolDocs.moveLambdaToolsToMemory(
         db,
@@ -1180,9 +1179,8 @@ export class Service {
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
       admit: () => this.#admitRuns(),
       executors: {
-        agent: (run) =>
-          agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
-        workflow: (run) => agentMemory.withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
+        agent: (run) => withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
+        workflow: (run) => withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
       },
       onRunChanged: (run) => this.#onRunChanged(run),
       onRunFinalized: (run) => this.#onRunFinalized(run),
@@ -1459,9 +1457,7 @@ export class Service {
     }
     const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
     const response = await withMemoryErrorsAsync(() =>
-      agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
-        this.#dispatch(envelope, verified, ownerAccountId),
-      ),
+      withOwnerAccess(ownerAccountId === verified.accountId, () => this.#dispatch(envelope, verified, ownerAccountId)),
     )
     return this.#browserPrivacy.forViewer(
       downgradeResponse(response, clientProtocol, {
@@ -2004,9 +2000,7 @@ export class Service {
       if (upload.target.kind === 'memory') {
         const target = upload.target
         const owner = fromAgent(target.agentId, 'writer')
-        withMemoryErrors(() =>
-          agentMemory.withOwnerAccess(owner === actorAccountId, () => agentMemory.resolveMemoryPath('', target.path)),
-        )
+        withMemoryErrors(() => agentMemory.resolveMemoryPath('', target.path))
         return owner
       }
       return fromSession(upload.target.sessionId, 'chat')
@@ -6625,7 +6619,7 @@ export class Service {
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
-    // A title digest of a browser or private-memory session would copy signed-in page content to
+    // A title digest of a browser session would copy signed-in page content to
     // another model call. Those sessions keep their provisional title.
     if (this.#browserPrivacy.sessionIsPrivate(sessionId)) return
     this.#namingSessions.add(sessionId)
@@ -8522,7 +8516,7 @@ export class Service {
     systemPrompt = resolveDocsRootMentions(systemPrompt)
     const sharedPrompt = seedAssistantSystemPrompt({knowledgeBaseUrl: docsSpaceUrl()})
     const memoryPrompt =
-      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Anyone this agent is shared with can read your memory, so never store passwords, API keys or other secrets there. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -8940,9 +8934,9 @@ export class Service {
      * one turn to the next, and the turn's own requests share one prefix.
      */
     const turnStateMessages = (promptTokens: number | undefined): piAi.UserMessage[] => {
-      // A reader's turn in a browser or private-memory session must not see the owner's plan or
+      // A reader's turn in a browser session must not see the owner's plan or
       // status text; the private stub stands in for them.
-      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
+      const privateHistory = !hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
       const blocks = [
         buildSpaceIndex({
           db: this.#db,
@@ -9960,8 +9954,8 @@ export class Service {
     // Results that arrived for calls the conversation already answered with a placeholder.
     const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
     let appendable = sync.importedSeq > 0
-    // A session that used the browser or private memory is rebuilt from the log on every turn:
-    // the durable conversation would otherwise carry owner-only content into a reader's turn
+    // A session that used the browser is rebuilt from the log on every turn:
+    // the durable conversation would otherwise carry the owner's page content into a reader's turn
     // (or a reader's redacted copy into the owner's). #piMessages redacts by the run's access.
     if (this.#browserPrivacy.scanSessionIsPrivate(sessionId)) appendable = false
     let interrupted = false
@@ -10173,14 +10167,14 @@ export class Service {
    * `left` names events to leave out: messages another run will put to the model itself.
    */
   #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
-    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
+    const privateSession = !hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
     )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
-      .map((event) => (agentMemory.hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
+      .map((event) => (hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
 
     // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
     // DIRECTLY after the assistant message that made the calls, but the durable event order
@@ -12301,8 +12295,7 @@ function formatMemoryLine(summary: agentMemory.AgentMemorySummary): string {
 
 /** Refreshes one memory line off the prompt path; at most one refresh per state dir in flight. */
 function scheduleMemorySummaryRefresh(stateDir: string): void {
-  const summaryKey = `${stateDir}#${agentMemory.hasOwnerAccess() ? 'owner' : 'reader'}`
-  const cached = memorySummaryCache.get(summaryKey)
+  const cached = memorySummaryCache.get(stateDir)
   if (cached?.refreshing) return
   if (cached) cached.refreshing = true
   void (async () => {
@@ -12316,8 +12309,8 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    const changed = memorySummaryCache.get(summaryKey)?.line !== line
-    memorySummaryCache.set(summaryKey, {line, walkedAt: Date.now(), holdMs})
+    const changed = memorySummaryCache.get(stateDir)?.line !== line
+    memorySummaryCache.set(stateDir, {line, walkedAt: Date.now(), holdMs})
     // The line is baked into cached space indexes; drop them so the next prompt picks it up. The
     // rest of an index rebuild is a few small SQL reads.
     if (changed) spaceIndexCache.clear()
@@ -12333,8 +12326,7 @@ export function invalidateSpaceIndex(accountId: string, agentId?: string): void 
 }
 
 export function buildSpaceIndex(input: SpaceIndexInput): string {
-  const visibility = agentMemory.hasOwnerAccess() ? 'owner' : 'reader'
-  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}#${visibility}`
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
   const cached = spaceIndexCache.get(cacheKey)
   if (cached !== undefined) return cached
 
@@ -12364,8 +12356,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   }
 
   let memoryLine: string
-  const summaryKey = `${input.stateDir}#${visibility}`
-  const cachedSummary = memorySummaryCache.get(summaryKey)
+  const cachedSummary = memorySummaryCache.get(input.stateDir)
   if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
     memoryLine = cachedSummary.line
   } else if (cachedSummary && cachedSummary.holdMs > 0) {
@@ -12384,7 +12375,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    memorySummaryCache.set(summaryKey, {line: memoryLine, walkedAt: Date.now(), holdMs})
+    memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
   }
 
   const triggers = stmt<{name: string; enabled: number}, [string, string]>(
@@ -14201,7 +14192,7 @@ export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
-  /** Agent state directory holding the private memory filesystem. */
+  /** Agent state directory holding the memory filesystem. */
   stateDir: string
   /** Session this run belongs to, scoping attachment addresses. */
   sessionId: string
@@ -15367,7 +15358,7 @@ function readThreadAddress(
     context.agentId,
   )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
-  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
+  if (!hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
@@ -15415,7 +15406,7 @@ function readThreadAddress(
 function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
   const run = runs.getRun(context.db, context.accountId, runId)
   if (!run) throw new APIError(404, `No run ${runId}`)
-  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
+  if (!hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
   return {
     summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
     ...runInfoFromRecord(run),
@@ -16283,8 +16274,7 @@ const THREAD_SEARCH_EVENTS_PER_SESSION = 25
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
-  const visible = (sessionId: string) =>
-    agentMemory.hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
+  const visible = (sessionId: string) => hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
   const limit = boundedInteger(options.limit, 25, 1, 100)
   const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
@@ -17665,17 +17655,12 @@ export async function executeCallVerb(
         throw new APIError(400, 'This model cannot view screenshots. Use snapshot or select a vision-capable model.')
       }
       const output = await context.browser(toolInput as api.BrowserCommand)
-      if (toolInput.action === 'archive' && typeof output.markdown === 'string') {
-        const entry = agentMemory.writeMemoryFile(
-          context.stateDir,
-          `private/browser/archive-${crypto.randomUUID()}.md`,
-          output.markdown,
-        )
-        context.onMemoryChange()
+      if (toolInput.action === 'archive') {
+        // Signed-in page content stays in the owner's local draft: memory is readable by anyone the
+        // agent is shared with, so the capture is neither saved there nor returned to the model.
         delete output.markdown
-        output.memoryPath = `~/memory/${entry.path}`
         output.publishInstructions =
-          'An editable desktop draft and an owner-only private/browser/ memory archive were created; nothing was published. Only the owner can read or publish this archive. Read memoryPath to review or revise the archive. To publish with your available write keys, read ~/tools/write/documents and use write with options.fromPath, preserving the source metadata.'
+          'An editable desktop draft was created; nothing was published. The owner can review and publish it from the app.'
       }
       if (
         isRecord(output.screenshot) &&
