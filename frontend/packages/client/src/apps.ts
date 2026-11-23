@@ -11,7 +11,7 @@
 import {computeReplaceOps, createBlocksMap, hmBlockNodeToBlockNode, toAPIBlockNode} from './block-diff'
 import {createChange, createChangeOps, type DocumentOperation} from './change'
 import type {SeedClient} from './client'
-import {resolveEditableDocument} from './document-state'
+import {editRefGeneration, resolveEditableDocument} from './document-state'
 import type {CollectedBlob} from './file-to-ipfs'
 import {hmIdPathToEntityQueryPath, packHmId, unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from './hm-types'
 import type {BlockNode} from './markdown-to-blocks'
@@ -200,7 +200,7 @@ export async function createDocumentUpdateBlobs({
       path: hmIdPathToEntityQueryPath(base.targetId.path),
       genesis: state.genesis,
       version: change.cid.toString(),
-      generation: Number(ts),
+      generation: editRefGeneration(base.document, Number(ts)),
       capability,
     },
     signer,

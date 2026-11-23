@@ -17,7 +17,7 @@ import type {SeedClient} from './client'
 import type {DocumentOperation} from './change'
 import {createChangeOps, createChange} from './change'
 import {createVersionRef} from './ref'
-import {resolveDocumentState} from './document-state'
+import {editRefGeneration, resolveDocumentState} from './document-state'
 import {CID} from 'multiformats/cid'
 
 // ── Layer 1: Pure decision logic (no I/O) ────────────────────────────────────
@@ -227,7 +227,7 @@ export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions):
   // Create and sign the change
   const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
   const changeBlock = await createChange(unsignedBytes, signer)
-  const generation = Number(ts)
+  const generation = editRefGeneration(parentDocument, Number(ts))
 
   // Create version ref
   const refInput = await createVersionRef(

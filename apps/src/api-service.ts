@@ -117,6 +117,7 @@ import {
   followRedirects,
   followToDocument,
   resolveCapability,
+  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
   resolveIdWithClient,
@@ -18621,7 +18622,8 @@ async function writeDocumentUpdate(
       path: hmIdPathToEntityQueryPath(targetId.path),
       genesis: state.genesis,
       version: changeBlock.cid.toString(),
-      generation: Number(ts),
+      // The Ref lands on the live document (redirects were followed), so it stays in its generation.
+      generation: editRefGeneration(base.document, Number(ts)),
       capability,
     },
     signer.signer,
