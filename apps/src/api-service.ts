@@ -117,7 +117,6 @@ import {
   followRedirects,
   followToDocument,
   resolveCapability,
-  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
   resolveIdWithClient,
@@ -18857,8 +18856,9 @@ async function writeUpdateBlobs({
     account: targetId.uid,
     path: hmIdPathToEntityQueryPath(targetId.path),
     capability,
-    // Never below the generation the path holds: such a Ref is stored and then ignored.
-    currentGeneration: Number(document.generationInfo?.generation ?? 0) || 0,
+    // An edit stays in the document's generation (see editRefGeneration); a document that reports
+    // none gets the new Change's timestamp.
+    currentGeneration: document.generationInfo?.generation,
     now: documentUpdateNow,
   }
   const update = await documentUpdateBlobs({
