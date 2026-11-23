@@ -250,8 +250,10 @@ describe('seed-cli document update', () => {
     const moveOps = await latestOps('/edit')
     expect(moveOps).toHaveLength(1)
     expect(moveOps[0]!.type).toBe('MoveBlocks')
-    // The block that moved is the one sent; the rest of the level is not mentioned.
-    expect(moveOps[0]!.blocks).toEqual([c])
+    // One block is placed and the rest of the level is not mentioned. Moving `c` after `d` and
+    // moving `d` after `b` give the same order, and the daemon may store either.
+    expect(moveOps[0]!.blocks).toHaveLength(1)
+    expect([c, d]).toContain(moveOps[0]!.blocks[0])
   })
 
   it('publishes no new version when the same file is applied again', async () => {
