@@ -9,15 +9,14 @@
  */
 
 import {computeReplaceOps, createBlocksMap, hmBlockNodeToBlockNode, toAPIBlockNode} from './block-diff'
-import {createChange, createChangeOps, type DocumentOperation} from './change'
+import type {DocumentOperation} from './change'
 import type {SeedClient} from './client'
-import {editRefGeneration, resolveEditableDocument} from './document-state'
+import {resolveEditableDocument} from './document-state'
 import type {CollectedBlob} from './file-to-ipfs'
 import {hmIdPathToEntityQueryPath, packHmId, unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from './hm-types'
 import type {BlockNode} from './markdown-to-blocks'
-import {createVersionRef} from './ref'
+import {documentUpdateBlobs} from './prepare-change'
 import type {AnySigner} from './signer'
-import {CID} from 'multiformats/cid'
 
 export const HM_APP_TYPE = 'hm://hyper.media/app'
 export const HM_TOOL_TYPE = 'hm://hyper.media/tool'
@@ -168,6 +167,16 @@ export function removeAppChildOps(
  * makes it the latest version. Returns the blobs to publish (`extraBlobs`, such as a tool's code
  * folder, come last). `capability` is the writer capability when the signer writes into another
  * account's space.
+ *
+ * The Change is computed by the daemon (`PrepareDocumentChange`, through
+ * {@link documentUpdateBlobs}), which leaves out every op that would change nothing. When
+ * nothing is left, `changed` is false and `blobs` holds only `extraBlobs`: no Change and no Ref.
+ * Publish `blobs` only when it is not empty. When the daemon cannot be asked for the update, or
+ * does not give a usable answer, the Change is built here with the ops as listed (`builtBy` is
+ * `'local'` and `localReason` says why); the result has the same shape.
+ *
+ * A redirected address is followed: the update lands on the document the address presents
+ * (`targetId`).
  */
 export async function createDocumentUpdateBlobs({
   client,
@@ -183,35 +192,33 @@ export async function createDocumentUpdateBlobs({
   ops: DocumentOperation[]
   capability?: string
   extraBlobs?: CollectedBlob[]
-}): Promise<{blobs: CollectedBlob[]; targetId: UnpackedHypermediaId}> {
+}): Promise<{
+  blobs: CollectedBlob[]
+  targetId: UnpackedHypermediaId
+  changed: boolean
+  /** Who computed the Change, when there is one. */
+  builtBy?: 'server' | 'local'
+  localReason?: string
+}> {
   if (!ops.length) throw new Error('No document changes to publish')
   const base = await resolveEditableDocument(client, id)
-  const state = base.state
-  const {unsignedBytes, ts} = createChangeOps({
-    ops,
-    genesisCid: CID.parse(state.genesis),
-    deps: state.heads.map((head) => CID.parse(head)),
-    depth: state.headDepth + 1,
-  })
-  const change = await createChange(unsignedBytes, signer)
-  const ref = await createVersionRef(
-    {
-      space: base.targetId.uid,
-      path: hmIdPathToEntityQueryPath(base.targetId.path),
-      genesis: state.genesis,
-      version: change.cid.toString(),
-      generation: editRefGeneration(base.document, Number(ts)),
-      capability,
-    },
+  const update = await documentUpdateBlobs({
+    client,
     signer,
-  )
+    account: base.targetId.uid,
+    path: hmIdPathToEntityQueryPath(base.targetId.path),
+    state: base.state,
+    ops,
+    content: base.document.content ?? [],
+    documentVersion: base.document.version,
+    capability,
+    currentGeneration: base.document.generationInfo?.generation,
+  })
   return {
-    blobs: [
-      {cid: change.cid.toString(), data: new Uint8Array(change.bytes)},
-      ...ref.blobs.map((blob) => ({cid: blob.cid!, data: blob.data})),
-      ...extraBlobs,
-    ],
+    blobs: [...update.blobs, ...extraBlobs],
     targetId: base.targetId,
+    changed: update.changed,
+    ...(update.changed ? {builtBy: update.builtBy, localReason: update.localReason} : {}),
   }
 }
 

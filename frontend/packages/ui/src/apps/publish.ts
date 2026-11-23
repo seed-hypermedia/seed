@@ -69,6 +69,8 @@ export function useAppsPublisher() {
         ops,
         capability: access.capability,
       })
+      // The daemon found the list already reads this way: nothing to publish.
+      if (!update.changed) return []
       return [...access.blobs, ...update.blobs]
     }
 
@@ -120,6 +122,8 @@ export function useAppsPublisher() {
           capability: access.capability,
           extraBlobs,
         })
+        // A change the document already holds leaves nothing to publish but the extra blobs.
+        if (!update.blobs.length) return
         await publish([...access.blobs, ...update.blobs], [id])
       },
 
