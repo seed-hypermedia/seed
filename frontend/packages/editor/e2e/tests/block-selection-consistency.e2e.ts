@@ -230,6 +230,28 @@ test.describe('Block selection consistency across block types (real editor)', ()
     expect(s.fullBlockIds).toEqual(['blk-button'])
   })
 
+  test('block tools follow the block when content above it grows', async ({page}) => {
+    await setupAllBlocks(page)
+    await page.mouse.move(5, 5)
+    await clickBlockBody(page, 'blk-math')
+    await expect.poll(async () => (await snapshot(page)).tools).toBe('blk-math')
+    const topBefore = (await snapshot(page)).toolsTop!
+
+    // A late render above (embed, KaTeX, media) fires no scroll, resize or
+    // editor transaction; only the layout moves.
+    await page.evaluate(() => {
+      const above = document.querySelector('[data-id="blk-button"] [data-content-type]') as HTMLElement
+      above.style.minHeight = `${above.getBoundingClientRect().height + 120}px`
+    })
+
+    await expect.poll(async () => (await snapshot(page)).toolsTop).toBeGreaterThan(topBefore + 100)
+    const s = await snapshot(page)
+    expect(s.tools, 'block tools must stay on the block').toBe('blk-math')
+    await expect
+      .poll(async () => (await snapshot(page)).sideMenuBlock, {message: 'side menu must stay on the block'})
+      .toBe('blk-math')
+  })
+
   test('scrolling repositions the block tools instead of hiding them', async ({page}) => {
     await setupAllBlocks(page)
     await page.mouse.move(5, 5)
