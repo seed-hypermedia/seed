@@ -61,12 +61,6 @@ export function createAppMenu() {
         },
         {type: 'separator'},
         {
-          label: 'Reindex the Database',
-          click: () => {
-            dispatchFocusedWindowAppEvent({type: 'trigger_database_reindex'})
-          },
-        },
-        {
           label: 'Check for Updates',
           accelerator: 'CmdOrCtrl+Option+u',
           click: () => checkForUpdates(),

@@ -268,16 +268,6 @@ function MainApp({}: {}) {
   const isDarkMode = useDarkMode()
   const windowUtils = useWindowUtils(ipc)
 
-  useListenAppEvent('trigger_database_reindex', () => {
-    toast.promise(grpcClient.daemon.forceReindex({}), {
-      loading: 'Reindexing the database…',
-      success: () => {
-        return 'Database reindexed'
-      },
-      error: 'Reindex failed!',
-    })
-  })
-
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
     let disposed = false

@@ -23,7 +23,8 @@ type TableSpec struct {
 // Derived tables are cleaned up during forced reindex.
 // Every table in the schema must have an explicitly assigned kind in this list.
 // This helps us avoid missing adding a derived table into a list, causing problems during reindex.
-// Order of derived tables is important to ensure foreign key constraints are not violated.
+// Reindex empties derived tables with foreign keys off, so their order doesn't matter, but no permanent
+// table may reference a derived one (see TestDerivedTablesReferencedOnlyByDerivedTables).
 var tableSpecs = []TableSpec{
 	{Name: T_KV, Kind: TableKindPermanent},
 	{Name: T_PublicKeys, Kind: TableKindPermanent},
@@ -40,11 +41,7 @@ var tableSpecs = []TableSpec{
 	{Name: T_StructuralBlobs, Kind: TableKindDerived},
 	{Name: T_DocumentAttributes, Kind: TableKindDerived},
 	{Name: T_DocumentAttributeKeys, Kind: TableKindDerived},
-	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
-	// loop below. comments_live has an FK to resources with ON DELETE CASCADE, but
-	// reindex deletes in list order, so list it before resources rather than
-	// relying on the cascade (same reasoning as the RBSR tables at the end of
-	// this list).
+	// Comment activity is derived from Comment blobs, so reindex rebuilds it.
 	{Name: T_CommentsLive, Kind: TableKindDerived},
 	{Name: T_DocumentCommentStats, Kind: TableKindDerived},
 	{Name: T_KeylineMembers, Kind: TableKindDerived},
@@ -61,9 +58,7 @@ var tableSpecs = []TableSpec{
 	{Name: T_FtsIndex, Kind: TableKindDerived},
 	{Name: T_BlobVisibility, Kind: TableKindDerived},
 	// The maintained RBSR index is derived: drop it on reindex and let it
-	// re-materialize lazily on the next reconcile. rbsr_item has an FK to
-	// rbsr_scope with ON DELETE CASCADE, but reindex deletes tables in list
-	// order, so list rbsr_item before rbsr_scope to avoid relying on cascade.
+	// re-materialize lazily on the next reconcile.
 	{Name: T_RbsrItem, Kind: TableKindDerived},
 	{Name: T_RbsrScope, Kind: TableKindDerived},
 

@@ -29,7 +29,6 @@ export type AppWindowEvent =
   | {type: 'forward'}
   /** Cmd/Ctrl+Up: one level up the breadcrumb hierarchy of the current route. */
   | {type: 'go_to_parent'}
-  | {type: 'trigger_database_reindex'}
   | {type: 'open_launcher'}
   | {type: 'focus_omnibar'; mode: 'url' | 'search'}
   | {type: 'find_in_page'}

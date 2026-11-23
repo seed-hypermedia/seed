@@ -37,50 +37,75 @@ func TestSchemaQueries(t *testing.T) {
 	require.NoError(t, schemaQueries.Test(db))
 }
 
+// Reindex truncates derived tables with foreign keys off, which is only safe
+// while no permanent table references a derived one: its rows would be left
+// pointing at nothing, without the cascade enforcement would have applied.
+func TestDerivedTablesReferencedOnlyByDerivedTables(t *testing.T) {
+	kinds := make(map[string]storage.TableKind)
+	for _, spec := range storage.TableSpecs() {
+		kinds[spec.Name] = spec.Kind
+	}
+
+	db := storage.MakeTestMemoryDB(t)
+	conn, release, err := db.ReadConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	var checked int
+
+	require.NoError(t, sqlitex.Exec(conn, `
+		SELECT m.name, fk."table"
+		FROM sqlite_schema m, pragma_foreign_key_list(m.name) fk
+		WHERE m.type = 'table'
+	`, func(stmt *sqlite.Stmt) error {
+		child, parent := stmt.ColumnText(0), stmt.ColumnText(1)
+		if kinds[parent] == storage.TableKindDerived {
+			checked++
+			require.Equal(t, storage.TableKindDerived, kinds[child], "%s references derived table %s", child, parent)
+		}
+
+		return nil
+	}))
+	require.Positive(t, checked)
+}
+
+// Keyline's tables are derived, and Keyline must reinitialize on top of them
+// once reindex has emptied them.
 func TestKeylineReindexTables(t *testing.T) {
+	keyline := []string{storage.T_KeylineNodes, storage.T_KeylineDelegations, storage.T_KeylineRevocations, storage.T_KeylineMembers}
 	specs := storage.TableSpecs()
-	resources := slices.IndexFunc(specs, func(spec storage.TableSpec) bool {
-		return spec.Name == storage.T_Resources
-	})
-	require.NotEqual(t, -1, resources)
-	for _, name := range []string{storage.T_KeylineNodes, storage.T_KeylineDelegations, storage.T_KeylineRevocations, storage.T_KeylineMembers} {
+	for _, name := range keyline {
 		idx := slices.IndexFunc(specs, func(spec storage.TableSpec) bool {
 			return spec.Name == name
 		})
 		require.NotEqual(t, -1, idx)
-		require.Less(t, idx, resources)
 		require.Equal(t, storage.TableKindDerived, specs[idx].Kind)
 	}
 
 	db := storage.MakeTestMemoryDB(t)
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		foreignKeys, err := sqlitex.QueryOne[int](conn, "PRAGMA foreign_keys")
-		require.NoError(t, err)
-		require.Equal(t, 1, foreignKeys, "reindex must exercise foreign key enforcement")
-		require.NoError(t, sqlitex.ExecScript(conn, `
-			INSERT INTO keyline_nodes (id, name, blob_id, ts, blob_key)
-			VALUES (1, 'opaque-subject', 1, 0, 'opaque-blob'), (2, 'opaque-member', NULL, NULL, NULL);
-			INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id)
-			VALUES ('delegation', 1, 2, 1, 'a', 2);
-			INSERT INTO keyline_revocations (id, issuer, target, blob_id)
-			VALUES ('revocation', 1, 'delegation', 3);
-			INSERT INTO keyline_members (subject, member, power) VALUES (1, 2, 'a');
-		`))
-		for _, spec := range specs {
-			if spec.Kind == storage.TableKindDerived {
-				require.NoError(t, sqlitex.Exec(conn, "DELETE FROM "+spec.Name, nil))
-			}
-		}
+	conn, release, err := db.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 
-		for _, name := range []string{storage.T_KeylineNodes, storage.T_KeylineDelegations, storage.T_KeylineRevocations, storage.T_KeylineMembers} {
-			count, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM "+name)
-			require.NoError(t, err)
-			require.Zero(t, count, name)
-		}
+	require.NoError(t, sqlitex.ExecScript(conn, `
+		INSERT INTO keyline_nodes (id, name, blob_id, ts, blob_key)
+		VALUES (1, 'opaque-subject', 1, 0, 'opaque-blob'), (2, 'opaque-member', NULL, NULL, NULL);
+		INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id)
+		VALUES ('delegation', 1, 2, 1, 'a', 2);
+		INSERT INTO keyline_revocations (id, issuer, target, blob_id)
+		VALUES ('revocation', 1, 'delegation', 3);
+		INSERT INTO keyline_members (subject, member, power) VALUES (1, 2, 'a');
+	`))
 
-		require.NoError(t, keylinesqlite.Init(t.Context(), conn))
-		return nil
-	}))
+	// Reindex empties derived tables with foreign keys off, in no particular order.
+	require.NoError(t, sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = OFF", nil))
+	for _, name := range keyline {
+		require.NoError(t, sqlitex.ExecTransient(conn, "DELETE FROM "+name, nil))
+	}
+
+	require.NoError(t, sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = ON", nil))
+
+	require.NoError(t, keylinesqlite.Init(t.Context(), conn))
 }
 
 func TestKeylinePowerConstraints(t *testing.T) {
