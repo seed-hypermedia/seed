@@ -20,7 +20,6 @@ import {
   followToDocument,
   packHmId,
   resolveCapability,
-  editRefGeneration,
   resolveEditableDocument,
   type DocumentOperation,
   type CollectedBlob,
@@ -708,7 +707,7 @@ export function registerDocumentCommands(program: Command) {
         // written; when it cannot be asked, or does not give a usable answer, the Change is built
         // here as written (documentUpdateBlobs). For a redirected address the server is given THIS
         // path and the target's heads: it builds on the target's history (loadDocumentForChange),
-        // and the Ref signed here, at a generation no lower than now, outranks the redirect Ref.
+        // and the Ref signed here, in a fresh generation, outranks the redirect Ref.
         const update = await documentUpdateBlobs({
           client,
           signer,
@@ -719,7 +718,9 @@ export function registerDocumentCommands(program: Command) {
           content: existingDoc.content ?? [],
           documentVersion: existingDoc.version,
           capability,
-          currentGeneration: base.redirect ? Date.now() : existingDoc.generationInfo?.generation,
+          // An edit stays in the document's generation; only taking a path over from a redirect
+          // opens a fresh one (left out, the Ref takes the new Change's timestamp).
+          currentGeneration: base.redirect ? undefined : existingDoc.generationInfo?.generation,
         })
 
         // Files and the schema are published either way: they are named by their content, so

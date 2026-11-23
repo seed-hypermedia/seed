@@ -1174,9 +1174,9 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
 
     // The server computes the Change from the document's real state, so only what differs is
     // stored; a request it refuses, does not answer or answers implausibly is built here instead
-    // (documentUpdateBlobs), so one file's refusal never stops the import. A document that has
-    // just moved here already holds a Ref with a current-time generation at this path, which the
-    // new Ref must not go below.
+    // (documentUpdateBlobs), so one file's refusal never stops the import. An update keeps the
+    // document's generation. A document that has just moved here already holds a Ref with a
+    // current-time generation at this path, so its update takes a generation of now instead.
     const attached = [...schemaBlobs, ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid}))]
     const update = await documentUpdateBlobs({
       client: opts.client,
