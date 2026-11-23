@@ -7343,6 +7343,11 @@ describe('api service', () => {
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: genesis, deps: [], author: signerPublicKey}]}))
         }
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer), genesis)}),
+          )
+        }
         if (href.includes('/api/Resource')) {
           // An existing document, living in generation 1000.
           return Response.json(
