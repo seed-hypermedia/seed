@@ -30,7 +30,13 @@ export function containsPrivateData(value: unknown): boolean {
     }
     if (privatePath(record.input) || privatePath(record.args)) return true
   }
-  return Object.values(record).some(containsPrivateData)
+  // A tool's output is what it fetched, not what the transcript referenced: a public document that
+  // mentions `~/memory/private/` (the Agent Guide does) is not private data. A private read is
+  // caught at its call above, and browser output by its tool name.
+  const isToolRecord = tools.some((tool) => typeof tool === 'string')
+  return Object.entries(record).some(
+    ([key, field]) => !(isToolRecord && key === 'output') && containsPrivateData(field),
+  )
 }
 
 type Kind = 'session' | 'run'
@@ -454,7 +460,7 @@ export class BrowserPrivacy {
       if (event[key] !== undefined) safe[key] = event[key]
     if (event.type === 'tool_call') safe.input = stub
     else if (event.type === 'tool_result') safe.output = stub
-    else if (event.type === 'message') safe.content = JSON.stringify(stub)
+    else if (event.type === 'message') safe.content = String(stub.summary)
     else if (event.type === 'error') safe.message = String(stub.summary)
     return {...info, event: safe, truncated: false}
   }
