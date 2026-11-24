@@ -21,7 +21,7 @@ import {readFileSync} from 'fs'
 import {join} from 'path'
 import satori from 'satori'
 import sharp from 'sharp'
-import {loadFallbackFonts} from '../content-image-fonts.server'
+import {loadContentImageAsset} from '../content-image-fonts.server'
 import {processImage} from '../utils/image-processor'
 
 /** Pixel dimensions for social link previews. */
@@ -199,7 +199,7 @@ function DocumentCard({
                         justifyContent: 'center',
                       }}
                     >
-                      {author.document.metadata.name?.slice(0, 1) || '?'}
+                      {Array.from(author.document.metadata.name || '')[0] || '?'}
                     </div>
                   ),
                 )}
@@ -364,7 +364,7 @@ async function loadContentImage(request: Request) {
       {name: 'Inter', data: loadFont('Inter_28pt-Medium.ttf'), weight: 400, style: 'normal'},
       {name: 'Inter', data: loadFont('Inter_28pt-Bold.ttf'), weight: 700, style: 'normal'},
     ],
-    loadAdditionalAsset: loadFallbackFonts,
+    loadAdditionalAsset: loadContentImageAsset,
   })
   const png = await sharp(Buffer.from(svg)).png().toBuffer()
   return new Response(png, {

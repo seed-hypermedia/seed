@@ -9,6 +9,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const {getDocument} = vi.hoisted(() => ({getDocument: vi.fn()}))
 vi.mock('@/client.server', () => ({grpcClient: {documents: {getDocument}}}))
 
+import {emojiToTwemojiCode} from '../content-image-fonts.server'
 import {loader} from '../routes/hm.api.content-image'
 
 const account = 'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS'
@@ -17,6 +18,23 @@ const request = () => new Request(`https://example.com/hm/api/content-image?spac
 
 describe('content image', () => {
   beforeEach(() => vi.resetAllMocks())
+
+  describe('emojiToTwemojiCode', () => {
+    it('strips FE0F variation selectors from a simple emoji', () => {
+      // ❤️ (U+2764 U+FE0F) → 2764
+      expect(emojiToTwemojiCode('❤️')).toBe('2764')
+    })
+
+    it('preserves ZWJ in a multi-codepoint family sequence', () => {
+      // 👨‍👩‍👧 (man-woman-girl joined with ZWJ) → 1f468-200d-1f469-200d-1f467
+      expect(emojiToTwemojiCode('👨‍👩‍👧')).toBe('1f468-200d-1f469-200d-1f467')
+    })
+
+    it('converts a single emoji without variation selector', () => {
+      // 💥 (collision) → 1f4a5
+      expect(emojiToTwemojiCode('💥')).toBe('1f4a5')
+    })
+  })
 
   it('renders a PNG when an author profile is unavailable', async () => {
     getDocument.mockImplementation(async ({account: uid}) => {
@@ -45,6 +63,7 @@ describe('content image', () => {
   describe('non-Latin glyph rendering', () => {
     const fixtureFont = readFileSync(join(__dirname, 'fixtures', 'noto-sans-kr-subset.ttf'))
     const fixtureFontUrl = 'https://fonts.gstatic.com/fixture.ttf'
+    const twemojiSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><rect width="36" height="36" fill="#FF0000"/></svg>`
     const requestedUrls: string[] = []
 
     beforeEach(() => {
@@ -66,6 +85,12 @@ describe('content image', () => {
               headers: {'Content-Type': 'font/ttf'},
             })
           }
+          if (url.includes('twemoji@') && url.endsWith('.svg')) {
+            return new Response(twemojiSvg, {
+              status: 200,
+              headers: {'Content-Type': 'image/svg+xml'},
+            })
+          }
           // Unexpected request: fail loudly so the test does not silently pass.
           return new Response('not found', {status: 404})
         }),
@@ -73,6 +98,15 @@ describe('content image', () => {
     })
 
     afterEach(() => vi.unstubAllGlobals())
+
+    /** Count pixels in a raw RGBA buffer matching a predicate over (R,G,B). */
+    function countPixels(raw: Buffer, match: (r: number, g: number, b: number) => boolean): number {
+      let n = 0
+      for (let i = 0; i < raw.length; i += 4) {
+        if (match(raw[i]!, raw[i + 1]!, raw[i + 2]!)) n++
+      }
+      return n
+    }
 
     it('renders distinct Korean titles with distinct pixels and fetches Noto Sans KR', async () => {
       // Equal-length titles covered by the fixture font: with only Inter
@@ -115,6 +149,31 @@ describe('content image', () => {
           expect(allText).toContain(ch)
         }
       }
+    })
+
+    it('renders emoji via Twemoji SVG (no tofu) and fetches the correct asset', async () => {
+      getDocument.mockImplementation(
+        async () =>
+          new Document({
+            account,
+            version: 'test-version',
+            metadata: Struct.fromJson({name: '💥 Boom'}),
+            authors: [account],
+          }),
+      )
+      const response = await loader({request: request()})
+      expect(response.status).toBe(200)
+      const png = Buffer.from(await response.arrayBuffer())
+      const raw = await sharp(png).raw().toBuffer()
+
+      // A request must have been made for the collision emoji's Twemoji SVG.
+      const twemojiRequest = requestedUrls.find((u) => u.includes('twemoji@15.1.0/assets/svg/1f4a5.svg'))
+      expect(twemojiRequest).toBeTruthy()
+
+      // The rendered PNG must contain pure-red pixels from the Twemoji SVG.
+      // (Inter has no red glyph; the tofu box is a neutral outline, not red.)
+      const redPixels = countPixels(raw, (r, g, b) => r > 240 && g < 20 && b < 20)
+      expect(redPixels).toBeGreaterThan(0)
     })
   })
 })
