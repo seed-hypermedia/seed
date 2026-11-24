@@ -50,7 +50,7 @@ The server refuses a write to a space where the signer has no access. It refuses
 
 # Managing identities
 
-An agent's identities are its built-in `signing` private config field (see [host config](../build/signed-api-apps.md#host-config)). In the app, **Settings > Private config** lists them under Signing keys, with what each can write. **Add a key** attaches one the owner holds on the server, or makes a new one. The **Server accounts** dialog, opened from Settings, lists every identity the account keeps on that server.
+An agent's identities are its built-in `signing` private config field (see [host config](../build/signed-api-apps.md#host-config)). In the app, **Settings > Private config** lists them under Signing keys, with what each can write. **Generate a key** makes a new one for this agent, and **Import a key file** brings in an exported one; keys the server already holds are not offered for reuse. The **Server accounts** dialog, opened from Settings, lists every identity the account keeps on that server.
 
 Only the owner can manage identities, and the server enforces it. A collaborator sees only the identities granted to the shared agent, and a writer cannot change the granted set. See [sharing an agent](./sharing.md).
 

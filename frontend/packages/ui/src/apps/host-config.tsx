@@ -4,7 +4,7 @@
  * may write. App settings and an agent's Private config page use the same pieces.
  */
 import type {HostConfigInfo, SigningIdentity} from '@seed-hypermedia/apps-protocol'
-import {createCapability} from '@seed-hypermedia/client'
+import {createCapability, keyfile} from '@seed-hypermedia/client'
 import type {HMCapability, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useCapabilities} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -13,10 +13,10 @@ import {useUniversalAppContext, useUniversalClient} from '@shm/shared/routing'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
-import {KeyRound, Plus, X} from 'lucide-react'
+import {KeyRound, Plus, Upload, X} from 'lucide-react'
 import {useState} from 'react'
 import {sendAgentAction} from '../agents/client'
-import {useCreateSigningIdentity, useSigningIdentities} from '../agents/models'
+import {useCreateSigningIdentity, useImportSigningIdentity} from '../agents/models'
 import {SigningIdentityIcon} from '../agents/signing-identity-icon'
 import {Button} from '../button'
 import {Input} from '../components/input'
@@ -81,79 +81,142 @@ export function SigningKeyChip({identity, account}: {identity?: SigningIdentity;
 }
 
 /**
- * Picks one of the keys the signed-in account holds on the server, or makes a new one there. The
- * server accepts only keys the person attaching them holds, so others' keys are never offered.
+ * Gives a host a key: generated in place for it, or imported from an exported key file. Keys the
+ * server already holds are deliberately not offered: picking one would quietly reuse a key that
+ * may already write for another app or agent. Importing your own account key is possible but
+ * warned against, since anyone who can edit the host could then act as you everywhere.
  */
 export function SigningKeyPicker({
   serverUrl,
-  exclude = [],
-  label,
+  defaultName,
   disabled,
   onPick,
 }: {
   serverUrl: string | undefined
-  /** Accounts already chosen, not offered again. */
-  exclude?: string[]
-  label: string
+  /** The new key's name: usually the host's ("Recipe Box"). */
+  defaultName: string
   disabled?: boolean
   onPick: (account: string) => void
 }) {
   const accountUid = useAccountUid()
-  const identities = useSigningIdentities(serverUrl, accountUid)
   const create = useCreateSigningIdentity(serverUrl, accountUid)
-  const [naming, setNaming] = useState<string | null>(null)
-  const offered = (identities.data ?? []).filter(
-    (identity) => identity.accountId && !exclude.includes(identity.accountId),
-  )
-  if (naming !== null)
+  const importIdentity = useImportSigningIdentity(serverUrl, accountUid)
+  const [mode, setMode] = useState<'idle' | 'generate' | 'import'>('idle')
+  const [name, setName] = useState(defaultName)
+  const [file, setFile] = useState<File | null>(null)
+  const [password, setPassword] = useState('')
+  const [ownKey, setOwnKey] = useState<{seed: Uint8Array; label?: string} | null>(null)
+  const busy = create.isLoading || importIdentity.isLoading
+  const reset = () => {
+    setMode('idle')
+    setFile(null)
+    setPassword('')
+    setOwnKey(null)
+  }
+  async function importKey(loaded: {seed: Uint8Array; label?: string}) {
+    const identity = await importIdentity.mutateAsync(loaded)
+    if (identity.accountId) onPick(identity.accountId)
+    reset()
+  }
+  if (mode === 'generate')
     return (
       <form
-        className="flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
         onSubmit={async (event) => {
           event.preventDefault()
           try {
-            const response = (await create.mutateAsync(naming.trim() || undefined)) as {identity?: SigningIdentity}
+            const response = (await create.mutateAsync(name.trim() || defaultName)) as {identity?: SigningIdentity}
             if (response.identity?.accountId) onPick(response.identity.accountId)
-            setNaming(null)
+            reset()
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Could not create the key')
+            toast.error(error instanceof Error ? error.message : 'Could not generate the key')
           }
         }}
       >
-        <Input
-          autoFocus
-          className="h-8 w-48"
-          placeholder="Key name"
-          value={naming}
-          onChange={(event) => setNaming(event.target.value)}
-        />
-        <Button size="sm" type="submit" disabled={create.isLoading}>
-          {create.isLoading ? 'Creating…' : 'Create'}
+        <Input autoFocus className="h-8 w-56" value={name} onChange={(event) => setName(event.target.value)} />
+        <Button size="sm" type="submit" disabled={busy}>
+          {busy ? 'Generating…' : 'Generate'}
         </Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setNaming(null)}>
+        <Button size="sm" variant="ghost" type="button" onClick={reset}>
           Cancel
         </Button>
       </form>
     )
+  if (mode === 'import')
+    return (
+      <form
+        className="grid gap-2"
+        onSubmit={async (event) => {
+          event.preventDefault()
+          try {
+            if (ownKey) return await importKey(ownKey)
+            if (!file) throw new Error('Choose an exported .hmkey.json file')
+            const loaded = await keyfile.load(await file.text(), password || undefined)
+            const key = {
+              seed: loaded.seed,
+              ...(loaded.payload.profile?.name ? {label: loaded.payload.profile.name} : {}),
+            }
+            // Your own account key: allowed, but only after you say so.
+            if (loaded.publicKey === accountUid) return setOwnKey(key)
+            await importKey(key)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not import the key')
+          }
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            accept=".json,.hmkey.json"
+            aria-label="Key file"
+            onChange={(event) => {
+              setFile(event.currentTarget.files?.[0] ?? null)
+              setOwnKey(null)
+            }}
+          />
+          <Input
+            className="h-8 w-44"
+            type="password"
+            placeholder="Password, if encrypted"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </div>
+        {ownKey ? (
+          <SizableText size="xs" color="destructive">
+            This is your own account key. Anyone who can edit this app or agent could then act as you, everywhere, and
+            it cannot be taken back. Generate a key for it instead, unless you are sure.
+          </SizableText>
+        ) : null}
+        <div className="flex gap-2">
+          <Button size="sm" type="submit" variant={ownKey ? 'destructive' : 'default'} disabled={busy}>
+            {busy ? 'Importing…' : ownKey ? 'Import anyway' : 'Import'}
+          </Button>
+          <Button size="sm" variant="ghost" type="button" onClick={reset}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    )
   return (
-    <OptionsDropdown
-      ariaLabel={label}
-      button={
-        <Button variant="outline" size="sm" disabled={disabled || identities.isLoading}>
-          <KeyRound className="size-4" />
-          {label}
-        </Button>
-      }
-      menuItems={[
-        ...offered.map((identity) => ({
-          key: identity.id,
-          label: identity.label || identity.accountId || identity.name,
-          icon: <SigningIdentityIcon identity={identity} name={identity.label} size={20} />,
-          onClick: () => onPick(identity.accountId!),
-        })),
-        {key: 'new', label: 'New key…', icon: <Plus className="size-4" />, onClick: () => setNaming('')},
-      ]}
-    />
+    <div className="flex flex-wrap gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => {
+          setName(defaultName)
+          setMode('generate')
+        }}
+      >
+        <KeyRound className="size-4" />
+        Generate a key
+      </Button>
+      <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode('import')}>
+        <Upload className="size-4" />
+        Import a key file…
+      </Button>
+    </div>
   )
 }
 

@@ -114,8 +114,7 @@ export function AgentPrivateConfigPage({
           <div>
             <SigningKeyPicker
               serverUrl={serverUrl}
-              exclude={accounts}
-              label="Add a key"
+              defaultName={(agentDocument?.metadata?.name as string | undefined) || 'Agent key'}
               disabled={save.isLoading}
               onPick={(account) => setSigning([...accounts, account], primary ?? account)}
             />

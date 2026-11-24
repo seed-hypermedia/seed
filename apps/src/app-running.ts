@@ -430,7 +430,7 @@ async function savePrivateConfig(
     if (typeof value !== 'string' || !deps.holdsSigningKey(signer, value))
       throw new AppRunError(
         403,
-        `${field} must be a signing key your account holds on this server: create or import it under Server accounts, then choose it here.`,
+        `${field} must be a signing key your account holds on this server: generate one for this host, or import a key file, in its settings.`,
       )
   }
   hostConfig.writePrivateConfig(deps.db, deps, {hostId: hostId.id, spaceUid: hostId.uid}, merged, signer)

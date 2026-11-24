@@ -11,7 +11,7 @@ A **signing key** value names a key that the [app environment](./software/app-en
 - **What it can write.** A key is an account. What it may write is decided by [capabilities](./protocol/permissions.md) granted to that account, not by the config.
 - **Who holds its authority.** Anyone who can edit the host can change its tools, so attaching a key gives its capabilities to every writer of the host.
 
-The pattern lets a validator check the shape without a lookup. `format: signing-key` tells an editor to offer the keys the person holds on the host's server, and to create one.
+The pattern lets a validator check the shape without a lookup. `format: signing-key` tells an editor to give the field a key of its own: generate one in place for this host, or import an exported [key file](./build/keys.md). An editor does not offer the keys the server already holds, so a key is never reused by accident, and it warns before importing your own account key.
 
 # See also
 

@@ -187,7 +187,7 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
                     <div>
                       <SigningKeyPicker
                         serverUrl={server.serverUrl}
-                        label="Attach a key"
+                        defaultName={metadata.name || 'App key'}
                         disabled={savePrivate.isLoading}
                         onPick={(picked) =>
                           savePrivate.mutate(

@@ -1593,7 +1593,7 @@ export class Service {
       if (!nameOf.has(account))
         throw new APIError(
           403,
-          `${account} must be a signing key your account holds on this server: create or import it under Server accounts, then choose it here.`,
+          `${account} must be a signing key your account holds on this server: generate one for this host, or import a key file, in its settings.`,
         )
     const ordered = primary ? [primary, ...accounts.filter((account) => account !== primary)] : accounts
     const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
