@@ -63,6 +63,42 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Attribute comments and feed entries to the account they act for. Comment
+	// identity is account authority + TSID: comments signed by an agent key on
+	// behalf of an account belong to the account, so the live-comment table
+	// (renamed to comments_live) is rebuilt with that compound key. Rotating
+	// delegated keys keeps one comment, and unrelated authorities can never
+	// compete for the same TSID. Author-filtered feeds key on the same
+	// account-or-author expression for every blob type, so it gets an index over
+	// all structural blobs, and one over comments alone.
+	{Version: "2026-11-17.072139", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS structural_blobs_by_tsid;
+			CREATE INDEX structural_blobs_by_tsid ON structural_blobs (extra_attrs->>'tsid', COALESCE(extra_attrs->>'account', author), ts DESC, extra_attrs->>'hash' DESC) WHERE extra_attrs->>'tsid' IS NOT NULL;
+			CREATE INDEX IF NOT EXISTS structural_blobs_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author), ts);
+			CREATE INDEX IF NOT EXISTS comments_by_account ON structural_blobs (COALESCE(extra_attrs->>'account', author)) WHERE type = 'Comment';
+
+			DROP TABLE IF EXISTS comment_live;
+			CREATE TABLE comments_live (
+			    authority INTEGER REFERENCES public_keys (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    tsid TEXT NOT NULL,
+			    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    genesis TEXT NOT NULL,
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    ts INTEGER NOT NULL,
+			    hash TEXT NOT NULL,
+			    PRIMARY KEY (authority, tsid)
+			) WITHOUT ROWID;
+			CREATE INDEX comments_live_by_genesis ON comments_live (genesis, ts, hash, blob_id);
+			CREATE INDEX comments_live_by_resource ON comments_live (resource, ts, hash, blob_id);
+			CREATE INDEX comments_live_by_blob ON comments_live (blob_id);
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
 	// Rebuild document indexes. Drop the unreferenced-document index: its
 	// writes and its RPC were disabled on 2026-09-15, the tables have stayed
 	// empty since, and sidebar navigation now comes from Cards. A full

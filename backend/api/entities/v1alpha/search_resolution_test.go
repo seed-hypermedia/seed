@@ -1,7 +1,9 @@
 package entities
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +13,8 @@ import (
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	entpb "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -146,6 +150,52 @@ func isLatest(id string) bool {
 		id = id[:i]
 	}
 	return strings.HasSuffix(id, "&l")
+}
+
+func TestCommentDeletionTieBreak(t *testing.T) {
+	t.Parallel()
+	svc := newTestServices(t, "alice")
+	ctx := t.Context()
+	account := svc.me.Account
+	ts := time.Now().UTC().Add(-time.Minute).Round(blob.ClockPrecision)
+	body := []blob.CommentBlock{{Block: blob.Block{ID_Good: "body", Type: "paragraph", Text: "comment"}}}
+	seed, err := blob.NewComment(account, "", account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts.Add(-time.Second))
+	require.NoError(t, err)
+	live, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts)
+	require.NoError(t, err)
+	deleted, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, ts)
+	require.NoError(t, err)
+	winner, loser := blocks.Block(live), blocks.Block(deleted)
+	wantDeleted := false
+
+	if bytes.Compare(deleted.CID.Hash(), live.CID.Hash()) > 0 {
+		winner, loser = deleted, live
+		wantDeleted = true
+	}
+
+	// Insert the CID winner first so an insertion-order tie-break selects the loser.
+	require.NoError(t, svc.idx.PutMany(ctx, []blocks.Block{winner, loser}))
+
+	authorID, err := sqlitex.QueryOnePool[int64](ctx, svc.entities.db, `SELECT id FROM public_keys WHERE principal = ?`, account.Principal())
+	require.NoError(t, err)
+	got, err := sqlitex.QueryOnePool[int](ctx, svc.entities.db, qIsDeletedComment(), authorID, string(seed.TSID()))
+	require.NoError(t, err)
+	require.Equal(t, wantDeleted, got != 0)
+
+	batch, err := json.Marshal([]map[string]any{{"author_id": authorID, "tsid": string(seed.TSID())}})
+	require.NoError(t, err)
+	conn, release, err := svc.entities.db.ReadConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	rows := 0
+	require.NoError(t, sqlitex.Exec(conn, qBatchDeletedComments(), func(stmt *sqlite.Stmt) error {
+		rows++
+		require.Equal(t, authorID, stmt.ColumnInt64(0))
+		require.Equal(t, string(seed.TSID()), stmt.ColumnText(1))
+		require.Equal(t, wantDeleted, stmt.ColumnInt64(2) != 0)
+		return nil
+	}, string(batch)))
+	require.Equal(t, 1, rows)
 }
 
 func TestSearchEntitiesSharedGenesisAttribution(t *testing.T) {
@@ -465,4 +515,66 @@ func TestSearchEntitiesAccountNameListedOnce(t *testing.T) {
 	require.Equal(t, "profile", res.Entities[0].Type)
 	require.Equal(t, "hm://"+account, res.Entities[0].Id)
 	require.Equal(t, "Lunaticoin", res.Entities[0].Content)
+}
+
+func TestSearchDelegatedCommentAuthority(t *testing.T) {
+	t.Parallel()
+	svc := newTestServices(t, "alice")
+	bob := coretest.NewTester("bob")
+	clock := newTestClock()
+	doc := createDoc(t, svc, svc.me.Account, "/comments", 1, clock, titleOp(t, "Comments"))
+	capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", clock.next())
+	require.NoError(t, err)
+	require.NoError(t, svc.idx.Put(t.Context(), capability))
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), svc.me.Account.Principal(), doc.path, []cid.Cid{doc.head}, cid.Undef, cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegatedsearchneedle"}}}, blob.VisibilityPublic, clock.next())
+	require.NoError(t, err)
+	require.NoError(t, svc.idx.Put(t.Context(), comment))
+	expected := blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI().String()
+	results := searchAll(t, svc, "Delegatedsearchneedle")
+	require.Len(t, results, 1)
+	require.Equal(t, expected, results[0].Id)
+}
+
+func TestCommentAuthorAuthoritySelfCitation(t *testing.T) {
+	for _, delegated := range []bool{false, true} {
+		name := "direct"
+		if delegated {
+			name = "delegated"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			svc := newTestServices(t, "alice")
+			clock := newTestClock()
+			doc := createDoc(t, svc, svc.me.Account, "/citations", 1, clock, titleOp(t, "Citations"))
+			iris, err := json.Marshal([]string{doc.iri()})
+			require.NoError(t, err)
+			// Self-citation must leave the score at zero; a subsequent citation
+			// from a different account must increase it to one.
+			for i, author := range []coretest.Tester{svc.me, coretest.NewTester("bob")} {
+				signer := author.Account
+				if delegated {
+					signer = author.Device
+					capability, err := blob.NewCapability(author.Account, signer.Principal(), author.Account.Principal(), "", blob.RoleAgent, "", clock.next())
+					require.NoError(t, err)
+					require.NoError(t, svc.idx.Put(t.Context(), capability))
+				}
+
+				comment, err := blob.NewComment(signer, "", author.Account.Principal(), svc.me.Account.Principal(), doc.path, []cid.Cid{doc.head}, cid.Undef, cid.Undef,
+					[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Citation"}}}, blob.VisibilityPublic, clock.next())
+				require.NoError(t, err)
+				require.NoError(t, svc.idx.Put(t.Context(), comment))
+				var score int
+
+				require.NoError(t, svc.entities.db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
+					return sqlitex.Exec(conn, qAuthorAuthority(), func(stmt *sqlite.Stmt) error {
+						require.Equal(t, doc.iri(), stmt.ColumnText(0))
+						score = stmt.ColumnInt(1)
+						return nil
+					}, string(iris), string(iris))
+				}))
+				require.Equal(t, i, score)
+			}
+		})
+	}
 }

@@ -50,7 +50,7 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 	reply := comment("reply", root.Id)
 
 	// A comment that pins no version means "the document at this path".
-	unpinned, err := blob.NewComment(alice.me.Account, "", alice.me.Account.Principal(), path, nil, cid.Undef, cid.Undef,
+	unpinned, err := blob.NewComment(alice.me.Account, "", alice.me.Account.Principal(), alice.me.Account.Principal(), path, nil, cid.Undef, cid.Undef,
 		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "unpinned"}}}, blob.VisibilityPublic,
 		time.Now().Round(blob.ClockPrecision))
 	require.NoError(t, err)

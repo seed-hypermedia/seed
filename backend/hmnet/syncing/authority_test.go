@@ -425,3 +425,55 @@ func TestMaintainRBSRIndex_AuthorityDependencies(t *testing.T) {
 		})
 	}
 }
+
+func TestCommentOnlyDiscoveryIncludesDelegationProof(t *testing.T) {
+	t.Parallel()
+
+	db := storage.MakeTestDB(t)
+	idx, err := blob.OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+	clock := cclock.New()
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob")
+
+	change, err := blob.NewChange(alice, cid.Undef, nil, 0, blob.ChangeBody{}, clock.MustNow())
+	require.NoError(t, err)
+	ref, err := blob.NewRef(alice, 0, change.CID, alice.Principal(), "/doc", []cid.Cid{change.CID}, clock.MustNow(), blob.VisibilityPublic)
+	require.NoError(t, err)
+	agent, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", clock.MustNow())
+	require.NoError(t, err)
+	// Bob's session key comments on Alice's document on behalf of Bob.
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Principal(), "/doc", []cid.Cid{change.CID}, cid.Undef, cid.Undef,
+		[]blob.CommentBlock{{Block: blob.Block{Type: "paragraph", Text: "hi"}}}, blob.VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref, agent, comment}))
+
+	var agentID, commentID int64
+	var got []int64
+
+	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
+		lookup := func(c cid.Cid) (id int64, err error) {
+			return sqlitex.QueryOne[int64](conn, `SELECT id FROM blobs WHERE multihash = ?`, []byte(c.Hash()))
+		}
+		if agentID, err = lookup(agent.CID); err != nil {
+			return err
+		}
+
+		if commentID, err = lookup(comment.CID); err != nil {
+			return err
+		}
+
+		dkey := DiscoveryKey{IRI: blob.IRI("hm://" + alice.Principal().String() + "/doc"), BlobTypes: BlobTypesString([]string{"Comment"})}
+		if err := collectBlobs(conn, map[DiscoveryKey]struct{}{dkey: {}}, false); err != nil {
+			return err
+		}
+
+		return sqlitex.Exec(conn, `SELECT id FROM rbsr_blobs`, func(stmt *sqlite.Stmt) error {
+			got = append(got, stmt.ColumnInt64(0))
+			return nil
+		})
+	}))
+
+	require.Contains(t, got, commentID)
+	require.Contains(t, got, agentID, "a receiver can't index the delegated comment without its AGENT capability")
+}

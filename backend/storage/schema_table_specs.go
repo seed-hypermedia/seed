@@ -41,11 +41,11 @@ var tableSpecs = []TableSpec{
 	{Name: T_DocumentAttributes, Kind: TableKindDerived},
 	{Name: T_DocumentAttributeKeys, Kind: TableKindDerived},
 	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
-	// loop below. comment_live has an FK to resources with ON DELETE CASCADE, but
+	// loop below. comments_live has an FK to resources with ON DELETE CASCADE, but
 	// reindex deletes in list order, so list it before resources rather than
 	// relying on the cascade (same reasoning as the RBSR tables at the end of
 	// this list).
-	{Name: T_CommentLive, Kind: TableKindDerived},
+	{Name: T_CommentsLive, Kind: TableKindDerived},
 	{Name: T_DocumentCommentStats, Kind: TableKindDerived},
 	{Name: T_KeylineMembers, Kind: TableKindDerived},
 	{Name: T_KeylineRevocations, Kind: TableKindDerived},

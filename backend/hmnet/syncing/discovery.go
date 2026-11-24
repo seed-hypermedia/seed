@@ -1042,7 +1042,7 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 				FROM resource_links
 				JOIN structural_blobs ON structural_blobs.id = resource_links.source
 				JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-				JOIN public_keys ON public_keys.id = structural_blobs.author
+				JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 				LEFT JOIN resources r
 				ON r.genesis_blob = CASE
 						WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
@@ -1128,9 +1128,12 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 	// Avoids the two SELECT count() probes per iteration of the previous
 	// design (which ran 4 INSERTs even when iter 1 already converged, since
 	// it needed an explicit equality check to break).
-	// Skip when the caller's type allowlist excludes Capability — without
-	// Capability the recursion would never insert anything.
-	if hasType(effectiveBlobTypeFilter(dkeys), "Capability") {
+	// When the caller's type allowlist excludes Capability, only the proofs of
+	// delegated comments are still needed: a comment signed on behalf of another
+	// account can't be indexed by the receiver without the AGENT chain that lets
+	// its signer act for that account.
+	allTypes := hasType(effectiveBlobTypeFilter(dkeys), "Capability")
+	{
 		// Probe once for the empty-seed case so we don't run a wasted
 		// INSERT (its IN-subquery would scan all Capability rows for nothing).
 		var hasAny bool
@@ -1150,11 +1153,12 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 					SELECT DISTINCT author
 					FROM structural_blobs
 					WHERE id IN rbsr_blobs
+					AND (:all OR type = 'Capability' OR (type = 'Comment' AND extra_attrs->>'account' IS NOT NULL))
 				)
 				AND sb.extra_attrs->>'role' = 'AGENT';`
 
 			for {
-				if err := sqlitex.Exec(conn, q, nil); err != nil {
+				if err := sqlitex.Exec(conn, q, nil, allTypes); err != nil {
 					return err
 				}
 				if conn.Changes() == 0 {
@@ -1206,7 +1210,8 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 				SELECT id
 				FROM structural_blobs
 				WHERE extra_attrs->>'tsid' = :tsid
-				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
+				AND COALESCE(extra_attrs->>'account', author) = (SELECT +id FROM public_keys WHERE principal = :principal);`
+
 			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
 				return err
 			}
@@ -1315,6 +1320,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 
 	// Fill All authors and their related blobs.
 	if includeAccounts {
+		// Comments represent their account even when an agent signs them.
+		// Match account material by resource owner, since its Ref/Profile
+		// may itself be signed by a different delegated key.
 		// Fill All authors.
 		if hasType(typeFilter, "Ref") {
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -1322,7 +1330,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					sb.id as id
 					FROM resources r
 					JOIN structural_blobs sb ON sb.resource = r.id
-					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs)
+					WHERE r.owner IN (SELECT COALESCE(extra_attrs->>'account', author) FROM structural_blobs WHERE id IN rbsr_blobs)
 					AND type = 'Ref'
 					AND r.iri GLOB 'hm://*'
 					AND r.iri NOT GLOB 'hm://*/*';`
@@ -1338,9 +1346,10 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
+					JOIN resources r ON r.id = sb.resource
 					WHERE sb.type = 'Profile'
-					AND sb.author IN (
-						SELECT DISTINCT author
+					AND r.owner IN (
+						SELECT DISTINCT COALESCE(extra_attrs->>'account', author)
 						FROM structural_blobs
 						WHERE id IN rbsr_blobs AND author IS NOT NULL
 					);`

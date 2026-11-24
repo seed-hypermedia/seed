@@ -88,6 +88,36 @@ describe('custom HTML page content and signing', () => {
     })
   })
 
+  it('attributes comments signed by a session key to the selected account', async () => {
+    const {options, content, publish} = await fixture()
+    // On web the selected account differs from the signing session key.
+    const accountKeys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+    const accountKey = new Uint8Array(await crypto.subtle.exportKey('raw', accountKeys.publicKey))
+    const account = base58btc.encode(new Uint8Array([0xed, 1, ...accountKey]))
+    const session = {...options, context: {...options.context, account}}
+
+    await documentPageContent({...session, method: 'comments.create', params: {content}})
+    const {blobs} = publish.mock.calls[0]![0] as {blobs: {data: Uint8Array}[]}
+    expect(base58btc.encode((decode(blobs[0]!.data) as Record<string, unknown>).account as Uint8Array)).toBe(account)
+
+    // A page can't attribute its comment to any other account.
+    const payload = (await documentPageContent({
+      ...session,
+      method: 'hm.createComment',
+      params: {
+        input: {
+          docId: unpackHmId(options.context.document),
+          docVersion: options.context.version,
+          content,
+          account: options.context.account,
+        },
+      },
+    })) as {blobs: {data: Uint8Array}[]}
+    expect(base58btc.encode((decode(payload.blobs[0]!.data) as Record<string, unknown>).account as Uint8Array)).toBe(
+      account,
+    )
+  })
+
   it('refuses account, destination, and visibility overrides without invoking the signer', async () => {
     const {options, content, sign} = await fixture()
     for (const extra of [{account: 'other'}, {document: 'hm://other'}, {visibility: 'PUBLIC'}, {signer: 'other'}]) {

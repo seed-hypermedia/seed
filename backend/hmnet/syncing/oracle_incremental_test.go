@@ -6,12 +6,15 @@ import (
 	"time"
 
 	"seed/backend/blob"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestMaintainRBSRIndex_IncrementalMatchesCollectBlobs is the fix's linchpin:
@@ -257,4 +260,161 @@ func collectDownloadedBlobIDs(t *testing.T, db *sqlitex.Pool, scope DiscoveryKey
 		})
 	}))
 	return out
+}
+
+// Delegated comments keep the signer as author so implicit capability discovery
+// works for both fresh scopes and scopes maintained as blobs arrive.
+func TestDelegatedCommentSync(t *testing.T) {
+	for _, capabilityFirst := range []bool{false, true} {
+		name := "comment-first"
+		if capabilityFirst {
+			name = "capability-first"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			db := storage.MakeTestDB(t)
+			idx, err := blob.OpenIndex(ctx, db, zap.NewNop())
+			require.NoError(t, err)
+			idx.SetIndexedHook(MaintainRBSRIndex)
+			alice := coretest.NewTester("alice").Account.Principal()
+			bob := coretest.NewTester("bob")
+			now := time.Now().Round(blob.ClockPrecision)
+			capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+			require.NoError(t, err)
+			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice, "", nil, cid.Undef, cid.Undef,
+				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
+			require.NoError(t, err)
+			scopes := []DiscoveryKey{
+				{IRI: blob.IRI("hm://" + alice.String()), Recursive: true},
+				{IRI: blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI()},
+			}
+			for _, scope := range scopes {
+				require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+					id, _, err := resolveScope(conn, scope)
+					if err != nil {
+						return err
+					}
+
+					return materializeScope(conn, id, scope)
+				}))
+			}
+
+			if capabilityFirst {
+				require.NoError(t, idx.Put(ctx, capability))
+				require.NoError(t, idx.WaitIndexedHook(ctx))
+			}
+
+			require.NoError(t, idx.Put(ctx, comment))
+			require.NoError(t, idx.WaitIndexedHook(ctx))
+
+			if !capabilityFirst {
+				require.NoError(t, idx.Put(ctx, capability))
+				require.NoError(t, idx.WaitIndexedHook(ctx))
+			}
+
+			commentID, err := sqlitex.QueryOnePool[int64](ctx, db, `SELECT id FROM blobs WHERE multihash = ?`, comment.CID.Hash())
+			require.NoError(t, err)
+			capID, err := sqlitex.QueryOnePool[int64](ctx, db, `SELECT id FROM blobs WHERE multihash = ?`, capability.CID.Hash())
+			require.NoError(t, err)
+			author, err := sqlitex.QueryOnePool[int](ctx, db, `SELECT author = (SELECT id FROM public_keys WHERE principal = ?) FROM structural_blobs WHERE id=?`, []byte(bob.Device.Principal()), commentID)
+			require.NoError(t, err)
+			require.Equal(t, 1, author, "author must remain the signer, like Profile and Contact")
+			for _, scope := range scopes {
+				fresh := collectDownloadedBlobIDs(t, db, scope)
+				maintained := servedItemSet(t, db, scope)
+				require.Contains(t, fresh, commentID)
+				require.Contains(t, fresh, capID, "sync must include the implicit delegation proof")
+				require.Equal(t, fresh, maintained)
+				require.True(t, scopeStillMaterialized(t, db, scopeIDFor(t, db, scope)))
+			}
+		})
+	}
+}
+
+func TestDelegatedCommentAccountMaterial(t *testing.T) {
+	for _, delegatedMaterial := range []bool{false, true} {
+		name := "direct-material"
+		if delegatedMaterial {
+			name = "delegated-material"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			db := storage.MakeTestDB(t)
+			idx, err := blob.OpenIndex(ctx, db, zap.NewNop())
+			require.NoError(t, err)
+			bob := coretest.NewTester("bob")
+			alice := coretest.NewTester("alice")
+			now := time.Now().Round(blob.ClockPrecision)
+			capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(ctx, capability))
+
+			materialSigner := bob.Account
+			if delegatedMaterial {
+				// A different delegate ensures material is selected by account,
+				// not by whichever key happened to sign the comment.
+				materialSigner = coretest.NewTester("carol").Device
+				capability, err := blob.NewCapability(bob.Account, materialSigner.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
+				require.NoError(t, err)
+				require.NoError(t, idx.Put(ctx, capability))
+			}
+
+			var wanted, unwanted []cid.Cid
+
+			for _, material := range []struct {
+				signer *core.KeyPair
+				owner  core.Principal
+			}{
+				{materialSigner, bob.Account.Principal()},
+				{bob.Device, bob.Device.Principal()},
+			} {
+				profile, err := blob.NewProfile(material.signer, "Profile", "", "", material.owner, now)
+				require.NoError(t, err)
+				require.NoError(t, idx.Put(ctx, profile))
+				change, err := blob.NewChange(material.signer, cid.Undef, nil, 0, blob.ChangeBody{}, now)
+				require.NoError(t, err)
+				require.NoError(t, idx.Put(ctx, change))
+				ref, err := blob.NewRef(material.signer, 1, change.CID, material.owner, "", []cid.Cid{change.CID}, now, blob.VisibilityPublic)
+				require.NoError(t, err)
+				require.NoError(t, idx.Put(ctx, ref))
+
+				if material.owner.Equal(bob.Account.Principal()) {
+					wanted = []cid.Cid{profile.CID, ref.CID}
+				} else {
+					unwanted = []cid.Cid{profile.CID, ref.CID}
+				}
+			}
+
+			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "/doc", nil, cid.Undef, cid.Undef,
+				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(ctx, comment))
+			for _, scope := range []DiscoveryKey{
+				{IRI: blob.IRI("hm://" + alice.Account.Principal().String() + "/doc")},
+				{IRI: blob.RecordID{Authority: bob.Account.Principal(), TSID: comment.TSID()}.IRI()},
+			} {
+				var got []cid.Cid
+
+				require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					items, err := GetRelatedMaterial(conn, map[DiscoveryKey]struct{}{scope: {}}, true, nil)
+					for _, item := range items {
+						got = append(got, item.CID)
+					}
+
+					return err
+				}))
+				for _, c := range wanted {
+					require.Contains(t, got, c, "represented account material must be included")
+				}
+
+				for _, c := range unwanted {
+					require.NotContains(t, got, c, "unrelated agent account material must be excluded")
+				}
+
+				require.Contains(t, got, capability.CID, "implicit authorization still needs the signer capability")
+			}
+		})
+	}
 }

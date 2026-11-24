@@ -55,7 +55,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
       })
       const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
       // The top-level comment count comes from the daemon's per-document
-      // document_comment_stats.comment_count, which reads the same comment_live
+      // document_comment_stats.comment_count, which reads the same comments_live
       // rows ListComments returns under the same genesis key. Counting distinct
       // comment citations instead would (a) truncate past one page of citations
       // and (b) be a no-op today, because the daemon reports every comment

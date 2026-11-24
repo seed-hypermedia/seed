@@ -11,7 +11,8 @@ A comment has these fields. The first row is the signed [blob](./blob.md) envelo
 <!-- id:lZeNI6EG -->
 | key <!-- col:fYfV8Z9P --> | meaning <!-- col:OBQZ_Koi --> <!-- id:yLoNYlB6 --> |
 | --- | --- |
-| `signer`, `ts`, `sig` | the envelope every blob carries: who wrote it and when <!-- id:3AvWahqt --> |
+| `signer`, `ts`, `sig` | the envelope every blob carries: which key signed it and when <!-- id:3AvWahqt --> |
+| `account` | the [account](./protocol/identity.md) an authorized [agent](./agent.md) key signs for; omitted when the signer writes for itself |
 | `space`, `path` | the document it targets; `space` is omitted when it equals the signer <!-- id:kYYrayoz --> |
 | `version` | the [CIDs](./cid.md) of the document heads the author was looking at; empty means "the document at this path" <!-- id:X2-9MteI --> |
 | `threadRoot` | the CID of the first comment of the thread; present on every reply <!-- id:nUJmFMVQ --> |
@@ -21,7 +22,7 @@ A comment has these fields. The first row is the signed [blob](./blob.md) envelo
 | `visibility` | `""` for public, `Private` for private <!-- id:ISOBhZJR --> |
 | `capability` | deprecated and ignored; old blobs may carry it <!-- id:eJ16dkIA --> |
 
-A comment's identity is `<author>/<tsid>`. The TSID of the first version is derived from the blob's bytes. Nothing checks permission on comments: anyone can comment on anything. A comment carries its own [visibility](./visibility.md). [Comments](./protocol/comments.md) covers threads, comments on a block or a text range, citations and mentions. <!-- id:mFFp2qQV -->
+A comment's identity is `<authority>/<tsid>`. The authority is `account` when present, and the signer otherwise. The TSID of the first version is derived from the blob's bytes. Anyone can comment on anything under their own authority. A blob that claims a different `account` is indexed only when that account granted the signer an `AGENT` [capability](./protocol/permissions.md). Older blobs without `account` always belong to the signer. A comment carries its own [visibility](./visibility.md). [Comments](./protocol/comments.md) covers threads, comments on a block or a text range, citations and mentions. <!-- id:mFFp2qQV -->
 
 # See also <!-- id:87R82LEN -->
 

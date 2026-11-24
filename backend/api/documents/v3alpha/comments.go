@@ -89,7 +89,11 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, "", space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), visibility, clock.MustNow())
+	if err := srv.checkCommentTarget(ctx, versionHeads); err != nil {
+		return nil, err
+	}
+
+	eb, err := blob.NewComment(kp, "", kp.Principal(), space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), visibility, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +107,50 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		return commentToProto(lookup, eb.CID, eb.Decoded, eb.TSID())
 	})
 }
+
+// checkCommentTarget rejects a comment target version that the index can't
+// settle yet: every head must be an indexed Change, and all of them must belong
+// to one document. Indexing doesn't fail on such a comment, it stashes it until
+// the changes arrive, so storing a local comment first and checking afterwards
+// would report a failure for a comment that still publishes later.
+func (srv *Server) checkCommentTarget(ctx context.Context, heads []cid.Cid) error {
+	return srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		var genesis int64
+
+		for _, h := range heads {
+			codec, hash := ipfs.DecodeCID(h)
+			var g int64
+
+			if err := sqlitex.Exec(conn, qChangeGenesis(), func(stmt *sqlite.Stmt) error {
+				g = stmt.ColumnInt64(0)
+				return nil
+			}, codec, hash); err != nil {
+				return err
+			}
+
+			if g == 0 {
+				return status.Errorf(codes.FailedPrecondition, "comment target change %s is not available", h)
+			}
+
+			if genesis != 0 && g != genesis {
+				return status.Errorf(codes.InvalidArgument, "comment target version %s names changes of different documents", blob.NewVersion(heads...))
+			}
+
+			genesis = g
+		}
+
+		return nil
+	})
+}
+
+// A genesis change has no genesis_blob: it is its own genesis.
+var qChangeGenesis = dqb.Str(`
+	SELECT COALESCE(sb.genesis_blob, sb.id)
+	FROM blobs b
+	JOIN structural_blobs sb ON sb.id = b.id
+	WHERE (b.codec, b.multihash) = (?1, ?2)
+	AND sb.type = 'Change'
+`)
 
 // GetComment implements Comments API.
 func (srv *Server) GetComment(ctx context.Context, in *documents.GetCommentRequest) (*documents.Comment, error) {
@@ -313,7 +361,8 @@ const targetGenesisCTE = `
 `
 
 // The live-version dedup that used to be a ROW_NUMBER() window here is already
-// settled in comment_live, so this just reads it.
+// settled in comments_live, so this just reads it. comments_live_by_genesis
+// holds the blob IDs, so the listing never reads comments_live rows.
 var qIterComments = dqb.Str(targetGenesisCTE + `
 	SELECT
 		sb.id,
@@ -321,11 +370,11 @@ var qIterComments = dqb.Str(targetGenesisCTE + `
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM comment_live l
+	FROM comments_live l
 	JOIN structural_blobs sb ON sb.id = l.blob_id
 	JOIN blobs b ON b.id = l.blob_id
 	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
-	ORDER BY sb.ts
+	ORDER BY l.ts, l.hash
 `)
 
 var qIterCommentsServerMode = dqb.Str(targetGenesisCTE + `
@@ -335,12 +384,12 @@ var qIterCommentsServerMode = dqb.Str(targetGenesisCTE + `
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM comment_live l
+	FROM comments_live l
 	JOIN structural_blobs sb ON sb.id = l.blob_id
 	JOIN blobs b ON b.id = l.blob_id
 	WHERE l.genesis IN (SELECT genesis FROM target_genesis)
 	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
-	ORDER BY sb.ts
+	ORDER BY l.ts, l.hash
 `)
 
 var qIterCommentsByAuthor = dqb.Str(`
@@ -353,10 +402,10 @@ var qIterCommentsByAuthor = dqb.Str(`
 	FROM (
 		SELECT
 			sb.*,
-			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC) rn
 		FROM structural_blobs sb
 		WHERE sb.type = 'Comment'
-		AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -374,12 +423,12 @@ var qIterCommentsByAuthorServerMode = dqb.Str(`
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
 	FROM (
-        SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		SELECT
+			sb.*,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC) rn
+		FROM structural_blobs sb
+		WHERE sb.type = 'Comment'
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -398,12 +447,12 @@ var qIterCommentsByAuthorAuthenticated = dqb.Str(`
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
 	FROM (
-        SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		SELECT
+			sb.*,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC) rn
+		FROM structural_blobs sb
+		WHERE sb.type = 'Comment'
+		AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	JOIN resources r ON r.id = sb.resource
@@ -467,28 +516,26 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComme
 //
 // INDEXED BY is needed because the planner otherwise serves "latest first" from
 // the by-type index and walks every comment on the node, newest to oldest, until
-// it meets the one we want. Seeking by tsid leaves only the versions of this
-// comment to look at.
+// it meets the one we want. Seeking by authority and tsid leaves only the versions
+// of this comment to look at, already ordered by timestamp.
 //
-// The latest version is picked with MAX(ts) instead of ORDER BY ... LIMIT 1 so
-// the versions don't have to be sorted with their data: SQLite takes the other
-// columns from the row that holds the maximum. HAVING keeps the result empty
-// when the comment doesn't exist, where a bare aggregate would return one row
-// of NULLs.
+// Equal timestamps are disambiguated by the version's hash prefix (see
+// blob.commentVersionHash) so replicas with different insertion orders still
+// select the same current comment.
 var qGetCommentByID = dqb.Str(`
 	SELECT
 		sb.id,
 		b.codec,
 		b.multihash,
 		b.data,
-		sb.extra_attrs->>'tsid' AS tsid,
-		MAX(sb.ts)
+		sb.extra_attrs->>'tsid' AS tsid
 	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
-	HAVING COUNT(*) > 0
+	ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC
+	LIMIT 1
 `)
 
 var qGetCommentByCID = dqb.Str(`
@@ -503,27 +550,46 @@ var qGetCommentByCID = dqb.Str(`
 	WHERE (codec, multihash) = (:codec, :multihash)
 `)
 
-// qGetReplyCountByID counts distinct replying COMMENTS, not distinct reply
-// blobs: each edit of a comment is a separate blob carrying the same links, so
-// counting sources directly inflated the number by one per edit. Dedupe by the
-// source comment's identity (author + tsid).
+// qGetReplyCountByID counts canonical live replying comments, not historical
+// link-bearing blobs. Match all parent versions because replies retain the blob
+// they originally referenced. Select the source winner even when its target
+// document is unavailable (and therefore it has no comments_live stats row).
 var qGetReplyCountByID = dqb.Str(`
-SELECT count(DISTINCT src.author || ':' || (src.extra_attrs->>'tsid'))
-FROM blob_links bl
-JOIN structural_blobs src ON src.id = bl.source
-WHERE bl.target = (
+WITH targets AS MATERIALIZED (
    SELECT id
    FROM structural_blobs sb
    WHERE sb.type = 'Comment'
    AND sb.extra_attrs->>'deleted' is not true
-   AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+   AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :authority)
    AND sb.extra_attrs->>'tsid' = :tsid
+), matching AS MATERIALIZED (
+   SELECT DISTINCT
+      src.id,
+      COALESCE(src.extra_attrs->>'account', src.author) AS authority,
+      src.extra_attrs->>'tsid' AS tsid
+   FROM blob_links bl
+   JOIN structural_blobs src ON src.id = bl.source
+   WHERE bl.target IN (SELECT id FROM targets)
+   AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
+   AND src.extra_attrs->>'deleted' is not true
+), replying AS (
+   SELECT DISTINCT authority, tsid FROM matching
 )
-AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
-AND src.extra_attrs->>'deleted' is not true
+SELECT count(*)
+FROM replying r
+WHERE (
+   SELECT latest.id
+   FROM structural_blobs latest INDEXED BY structural_blobs_by_tsid
+   WHERE latest.type = 'Comment'
+   AND COALESCE(latest.extra_attrs->>'account', latest.author) = +r.authority
+   AND latest.extra_attrs->>'tsid' = r.tsid
+   ORDER BY latest.ts DESC, latest.extra_attrs->>'hash' DESC
+   LIMIT 1
+) IN (SELECT id FROM matching)
 `)
 
-// qListCommentVersions pins the tsid index for the same reason as qGetCommentByID.
+// qListCommentVersions pins the tsid index for the same reason as qGetCommentByID,
+// and uses the same replica-stable tie-break.
 var qListCommentVersions = dqb.Str(`
 	SELECT
 		sb.id,
@@ -534,10 +600,10 @@ var qListCommentVersions = dqb.Str(`
 	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
-	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND COALESCE(sb.extra_attrs->>'account', sb.author) = (SELECT +id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
 	AND sb.extra_attrs->>'deleted' IS NULL
-	ORDER BY sb.ts DESC
+	ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC
 `)
 
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
@@ -553,11 +619,11 @@ func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid
 	createTime := tsid.Timestamp()
 
 	pb := &documents.Comment{
-		Id:            blob.RecordID{Authority: cmt.Signer, TSID: tsid}.String(),
+		Id:            blob.RecordID{Authority: cmt.Authority(), TSID: tsid}.String(),
 		TargetAccount: cmt.Space().String(),
 		TargetPath:    cmt.Path,
 		TargetVersion: docmodel.NewVersion(cmt.Version...).String(),
-		Author:        cmt.Signer.String(),
+		Author:        cmt.Authority().String(),
 		Content:       content,
 		CreateTime:    timestamppb.New(createTime),
 		Version:       c.String(),
@@ -675,7 +741,14 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 	}
 
 	if !kp.Principal().Equal(rid.Authority) {
-		return nil, status.Errorf(codes.PermissionDenied, "only the original author can update a comment")
+		valid, err := srv.idx.IsValidAgent(ctx, rid.Authority, kp.Principal())
+		if err != nil {
+			return nil, err
+		}
+
+		if !valid {
+			return nil, status.Errorf(codes.PermissionDenied, "only the original author can update a comment unless the signing key is an authorized agent")
+		}
 	}
 
 	space, err := core.DecodePrincipal(comment.TargetAccount)
@@ -733,7 +806,11 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), visibility, clock.MustNow())
+	if err := srv.checkCommentTarget(ctx, versionHeads); err != nil {
+		return nil, err
+	}
+
+	eb, err := blob.NewComment(kp, rid.TSID, rid.Authority, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), visibility, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -769,7 +846,14 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 	}
 
 	if !kp.Principal().Equal(rid.Authority) {
-		return nil, status.Errorf(codes.PermissionDenied, "signing key must match the comment author")
+		valid, err := srv.idx.IsValidAgent(ctx, rid.Authority, kp.Principal())
+		if err != nil {
+			return nil, err
+		}
+
+		if !valid {
+			return nil, status.Errorf(codes.PermissionDenied, "signing key must match the comment author or an authorized agent")
+		}
 	}
 
 	var originalComment indexedComment
@@ -786,10 +870,6 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 		return nil, err
 	}
 
-	if !originalComment.Comment.Signer.Equal(kp.Principal()) {
-		return nil, status.Errorf(codes.PermissionDenied, "only the original author can delete a comment")
-	}
-
 	// Comments inherit visibility from their target document.
 	visibility, err := srv.idx.GetDocumentVisibility(ctx, originalComment.Comment.Space(), originalComment.Comment.Path)
 	if err != nil {
@@ -797,7 +877,7 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 		visibility = blob.VisibilityPublic
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, visibility, clock.MustNow())
+	eb, err := blob.NewComment(kp, rid.TSID, rid.Authority, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, visibility, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
 	}
@@ -864,6 +944,13 @@ func (srv *Server) ListCommentVersions(ctx context.Context, in *documents.ListCo
 			if len(v.Comment.Body) == 0 {
 				continue
 			}
+
+			if v.Comment.Visibility == blob.VisibilityPrivate {
+				if err := srv.denyPrivateComment(ctx, v.Comment.Space(), v.Comment.Path); err != nil {
+					return nil, err
+				}
+			}
+
 			pb, err := commentToProto(lookup, v.CID, v.Comment, v.TSID)
 			if err != nil {
 				return nil, err

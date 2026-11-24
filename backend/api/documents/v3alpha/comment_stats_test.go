@@ -21,14 +21,14 @@ const qDocumentCommentStats = `
 	FROM document_comment_stats ORDER BY genesis;
 `
 
-// qDocumentLiveCommentCount is what it should be: comment_live aggregated by the
+// qDocumentLiveCommentCount is what it should be: comments_live aggregated by the
 // document each comment belongs to. Zero-count rows are excluded because
 // updateDocumentCommentStats prunes them.
 const qDocumentLiveCommentCount = `
 	SELECT genesis, COUNT(*), MAX(ts),
-	       (SELECT l2.blob_id FROM comment_live l2 WHERE l2.genesis = l.genesis
-	         ORDER BY l2.ts DESC, l2.blob_id DESC LIMIT 1)
-	FROM comment_live l GROUP BY genesis ORDER BY genesis;
+	       (SELECT l2.blob_id FROM comments_live l2 WHERE l2.genesis = l.genesis
+	         ORDER BY l2.ts DESC, l2.hash DESC LIMIT 1)
+	FROM comments_live l GROUP BY genesis ORDER BY genesis;
 `
 
 const qSpaceCommentStats = `
@@ -38,16 +38,16 @@ const qSpaceCommentStats = `
 
 const qSpaceLiveCommentCount = `
 	SELECT s.id,
-	       (SELECT COUNT(*) FROM comment_live l JOIN resources r ON r.id = l.resource
+	       (SELECT COUNT(*) FROM comments_live l JOIN resources r ON r.id = l.resource
 	         WHERE r.iri = 'hm://' || s.id
 	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')),
-	       COALESCE((SELECT MAX(l.ts) FROM comment_live l JOIN resources r ON r.id = l.resource
+	       COALESCE((SELECT MAX(l.ts) FROM comments_live l JOIN resources r ON r.id = l.resource
 	         WHERE r.iri = 'hm://' || s.id
 	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')), 0),
-	       COALESCE((SELECT l.blob_id FROM comment_live l JOIN resources r ON r.id = l.resource
+	       COALESCE((SELECT l.blob_id FROM comments_live l JOIN resources r ON r.id = l.resource
 	         WHERE r.iri = 'hm://' || s.id
 	         OR (r.iri >= 'hm://' || s.id || '/' AND r.iri < 'hm://' || s.id || '0')
-	         ORDER BY l.ts DESC, l.blob_id DESC LIMIT 1), 0)
+	         ORDER BY l.ts DESC, l.hash DESC LIMIT 1), 0)
 	FROM spaces s ORDER BY s.id;
 `
 
@@ -212,9 +212,9 @@ func TestCommentActivityFollowsTheDocument(t *testing.T) {
 		t.Helper()
 
 		require.Equal(t, rows(qDocumentLiveCommentCount), rows(qDocumentCommentStats),
-			"stored document stats diverged from comment_live %s", when)
+			"stored document stats diverged from comments_live %s", when)
 		require.Equal(t, rows(qSpaceLiveCommentCount), rows(qSpaceCommentStats),
-			"stored space stats diverged from comment_live %s", when)
+			"stored space stats diverged from comments_live %s", when)
 
 		// Space totals count each live comment once, by location: four on the moved
 		// document, two surviving on /stable, one on /orphan.
