@@ -295,7 +295,14 @@ export function createRunningAppsHandlers(svc: apisvc.Service) {
       if (!token) return json({error: 'A ctx.seed request carries its call token'}, 401)
       const body = await req.json().catch(() => null)
       try {
-        return json({result: await svc.toolSeedRequest(token, body)})
+        // Daemon values can hold BigInt (versions, generations): JSON carries them as numbers.
+        const result = await svc.toolSeedRequest(token, body)
+        return new Response(
+          JSON.stringify({result}, (_key, value) =>
+            typeof value === 'bigint' ? (Number.isSafeInteger(Number(value)) ? Number(value) : String(value)) : value,
+          ),
+          {headers: {...corsHeaders(), 'content-type': 'application/json'}},
+        )
       } catch (error) {
         return failure(error)
       }

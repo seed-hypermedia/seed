@@ -590,7 +590,7 @@ export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unk
           url: info.id.id,
           id: {id: info.id.id, uid: info.id.uid, path: info.id.path},
           metadata: info.metadata,
-          updateTime: info.updateTime,
+          updateTime: isoTime(info.updateTime),
         }))
     }
     case 'publish': {
@@ -646,6 +646,14 @@ async function startAgentFromTool(deps: AppRunDeps, session: ToolSeedSession, bo
   })
   session.sessions.push({sessionId, at: Date.now()})
   return {sessionId}
+}
+
+/** A daemon time (an ISO string, or a protobuf timestamp with BigInt seconds) as an ISO string. */
+function isoTime(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object' && 'seconds' in value)
+    return new Date(Number((value as {seconds: bigint | number}).seconds) * 1000).toISOString()
+  return undefined
 }
 
 /** The account to publish as: the one named by `as` (a key field or its account), or the only key. */
