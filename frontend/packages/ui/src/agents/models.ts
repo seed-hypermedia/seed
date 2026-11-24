@@ -662,14 +662,25 @@ export function useMountedSiteAgents(accountUid: string | null | undefined): {
   // to load contributes no rows. The cache key extends the agent's paginated-list key so the same
   // invalidations and optimistic patches reach it, without colliding with the infinite query the
   // agent page owns.
+  //
+  // Trigger-started sessions are dropped on the server, before the page is cut: the panel hides
+  // them anyway, and an agent whose triggers fire often has a newest page made only of them, which
+  // left "All agents" saying "No chats yet" while the agent's own filter (already server-filtered)
+  // listed its chats.
   const sessionQueries = useQueries({
     queries: targets.map((mount) => ({
-      queryKey: [...agentSessionsKey(mount.serverUrl, accountUid, mount.agentId), 'sidebar'],
+      queryKey: [...agentSessionsKey(mount.serverUrl, accountUid, mount.agentId), 'chats', 'sidebar'],
       queryFn: async (): Promise<AgentSessionsPage> => {
         const res = await sendAgentAction({
           serverUrl: mount.serverUrl,
           accountUid: accountUid!,
-          action: {_: 'ListSessions', agentId: mount.agentId, includeChildren: false, limit: AGENT_SESSIONS_PAGE_SIZE},
+          action: {
+            _: 'ListSessions',
+            agentId: mount.agentId,
+            includeChildren: false,
+            limit: AGENT_SESSIONS_PAGE_SIZE,
+            excludeTriggered: true,
+          },
         })
         if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
         return {sessions: res.sessions.filter((session) => !session.parentSessionId), nextCursor: res.nextCursor}

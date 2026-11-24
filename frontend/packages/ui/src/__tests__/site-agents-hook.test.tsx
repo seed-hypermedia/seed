@@ -42,12 +42,14 @@ vi.mock('../agents/client', async (importOriginal) => ({
   }: {
     serverUrl: string
     accountUid: string
-    action: {_: string; agentId: string; includeChildren?: boolean}
+    action: {_: string; agentId: string; includeChildren?: boolean; excludeTriggered?: boolean}
   }) => {
     mockState.requests.push({serverUrl, accountUid, agentId: action.agentId, action: action._})
     if (mockState.missingAgentIds.has(action.agentId)) throw new Error('Agent not found')
     if (action._ === 'ListSessions') {
-      const all = mockState.sessionsByAgent[action.agentId] ?? []
+      const all = (mockState.sessionsByAgent[action.agentId] ?? []).filter(
+        (session) => !(action.excludeTriggered && session.startedByTrigger),
+      )
       return {
         _: 'ListSessionsResponse',
         sessions: action.includeChildren === false ? all.filter((session) => !session.parentSessionId) : all,
@@ -204,6 +206,20 @@ describe('useMountedSiteAgents', () => {
     expect(latest!.sessions.map((entry) => entry.session.id)).toEqual(['s-2', 's-1'])
     expect(latest!.sessions[0]!.serverUrl).toBe('https://a.example')
     expect(latest!.sessions[0]!.agent?.id).toBe(docs)
+  })
+
+  it('asks the server to leave trigger-started sessions out, so a busy agent still shows its chats', async () => {
+    mockState.route = {key: 'document', id: {uid: 'space-uid', path: []}}
+    mockState.documents['space-uid'] = [{path: '/ion', metadata: {type: AGENT, agentServerUrl: 'https://a.example'}}]
+    const ion = 'hm://space-uid/ion'
+    mockState.sessionsByAgent = {
+      [ion]: [
+        {id: 's-run', agentId: ion, title: 'Scheduled', startedByTrigger: {triggerId: 't'}, updatedAt: 300},
+        {id: 's-chat', agentId: ion, title: 'Chat', updatedAt: 100},
+      ],
+    }
+    await render()
+    expect(latest!.sessions.map((entry) => entry.session.id)).toEqual(['s-chat'])
   })
 
   it('fetches nothing without mount documents, an account to sign with, or a document query', async () => {
