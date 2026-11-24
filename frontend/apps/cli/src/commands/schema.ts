@@ -11,7 +11,7 @@ import type {Command} from 'commander'
 import {resolveSchema} from '@seed-hypermedia/client/schema-engine'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
-import {META_SCHEMA, encodeBlob, loadSchema, violations} from '../utils/schema'
+import {encodeBlob, loadSchema, schemaViolations} from '../utils/schema'
 
 const fail: (message: string) => never = (message) => {
   printError(message)
@@ -45,12 +45,14 @@ export function registerSchemaCommands(program: Command) {
 
   schema
     .command('validate <ref>')
-    .description('Check that a schema is a valid Hypermedia schema (it must be an instance of the meta-schema)')
+    .description(
+      'Check that a schema is a valid Hypermedia schema (an instance of the meta-schema whose property defaults match their properties)',
+    )
     .action(async (ref: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       try {
         const loaded = await loadSchema(getClient(globalOpts), ref)
-        const errors = violations(META_SCHEMA, loaded.schema, loaded.registry)
+        const errors = schemaViolations(loaded.schema, loaded.registry)
         if (errors.length) {
           printError(
             `${loaded.source} is not a valid Hypermedia schema (${errors.length} violation${

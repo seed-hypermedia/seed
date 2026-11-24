@@ -170,13 +170,20 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {compileExploreQuery, parseExploreQuery, type ExplorePredicate} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
+import {
+  HM_SCHEMAS,
+  validate as validateSchema,
+  validateDefaults,
+  resolveSchema,
+  STRUCT_URL,
+} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
   checkSchemaDefinition,
   isPlainMap,
   loadSchemaRef,
+  newDocumentDefaults,
   withoutSchemaLink,
 } from '@seed-hypermedia/client/schema-resolve'
 import {
@@ -16862,8 +16869,16 @@ async function writeIpfsObject(
       })
     : null
   const force = options.force === true
-  const violationsOf = (candidate: unknown): string[] =>
-    loaded ? validateSchema(loaded.schema, withoutSchemaLink(candidate), '$', {}, loaded.registry) : []
+  const violationsOf = (candidate: unknown): string[] => {
+    if (!loaded) return []
+    const bare = withoutSchemaLink(candidate)
+    const violations = validateSchema(loaded.schema, bare, '$', {}, loaded.registry)
+    // A schema's property defaults must match their own properties. The meta-schema cannot say
+    // that, so an object published as a schema gets the check on top.
+    if (!violations.length && loaded.schema === HM_SCHEMAS['schema'] && isPlainMap(bare))
+      violations.push(...validateDefaults(bare, '$', {}, loaded.registry))
+    return violations
+  }
   const refuse = (violations: string[]): never => {
     throw new APIError(
       400,
@@ -18429,6 +18444,12 @@ async function writeDocumentCreate(
   )
     throw new APIError(400, APP_TRIGGER_NEEDS_TOOL)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  // A new typed document starts from its schema's property defaults: every attribute the type
+  // gives a default and this write does not set. They are written as ordinary attributes and
+  // reported back, so the author knows what the document now says.
+  const defaultsApplied = childId ? await newDocumentDefaults(client, childId, metadata as Record<string, unknown>) : {}
+  Object.assign(metadata as Record<string, unknown>, defaultsApplied)
+  const defaultsReport = Object.keys(defaultsApplied).length ? {defaultsApplied} : {}
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -18447,6 +18468,7 @@ async function writeDocumentCreate(
       ...(app ? {app: app.id.id} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
+      ...defaultsReport,
       dryRun: true,
     })
   // The SDK decides which genesis a new document gets, the way the daemon does: the
@@ -18476,6 +18498,7 @@ async function writeDocumentCreate(
     cids: published.cids,
     ...(app ? {app: app.id.id, listedInApp: true} : {}),
     ...typed,
+    ...defaultsReport,
     ...(await readBackDocumentAssets(client, `hm://${account}${path}`, created.version, assets)),
   })
 }

@@ -320,8 +320,10 @@ Use seed.input.get() to get {values, schema, errors}. Incoming malformed or sche
 Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Configure the bundle with those real URLs; page metadata is optional and should only be added if the code reads it. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
 
 \`\`\`json
-{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true}}}
+{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true,"default":"todo"}}}
 \`\`\`
+
+A property may carry \`default\`: the value a new record starts with. It must match the property's \`value\` schema. Creating a document under the collection writes each default the write did not set as an ordinary attribute and returns them as \`defaultsApplied\`. Defaults only initialize: an update never applies them, a record that lacks the field still lacks it, and a required field stays required.
 
 The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection URL; its \`childAttributesSchema\` types every record, so records carry no type field of their own. The host resolves an existing writer capability for the selected viewer; it never creates a grant. No page approval can substitute for protocol write authority. Create parents and verify access during setup; never embed a secret or an agent signing key. If configuration lives in metadata, read the page document identified by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
 

@@ -80,11 +80,12 @@ A **bare** `{ "type": X }`, where X names another schema and the node has nothin
 
 # Structs and maps <!-- id:SFVk1Mph -->
 
-A [`struct`](../struct.md) names its fields in `properties`, one [property](./property.md) per field. `properties[name]` is `{value, required?, description?}`:
+A [`struct`](../struct.md) names its fields in `properties`, one [property](./property.md) per field. `properties[name]` is `{value, required?, description?, default?}`:
 
 - `value` is the schema the field's value must match.
 - `required` says whether the data must include the field.
 - `description` says what the field is for.
+- `default` is the value a new struct starts with.
 
 A struct is **[closed](./closed-map.md)**, so it rejects keys that are not listed. Add `values` and it is open: extra keys are allowed when their values match the `values` schema. A [`map`](../map.md) has no named fields, and the value of every key matches `values`. So: <!-- id:8FWAU877 -->
   - `struct` with `properties` and no `values` is a **closed struct**: a fixed set of fields <!-- id:AjvS967n -->
@@ -106,6 +107,20 @@ A struct is **[closed](./closed-map.md)**, so it rejects keys that are not liste
 ```
 
 Because structs are closed, the meta-schema can _reject_ a broken schema that has extra keys (see below). <!-- id:bP4jTzqq -->
+
+# Defaults <!-- id:25AI47mu -->
+
+A [property](./property.md) may carry a `default`: the value an editor writes into a new struct for that field. It must match the property's `value` schema. A default only initializes. The new value stores it as ordinary data, validation ignores it, and a value that already exists is not changed when its schema gains one. <!-- id:3veFfo40 -->
+
+```json <!-- id:j9rCJigX -->
+// a new task starts as "todo" with no tags
+{ "type": "struct",
+  "properties": {
+    "status": { "value": { "anyOf": ["todo", "doing", "done"] }, "required": true, "default": "todo" },
+    "tags":   { "value": { "type": "list", "items": { "type": "string" } }, "default": [] } } }
+```
+
+`required` and `default` answer different questions. `required` says a value must include the field. `default` says what a new value starts with. [Property](./property.md) spells out each combination, and how defaults work for nested structs, lists, links and unions. `validate.mjs` checks every default in the library against its property (see its `Property defaults` section). <!-- id:y9IO6KBT -->
 
 # Value constraints <!-- id:DVRwHp1m -->
 
@@ -169,7 +184,7 @@ The meta-schema, named `schema`, is a **discriminated union**. It has nine [vari
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
 | --- | --- | --- |
-| [`schema/struct-schema`](./struct-schema.md) | `{type:"struct", properties?: {name: {value, required?, description?}}, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
+| [`schema/struct-schema`](./struct-schema.md) | `{type:"struct", properties?: {name: {value, required?, description?, default?}}, values?}` | `type` = `struct` <!-- id:dS0FU-PD --> |
 | [`schema/map-schema`](./map-schema.md) | `{type:"map", values?}` | `type` = `map` <!-- id:bCtL9MQx --> |
 | [`schema/list-schema`](./list-schema.md) | `{type:"list", items?}` | `type` = `list` <!-- id:Y2gJAANc --> |
 | [`schema/scalar-schema`](./scalar-schema.md) | `{type: null\|boolean\|integer\|float\|string\|bytes, …constraints}` | `type` = a scalar kind <!-- id:wkuOsUIy --> |

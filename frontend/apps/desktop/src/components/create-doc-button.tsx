@@ -425,9 +425,17 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     ),
   )
   const drafts = useChildDrafts(schemaId)
+  // A collection that declares a real `childAttributesSchema` types its children itself: the new
+  // document starts from that schema's defaults and required fields. Guessing attributes from the
+  // siblings would pre-fill every key with an empty value, which hides the schema's defaults and
+  // is not a member of any literal union (so an enum shows a text box instead of its options).
+  const schemaDocument = currentIsCollection ? currentDocument : parentDocument
+  const declaresChildSchema =
+    typeof schemaDocument?.metadata?.childAttributesSchema === 'string' &&
+    schemaDocument.metadata.childAttributesSchema.length > 0
   const schema = useMemo(
     () =>
-      schemaId
+      schemaId && !declaresChildSchema
         ? inferDocumentSchema({
             collectionId: schemaId,
             publishedChildren: children.data?.results ?? [],
@@ -436,7 +444,7 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
             ),
           })
         : undefined,
-    [children.data?.results, drafts, schemaId],
+    [children.data?.results, drafts, schemaId, declaresChildSchema],
   )
   const [generation, setGeneration] = useState(0)
 

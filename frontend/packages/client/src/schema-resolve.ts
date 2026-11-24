@@ -17,6 +17,7 @@ import {
   fieldSchema,
   isLiteralSchema,
   loadFrom,
+  missingPropertyDefaults,
   refToName,
   resolveSchema,
   schemaCid,
@@ -25,6 +26,7 @@ import {
   type StructField,
   structFields,
   fieldsToProperties,
+  schemaErrors,
   validate,
 } from './schema-engine'
 import {packHmId, unpackHmId} from './hm-types'
@@ -164,8 +166,11 @@ function referencesOf(schema: unknown, out: string[] = []): string[] {
   const node = schema as Record<string, unknown>
   for (const [key, value] of Object.entries(node)) {
     if ((key === 'ref' || key === 'type') && typeof value === 'string') out.push(value)
-    else if (key === 'description' || key === 'target' || key === 'format' || key === 'value') {
-      // `value` is a literal here (a property entry's `value` is walked below, as a schema).
+    else if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
+      // Each property wraps its field's schema in `value`; its `default` is data, not a schema.
+      for (const entry of Object.values(value as Record<string, any>)) referencesOf(entry?.value, out)
+    } else if (key === 'description' || key === 'target' || key === 'format' || key === 'value') {
+      // `value` is a literal here (a property entry's `value` is walked above, as a schema).
       if (key === 'value' && value && typeof value === 'object') referencesOf(value, out)
     } else if (value && typeof value === 'object') referencesOf(value, out)
   }
@@ -339,6 +344,28 @@ export async function checkDocumentSchema(
   return {...base, required, missing, violations}
 }
 
+/**
+ * The attributes a NEW document starts with: the property defaults of its effective attributes
+ * schema (its own `attributesSchema`, else the parent's `childAttributesSchema`) for every key
+ * `metadata` does not already hold. Only for a document being created. A document that already
+ * exists is never given a default, however its schema changes. An unresolvable type yields no
+ * defaults, never a throw.
+ */
+export async function newDocumentDefaults(
+  client: SchemaFetchClient,
+  id: UnpackedHypermediaId,
+  metadata: Record<string, unknown> | undefined,
+): Promise<Record<string, unknown>> {
+  try {
+    const effective = await effectiveSchemaRef(client, id, metadata)
+    if (!effective.ref || effective.source === 'none') return {}
+    const loaded = await loadSchemaRef(client, effective.ref)
+    return missingPropertyDefaults(metadataSchemaOf(loaded.schema, loaded.registry), metadata, loaded.registry)
+  } catch {
+    return {}
+  }
+}
+
 // ── Blobs and their schema links ─────────────────────────────────────────────
 
 /** Whether a dag-json value is a plain map (the only shape that can carry a schema link). */
@@ -369,13 +396,13 @@ export function withoutSchemaLink(value: unknown): unknown {
 
 /**
  * Whether the schema a document's `schemaDefinition` points at is a valid Hypermedia schema: the
- * violations of the meta-schema, or the reason the reference could not be loaded. Empty when fine.
+ * violations of the meta-schema and any property default that does not match its property, or the
+ * reason the reference could not be loaded. Empty when fine.
  */
 export async function checkSchemaDefinition(client: SchemaFetchClient, ref: string): Promise<string[]> {
-  const meta = HM_SCHEMAS['schema']!
   try {
     const loaded = await loadSchemaRef(client, ref)
-    return validate(meta, loaded.schema, '$', {}, loaded.registry)
+    return schemaErrors(loaded.schema, loaded.registry)
   } catch (error) {
     return [(error as Error).message]
   }

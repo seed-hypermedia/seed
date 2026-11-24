@@ -19,7 +19,13 @@
         "type": "hm://hyper.media/string"
       },
       "description": "What the field is for, for people and for the editors that show it."
+    },
+    "default": {
+      "value": {
+        "type": "hm://hyper.media/any"
+      },
+      "description": "The value an editor writes into a new struct for this field. It must match `value`. It only initializes: a struct that lacks the field is not read as if it had this value."
     }
   },
-  "description": "One field of a struct: the schema its value must match, whether it is required, and what it is for."
+  "description": "One field of a struct: the schema its value must match, whether it is required, what it is for, and the value a new struct starts with."
 }

@@ -180,6 +180,7 @@ function structFields(node) {
     schema: entry?.value === undefined ? {} : entry.value,
     required: entry?.required === true,
     description: entry?.description,
+    default: entry?.default,
   }))
 }
 
@@ -188,7 +189,7 @@ function emitMapBody(node, env, pad) {
   const inner = pad + '  '
   const lines = []
   for (const field of structFields(node)) {
-    const doc = childDoc(field.schema, inner, field.description)
+    const doc = childDoc(field.schema, inner, field.description, field.default)
     const opt = field.required ? '' : '?'
     const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(field.name) ? field.name : JSON.stringify(field.name)
     lines.push(`${doc}${inner}${safeKey}${opt}: ${emit(field.schema, env, inner)}`)
@@ -207,7 +208,7 @@ function emitMapBody(node, env, pad) {
 }
 
 /** A property's JSDoc line (from the field's description and the schema's constraints), or ''. */
-function childDoc(child, pad, description) {
+function childDoc(child, pad, description, defaultValue) {
   if (!child || typeof child !== 'object') return ''
   const bits = []
   if (description) bits.push(description)
@@ -215,6 +216,8 @@ function childDoc(child, pad, description) {
   for (const c of ['minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum']) {
     if (child[c] !== undefined) bits.push(`${c}: ${JSON.stringify(child[c])}`)
   }
+  // What a new value starts with. It only initializes: the field's type is unchanged.
+  if (defaultValue !== undefined) bits.push(`default: ${JSON.stringify(defaultValue)}`)
   if (!bits.length) return ''
   return `${pad}/** ${bits.join(' · ').replace(/\*\//g, '*\\/')} */\n`
 }

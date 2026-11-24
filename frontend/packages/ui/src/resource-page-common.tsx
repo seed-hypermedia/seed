@@ -221,7 +221,7 @@ import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
 import {buildSlotItems} from './query-block-draft-items'
 import {RequiredAttributesEditor} from './required-attributes-editor'
-import {HM_SCHEMAS, nameForCid, nameToUrl} from './schema/engine'
+import {HM_SCHEMAS, missingPropertyDefaults, nameForCid, nameToUrl} from './schema/engine'
 import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
 import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
@@ -2173,6 +2173,7 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  useNewDocumentSchemaDefaults(docId, document)
   const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
   const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
   const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
@@ -4089,6 +4090,43 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
       {librarySlug && !bundled && <DepLists name={librarySlug} nav={navLibrary} />}
     </>
   )
+}
+
+/**
+ * A NEW document starts from its schema's property defaults. While the document has never been
+ * published, every attribute its effective schema gives a default and the draft has never held is
+ * written into the draft once, as ordinary data the author can then edit or remove. A removed
+ * attribute stays a `null` tombstone in the draft, so it is not brought back. A published
+ * document is never touched: a schema that gains a default changes no existing value.
+ */
+function useNewDocumentSchemaDefaults(docId: UnpackedHypermediaId, document: HMDocument) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const isNew = useDocumentSelector(selectIsUnpublishedDraft)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const canEdit = useDocumentSelector(selectCanEditCurrentRoute)
+  const active = isNew && isEditing && !!canEdit
+  const metadata = useMemo(
+    () => ({...(document.metadata || {}), ...ctx.metadata}) as Record<string, unknown>,
+    [document.metadata, ctx.metadata],
+  )
+  // An attributes schema being authored on this very draft is still changing under the author's
+  // hands; its defaults are for the documents that will follow it, not a moving target for this one.
+  const authoringOwnSchema = !!ctx.bindingSchemaDrafts?.attributesSchema
+  const {schema, registry, isLoading} = useConformanceSchema(
+    active && !authoringOwnSchema ? docId : null,
+    metadata,
+    null,
+  )
+  const defaults = useMemo(
+    () =>
+      active && !authoringOwnSchema && schema && !isLoading ? missingPropertyDefaults(schema, metadata, registry) : {},
+    [active, authoringOwnSchema, schema, isLoading, metadata, registry],
+  )
+  const pending = Object.keys(defaults).length ? JSON.stringify(defaults) : ''
+  useEffect(() => {
+    if (pending) send({type: 'change', metadata: JSON.parse(pending)})
+  }, [pending, send])
 }
 
 /**
