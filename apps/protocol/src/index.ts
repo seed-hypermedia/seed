@@ -226,6 +226,8 @@ export type UnsignedAgentAction =
   | RunApp
   | StopApp
   | GetAppRun
+  | GetHostConfig
+  | SetHostPrivateConfig
   | CheckAppRun
   | CallAppTool
   | ListAppToolCalls
@@ -437,6 +439,27 @@ export type RunApp = {
   _: 'RunApp'
   appId: string
   privateConfig?: Record<string, unknown>
+}
+
+/**
+ * A host's config on this server (an app's or an agent's): which private config fields are set,
+ * never their values. Public config is part of the host document (`publicConfig`).
+ */
+export type GetHostConfig = {
+  _: 'GetHostConfig'
+  hostId: string
+}
+
+/**
+ * Changes a host's private config on this server: each value replaces that field, a null removes
+ * it, and fields not named keep their values. Checked against the host's `privateConfigSchema`.
+ * The host must run here (an app need not be started), and the signer must be able to write its
+ * space. Values are kept encrypted and never returned.
+ */
+export type SetHostPrivateConfig = {
+  _: 'SetHostPrivateConfig'
+  hostId: string
+  privateConfig: Record<string, unknown>
 }
 
 /** Stops an app running on this server and forgets its private config. Writers of the app's space. */
@@ -2196,6 +2219,22 @@ export type AppRunInfo = {
   updatedAt: number
 }
 
+/** A host's config on this server, without the private values. */
+export type HostConfigInfo = {
+  hostId: string
+  /** Names of the private config fields that are set; the values never leave the server. */
+  privateConfigKeys: string[]
+  /** Who last changed the private config, and when; absent when it was never set. */
+  updatedBy?: string
+  updatedAt?: number
+}
+
+/** Response for `GetHostConfig` and `SetHostPrivateConfig`. */
+export type HostConfigResponse = {
+  _: 'HostConfigResponse'
+  config: HostConfigInfo
+}
+
 /** Response for `RunApp`, `StopApp` and `GetAppRun`: the app's run on this server, or null. */
 export type AppRunResponse = {
   _: 'AppRunResponse'
@@ -2695,6 +2734,7 @@ export type AgentResponse =
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
   | AppRunResponse
+  | HostConfigResponse
   | AppRunCheckResponse
   | AppToolCallResponse
   | ListAppToolCallsResponse

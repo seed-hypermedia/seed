@@ -18,6 +18,7 @@ import {structFields, validate as validateSchema} from '@seed-hypermedia/client/
 import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
 import {APP_PRIVATE_CONFIG_ENV, buildAppToolProgram, parseLambdaResult, type CodeExecutor} from '@/code-exec'
+import * as hostConfig from '@/host-config'
 
 type SeedClient = ReturnType<typeof createSeedClient>
 
@@ -50,7 +51,6 @@ type AppRunRow = {
   app_id: string
   space_uid: string
   started_by: string
-  private_config_ciphertext: Uint8Array | null
   created_at: number
   updated_at: number
 }
@@ -202,27 +202,20 @@ async function requireSpaceWriter(client: SeedClient, appId: UnpackedHypermediaI
 }
 
 function toRunInfo(row: AppRunRow, deps: AppRunDeps): api.AppRunInfo {
-  const privateConfig = readPrivateConfig(row, deps)
   return {
     appId: row.app_id,
     spaceUid: row.space_uid,
     startedBy: row.started_by,
-    privateConfigKeys: Object.keys(privateConfig).sort(),
+    privateConfigKeys: hostConfig.hostConfigState(deps.db, deps, row.app_id).privateConfigKeys,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-function readPrivateConfig(row: AppRunRow, deps: AppRunDeps): Record<string, unknown> {
-  if (!row.private_config_ciphertext) return {}
-  const parsed = JSON.parse(new TextDecoder().decode(deps.decrypt(new Uint8Array(row.private_config_ciphertext))))
-  return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-}
-
 /**
  * How an app or agent runs here. An app runs once someone runs it (an `app_runs` row); an agent
- * mounted on this server is always running, so its tools run with no Run step (and, until it has
- * an explicit run with private config, no private config).
+ * mounted on this server is always running, so its tools run with no Run step. Private config is
+ * kept apart from runs (host-config.ts), so an agent has it without being run.
  */
 function effectiveRun(db: Database, hostId: string): AppRunRow | null {
   const row = getRunRow(db, hostId)
@@ -237,7 +230,6 @@ function effectiveRun(db: Database, hostId: string): AppRunRow | null {
     app_id: hostId,
     space_uid: unpackHmId(hostId)?.uid ?? agent.account_id,
     started_by: agent.account_id,
-    private_config_ciphertext: null,
     created_at: agent.created_at,
     updated_at: agent.updated_at,
   }
@@ -280,40 +272,75 @@ export async function runApp(
   action: {appId: string; privateConfig?: Record<string, unknown>},
 ): Promise<api.AppRunInfo> {
   const appId = versionless(action.appId, 'app')
-  let app = await loadDocument(deps.client, appId, isToolHostType, 'app')
-  try {
-    await requireRunsHere(deps, appId, app)
-  } catch (error) {
-    // A client names this server on the app and runs it straight away, so this node can still
-    // hold the version from before: look for a newer one once, then let the answer stand.
-    if (!(error instanceof AppRunError) || !(await discoverDocument(deps.client, appId, STALE_APP_WAIT_MS))) throw error
-    app = await loadDocument(deps.client, appId, isToolHostType, 'app')
-    await requireRunsHere(deps, appId, app)
-  }
+  const app = await loadHostHere(deps, appId)
   await requireSpaceWriter(deps.client, appId, signer)
+  if (action.privateConfig !== undefined) await savePrivateConfig(deps, signer, appId, app, action.privateConfig)
   const existing = getRunRow(deps.db, appId.id)
-  let privateConfig = existing ? readPrivateConfig(existing, deps) : {}
-  if (action.privateConfig !== undefined) {
-    // New values replace the ones held for the same fields; fields not given keep theirs, so a
-    // single secret can change without sending the others again.
-    const merged = {...privateConfig, ...action.privateConfig}
-    const violations = await schemaViolations(deps.client, app.metadata.privateConfigSchema, merged)
-    if (violations.length) throw new AppRunError(400, `Private config does not match the app: ${violations.join('; ')}`)
-    privateConfig = merged
-  }
-  const ciphertext = Object.keys(privateConfig).length
-    ? deps.encrypt(new TextEncoder().encode(JSON.stringify(privateConfig)))
-    : null
   const now = Date.now()
   deps.db
     .query(
-      `INSERT INTO app_runs (app_id, space_uid, started_by, private_config_ciphertext, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (app_id) DO UPDATE SET started_by = excluded.started_by,
-         private_config_ciphertext = excluded.private_config_ciphertext, updated_at = excluded.updated_at`,
+      `INSERT INTO app_runs (app_id, space_uid, started_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (app_id) DO UPDATE SET started_by = excluded.started_by, updated_at = excluded.updated_at`,
     )
-    .run(appId.id, appId.uid, signer, ciphertext, existing?.created_at ?? now, now)
+    .run(appId.id, appId.uid, signer, existing?.created_at ?? now, now)
   return toRunInfo(getRunRow(deps.db, appId.id)!, deps)
+}
+
+/** The host document, after checking it is an app or agent that runs on this server. */
+async function loadHostHere(deps: AppRunDeps, hostId: UnpackedHypermediaId) {
+  let host = await loadDocument(deps.client, hostId, isToolHostType, 'app')
+  try {
+    await requireRunsHere(deps, hostId, host)
+  } catch (error) {
+    // A client names this server on the app and runs it straight away, so this node can still
+    // hold the version from before: look for a newer one once, then let the answer stand.
+    if (!(error instanceof AppRunError) || !(await discoverDocument(deps.client, hostId, STALE_APP_WAIT_MS)))
+      throw error
+    host = await loadDocument(deps.client, hostId, isToolHostType, 'app')
+    await requireRunsHere(deps, hostId, host)
+  }
+  return host
+}
+
+/** Merges `changes` into the host's private config, checks it against the host's schema, and stores it. */
+async function savePrivateConfig(
+  deps: AppRunDeps,
+  signer: string,
+  hostId: UnpackedHypermediaId,
+  host: {metadata: {privateConfigSchema?: unknown}},
+  changes: Record<string, unknown>,
+) {
+  const stored = hostConfig.readPrivateConfig(deps.db, deps, hostId.id)
+  const merged = hostConfig.mergePrivateConfig(stored, changes)
+  const violations = await schemaViolations(deps.client, host.metadata.privateConfigSchema, merged)
+  if (violations.length) throw new AppRunError(400, `Private config does not match: ${violations.join('; ')}`)
+  hostConfig.writePrivateConfig(deps.db, deps, {hostId: hostId.id, spaceUid: hostId.uid}, merged, signer)
+}
+
+/** A host's config on this server: which private config fields are set (never their values). */
+export function getHostConfig(deps: AppRunDeps, action: {hostId: string}): api.HostConfigInfo {
+  const hostId = versionless(action.hostId, 'host')
+  return {hostId: hostId.id, ...hostConfig.hostConfigState(deps.db, deps, hostId.id)}
+}
+
+/**
+ * Changes a host's private config: a value replaces that field, a null removes it, and fields not
+ * named keep their values. The host (an app or an agent) must run on this server, and the signer
+ * must be able to write its space. An app does not need to be running.
+ */
+export async function setHostPrivateConfig(
+  deps: AppRunDeps,
+  signer: string,
+  action: {hostId: string; privateConfig: Record<string, unknown>},
+): Promise<api.HostConfigInfo> {
+  const hostId = versionless(action.hostId, 'host')
+  if (!action.privateConfig || typeof action.privateConfig !== 'object' || Array.isArray(action.privateConfig))
+    throw new AppRunError(400, 'privateConfig is an object of field values (null removes a field)')
+  const host = await loadHostHere(deps, hostId)
+  await requireSpaceWriter(deps.client, hostId, signer)
+  await savePrivateConfig(deps, signer, hostId, host, action.privateConfig)
+  return getHostConfig(deps, {hostId: hostId.id})
 }
 
 /**
@@ -343,6 +370,7 @@ export async function stopApp(deps: AppRunDeps, signer: string, action: {appId: 
   const appId = versionless(action.appId, 'app')
   await requireSpaceWriter(deps.client, appId, signer)
   deps.db.query('DELETE FROM app_runs WHERE app_id = ?').run(appId.id)
+  hostConfig.deletePrivateConfig(deps.db, appId.id)
 }
 
 /** Whether an app runs here, with the names (never the values) of its private config. */
@@ -407,11 +435,8 @@ export async function callAppTool(
         `Input does not match the tool: ${inputViolations.join('; ')}${expected ? `. It takes ${expected}.` : ''}`,
       )
     }
-    const privateViolations = await schemaViolations(
-      deps.client,
-      app.metadata.privateConfigSchema,
-      readPrivateConfig(run, deps),
-    )
+    const privateConfig = hostConfig.readPrivateConfig(deps.db, deps, appId.id)
+    const privateViolations = await schemaViolations(deps.client, app.metadata.privateConfigSchema, privateConfig)
     if (privateViolations.length)
       throw new AppRunError(
         409,
@@ -430,7 +455,7 @@ export async function callAppTool(
       stateDir,
       runtime: 'ts',
       code: buildAppToolProgram(source, action.input, {app: appId.id, publicConfig: app.metadata.publicConfig ?? {}}),
-      env: {[APP_PRIVATE_CONFIG_ENV]: JSON.stringify(readPrivateConfig(run, deps))},
+      env: {[APP_PRIVATE_CONFIG_ENV]: JSON.stringify(privateConfig)},
     })
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {

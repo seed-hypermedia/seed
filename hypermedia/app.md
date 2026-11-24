@@ -34,7 +34,7 @@ The app's own metadata holds:
 | `publicConfigSchema`, `privateConfigSchema` | the [schemas](./schema.md) of the public config and of the private config |
 | `appEnvironmentUrl` | the [app environment](./software/app-environment.md) that runs the app. The New app dialog sets it to the server you pick. Without it, the app uses the one that the [site](./protocol/sites.md) of the app's [space](./protocol/spaces.md) advertises |
 
-The private config itself is not in the document. Only the server that runs the app holds it.
+The private config itself is not in the document. Only the server that runs the app holds it. [Agents](./agent.md) have the same public and private config, kept the same way (see [host config](./build/signed-api-apps.md#host-config)).
 
 # Running an app
 

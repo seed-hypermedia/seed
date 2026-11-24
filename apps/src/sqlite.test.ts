@@ -281,6 +281,47 @@ describe('sqlite', () => {
     }
   })
 
+  test('a database behind the host-config migration moves each app’s private config into host_config', () => {
+    const db = createMemoryDatabase()
+    try {
+      // The schema as it was: private config in the run row, no host_config table.
+      db.run(
+        sqlite.schema
+          .replace(/CREATE TABLE host_config[\s\S]*?\) WITHOUT ROWID;/u, '')
+          .replace(
+            /    started_by TEXT NOT NULL,\n    created_at INTEGER NOT NULL,/u,
+            '    started_by TEXT NOT NULL,\n    private_config_ciphertext BLOB,\n    created_at INTEGER NOT NULL,',
+          ),
+      )
+      expect(tableExists(db, 'host_config')).toBe(false)
+      const target = sqlite.migrations.findIndex((migration) => migration.includes('CREATE TABLE host_config'))
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion - target - 1),
+      ])
+      db.run(
+        `INSERT INTO app_runs (app_id, space_uid, started_by, private_config_ciphertext, created_at, updated_at)
+         VALUES ('hm://z6Mkspace/weather', 'z6Mkspace', 'z6Mkwriter', ?, 1, 2), ('hm://z6Mkspace/plain', 'z6Mkspace', 'z6Mkwriter', NULL, 1, 2)`,
+        [new Uint8Array([1, 2, 3])],
+      )
+      expect(sqlite.openWithDatabase(db).ok).toBe(true)
+      expect(columnExists(db, 'app_runs', 'private_config_ciphertext')).toBe(false)
+      expect(db.query('SELECT count(*) AS n FROM app_runs').get()).toEqual({n: 2})
+      expect(db.query('SELECT * FROM host_config').all()).toEqual([
+        {
+          host_id: 'hm://z6Mkspace/weather',
+          space_uid: 'z6Mkspace',
+          private_config_ciphertext: new Uint8Array([1, 2, 3]),
+          updated_by: 'z6Mkwriter',
+          created_at: 1,
+          updated_at: 2,
+        },
+      ])
+    } finally {
+      sqlite.closeDatabase(db)
+    }
+  })
+
   test('a database behind the trigger-claims migration gains its claims and history fields', () => {
     // Start immediately before this migration, independent of newer prepended migrations.
     const db = createMemoryDatabase()

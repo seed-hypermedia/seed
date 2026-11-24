@@ -419,12 +419,21 @@ CREATE TABLE server_config (
     value BLOB NOT NULL
 ) WITHOUT ROWID;
 
--- Running apps: who started each app on this server and its private config (encrypted), see app-running.ts.
+-- Running apps: who started each app on this server, see app-running.ts.
 CREATE TABLE app_runs (
     app_id TEXT PRIMARY KEY,
     space_uid TEXT NOT NULL,
     started_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+-- Every host's private config (an app's or an agent's), encrypted like other secrets, see host-config.ts.
+CREATE TABLE host_config (
+    host_id TEXT PRIMARY KEY,
+    space_uid TEXT NOT NULL,
     private_config_ciphertext BLOB,
+    updated_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;

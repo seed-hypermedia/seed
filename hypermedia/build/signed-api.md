@@ -191,6 +191,8 @@ Reference: [running apps](./signed-api-apps.md). "Space writer" means the signer
 | `RunApp` | space writer | Runs an app on this server, or replaces its private config. |
 | `StopApp` | space writer | Stops an app and forgets its private config. |
 | `GetAppRun` | none | Says whether an app runs on this server. |
+| `GetHostConfig` | none | Names the private config fields an app or agent has set on this server. |
+| `SetHostPrivateConfig` | space writer | Changes an app's or agent's private config on this server. |
 | `CheckAppRun` | none | Says whether this server would run an app for the signer. |
 | `CallAppTool` | none | Calls a tool of a running app. |
 | `ListAppToolCalls` | none | Lists a tool's recorded calls. |

@@ -1748,6 +1748,24 @@ export class Service {
             appRunning.getAppRun(this.#appRunDeps(), envelope.action as api.GetAppRun),
           ),
         }
+      case 'GetHostConfig':
+        return {
+          _: 'HostConfigResponse',
+          config: await this.#appRun(async () =>
+            appRunning.getHostConfig(this.#appRunDeps(), envelope.action as api.GetHostConfig),
+          ),
+        }
+      case 'SetHostPrivateConfig':
+        return {
+          _: 'HostConfigResponse',
+          config: await this.#appRun(() =>
+            appRunning.setHostPrivateConfig(
+              this.#appRunDeps(),
+              verified.accountId,
+              envelope.action as api.SetHostPrivateConfig,
+            ),
+          ),
+        }
       case 'CheckAppRun':
         return {
           _: 'AppRunCheckResponse',

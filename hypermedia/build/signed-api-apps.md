@@ -32,11 +32,34 @@ type AppRunInfo = {
 - `RunApp` runs an app [document](../protocol/documents.md) on this server, or updates a running app's private config. The signer must be able to write the app's [space](../protocol/spaces.md).
   - `privateConfig` sets the fields it names and keeps the others. So one secret can change without sending the rest.
   - Omitting `privateConfig` keeps everything.
-  - To remove a field, stop the app and run it again.
+  - It is a shortcut for `SetHostPrivateConfig` (below), which can also remove a field.
   - The server keeps private config encrypted and never returns it.
 - `StopApp` stops the app and forgets its private config. It answers `run: null`.
 - `GetAppRun` answers `run: null` when the app does not run here. For an [agent](../agent.md) mounted here it always answers a run, because an agent's tools need no run step.
 - `CheckAppRun` asks whether the server would accept `RunApp` from the signer, without running the app. `reason` says why not, in words.
+
+# Host config
+
+Every host, an app or an [agent](../agent.md), has the same two configs. Its public config is part of its document (`publicConfig`, described by `publicConfigSchema`). Its private config is held by the server that runs it (described by `privateConfigSchema`), encrypted, and only the host's own tools use it, as `ctx.privateConfig`.
+
+```ts
+{_: 'GetHostConfig'; hostId: string}
+{_: 'SetHostPrivateConfig'; hostId: string; privateConfig: Record<string, unknown>}
+  → {_: 'HostConfigResponse'; config: HostConfigInfo}
+
+type HostConfigInfo = {
+  hostId: string
+  privateConfigKeys: string[] // names only; the values never leave the server
+  updatedBy?: string // who last changed the private config
+  updatedAt?: number
+}
+```
+
+- `SetHostPrivateConfig` changes a host's private config on this server. Each value replaces that field, a `null` removes it, and fields not named keep their values. The result must match the host's `privateConfigSchema`.
+  - The host must run on this server: an app that names it, or an agent mounted here. An app does not need to be started first.
+  - The signer must be able to write the host's [space](../protocol/spaces.md).
+- `GetHostConfig` says which fields are set. Anyone may ask; it never returns values.
+- An agent's tools get its private config like an app's tools do. An agent needs no run step.
 
 # Calling a tool
 

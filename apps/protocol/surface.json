@@ -219,6 +219,12 @@
         "callId": "string"
       }
     },
+    "GetHostConfig": {
+      "fields": {
+        "_": "\"GetHostConfig\"",
+        "hostId": "string"
+      }
+    },
     "GetProviderOAuthStatus": {
       "fields": {
         "_": "\"GetProviderOAuthStatus\"",
@@ -486,6 +492,13 @@
         "_": "\"SetAgentPublicRead\"",
         "agentId": "string",
         "publicRead": "boolean"
+      }
+    },
+    "SetHostPrivateConfig": {
+      "fields": {
+        "_": "\"SetHostPrivateConfig\"",
+        "hostId": "string",
+        "privateConfig": "Record<string, unknown>"
       }
     },
     "SetMcpServer": {
@@ -824,6 +837,12 @@
         "session": "SessionInfo",
         "systemPromptMarkdown": "string",
         "triggerContext?": "AgentSessionTriggerContext"
+      }
+    },
+    "HostConfigResponse": {
+      "fields": {
+        "_": "\"HostConfigResponse\"",
+        "config": "HostConfigInfo"
       }
     },
     "ImportSigningIdentityResponse": {
@@ -1525,6 +1544,14 @@
             "sessionId": "string"
           }
         }
+      }
+    },
+    "HostConfigInfo": {
+      "fields": {
+        "hostId": "string",
+        "privateConfigKeys": "string[]",
+        "updatedAt?": "number",
+        "updatedBy?": "string"
       }
     },
     "JsonSchema": {

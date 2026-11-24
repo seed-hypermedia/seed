@@ -14,6 +14,18 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // One config store for every host (hypermedia/build/signed-api-apps.md): an app's or an
+  // agent's private config, encrypted like other secrets, kept apart from whether an app runs. An
+  // agent has config without being "run". An app's config moves out of its run row in code
+  // (moveAppRunPrivateConfig), which works on any database shape the migration count can't tell.
+  `CREATE TABLE host_config (
+      host_id TEXT PRIMARY KEY,
+      space_uid TEXT NOT NULL,
+      private_config_ciphertext BLOB,
+      updated_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;`,
   // Deleting a trigger firing makes SQLite check runs.trigger_firing_id (foreign keys are on), and
   // without an index each check scanned every run, inside the write transaction.
   `CREATE INDEX IF NOT EXISTS runs_by_trigger_firing ON runs (trigger_firing_id) WHERE trigger_firing_id IS NOT NULL;`,
@@ -621,6 +633,7 @@ export function openWithDatabase(db: Database, tuning: ConnectionTuning = DEFAUL
   applyPendingMigrations(db, currentVersion)
   ensureBaselineTables(db)
   ensureRepairedColumns(db)
+  moveAppRunPrivateConfig(db)
   analyzePlannerTables(db)
   return {ok: true, db}
 }
@@ -634,6 +647,27 @@ const REPAIRED_COLUMNS: {table: string; column: string; definition: string}[] = 
   // Added to the webhook credentials migration in #1341: the encrypted secret editors read back.
   {table: 'webhook_trigger_credentials', column: 'secret_ciphertext', definition: 'BLOB'},
 ]
+
+/**
+ * Moves each app's private config from its run row (where it lived before host_config) into
+ * host_config, then drops the old column. Does nothing once the column is gone. Returns how many
+ * configs it moved.
+ */
+export function moveAppRunPrivateConfig(db: Database): number {
+  const columns = db.query<{name: string}, []>('PRAGMA table_info(app_runs)').all()
+  if (!columns.some((entry) => entry.name === 'private_config_ciphertext')) return 0
+  let moved = 0
+  db.transaction(() => {
+    moved = db.run(
+      `INSERT OR IGNORE INTO host_config (host_id, space_uid, private_config_ciphertext, updated_by, created_at, updated_at)
+       SELECT app_id, space_uid, private_config_ciphertext, started_by, created_at, updated_at
+       FROM app_runs WHERE private_config_ciphertext IS NOT NULL`,
+    ).changes
+    db.run('ALTER TABLE app_runs DROP COLUMN private_config_ciphertext')
+  })()
+  if (moved) console.warn('[agents/sqlite] moved app private config into host_config', {moved})
+  return moved
+}
 
 /** Adds any {@link REPAIRED_COLUMNS} missing from existing tables. Returns what it added. */
 export function ensureRepairedColumns(db: Database): string[] {
