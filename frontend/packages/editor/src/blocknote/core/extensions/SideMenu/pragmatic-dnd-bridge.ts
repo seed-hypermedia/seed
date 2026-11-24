@@ -5,17 +5,18 @@
  * dropTargetForElements(), and monitorForElements() to the
  * DragStateManager and block-move-executor.
  */
+import {autoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
+import {unsafeOverflowAutoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/unsafe-overflow/element'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {setCustomNativeDragPreview} from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview'
-import {autoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element'
-import {unsafeOverflowAutoScrollForElements} from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/unsafe-overflow/element'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import type {BlockSchema} from '../../extensions/Blocks/api/blockTypes'
+import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
+import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelectionPlugin'
 import {executeBlockMove} from './block-move-executor'
 import type {DragStateManager} from './drag-state'
-import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelectionPlugin'
 import {attachHitboxData, extractDropInstruction, getBlockLevel, getContainerType, getItemMode} from './hitbox-strategy'
 import {MultipleNodeSelection} from './MultipleNodeSelection'
 
@@ -93,21 +94,10 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
       const blockIds = (source.data.blockIds as string[]) || []
       stateManager.dispatch({type: 'PREVIEW', sourceBlockIds: blockIds})
 
-      // Create a simple drag preview by cloning the block element
       setCustomNativeDragPreview({
         nativeSetDragImage,
         render({container}) {
-          const blockId = blockIds[0]
-          if (!blockId) return
-
-          const blockEl = editor.prosemirrorView.dom.querySelector(`[data-id="${blockId}"]`)
-          if (!blockEl) return
-
-          const clone = blockEl.cloneNode(true) as HTMLElement
-          clone.style.width = `${blockEl.getBoundingClientRect().width}px`
-          clone.style.opacity = '0.7'
-          clone.style.transform = 'rotate(1deg)'
-          container.appendChild(clone)
+          renderBlocksDragPreview(container, editor.prosemirrorView.dom, blockIds)
         },
       })
     },
@@ -131,6 +121,76 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
     element.removeEventListener('dragstart', onNativeDragStart)
     cleanupDraggable()
   }
+}
+
+/** How many blocks the drag preview shows, nested ones included, before summing up the rest. */
+const DRAG_PREVIEW_MAX_BLOCKS = 3
+
+const BLOCK_SELECTOR = '[data-node-type="blockNode"]'
+
+/** Whether the block shows nothing of its own and only holds its nested blocks, like the paragraph holding a grid. */
+function isEmptyHolder(blockEl: HTMLElement): boolean {
+  const content = blockEl.querySelector(':scope > [data-content-type]')
+  return (
+    !!content &&
+    !selectableNodeTypes.includes(content.getAttribute('data-content-type')!) &&
+    content.textContent === '' &&
+    !!blockEl.querySelector(BLOCK_SELECTOR)
+  )
+}
+
+/**
+ * Renders the drag preview for the dragged blocks into `container`: a copy of each block, stacked in document order. A
+ * block inside another dragged block is already part of that block's copy, so it isn't repeated.
+ */
+export function renderBlocksDragPreview(container: HTMLElement, editorDom: HTMLElement, blockIds: string[]): void {
+  const blockEls = blockIds
+    .map((id) => editorDom.querySelector<HTMLElement>(`${BLOCK_SELECTOR}[data-id="${id}"]`))
+    .filter((el): el is HTMLElement => !!el)
+  const outermost = blockEls.filter((el) => !blockEls.some((other) => other !== el && other.contains(el)))
+  if (outermost.length === 0) return
+
+  const stack = document.createElement('div')
+  stack.style.display = 'flex'
+  stack.style.flexDirection = 'column'
+  stack.style.gap = '4px'
+  stack.style.opacity = '0.7'
+  stack.style.transform = 'rotate(1deg)'
+
+  const clones = outermost.map((blockEl) => {
+    const clone = blockEl.cloneNode(true) as HTMLElement
+    clone.style.width = `${blockEl.getBoundingClientRect().width}px`
+    stack.appendChild(clone)
+    return clone
+  })
+
+  // Walk every block in the copies in document order, and cut each one past the limit together with its nested blocks.
+  let shown = 0
+  let hidden = 0
+  const allBlocks = clones.flatMap((clone) => [
+    clone,
+    ...Array.from(clone.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)),
+  ])
+  for (const blockEl of allBlocks) {
+    const holder = isEmptyHolder(blockEl)
+    if (!stack.contains(blockEl)) {
+      if (!holder) hidden++
+    } else if (shown === DRAG_PREVIEW_MAX_BLOCKS) {
+      blockEl.remove()
+      if (!holder) hidden++
+    } else if (!holder) {
+      shown++
+    }
+  }
+
+  if (hidden > 0) {
+    const more = document.createElement('div')
+    more.className = 'text-muted-foreground text-xs'
+    more.textContent = `+${hidden} more`
+    stack.appendChild(more)
+  }
+
+  container.appendChild(stack)
 }
 
 /** Returns whether dragging this handle should preserve a heading text selection. */
