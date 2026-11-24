@@ -22,7 +22,7 @@ The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The
 The code contract is one async function:
 
 ```ts
-export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; seed: Seed}): Promise<Output> {
+export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; memory: Memory; seed: Seed}): Promise<Output> {
   // ...
 }
 ```
@@ -30,6 +30,7 @@ export default async function (input: Input, ctx: {app: string; publicConfig: ob
 - `ctx.app` is the hm:// id of the host.
 - `ctx.publicConfig` is the host's `publicConfig` metadata.
 - `ctx.privateConfig` is the private config that the host's server holds. A [signing key](./signing-key.md) field in it holds the account the key signs as, never the key.
+- `ctx.memory` reads and writes the host's memory (see "Memory" below).
 - `ctx.seed` reads and publishes documents through the host's server (see "Seed access" below).
 
 # How a tool runs
@@ -46,6 +47,23 @@ Each call does the same things in order:
 6. It records the call.
 
 The caller signs every call. The record holds who called, the tool's version, the input, the output or the error, how long the call took, and what the tool published (`writes`). The server records a failed call too.
+
+# Memory
+
+A tool works in its host's memory: an [agent](./agent.md)'s tools in the agent's own [memory](./agent/memory.md), and an [app](./app.md)'s tools in the app's private memory, which the server that runs the app keeps for it. The memory is the sandbox's working directory, so plain file access works too.
+
+```ts
+await ctx.memory.read('receipts/42.done')        // the file's text, or null when it does not exist
+await ctx.memory.write('receipts/42.done', 'sent') // a string, or a value written as JSON
+await ctx.memory.list('receipts')                  // names, a directory ending in /
+await ctx.memory.remove('receipts/42.done')
+ctx.memory.scope                                  // "host", or "scratch" (below)
+```
+
+- **Who gets it.** A call from a writer of the host's space, or from one of its [triggers](./trigger.md) (which call as their author), works in the host's memory. So does any call of a tool whose document sets `callableBy: "viewers"`. Every other call gets an empty scratch memory, deleted when the call ends, and `ctx.memory.scope` is `"scratch"`.
+- **Paths** stay inside the memory; a path that leaves it fails.
+- **Write files whole, one per event.** Calls, the agent's sessions and its triggers share an agent's memory, so follow the rules on [memory](./agent/memory.md#what-not-to-keep-in-workspace): no shared file read, changed and written back by concurrent calls.
+- An agent's Memory tab updates after a tool changes its memory.
 
 # Seed access
 

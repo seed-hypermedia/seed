@@ -6,7 +6,7 @@ An [agent](../agent.md)'s **memory** is its own file tree, `~/memory/` in its [S
 
 Do not keep passwords, API keys or other secrets in memory. Declare a key an [app tool](../tool.md) needs in the app's private config instead.
 
-Memory is a directory on the [app environment](../software/app-environment.md), the server that runs the agent. Files are UTF-8 text or binary. The agent reaches memory with [read](./read.md) and [write](./write.md). Code run by [execute](./code-execution.md) sees it as `/workspace`.
+Memory is a directory on the [app environment](../software/app-environment.md), the server that runs the agent. Files are UTF-8 text or binary. The agent reaches memory with [read](./read.md) and [write](./write.md). Code run by [execute](./code-execution.md) sees it as `/workspace`, and so do the agent's own [tools](../tool.md#memory) when its writers or its triggers call them (`ctx.memory`).
 
 This page says how memory is read and written, and what is unsafe to keep there.
 

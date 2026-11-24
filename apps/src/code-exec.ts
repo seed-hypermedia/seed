@@ -1429,6 +1429,10 @@ export const APP_PRIVATE_CONFIG_ENV = 'SEED_APP_PRIVATE_CONFIG'
 /** Where a tool's `ctx.seed` sends its requests, and the token that ties them to this one call. */
 export const APP_TOOL_SEED_URL_ENV = 'SEED_TOOL_SEED_URL'
 export const APP_TOOL_SEED_TOKEN_ENV = 'SEED_TOOL_SEED_TOKEN'
+/** `host` when the call has its host's memory, `scratch` when it has an empty one (see ctx.memory). */
+export const APP_TOOL_MEMORY_SCOPE_ENV = 'SEED_TOOL_MEMORY_SCOPE'
+/** Where ctx.memory lives inside the program: the workspace (tests running outside a VM set it). */
+export const APP_TOOL_MEMORY_DIR_ENV = 'SEED_TOOL_MEMORY_DIR'
 
 /**
  * Wraps an app tool's TypeScript source like {@link buildLambdaProgram}, and also hands it a context:
@@ -1461,6 +1465,33 @@ export function buildAppToolProgram(
     '  const body = await response.json().catch(() => ({error: `HTTP ${response.status}`}))',
     '  if (!response.ok || body.error) throw new Error(`ctx.seed.${op}: ${body.error ?? response.status}`)',
     '  return body.result',
+    '}',
+    // ctx.memory: the host's memory (an agent's own, or the app's private memory on its server),
+    // mounted as the workspace. A call that does not act for the host gets an empty scratch one.
+    'const __fs = await import("node:fs/promises")',
+    'const __path = await import("node:path")',
+    `const __memoryRoot = __path.resolve(process.env.${APP_TOOL_MEMORY_DIR_ENV} || process.cwd())`,
+    `const __memoryScope = process.env.${APP_TOOL_MEMORY_SCOPE_ENV} || "host"`,
+    `delete process.env.${APP_TOOL_MEMORY_SCOPE_ENV}`,
+    'const __memoryPath = (p) => {',
+    '  const abs = __path.resolve(__memoryRoot, String(p ?? "").replace(/^\\/+/, ""))',
+    '  if (abs !== __memoryRoot && !abs.startsWith(__memoryRoot + __path.sep)) throw new Error(`ctx.memory: ${p} is outside memory`)',
+    '  return abs',
+    '}',
+    'const __missing = (error, value) => (error?.code === "ENOENT" ? value : Promise.reject(error))',
+    '__seedContext.memory = {',
+    '  scope: __memoryScope,',
+    '  read: async (p) => __fs.readFile(__memoryPath(p), "utf8").catch((error) => __missing(error, null)),',
+    '  write: async (p, value) => {',
+    '    const abs = __memoryPath(p)',
+    '    await __fs.mkdir(__path.dirname(abs), {recursive: true})',
+    '    await __fs.writeFile(abs, typeof value === "string" ? value : JSON.stringify(value, null, 2))',
+    '  },',
+    '  list: async (p = "") =>',
+    '    (await __fs.readdir(__memoryPath(p), {withFileTypes: true}).catch((error) => __missing(error, []))).map(',
+    '      (entry) => entry.name + (entry.isDirectory() ? "/" : ""),',
+    '    ),',
+    '  remove: async (p) => __fs.rm(__memoryPath(p), {recursive: true, force: true}),',
     '}',
     '__seedContext.seed = {',
     '  resource: (id) => __seedCall("resource", {id: typeof id === "string" ? id : id?.url}),',

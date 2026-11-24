@@ -1505,6 +1505,17 @@ export class Service {
       holdsSigningKey: (accountId, keyAccount) => this.#holdsSigningKey(accountId, keyAccount),
       ...(this.#toolSeed ? {toolSeed: this.#toolSeed} : {}),
       publishAs: (keyAccount, document) => this.#publishAsHeldKey(keyAccount, document),
+      agentStateDir: (hostId) =>
+        stmt<{state_dir: string}, [string]>(this.#db, `SELECT state_dir FROM agents WHERE id = ?`).get(hostId)
+          ?.state_dir ?? null,
+      onAgentMemoryChanged: (hostId) => {
+        const row = stmt<{account_id: string}, [string]>(this.#db, `SELECT account_id FROM agents WHERE id = ?`).get(
+          hostId,
+        )
+        if (!row) return
+        invalidateSpaceIndex(row.account_id, hostId)
+        this.#emit({type: 'account-change', accountId: row.account_id, reason: 'agent-memory-changed', agentId: hostId})
+      },
       agentSigning: {
         get: (hostId) => this.#agentSigning(hostId),
         set: (signer, hostId, signing) => this.#setAgentSigning(signer, hostId, signing),
