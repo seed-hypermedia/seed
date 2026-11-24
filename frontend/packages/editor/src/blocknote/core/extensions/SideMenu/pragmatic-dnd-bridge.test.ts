@@ -1,15 +1,20 @@
 import {describe, expect, it} from 'vitest'
 import {renderBlocksDragPreview} from './pragmatic-dnd-bridge'
 
+/** Block types rendered by React, which wraps their content in a renderer element. */
+const REACT_RENDERED_TYPES = ['image', 'slot']
+
 /** A block element as the editor renders it: its content, then its nested blocks. */
 function block(id: string, text: string, children: string[] = [], type = 'paragraph'): string {
   const nested = children.length ? `<div data-node-type="blockChildren">${children.join('')}</div>` : ''
-  return `<div data-node-type="blockNode" data-id="${id}"><div data-content-type="${type}">${text}</div>${nested}</div>`
+  let content = `<div data-content-type="${type}">${text}</div>`
+  if (REACT_RENDERED_TYPES.includes(type)) content = `<div class="react-renderer">${content}</div>`
+  return `<div data-node-type="blockNode" data-id="${id}">${content}${nested}</div>`
 }
 
 /**
  * An editor DOM with blocks `a`, `b` (holding `b1` and `b2`), `c`, an empty paragraph `g` holding the grid cards `g1`
- * to `g3`, then `d`.
+ * to `g3`, `d`, then a Slot `s` holding the root grid cards `s1` and `s2`.
  */
 function editorDom(): HTMLElement {
   const dom = document.createElement('div')
@@ -23,6 +28,12 @@ function editorDom(): HTMLElement {
       ['g1', 'g2', 'g3'].map((id) => block(id, '', [], 'image')),
     ),
     block('d', 'D'),
+    block(
+      's',
+      '',
+      ['s1', 's2'].map((id) => block(id, '', [], 'image')),
+      'slot',
+    ),
   ].join('')
   return dom
 }
@@ -70,6 +81,12 @@ describe('renderBlocksDragPreview', () => {
     const container = render(['c', 'g', 'd'])
     expect(shownBlocks(container)).toEqual(['c', 'g', 'g1', 'g2'])
     expect(summary(container)).toBe('+2 more')
+  })
+
+  it('counts the cards of a root grid but not the Slot holding them', () => {
+    const container = render(['d', 's'])
+    expect(shownBlocks(container)).toEqual(['d', 's', 's1', 's2'])
+    expect(summary(container)).toBeUndefined()
   })
 
   it('leaves out an empty holder when none of its nested blocks fit', () => {

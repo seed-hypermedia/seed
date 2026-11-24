@@ -128,9 +128,12 @@ const DRAG_PREVIEW_MAX_BLOCKS = 3
 
 const BLOCK_SELECTOR = '[data-node-type="blockNode"]'
 
-/** Whether the block shows nothing of its own and only holds its nested blocks, like the paragraph holding a grid. */
+/**
+ * Whether the block shows nothing of its own and only holds its nested blocks, like the Slot or paragraph holding a
+ * grid.
+ */
 function isEmptyHolder(blockEl: HTMLElement): boolean {
-  const content = blockEl.querySelector(':scope > [data-content-type]')
+  const content = blockEl.querySelector('[data-content-type]')
   return (
     !!content &&
     !selectableNodeTypes.includes(content.getAttribute('data-content-type')!) &&
