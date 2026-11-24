@@ -25,7 +25,8 @@ export const migrations: string[] = [
       updated_by TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
-  ) WITHOUT ROWID;`,
+  ) WITHOUT ROWID;
+  ALTER TABLE app_tool_calls ADD COLUMN writes_json TEXT;`,
   // Deleting a trigger firing makes SQLite check runs.trigger_firing_id (foreign keys are on), and
   // without an index each check scanned every run, inside the write transaction.
   `CREATE INDEX IF NOT EXISTS runs_by_trigger_firing ON runs (trigger_firing_id) WHERE trigger_firing_id IS NOT NULL;`,

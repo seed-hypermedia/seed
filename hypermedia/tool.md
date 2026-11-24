@@ -22,18 +22,19 @@ The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The
 The code contract is one async function:
 
 ```ts
-export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object}): Promise<Output> {
+export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; seed: Seed}): Promise<Output> {
   // ...
 }
 ```
 
 - `ctx.app` is the hm:// id of the host.
 - `ctx.publicConfig` is the host's `publicConfig` metadata.
-- `ctx.privateConfig` is the private config that the host's server holds.
+- `ctx.privateConfig` is the private config that the host's server holds. A [signing key](./signing-key.md) field in it holds the account the key signs as, never the key.
+- `ctx.seed` reads and publishes documents through the host's server (see "Seed access" below).
 
 # How a tool runs
 
-A tool runs in a sandbox on its host's server. It has internet access. It has no signing key, no access to the server's Seed node and no language model. So it neither reads nor publishes documents. The caller passes in the records the tool needs, and the caller does something with the result.
+A tool runs in a sandbox on its host's server. It has internet access, and reaches its own server only for `ctx.seed`; the rest of the server's machine and its private network stay closed. It holds no key and has no language model.
 
 Each call does the same things in order:
 
@@ -44,7 +45,23 @@ Each call does the same things in order:
 5. It checks the returned value against `outputSchema`.
 6. It records the call.
 
-The caller signs every call. The record holds who called, the tool's version, the input, the output or the error, and how long the call took. The server records a failed call too.
+The caller signs every call. The record holds who called, the tool's version, the input, the output or the error, how long the call took, and what the tool published (`writes`). The server records a failed call too.
+
+# Seed access
+
+`ctx.seed` sends each request to the host's server, with a token that is valid only while this call runs.
+
+```ts
+await ctx.seed.directory(collectionUrl) // the collection's public records: [{url, id, metadata, updateTime}]
+await ctx.seed.resource(recordUrl)      // one public document: {url, version, metadata, content}
+await ctx.seed.publish(recordUrl, {name, metadata, content}, {as}) // creates or edits it: {url, version}
+```
+
+- **Reads** return public documents only. A [private document](./protocol/privacy.md) is refused.
+- **Publishing** signs with one of the host's [signing keys](./signing-key.md): the account a signing-key field of its private config names. With one key, it is used; with several, `as` names the field (`ctx.privateConfig.<field>`). `content` is markdown and replaces the body; `metadata` maps are stored one entry per key.
+- The key's account must be able to write the target, through a [capability](./protocol/permissions.md) granted to it, like any writer.
+- **Who may make a host publish.** A tool that publishes runs for the host's writers and for its triggers, which call as their author. A tool whose document sets `callableBy: "viewers"` may also publish when a viewer calls it, so it must check its input itself.
+- Every publish is recorded on the call, with the account that signed it.
 
 An app's tools run once a writer of its [space](./protocol/spaces.md) has run the app. An agent's tools run whenever the agent is mounted on its server.
 

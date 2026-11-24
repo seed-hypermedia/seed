@@ -2270,7 +2270,20 @@ export type AppToolCallInfo = {
   output?: unknown
   error?: string
   durationMs?: number
+  /** What the tool published through `ctx.seed`, each signed by one of the host's keys. */
+  writes?: AppToolWrite[]
   createdAt: number
+}
+
+/** One document a tool published during a call. */
+export type AppToolWrite = {
+  /** The document's hm:// address. */
+  id: string
+  /** The version the publish made. */
+  version: string
+  /** The account (`z6Mk…`) whose key signed it: one the host's private config names. */
+  as: string
+  at: number
 }
 
 /** Response for `CallAppTool`. A failed run is still a response, with `call.error` set. */

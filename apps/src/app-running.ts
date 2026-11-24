@@ -17,7 +17,14 @@ import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '
 import {structFields, validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
-import {APP_PRIVATE_CONFIG_ENV, buildAppToolProgram, parseLambdaResult, type CodeExecutor} from '@/code-exec'
+import {
+  APP_PRIVATE_CONFIG_ENV,
+  APP_TOOL_SEED_TOKEN_ENV,
+  APP_TOOL_SEED_URL_ENV,
+  buildAppToolProgram,
+  parseLambdaResult,
+  type CodeExecutor,
+} from '@/code-exec'
 import * as hostConfig from '@/host-config'
 
 type SeedClient = ReturnType<typeof createSeedClient>
@@ -37,6 +44,27 @@ export type AppRunDeps = {
   publicUrl?: string
   /** Whether `accountId` holds the signing key of `keyAccount` on this server (its own server accounts). */
   holdsSigningKey: (accountId: string, keyAccount: string) => boolean
+  /**
+   * Seed access for tools (`ctx.seed`): where a tool sends its requests and the host port its
+   * sandbox may reach for that. Without it, tools have no Seed access.
+   */
+  toolSeed?: {url: string; hostPort?: number}
+  /**
+   * Publishes a document signed by a key this server holds (the host's attached key), with the
+   * same checks as an agent's write: the key's account must be able to write there.
+   */
+  publishAs?: (
+    keyAccount: string,
+    document: ToolSeedDocument & {id: UnpackedHypermediaId},
+  ) => Promise<{version: string}>
+}
+
+/** What a tool publishes with `ctx.seed.publish(id, document)`. */
+export type ToolSeedDocument = {
+  name?: string
+  metadata?: Record<string, unknown>
+  /** The body as markdown; replaces the old body. */
+  content?: string
 }
 
 /** The schema type of a private config field that names a signing key the server holds. */
@@ -71,7 +99,21 @@ type ToolCallRow = {
   error: string | null
   duration_ms: number | null
   created_at: number
+  writes_json?: string | null
 }
+
+/** A tool call's Seed access: alive only while the call runs, found by the call's token. */
+type ToolSeedSession = {
+  callId: string
+  host: UnpackedHypermediaId
+  toolMetadata: Record<string, unknown>
+  caller: string
+  /** Signing-key field -> the account it names, from the host's private config. */
+  signingKeys: Record<string, string>
+  writes: api.AppToolWrite[]
+}
+
+const toolSeedSessions = new Map<string, ToolSeedSession>()
 
 function versionless(raw: string, what: string): UnpackedHypermediaId {
   const id = unpackHmId(raw)
@@ -428,8 +470,93 @@ function toCallInfo(row: ToolCallRow): api.AppToolCallInfo {
     ...(row.output_json !== null ? {output: JSON.parse(row.output_json)} : {}),
     ...(row.error !== null ? {error: row.error} : {}),
     ...(row.duration_ms !== null ? {durationMs: row.duration_ms} : {}),
+    ...(row.writes_json ? {writes: JSON.parse(row.writes_json) as api.AppToolWrite[]} : {}),
     createdAt: row.created_at,
   }
+}
+
+/**
+ * Serves one `ctx.seed` request from a running tool. Reads return public documents. A publish is
+ * signed with one of the host's attached keys, after checking that the caller may make the host
+ * publish (a writer of the host, which its triggers are, unless the tool allows viewers) and, in the
+ * write itself, that the key's account can write there. Every publish is recorded on the call.
+ */
+export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unknown): Promise<unknown> {
+  const session = toolSeedSessions.get(token)
+  if (!session) throw new AppRunError(401, 'This tool call is over, or the token is not one this server gave out')
+  if (!body || typeof body !== 'object') throw new AppRunError(400, 'A ctx.seed request is a JSON object')
+  const request = body as {op?: unknown; id?: unknown; document?: unknown; as?: unknown}
+  const id = typeof request.id === 'string' ? unpackHmId(request.id) : null
+  if (!id) throw new AppRunError(400, `ctx.seed.${String(request.op)} needs an hm:// address`)
+  const target = {...id, version: null, latest: true, blockRef: null, blockRange: null}
+  switch (request.op) {
+    case 'resource': {
+      const resource = await deps.client.request('Resource', target)
+      if (resource.type !== 'document') throw new AppRunError(404, `No document at ${id.id}`)
+      if (resource.document.visibility === 'PRIVATE')
+        throw new AppRunError(403, `${id.id} is private: tools read only public documents`)
+      return {
+        url: id.id,
+        version: resource.document.version,
+        metadata: resource.document.metadata,
+        content: resource.document.content,
+      }
+    }
+    case 'directory': {
+      const result = await deps.client.request('Query', {
+        includes: [{space: id.uid, path: id.path?.length ? `/${id.path.join('/')}` : '', mode: 'Children'}],
+      })
+      return (result?.results ?? [])
+        .filter((info) => (info as {visibility?: unknown}).visibility !== 'PRIVATE')
+        .map((info) => ({
+          url: info.id.id,
+          id: {id: info.id.id, uid: info.id.uid, path: info.id.path},
+          metadata: info.metadata,
+          updateTime: info.updateTime,
+        }))
+    }
+    case 'publish': {
+      if (!deps.publishAs) throw new AppRunError(503, 'This app environment cannot publish for tools')
+      const keyAccount = chooseSigningKey(session, request.as)
+      if (
+        session.toolMetadata.callableBy !== 'viewers' &&
+        !(await isSpaceWriter(deps.client, session.host, session.caller))
+      )
+        throw new AppRunError(
+          403,
+          'This tool publishes as the app, so only writers of the app (and its triggers) may call it. A tool whose document says callableBy: "viewers" may be called by anyone, and must check its input.',
+        )
+      const document = (request.document ?? {}) as ToolSeedDocument
+      if (typeof document !== 'object' || Array.isArray(document))
+        throw new AppRunError(400, 'ctx.seed.publish(id, {name?, metadata?, content?})')
+      const {version} = await deps.publishAs(keyAccount, {...document, id: target})
+      session.writes.push({id: id.id, version, as: keyAccount, at: Date.now()})
+      return {url: id.id, version}
+    }
+    default:
+      throw new AppRunError(400, `ctx.seed has no ${String(request.op)}: use resource, directory or publish`)
+  }
+}
+
+/** The account to publish as: the one named by `as` (a key field or its account), or the only key. */
+function chooseSigningKey(session: ToolSeedSession, as: unknown): string {
+  const keys = session.signingKeys
+  const accounts = Object.values(keys)
+  if (typeof as === 'string' && as) {
+    const account = keys[as] ?? (accounts.includes(as) ? as : undefined)
+    if (!account) throw new AppRunError(403, `${as} is not a signing key of this app`)
+    return account
+  }
+  if (accounts.length === 1) return accounts[0]!
+  if (!accounts.length)
+    throw new AppRunError(
+      409,
+      "This app has no signing key: add a signing-key field to its private config schema and attach a key in the app's Settings",
+    )
+  throw new AppRunError(
+    400,
+    `This app has several signing keys (${Object.keys(keys).join(', ')}): pass {as: ctx.privateConfig.<field>}`,
+  )
 }
 
 async function fetchToolSource(ipfsServerUrl: string, code: unknown): Promise<string> {
@@ -463,6 +590,17 @@ export async function callAppTool(
   const callId = crypto.randomUUID()
   let output: unknown
   let error: string | undefined
+  let keyFields: string[] = []
+  // The call's Seed access: a token only this call holds, forgotten when it ends.
+  const seedToken = deps.toolSeed ? crypto.randomBytes(32).toString('base64url') : null
+  const session: ToolSeedSession = {
+    callId,
+    host: appId,
+    toolMetadata: tool.metadata as Record<string, unknown>,
+    caller,
+    signingKeys: {},
+    writes: [],
+  }
   try {
     const inputViolations = await schemaViolations(deps.client, tool.metadata.inputSchema, action.input)
     if (inputViolations.length) {
@@ -474,6 +612,7 @@ export async function callAppTool(
       )
     }
     const privateConfig = hostConfig.readPrivateConfig(deps.db, deps, appId.id)
+    keyFields = await signingKeyFields(deps.client, app.metadata.privateConfigSchema)
     const privateViolations = await schemaViolations(deps.client, app.metadata.privateConfigSchema, privateConfig)
     if (privateViolations.length)
       throw new AppRunError(
@@ -481,6 +620,9 @@ export async function callAppTool(
         `The app’s private config is incomplete: ${privateViolations.join('; ')}. Set it in the app’s Settings.`,
       )
     if (!deps.codeExec.runtimes.includes('ts')) throw new AppRunError(503, 'This server cannot run TypeScript tools')
+    for (const field of keyFields)
+      if (typeof privateConfig[field] === 'string') session.signingKeys[field] = privateConfig[field] as string
+    if (seedToken) toolSeedSessions.set(seedToken, session)
     const source = await fetchToolSource(deps.ipfsServerUrl, tool.metadata.code)
     const stateDir = path.join(
       deps.dataDir,
@@ -493,7 +635,13 @@ export async function callAppTool(
       stateDir,
       runtime: 'ts',
       code: buildAppToolProgram(source, action.input, {app: appId.id, publicConfig: app.metadata.publicConfig ?? {}}),
-      env: {[APP_PRIVATE_CONFIG_ENV]: JSON.stringify(privateConfig)},
+      env: {
+        [APP_PRIVATE_CONFIG_ENV]: JSON.stringify(privateConfig),
+        ...(seedToken && deps.toolSeed
+          ? {[APP_TOOL_SEED_URL_ENV]: deps.toolSeed.url, [APP_TOOL_SEED_TOKEN_ENV]: seedToken}
+          : {}),
+      },
+      ...(seedToken && deps.toolSeed?.hostPort ? {hostPort: deps.toolSeed.hostPort} : {}),
     })
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {
@@ -507,6 +655,8 @@ export async function callAppTool(
     output = parsed.result
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    if (seedToken) toolSeedSessions.delete(seedToken)
   }
   const row: ToolCallRow = {
     id: callId,
@@ -519,11 +669,12 @@ export async function callAppTool(
     error: error ?? null,
     duration_ms: Date.now() - startedAt,
     created_at: startedAt,
+    writes_json: session.writes.length ? JSON.stringify(session.writes) : null,
   }
   deps.db
     .query(
-      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at, writes_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       row.id,
@@ -536,6 +687,7 @@ export async function callAppTool(
       row.error,
       row.duration_ms,
       row.created_at,
+      row.writes_json ?? null,
     )
   return toCallInfo(row)
 }

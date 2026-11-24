@@ -1515,7 +1515,16 @@
         "input": "unknown",
         "output?": "unknown",
         "toolId": "string",
-        "toolVersion?": "string"
+        "toolVersion?": "string",
+        "writes?": "AppToolWrite[]"
+      }
+    },
+    "AppToolWrite": {
+      "fields": {
+        "as": "string",
+        "at": "number",
+        "id": "string",
+        "version": "string"
       }
     },
     "BrowserCommand": {

@@ -48,9 +48,9 @@ While the app runs, anyone can call its tools, and its triggers fire. When the a
 
 # What runs where
 
-- A **tool** takes input and returns output. It runs in a sandbox on the app's server, with internet access. It holds no signing key and cannot reach the Seed node of the server that runs it. So it neither publishes documents nor reads them: whoever calls it passes the records it needs. It has no language model either. Judgment work, such as summarizing or classifying, needs a model API key in the app's private config, or belongs to an [agent](./agent.md). See [tool](./tool.md).
+- A **tool** takes input and returns output. It runs in a sandbox on the app's server, with internet access. With `ctx.seed` it reads public documents and publishes as the app, signed by a [signing key](./signing-key.md) attached in the app's private config, within what that key's [account](./protocol/identity.md) may write. It has no language model. Judgment work, such as summarizing or classifying, needs a model API key in the app's private config, or belongs to an [agent](./agent.md). See [tool](./tool.md).
 - A **page** runs in the viewer's browser or desktop app. It reads and writes Seed records as the viewer, with `seed.directory`, `seed.resource`, and `seed.publishDocument(recordUrl, {name, metadata})` to create or edit a record. It calls the app's tools with `seed.app.call` and reads the public config with `seed.app.context()`. See [page](./page.md).
-- A **trigger** under an app calls one of its tools. Scheduled work that reads or writes the app's data, such as a daily digest, is an agent's trigger: the agent reads the records, calls the tools and publishes the result. See [trigger](./trigger.md).
+- A **trigger** under an app calls one of its tools. Scheduled work on the app's own data, such as writing this week's shopping list, is an app trigger whose tool reads the records and publishes the result as the app. Work that needs judgment is an agent's trigger. See [trigger](./trigger.md).
 
 # Where an app's data lives
 

@@ -228,6 +228,8 @@ export function createAPIRoutes(
     // Running apps, as plain JSON: the list, one app with its tools, and tool calls. Only under the
     // canonical prefix; the exact routes above win over the wildcard.
     [APPS_API_PREFIX]: {OPTIONS: options, GET: apps.list},
+    // A running tool's ctx.seed: only from inside its sandbox, with the token of its own call.
+    [`${APPS_API_PREFIX}/tool-seed`]: {POST: apps.toolSeed},
     [`${APPS_API_PREFIX}/*`]: {OPTIONS: options, GET: apps.read, POST: apps.call},
     // Canonical mount: everything under one prefix, so a site's reverse proxy can route
     // `/hm/api/agents/*` to this service on the site's own origin.
@@ -288,6 +290,16 @@ export function createRunningAppsHandlers(svc: apisvc.Service) {
   const hmId = (space: string, path: string[]) => `hm://${space}/${path.join('/')}`
   return {
     list: () => json({apps: svc.listRunningApps()}),
+    toolSeed: async (req: Request) => {
+      const token = /^Bearer (.+)$/u.exec(req.headers.get('authorization') ?? '')?.[1]
+      if (!token) return json({error: 'A ctx.seed request carries its call token'}, 401)
+      const body = await req.json().catch(() => null)
+      try {
+        return json({result: await svc.toolSeedRequest(token, body)})
+      } catch (error) {
+        return failure(error)
+      }
+    },
     read: async (req: Request) => {
       const doc = target(req)
       if (!doc) return json({error: 'Not found'}, 404)
@@ -665,6 +677,11 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
     publicUrl: cfg.publicUrl,
+    // Tools reach this server from their sandbox through the host alias, on this one port only.
+    toolSeed: {
+      url: `http://host.microsandbox.internal:${cfg.http.port}${APPS_API_PREFIX}/tool-seed`,
+      hostPort: cfg.http.port,
+    },
     web: cfg.web,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,

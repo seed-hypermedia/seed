@@ -83,6 +83,7 @@ type AppToolCallInfo = {
   output?: unknown // set on success
   error?: string // set on failure
   durationMs?: number
+  writes?: {id: string; version: string; as: string; at: number}[] // what the tool published with ctx.seed, and as which account
   createdAt: number
 }
 ```
@@ -90,6 +91,8 @@ type AppToolCallInfo = {
 - `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Any signed [account](../protocol/identity.md) may call. A failed run is still a response, with `call.error` set.
 - `GetAppToolCall` returns one recorded call by id. The server makes no access check: any signed account that knows the call id gets the call.
 - `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200). The server makes no access check: any signed account that knows the tool's id gets the calls.
+
+A running tool reaches its server for [`ctx.seed`](../tool.md#seed-access) at `POST /hm/api/apps/tool-seed`, with a token that only that call holds and that stops working when the call ends. Nothing else uses that route.
 
 Each call record holds the full `input` and `output`. So never pass secrets or private data through a tool. [Tool](../tool.md) has the rules.
 

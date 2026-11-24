@@ -159,6 +159,12 @@ export type CodeExecRequest = {
   timeoutSecs?: number
   /** Environment variables for this run only (an app's private config); never written into the program. */
   env?: Record<string, string>
+  /**
+   * One TCP port on the host the sandbox may reach (as `host.microsandbox.internal`), besides the
+   * public internet: the app environment's own API, for a tool's Seed access. Nothing else on the
+   * host or the private network becomes reachable.
+   */
+  hostPort?: number
   /** Called with live progress while the execution runs, so callers can show what is happening. */
   onProgress?: (progress: CodeExecProgress) => void
 }
@@ -207,6 +213,8 @@ export type SandboxSdk = {
   NetworkPolicy: {
     fromProfiles?(profiles: Iterable<string>): unknown
     nonLocal?(): unknown
+    // The SDK's fluent rule builder; its exact types are the SDK's own.
+    builder?(): any
   }
 }
 
@@ -215,6 +223,25 @@ export type SandboxSdk = {
  * older than the code that loads it (a packaged app updates its binary and its staged modules
  * independently), so both dialects stay supported.
  */
+/**
+ * The public-only policy plus egress to one TCP port on the host, when a port is given. The host is
+ * reachable only on that port; the rest of the host, the private network and cloud metadata stay
+ * closed. (Checked on a real VM: the port answers, another host port and the LAN do not.)
+ */
+function withHostPort(policy: unknown, sdk: SandboxSdk, hostPort: number | undefined): unknown {
+  if (!hostPort) return policy
+  const builder = sdk.NetworkPolicy.builder
+  if (typeof builder !== 'function') throw new CodeExecError(502, 'The sandbox SDK cannot open one host port')
+  const hostRule = (
+    builder()
+      .defaultEgress('deny')
+      .egress((rule: {tcp(): {port(port: number): {allowHost(): unknown}}}) => rule.tcp().port(hostPort).allowHost())
+      .build() as {rules: unknown[]}
+  ).rules
+  const base = policy as {rules?: unknown[]}
+  return {...base, rules: [...(base.rules ?? []), ...hostRule]}
+}
+
 function nonLocalNetworkPolicy(sdk: SandboxSdk): unknown {
   const {fromProfiles, nonLocal} = sdk.NetworkPolicy
   if (typeof fromProfiles === 'function') return fromProfiles(['public'])
@@ -432,6 +459,8 @@ export type SandboxSpec = {
   image: string
   /** Host path of the agent's memory directory, bind-mounted at the workspace guest path. */
   memoryRoot: string
+  /** The one host TCP port this VM may reach (see {@link CodeExecRequest.hostPort}); part of the reuse key. */
+  hostPort?: number
   /**
    * This call's execution timeout. The boot-per-call source derives the VM's max lifetime from it
    * (the VM exists for exactly one call); a pooling source must NOT — pooled VM lifetime is the
@@ -513,7 +542,7 @@ async function bootSandboxVm(
         network
           .enabled(true)
           .dns((dns) => dns.nameservers(dnsServers))
-          .policy(nonLocalNetworkPolicy(sdk)),
+          .policy(withHostPort(nonLocalNetworkPolicy(sdk), sdk, spec.hostPort)),
       )
     } else {
       builder = builder.disableNetwork()
@@ -625,7 +654,13 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
   // the key on purpose: reuse is confined to one session (see ExecPrincipal), so a session's VM
   // is its own and a new session always boots clean.
   const keyOf = (spec: SandboxSpec): string =>
-    JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.principal.sessionId, spec.image])
+    JSON.stringify([
+      spec.principal.accountId,
+      spec.principal.agentId,
+      spec.principal.sessionId,
+      spec.image,
+      spec.hostPort ?? null,
+    ])
 
   /**
    * SECURITY: the pool key is only sound when every part is a real identifier. Types promise
@@ -1259,6 +1294,7 @@ export function createCodeExecutor(
         image: request.runtime === 'ts' ? config.tsImage : config.image,
         memoryRoot,
         timeoutSecs,
+        ...(request.hostPort ? {hostPort: request.hostPort} : {}),
       })
 
       // Assume wedged until the exchange completes normally, so every early exit (SDK error,
@@ -1390,6 +1426,9 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
 
 /** The env var an app tool's private config travels in, so the secret never enters the program text. */
 export const APP_PRIVATE_CONFIG_ENV = 'SEED_APP_PRIVATE_CONFIG'
+/** Where a tool's `ctx.seed` sends its requests, and the token that ties them to this one call. */
+export const APP_TOOL_SEED_URL_ENV = 'SEED_TOOL_SEED_URL'
+export const APP_TOOL_SEED_TOKEN_ENV = 'SEED_TOOL_SEED_TOKEN'
 
 /**
  * Wraps an app tool's TypeScript source like {@link buildLambdaProgram}, and also hands it a context:
@@ -1410,6 +1449,24 @@ export function buildAppToolProgram(
     `const __seedContext = JSON.parse(${contextLiteral})`,
     `__seedContext.privateConfig = JSON.parse(process.env.${APP_PRIVATE_CONFIG_ENV} || "{}")`,
     `delete process.env.${APP_PRIVATE_CONFIG_ENV}`,
+    // ctx.seed: reads and publishes through the app environment, which checks each request and
+    // signs with the host's attached key. The token is valid only while this call runs.
+    `const __seedUrl = process.env.${APP_TOOL_SEED_URL_ENV}`,
+    `const __seedToken = process.env.${APP_TOOL_SEED_TOKEN_ENV}`,
+    `delete process.env.${APP_TOOL_SEED_URL_ENV}`,
+    `delete process.env.${APP_TOOL_SEED_TOKEN_ENV}`,
+    'const __seedCall = async (op, args) => {',
+    '  if (!__seedUrl || !__seedToken) throw new Error("This app environment gives tools no Seed access")',
+    '  const response = await fetch(__seedUrl, {method: "POST", headers: {authorization: `Bearer ${__seedToken}`, "content-type": "application/json"}, body: JSON.stringify({...args, op})})',
+    '  const body = await response.json().catch(() => ({error: `HTTP ${response.status}`}))',
+    '  if (!response.ok || body.error) throw new Error(`ctx.seed.${op}: ${body.error ?? response.status}`)',
+    '  return body.result',
+    '}',
+    '__seedContext.seed = {',
+    '  resource: (id) => __seedCall("resource", {id: typeof id === "string" ? id : id?.url}),',
+    '  directory: (id) => __seedCall("directory", {id: typeof id === "string" ? id : id?.url}),',
+    '  publish: (id, document = {}, options = {}) => __seedCall("publish", {id, document, as: options.as}),',
+    '}',
     `const __seedModule = await import(${JSON.stringify(sourceUrl)})`,
     'const __seedEntry = __seedModule.default',
     'if (typeof __seedEntry !== "function") {',

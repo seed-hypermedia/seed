@@ -1012,6 +1012,8 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #publicUrl: string | undefined
+  /** Seed access for tools (`ctx.seed`); see the constructor's `toolSeed` option. */
+  readonly #toolSeed: {url: string; hostPort?: number} | undefined
   /** How long a turn's model may send nothing (with no tool running) before the turn is ended. */
   readonly #modelStallMs: number
   /** This server's stable identity, reported in /health so an app's server URL can be recognized as this one. */
@@ -1119,6 +1121,11 @@ export class Service {
       hmServerUrl?: string
       /** The URL clients reach this server's API at (`https://hyper.media/hm/api/apps`); see config.ts. */
       publicUrl?: string
+      /**
+       * Seed access for app and agent tools (`ctx.seed`): the URL a tool's sandbox posts to, and the
+       * one host port it may reach for that. Without it, tools have no Seed access.
+       */
+      toolSeed?: {url: string; hostPort?: number}
       /** See {@link Service.#modelStallMs}; defaults to 8 minutes (long enough for a model reasoning hard without streaming). */
       modelStallMs?: number
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
@@ -1178,6 +1185,7 @@ export class Service {
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#publicUrl = options.publicUrl || undefined
+    this.#toolSeed = options.toolSeed
     this.#modelStallMs = options.modelStallMs ?? 8 * 60_000
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
@@ -1495,7 +1503,70 @@ export class Service {
       serverId: this.#serverId,
       ...(this.#publicUrl ? {publicUrl: this.#publicUrl} : {}),
       holdsSigningKey: (accountId, keyAccount) => this.#holdsSigningKey(accountId, keyAccount),
+      ...(this.#toolSeed ? {toolSeed: this.#toolSeed} : {}),
+      publishAs: (keyAccount, document) => this.#publishAsHeldKey(keyAccount, document),
     }
+  }
+
+  /** Serves a running tool's `ctx.seed` request (POST /hm/api/apps/tool-seed, bearer token per call). */
+  async toolSeedRequest(token: string, body: unknown): Promise<unknown> {
+    return this.#appRun(() => appRunning.toolSeedRequest(this.#appRunDeps(), token, body))
+  }
+
+  /**
+   * Publishes a document signed by a key this server holds, through the same create and update
+   * paths an agent's write takes (markdown body, metadata stored one entry per key, and the check
+   * that the key's account may write there).
+   */
+  async #publishAsHeldKey(
+    keyAccount: string,
+    document: appRunning.ToolSeedDocument & {id: UnpackedHypermediaId},
+  ): Promise<{version: string}> {
+    const row = stmt<{account_id: string; name: string; ciphertext: Uint8Array; metadata_cbor: Uint8Array | null}, []>(
+      this.#db,
+      `SELECT account_id, name, ciphertext, metadata_cbor FROM secrets`,
+    )
+      .all()
+      .find((entry) => {
+        if (!entry.metadata_cbor) return false
+        const metadata = cbor.decode<Record<string, unknown>>(entry.metadata_cbor)
+        return metadata.kind === 'hm-account-key' && metadata.accountId === keyAccount
+      })
+    if (!row) throw new APIError(409, `This server no longer holds the key of ${keyAccount}: attach another one`)
+    const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor!)
+    const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(this.#db, row.ciphertext))
+    const signer: ResolvedAgentSigner = {
+      secretName: row.name,
+      publicKey: keyAccount,
+      profileName: typeof metadata.label === 'string' ? metadata.label : keyAccount,
+      keyPair,
+      signer: {getPublicKey: async () => keyPair.principal, sign: (data) => keyPair.sign(data)},
+    }
+    const client = createSeedClient(this.#hmServerUrl)
+    const existing = await client.request('Resource', {...document.id, version: null, latest: true}).catch(() => null)
+    const input: Record<string, unknown> = {
+      ...(document.name !== undefined ? {name: document.name} : {}),
+      ...(document.metadata !== undefined ? {metadata: document.metadata} : {}),
+      ...(document.content !== undefined ? {content: document.content, format: 'markdown'} : {}),
+    }
+    const result =
+      existing?.type === 'document'
+        ? await writeDocumentUpdate(client, signer, {
+            command: 'document.update',
+            dryRun: false,
+            input: {...input, edit: document.id.id},
+          })
+        : await writeDocumentCreate(client, signer, {
+            command: 'document.create',
+            dryRun: false,
+            input: {
+              ...input,
+              account: document.id.uid,
+              path: document.id.path?.length ? `/${document.id.path.join('/')}` : '',
+            },
+          })
+    if (result.type === 'hypermedia_write_error') throw new APIError(400, String(result.message))
+    return {version: typeof result.version === 'string' ? result.version : ''}
   }
 
   /** Whether `accountId` holds the signing key of the account `keyAccount` among its server accounts. */
