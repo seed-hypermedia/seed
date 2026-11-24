@@ -81,6 +81,18 @@ async function clickBlockBody(page: Page, blockId: string) {
     }
   }
   if (!box) throw new Error(`could not measure block ${blockId}`)
+  // A block above can still be growing (embed, KaTeX, media) when we measure.
+  // Clicking then lands on the block above, so wait until two measures 100 ms
+  // apart agree. (The editor itself must also follow a shift AFTER the click;
+  // see "block tools follow the block when content above it grows".)
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await page.waitForTimeout(100)
+    const next = await content.boundingBox({timeout: 5000})
+    if (!next) break
+    const stable = Math.abs(next.y - box.y) < 0.5 && Math.abs(next.height - box.height) < 0.5
+    box = next
+    if (stable) break
+  }
   // Some styled atomic blocks put interactive controls or links at their
   // center. Select those blocks via the frame/body gutter instead, and leave
   // link/control-specific behavior to the dedicated tests below.
