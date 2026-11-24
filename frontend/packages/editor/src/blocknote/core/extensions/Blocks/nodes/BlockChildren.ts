@@ -6,8 +6,8 @@ import {updateGroupCommand} from '../../../api/blockManipulation/commands/update
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import styles from './Block.module.css'
+import {nestBlocksUnderHeadings, stripBlockWhitespaces} from './externalHtmlPaste'
 import {normalizeFragment} from './normalizeFragment'
-import {stripBlockWhitespaces, nestBlocksUnderHeadings} from './externalHtmlPaste'
 
 export const BlockChildren = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
@@ -15,6 +15,7 @@ export const BlockChildren = Node.create<{
   name: 'blockChildren',
   group: 'childContainer',
   content: 'blockNodeChild+',
+  allowGapCursor: true,
 
   addAttributes() {
     return {
