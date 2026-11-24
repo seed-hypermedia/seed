@@ -162,8 +162,8 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		}
 	}(a)
 
-	// Detached from a.g like the backfill below: it has nothing to report and
-	// stops with the errgroup's context either way.
+	// Detached from a.g: it has nothing to report and stops with the
+	// errgroup's context either way.
 	go runMallocTrim(ctx)
 
 	tp := trace.NewTracerProvider(
@@ -209,24 +209,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			return reindexing.RunBlobReindexTask(ctx, a.Index, a.taskMgr, a.log, a.Index.MaybeReindex)
 		})
 	}
-
-	// Backfill the derived document fields for documents that were indexed
-	// before those fields existed. Deliberately not a migration-scheduled
-	// reindex — see the comment at the top of backend/blob/backfill.go for why
-	// an asynchronous backfill is the right shape for these fields.
-	//
-	// Waits for migrations so it never competes with a reindex for the write
-	// connection, and is detached from a.g so startup never waits on it: the
-	// daemon is fully usable while the backfill is still running, and documents
-	// it hasn't reached yet simply read as "not known to be a folder".
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-migratedc:
-		}
-		a.Index.StartDocFieldsBackfill(ctx, blob.DocFieldsBackfillOptions{})
-	}()
 
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {

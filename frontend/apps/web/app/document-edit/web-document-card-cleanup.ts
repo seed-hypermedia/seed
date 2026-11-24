@@ -230,13 +230,11 @@ async function publishParentUpdate(
 }
 
 function invalidateParent(parentDocumentId: string) {
-  const parent = unpackHmId(parentDocumentId)
   invalidateQueries([queryKeys.ENTITY, parentDocumentId], {refetchType: 'all'})
   invalidateQueries([queryKeys.RESOLVED_ENTITY, parentDocumentId], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'Children'], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentDocumentId, 'AllDescendants'], {refetchType: 'all'})
   invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentDocumentId], {refetchType: 'all'})
-  if (parent) invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, parent.uid], {refetchType: 'all'})
 }
 
 function createCleanupActor(deps: WebCleanupDeps) {

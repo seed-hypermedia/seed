@@ -133,7 +133,7 @@ A **collection** is a document whose content is exactly one top-level `Query` bl
 
 The style (`Card`, `List` or `Table`), the table config and any blocks nested under the query block do not matter. Any of these makes it an ordinary document: more than one top-level block, more than one inclusion, a partly filled inclusion, or an inclusion that points elsewhere. A `type: Collection` metadata attribute is ignored. <!-- id:I0_0PZTQ -->
 
-The daemon works out the flag when it indexes a published document. It serves the flag as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. The value is optional. Unset means the indexer has not reached that document, and readers treat it as an ordinary document. Working out the flag never blocks indexing. <!-- id:GDbOHYOJ -->
+The daemon works out the flag when it indexes a published document. It serves the flag as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. Indexing works out the flag for every document before the document can be read, together with the navigation Cards the sidebar is built from. Existing data gets both through a reindex that a migration schedules. A document the model cannot rebuild is recorded as not a collection, and a failure to work out the flag never blocks indexing. <!-- id:GDbOHYOJ -->
 
 In the Seed app, **New Collection** starts a draft with one canonical query block (`Table`, an empty `Children` inclusion, sorted by `updated`). Publishing points that inclusion at the final space and path. <!-- id:5qaOlDBP -->
 

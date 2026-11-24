@@ -476,7 +476,7 @@ await step('with the service clock behind the site, Changes built here still fol
 })
 
 await step(
-  'with the service clock ahead of the site, the next update is built here and the document still reads',
+  'with the service clock ahead of the site, the site still prepares the next update after the head',
   async () => {
     const docAddress = `hm://${account}/clock-ahead`
     await write({address: docAddress, content: 'One\n\nTwo\n', options: {name: 'Clock ahead'}})
@@ -489,11 +489,11 @@ await step(
     } finally {
       apisvc.setDocumentUpdateClockForTests(undefined)
     }
-    // The head is now later than the site's clock, so the site cannot prepare the next Change. The
-    // service builds it, one millisecond after the head.
+    // The head is now later than the site's clock. The site stamps the next Change by the
+    // document's causal clock, one millisecond after the head, so it still prepares it.
     const next = await write({address: docAddress, options: {action: 'update', metadata: {summary: 'Next'}}})
     assert.equal(next.unchanged, undefined, JSON.stringify(next))
-    assert.match(builtHere ?? '', /clock is not past the time/)
+    assert.equal(builtHere, undefined)
     const head = (await client.request('GetCID', {cid: ahead.version})) as {value: {ts: number}}
     const built = (await client.request('GetCID', {cid: next.version})) as {value: {ts: number}}
     assert.equal(Number(built.value.ts), Number(head.value.ts) + 1)

@@ -124,7 +124,7 @@ The document model: reading, preparing changes, refs, accounts, [profiles](../pr
 | `CreateAlias` | link this key to another account; needs an AGENT capability <!-- id:Z09-qqEW --> |
 | `CreateContact`, `GetContact`, `UpdateContact`, `DeleteContact`, `ListContacts` | contact records; `ListContacts` filters by issuing account or by subject <!-- id:FAXXY9DD --> |
 | `ListDirectory` | children of a path, optionally recursive, with sort options <!-- id:Qd-Roq2- --> |
-| `ListDocuments`, `ListRootDocuments`, `ListUnreferencedDocuments` | all documents, home documents, or documents whose parent does not link to them <!-- id:zdXcOt5T --> |
+| `ListDocuments`, `ListRootDocuments` | all documents, or home documents <!-- id:zdXcOt5T --> |
 | `QueryDocuments` | filter by attributes, path, space and URL with and/or/not, sorted by built-in or user attributes; the [query grammar](./query-grammar.md) <!-- id:157XFRFC --> |
 | `ListDocumentAttributeNames`, `ListDocumentAttributeValues` | which attribute keys exist and which values a key takes, for autocomplete <!-- id:3s2_lPkk --> |
 | `ListDocumentChanges`, `GetDocumentChange` | the change history of a document and one change's author, deps and time <!-- id:IuLuH2Ww --> |

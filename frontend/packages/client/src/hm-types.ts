@@ -813,6 +813,11 @@ export const HMDocumentInfoSchema = z.object({
   // full document. Undefined = not derived (yet); empty string = derived, the
   // document has no content image (cards skip their fallback fetch).
   firstImageInContent: z.string().optional(),
+  /**
+   * Indexer-derived hm:// IDs of the documents the published version links as latest-following Card embeds, in
+   * reading order. The sidebar is built from them. The indexer derives them for every document.
+   */
+  navigationCards: z.array(z.string()).optional(),
   visibility: HMResourceVisibilitySchema,
 })
 export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>
@@ -1131,6 +1136,11 @@ export const HMDocumentSchema = z.object({
   genesis: z.string(),
   generationInfo: HMGenerationInfoSchema.optional(),
   visibility: HMResourceVisibilitySchema,
+  /**
+   * hm:// IDs of the documents this version links as latest-following Card embeds, in reading order. Derived by the
+   * backend, the same way as `HMDocumentInfo.navigationCards`.
+   */
+  navigationCards: z.array(z.string()).optional(),
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>
@@ -1571,6 +1581,14 @@ export const HMResourceMetadataRequestSchema = z.object({
   output: HMMetadataPayloadSchema,
 })
 export type HMResourceMetadataRequest = z.infer<typeof HMResourceMetadataRequestSchema>
+
+/** Indexed information about a published document, without its content. Null when it cannot be read. */
+export const HMDocumentInfoRequestSchema = z.object({
+  key: z.literal('DocumentInfo'),
+  input: unpackedHmIdSchema,
+  output: HMDocumentInfoSchema.nullable(),
+})
+export type HMDocumentInfoRequest = z.infer<typeof HMDocumentInfoRequestSchema>
 
 export const HMAccountRequestSchema = z.object({
   key: z.literal('Account'),
@@ -2490,6 +2508,7 @@ export type HMDiscoveryStatusRequest = z.infer<typeof HMDiscoveryStatusRequestSc
 export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
+  HMDocumentInfoRequestSchema,
   HMAccountRequestSchema,
   HMCommentRequestSchema,
   HMSearchRequestSchema,
@@ -2536,6 +2555,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListDocumentAttributeNamesRequestSchema,
   HMListDocumentAttributeValuesRequestSchema,
   HMResourceMetadataRequestSchema,
+  HMDocumentInfoRequestSchema,
   HMAccountRequestSchema,
   HMCommentRequestSchema,
   HMSearchRequestSchema,

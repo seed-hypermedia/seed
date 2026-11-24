@@ -311,7 +311,6 @@ describe('moveWebDocuments', () => {
     expect(enqueueCleanupMock.mock.invocationCallOrder.at(-1)!).toBeLessThan(publish.mock.invocationCallOrder[0]!)
     expect(publish).toHaveBeenCalledTimes(2)
     expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_DIRECTORY'], {refetchType: 'all'})
-    expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_UNREFERENCED', 'site'], {refetchType: 'all'})
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'rewrite',

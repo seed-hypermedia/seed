@@ -159,7 +159,6 @@ export async function deleteAgentMountDocument(
   await client.publish(refInput)
   invalidateQueries(['agents'])
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
-  invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, id.uid], {refetchType: 'all'})
   invalidateQueries([queryKeys.ENTITY, id.id])
   invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   getParentPaths(id.path).forEach((path) => {

@@ -75,7 +75,7 @@ Give every blob its `cid`. A blob sent without one gets an id from the daemon's 
 
 `PrepareDocumentChange` asks the daemon to build an unsigned [Change](../change.md) for you from a list of edit operations, so you do not have to compute the change DAG yourself. The input is `{account, path?, baseVersion?, changes: [{op: {case, value}}], capability?, visibility?}`, the output `{unsignedChange: bytes}`. You sign the bytes and publish the result with `PublishBlobs`. The SDK does the whole sequence in `publishDocument`. <!-- id:Ddy9g12l -->
 
-The remaining POST keys, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`, `ListAccounts` and `ListUnreferencedDocuments`, are pass-throughs to the daemon's own request messages. Their body is the CBOR encoding of the protobuf JSON form of the request, with lowerCamelCase field names and enum names as strings, and they answer with plain protobuf JSON. They do not use the envelope described next. `QueryDocuments` is the attribute query surface. Its filter grammar is in [query grammar](./query-grammar.md). <!-- id:pJJ84D3r -->
+The remaining POST keys, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues` and `ListAccounts`, are pass-throughs to the daemon's own request messages. Their body is the CBOR encoding of the protobuf JSON form of the request, with lowerCamelCase field names and enum names as strings, and they answer with plain protobuf JSON. They do not use the envelope described next. `QueryDocuments` is the attribute query surface. Its filter grammar is in [query grammar](./query-grammar.md). <!-- id:pJJ84D3r -->
 
 ## Two response envelopes <!-- id:vSrQYlzb -->
 
@@ -128,7 +128,7 @@ Writing does not need a token. Authority to write is in the blob itself: a [Ref]
 
 # Discovering the API <!-- id:vLI3LaFn -->
 
-The API describes itself. `GET /api/schema` lists every read key and the five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`), each with its method and path. It leaves out the POST forms of `ListAccounts` and `ListUnreferencedDocuments`. `GET /api/schema?key=<Key>` returns one key's input and output as [JSON Schema](https://json-schema.org/), along with how the input is encoded. <!-- id:XAMMmRQi -->
+The API describes itself. `GET /api/schema` lists every read key and the five action keys (`PublishBlobs`, `PrepareDocumentChange`, `QueryDocuments`, `ListDocumentAttributeNames`, `ListDocumentAttributeValues`), each with its method and path. It leaves out the POST form of `ListAccounts`. `GET /api/schema?key=<Key>` returns one key's input and output as [JSON Schema](https://json-schema.org/), along with how the input is encoded. <!-- id:XAMMmRQi -->
 
 ```sh <!-- id:fWwovZrb -->
 curl 'https://hyper.media/api/schema?key=Resource'
@@ -189,11 +189,10 @@ The two tables list every key the web server answers under `/api/`. Inputs are g
 | `ListDocumentAttributeNames` | `{account?, parentPath?, prefix?, recursive?, pageSize?, pageToken?}` | `{names: [{name, kinds}], nextPageToken}` (protobuf JSON) <!-- id:FBxseaaQ --> |
 | `ListDocumentAttributeValues` | `{path, kind, account?, prefix?, pageSize?, pageToken?}` | `{values, nextPageToken}` (protobuf JSON) <!-- id:fI8YE1nN --> |
 | `ListAccounts` (POST) | protobuf JSON `ListAccountsRequest` | protobuf JSON (a second, unwrapped route to the same list) <!-- id:pPA3hs9C --> |
-| `ListUnreferencedDocuments` | `{account, pageSize?, pageToken?}` | documents no parent links to (protobuf JSON). The daemon has it switched off, so it answers `500` with `unreferenced documents are temporarily disabled` <!-- id:GP7qJ0BI --> |
 
 # The desktop bridge differs in two ways <!-- id:407ymi_o -->
 
-The Seed desktop app serves the same keys on `http://localhost:56004/api/*` for local tools such as the CLI's `space dev` and the bundled [app environment](../software/app-environment.md). It refuses requests whose `Sec-Fetch-Site` header marks them cross-site, so a web page cannot call it. It also lacks the pass-through special case. `POST /api/QueryDocuments` answers superjson there, and POST `ListAccounts` and `ListUnreferencedDocuments` answer `404`. <!-- id:iCa7w_8g -->
+The Seed desktop app serves the same keys on `http://localhost:56004/api/*` for local tools such as the CLI's `space dev` and the bundled [app environment](../software/app-environment.md). It refuses requests whose `Sec-Fetch-Site` header marks them cross-site, so a web page cannot call it. It also lacks the pass-through special case. `POST /api/QueryDocuments` answers superjson there, and POST `ListAccounts` answers `404`. <!-- id:iCa7w_8g -->
 
 # Working with it <!-- id:XHbbjtMm -->
 

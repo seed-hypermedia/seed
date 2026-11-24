@@ -11,14 +11,11 @@ import {
   ListDocumentAttributeNamesResponse,
   ListDocumentAttributeValuesRequest,
   ListDocumentAttributeValuesResponse,
-  ListUnreferencedDocumentsRequest,
-  ListUnreferencedDocumentsResponse,
   QueryDocumentsResponse,
   type QueryDocumentsRequest,
 } from '@shm/shared/client/grpc-types'
 import {createChangeStreamClient} from '@shm/shared/change-stream-client'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
-import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {peerIdFromString} from '@libp2p/peer-id'
@@ -217,19 +214,6 @@ export const webUniversalClient = createWebUniversalClient({
   publish: seedClient.publish,
   queryDocuments: async (request: QueryDocumentsRequest, options) => {
     return postDocumentRpc('QueryDocuments', request, QueryDocumentsResponse.fromJson, options?.signal)
-  },
-  listUnreferencedDocuments: async (request, options) => {
-    const response = await postDocumentRpc(
-      'ListUnreferencedDocuments',
-      new ListUnreferencedDocumentsRequest({
-        account: request.siteAccount,
-        pageSize: request.pageSize,
-        pageToken: request.pageToken,
-      }),
-      ListUnreferencedDocumentsResponse.fromJson,
-      options?.signal,
-    )
-    return {...response, documents: response.documents.map(prepareHMDocumentInfo)}
   },
   listAccounts: async (request, options) =>
     postDocumentRpc('ListAccounts', request, ListAccountsResponse.fromJson, options?.signal),

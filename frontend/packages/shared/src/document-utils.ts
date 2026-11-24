@@ -216,6 +216,7 @@ function prepareHMDocumentUncached(apiDoc: Document): HMDocument {
     enumAsInteger: false,
   }) as any
   documentMetadataParseAdjustments(docJSON.metadata)
+  docJSON.navigationCards = docJSON.navigationCards ? docJSON.navigationCards.targets ?? [] : undefined
   docJSON = sanitizeDocumentStructure(docJSON)
   repairProtoStructAttributes(docJSON.content)
   repairProtoStructAttributes(Object.values(docJSON.detachedBlocks ?? {}))

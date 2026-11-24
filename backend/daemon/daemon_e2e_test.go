@@ -662,6 +662,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 			},
 		},
 		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+		// Derived for every document; empty because the profile links no Cards.
+		NavigationCards: &documents.NavigationCards{},
 	}
 
 	testutil.StructsEqual(want, doc).
@@ -703,7 +705,8 @@ func TestDaemonUpdateProfile(t *testing.T) {
 					},
 				},
 			},
-			Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+			Visibility:      documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+			NavigationCards: &documents.NavigationCards{},
 		}
 
 		testutil.StructsEqual(want, doc).

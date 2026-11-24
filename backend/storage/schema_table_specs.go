@@ -40,11 +40,6 @@ var tableSpecs = []TableSpec{
 	{Name: T_StructuralBlobs, Kind: TableKindDerived},
 	{Name: T_DocumentAttributes, Kind: TableKindDerived},
 	{Name: T_DocumentAttributeKeys, Kind: TableKindDerived},
-	// These summaries are maintained by the document-fields backfill rather
-	// than the full blob reindex, but the final reindex cover pass rebuilds them.
-	// Delete child rows first to avoid relying on the FK cascade.
-	{Name: T_DocumentReferenceTargets, Kind: TableKindDerived},
-	{Name: T_DocumentReferenceSummaries, Kind: TableKindDerived},
 	// Comment activity is derived from Comment blobs, so it's rebuilt by the blob
 	// loop below. comment_live has an FK to resources with ON DELETE CASCADE, but
 	// reindex deletes in list order, so list it before resources rather than

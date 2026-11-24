@@ -460,8 +460,8 @@ func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (s
 		return false, nil
 	}
 
-	// Settle this comment's live version, its document's activity, and the space
-	// total. None of these need a document generation, so they're settled the
+	// Settle this comment's live version, its document's activity, and mark the
+	// space total stale. None of these need a document generation, so they're settled the
 	// moment the blob lands rather than waiting for a Ref.
 	if err := updateCommentLive(ictx.conn, eb.TSID(), genesis); err != nil {
 		return false, err
@@ -471,9 +471,9 @@ func settleComment(ictx *indexingCtx, eb Encoded[*Comment], resourceID int64) (s
 		return false, err
 	}
 
-	if err := updateSpaceCommentStats(ictx.conn, v.Space().String()); err != nil {
-		return false, err
-	}
+	// The space total is recounted once per batch, when it flushes: recounting
+	// per comment is quadratic in a space's comments during a reindex.
+	ictx.batch.commentSpaces[v.Space().String()] = true
 
 	return true, nil
 }

@@ -120,7 +120,7 @@ func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32)
 // pure function so the daemon can wire it before the migration-triggered
 // backfill reindex starts, long before this server exists.
 //
-// Both fields come out of one replay on purpose: rebuilding the model is the
+// All fields come out of one replay on purpose: rebuilding the model is the
 // entire cost, and each field is then a walk over a tree that already exists.
 //
 // The changes are supplied by the indexer (already loaded on its transaction's
@@ -160,12 +160,10 @@ func DeriveDocFields(iri blob.IRI, changes []blob.ChangeRecord) (fields blob.Der
 		}
 	}
 
-	refs, selfQuery := doc.ReferenceSummary()
 	return blob.DerivedDocFields{
-		FirstImage:          doc.FirstContentImage(),
-		IsCollection:        doc.IsCollection(),
-		ReferencedDocuments: refs,
-		HasSelfQuery:        selfQuery,
+		FirstImage:      doc.FirstContentImage(),
+		IsCollection:    doc.IsCollection(),
+		NavigationCards: doc.NavigationCards(),
 	}, nil
 }
 
@@ -1150,7 +1148,7 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 
 	// Use NopSigner to create the Change without actually signing it.
 	// The client will sign it themselves.
-	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now(), blob.WithMessage(in.Message))
+	change, err := doc.SignChange(blob.NewNopSigner(nil), blob.WithMessage(in.Message))
 	if err != nil {
 		return nil, err
 	}
@@ -2225,149 +2223,6 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	return out, nil
 }
 
-// ListUnreferencedDocuments implements Documents API v3.
-func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (out *documents.ListUnreferencedDocumentsResponse, err error) {
-	const enabled = false
-	if !enabled {
-		return nil, status.Error(codes.Unavailable, "unreferenced documents are temporarily disabled")
-	}
-
-	if in.Account == "" {
-		return nil, status.Error(codes.InvalidArgument, "account is required")
-	}
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid account: %v", err)
-	}
-	srv.clampPageSize("ListUnreferencedDocuments", &in.PageSize, defaultPageSize)
-	accountIRI, err := blob.NewIRI(ns, "")
-	if err != nil {
-		return nil, err
-	}
-	cursor := struct {
-		Account string `json:"a"`
-		IRI     string `json:"i"`
-	}{Account: in.Account, IRI: string(accountIRI)}
-	if in.PageToken != "" {
-		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
-		if cursor.Account != in.Account {
-			return nil, status.Error(codes.InvalidArgument, "page token belongs to a different account")
-		}
-	}
-
-	conn, release, err := srv.db.ReadConn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-	defer sqlitex.Save(conn)(&err)
-
-	// The unreferenced section is a publishing aid for public site structure.
-	// Private documents never belong in it, including for their owner.
-	visibility := "AND cdg.visibility IS NOT 'Private'"
-	query := fmt.Sprintf(qListUnreferencedDocuments, visibility)
-	args := []any{accountIRI + "/", accountIRI + "0", cursor.IRI, in.PageSize + 1}
-
-	out = &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
-	lookup := blob.NewLookupCache(conn)
-	lastIRI := cursor.IRI
-	rows, discard, check := sqlitex.Query(conn, query, args...).All()
-	defer discard(&err)
-	for row := range rows {
-		iri := blob.IRI(row.ColumnText(0))
-		if len(out.Documents) == int(in.PageSize) {
-			out.NextPageToken = apiutil.EncodePageToken(struct {
-				Account string `json:"a"`
-				IRI     string `json:"i"`
-			}{Account: in.Account, IRI: lastIRI}, nil)
-			break
-		}
-		info, err := getDocumentInfo(conn, lookup, iri)
-		if err != nil {
-			return nil, err
-		}
-		out.Documents = append(out.Documents, info)
-		lastIRI = string(iri)
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-
-	// The parent range starts at the account root itself (not at root + '/'),
-	// because the root document is a valid parent of top-level documents.
-	incomplete, err := sqlitex.QueryOne[int](conn, fmt.Sprintf(qUnreferencedIndexIncomplete, visibility), accountIRI, accountIRI+"0")
-	if err != nil {
-		return nil, err
-	}
-	out.IndexIncomplete = incomplete != 0
-	return out, nil
-}
-
-// qUnreferencedParentIRI derives the parent IRI of `child` by stripping its
-// last path segment: rtrim removes every trailing character that is not '/'
-// (the set of characters of the IRI minus '/'), which stops at the last '/',
-// and the outer substr drops that '/'. Deriving the parent from the child (and
-// not the other way around) lets SQLite seek the unique resources.iri index for
-// the parent instead of scanning resources for every child: the daemon's
-// vendored SQLite (3.45) planned the previous substr-based self-join as a full
-// scan per child, which pegged the CPU of production servers.
-const qUnreferencedParentIRI = `substr(child.iri, 1, length(rtrim(child.iri, replace(child.iri, '/', ''))) - 1)`
-
-// The current generation of a document is joined by primary key
-// (resource, generation) on purpose, instead of through a shared CTE:
-// SQLite 3.45 doesn't materialize the CTE and rescans document_generations
-// with the correlated MAX subquery for every candidate row.
-var qListUnreferencedDocuments = `
-	SELECT child.iri
-	FROM resources child
-	JOIN document_generations cdg ON cdg.resource = child.id
-		AND cdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = child.id)
-		AND cdg.is_deleted = 0 AND json_array_length(cdg.heads) > 0
-	JOIN resources parent ON parent.iri = ` + qUnreferencedParentIRI + `
-	JOIN document_generations pdg ON pdg.resource = parent.id
-		AND pdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = parent.id)
-		AND pdg.is_deleted = 0 AND json_array_length(pdg.heads) > 0
-	JOIN document_reference_summaries summary ON summary.resource = parent.id
-		AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
-		AND json(summary.heads) = json(pdg.heads)
-	WHERE child.iri >= ? AND child.iri < ? AND child.iri > ?
-	AND summary.status = 1 AND summary.has_self_query = 0
-	%s
-	AND NOT EXISTS (SELECT 1 FROM document_reference_targets target
-		WHERE target.parent = parent.id AND target.target_iri = child.iri)
-	ORDER BY child.iri
-	LIMIT ?
-`
-
-// qUnreferencedIndexIncomplete walks the parents of the account (root
-// included) and reports whether any of them, having at least one alive direct
-// child, lacks an up-to-date reference summary. Children are found with the
-// same IRI prefix-range seek as children_count in qDocumentsOuterColumns.
-var qUnreferencedIndexIncomplete = `
-	SELECT EXISTS (
-		SELECT 1 FROM resources parent
-		JOIN document_generations pdg ON pdg.resource = parent.id
-			AND pdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = parent.id)
-			AND pdg.is_deleted = 0 AND json_array_length(pdg.heads) > 0
-		LEFT JOIN document_reference_summaries summary ON summary.resource = parent.id
-			AND summary.generation = pdg.generation AND summary.genesis = pdg.genesis
-			AND json(summary.heads) = json(pdg.heads)
-		WHERE parent.iri >= ? AND parent.iri < ?
-		AND (summary.resource IS NULL OR summary.status != 1)
-		AND EXISTS (
-			SELECT 1 FROM resources child
-			JOIN document_generations cdg ON cdg.resource = child.id
-				AND cdg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = child.id)
-				AND cdg.is_deleted = 0 AND json_array_length(cdg.heads) > 0
-			WHERE child.iri > parent.iri || '/' AND child.iri < parent.iri || '0'
-			AND instr(substr(child.iri, length(parent.iri) + 2), '/') = 0
-			%s
-		)
-	)
-`
-
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (*documents.DocumentInfo, error) {
 	info, err := getDocumentInfoRaw(conn, lookup, iri)
 	if err != nil {
@@ -2633,15 +2488,31 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	// flag, so the answer stays correct no matter which client wrote the
 	// document or how old it is.
 	//
-	// Unset means the indexer has not derived it yet, which clients must read as
-	// "not known to be a collection" rather than "not a collection": the
-	// derivation is backfilled asynchronously.
+	// Indexing derives it for every document; unset only on documents indexed
+	// before it existed, which the reindex scheduled with it replaces.
 	var isCollection *bool
 	for _, key := range []string{blob.IsCollectionAttr, "$db.isFolder"} {
 		if v, ok := attrs[key]; ok {
 			if b, isBool := indexedAttrBool(v); isBool {
 				isCollection = &b
 				break
+			}
+		}
+	}
+
+	// Derived navigation Cards, stored as a JSON array because attribute values
+	// are scalars. Indexing derives them for every document.
+	var navigationCards *documents.NavigationCards
+
+	if v, ok := attrs[blob.NavigationCardsAttr]; ok {
+		if s, isStr := v.Value.(string); isStr {
+			var targets []string
+
+			if err := json.Unmarshal([]byte(s), &targets); err == nil {
+				navigationCards = &documents.NavigationCards{}
+				if len(targets) > 0 {
+					navigationCards.Targets = targets
+				}
 			}
 		}
 	}
@@ -2731,6 +2602,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Metadata:            metastruct,
 		FirstImageInContent: firstImageInContent,
 		IsCollection:        isCollection,
+		NavigationCards:     navigationCards,
 		Authors:             authors,
 		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
@@ -3383,15 +3255,16 @@ func indexedAttrBool(v blob.IndexedValue) (bool, bool) {
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 	return &documents.DocumentInfo{
-		Account:        doc.Account,
-		Path:           doc.Path,
-		Metadata:       doc.Metadata,
-		Authors:        doc.Authors,
-		CreateTime:     doc.CreateTime,
-		UpdateTime:     doc.UpdateTime,
-		Genesis:        doc.Genesis,
-		Version:        doc.Version,
-		GenerationInfo: doc.GenerationInfo,
-		Visibility:     doc.Visibility,
+		Account:         doc.Account,
+		Path:            doc.Path,
+		Metadata:        doc.Metadata,
+		Authors:         doc.Authors,
+		CreateTime:      doc.CreateTime,
+		UpdateTime:      doc.UpdateTime,
+		Genesis:         doc.Genesis,
+		Version:         doc.Version,
+		GenerationInfo:  doc.GenerationInfo,
+		Visibility:      doc.Visibility,
+		NavigationCards: doc.NavigationCards,
 	}
 }

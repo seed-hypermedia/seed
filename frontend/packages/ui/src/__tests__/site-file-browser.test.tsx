@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type {HMDocumentInfo, HMListedDraft} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import {UniversalAppContext} from '@shm/shared/routing'
@@ -10,28 +10,33 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {SiteFileBrowser} from '../site-file-browser'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const useDirectoryWithDraftsMock = vi.hoisted(() => vi.fn())
-const useUnreferencedDocumentsMock = vi.hoisted(() => vi.fn())
-vi.mock('@shm/shared/models/entity', () => ({useDirectoryWithDrafts: useDirectoryWithDraftsMock}))
-vi.mock('@shm/shared/models/capabilities', () => ({
-  roleCanWrite: () => true,
-  useSelectedAccountCapability: () => ({id: '_owner', accountUid: 'site', role: 'owner'}),
+const useDirectoryMock = vi.hoisted(() => vi.fn())
+const useDraftsMock = vi.hoisted(() => vi.fn())
+const useDocumentInfoMock = vi.hoisted(() => vi.fn())
+/** Domain-based IDs and the account IDs they resolve to. */
+const domains = vi.hoisted(() => new Map<string, unknown>())
+vi.mock('@shm/shared/models/entity', () => ({
+  useDirectory: useDirectoryMock,
+  useDocumentInfo: useDocumentInfoMock,
+  useResolvedHmId: (url: string | undefined) => ({
+    id: url ? domains.get(url) ?? null : null,
+    isLoading: false,
+    error: null,
+  }),
 }))
-vi.mock('@shm/shared/models/unreferenced-documents', () => ({
-  useUnreferencedDocuments: useUnreferencedDocumentsMock,
-}))
-vi.mock('../tooltip', () => ({
-  Tooltip: ({content, children}: {content: string; children: ReactNode}) => (
-    <span data-tooltip-content={content}>{children}</span>
-  ),
+vi.mock('@shm/shared/draft-breadcrumb-context', async () => ({
+  ...(await vi.importActual<typeof import('@shm/shared/draft-breadcrumb-context')>(
+    '@shm/shared/draft-breadcrumb-context',
+  )),
+  useDraftsForAccountSafe: useDraftsMock,
 }))
 
-if (typeof PointerEvent === 'undefined') {
-  vi.stubGlobal('PointerEvent', MouseEvent)
-}
-
+if (typeof PointerEvent === 'undefined') vi.stubGlobal('PointerEvent', MouseEvent)
 let container: HTMLDivElement
 let root: Root
+/** Indexed document info by ID. An ID without an entry fails to load, as an unknown document does. */
+let infos: Map<string, HMDocumentInfo>
+let directory: HMDocumentInfo[]
 const openRoute = vi.fn()
 function Routing({children}: {children: ReactNode}) {
   const context = useContext(UniversalAppContext)
@@ -41,22 +46,81 @@ function Routing({children}: {children: ReactNode}) {
     </UniversalAppContext.Provider>
   )
 }
+const refetchInfo = vi.fn()
 
-function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
-  return {id: hmId('site', {path}), path, metadata: {name}, visibility} as unknown as HMDocumentInfo
+/** Indexes a document's info, with the navigation Cards the backend derives, and returns it. */
+function makeDoc(
+  path: string[],
+  name: string,
+  visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC',
+  {space = 'site', navigationCards = []}: {space?: string; navigationCards?: string[]} = {},
+) {
+  const id = hmId(space, {path})
+  const info = {id, path, metadata: {name}, visibility, navigationCards} as unknown as HMDocumentInfo
+  infos.set(id.id, info)
+  return info
 }
 
-function makeCollection(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
-  const doc = makeDoc(path, name, visibility)
-  doc.isCollection = true
-  return doc
+/** Indexes a redirect from one address to another, as a moved or republished document leaves behind. */
+function redirect(from: string, to: string, republish = false) {
+  const id = hmId('site', {path: from.split('/').slice(3)})
+  infos.set(id.id, {
+    id,
+    path: id.path,
+    metadata: {},
+    visibility: 'PUBLIC',
+    redirectInfo: {type: 'redirect', target: to, republish},
+  } as unknown as HMDocumentInfo)
+}
+
+/** Sets the published documents title search can find, and the local drafts. */
+function setDirectory({directory: docs, drafts}: {directory: HMDocumentInfo[]; drafts: unknown[]}) {
+  directory = docs
+  useDraftsMock.mockReturnValue({data: drafts, isLoading: false})
+}
+
+/** The space-wide listing used only by title search. */
+function listDirectory(id: ReturnType<typeof hmId> | null) {
+  return {data: id ? directory.filter((doc) => doc.id.uid === id.uid) : undefined, isInitialLoading: false}
+}
+
+/** Sets the navigation Cards the backend derived for a document. */
+function setCards(parent: string, links: string[]) {
+  const info = infos.get(parent)
+  if (!info) throw new Error(`Missing fixture ${parent}`)
+  infos.set(parent, {...info, navigationCards: links})
+}
+
+function render(activeDocumentId: ReturnType<typeof hmId> | null = null) {
+  act(() =>
+    root.render(
+      <Routing>
+        <SiteFileBrowser siteId={hmId('site')} activeDocumentId={activeDocumentId} />
+      </Routing>,
+    ),
+  )
+}
+
+function click(label: string) {
+  const button = Array.from(container.querySelectorAll<HTMLElement>('button, a')).find((b) => b.textContent === label)
+  if (!button) throw new Error(`Missing button ${label}`)
+  act(() => button.click())
 }
 
 beforeEach(() => {
+  domains.clear()
+  infos = new Map()
+  makeDoc([], 'Home')
+  makeDoc(['guides'], 'Guides')
+  setDirectory({directory: [], drafts: []})
+  useDirectoryMock.mockImplementation(listDirectory)
+  useDocumentInfoMock.mockImplementation((id: ReturnType<typeof hmId>) => {
+    const info = infos.get(hmId(id.uid, {path: id.path}).id)
+    return {data: info, isInitialLoading: false, isError: !info, refetch: refetchInfo}
+  })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  useUnreferencedDocumentsMock.mockReturnValue({documents: [], isLoading: false, indexIncomplete: false})
 })
 
 afterEach(() => {
@@ -66,177 +130,250 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('builds navigation from indexed Cards', () => {
+    makeDoc([], 'Home', 'PUBLIC', {navigationCards: ['hm://site/zebra', 'hm://site/alpha']})
+    makeDoc(['zebra'], 'Zebra', 'PUBLIC', {navigationCards: ['hm://site/zebra/child']})
+    makeDoc(['alpha'], 'Alpha')
+    makeDoc(['zebra', 'child'], 'Child')
+    render(hmId('site', {path: ['zebra', 'child']}))
+    const links = Array.from(container.querySelectorAll('[role="treeitem"] > div > a'))
+    expect(links.map((link) => link.textContent)).toEqual(['Zebra', 'Child', 'Alpha'])
+  })
+
+  it('resolves a domain-based Card target before loading it', () => {
+    setCards('hm://site', ['hm://example.com/guides', 'hm://unknown.example/page'])
+    domains.set('hm://example.com/guides', hmId('site', {path: ['guides']}))
+    render()
+    expect(container.textContent).toContain('Guides')
+    expect(container.textContent).toContain('Could not resolve hm://unknown.example/page.')
+    const queried = useDocumentInfoMock.mock.calls.flatMap(([id]) => (id ? [id.uid] : []))
+    expect(queried.some((uid) => uid.includes('.'))).toBe(false)
+  })
+
+  it('uses Card order instead of path order and does not include unembedded pages', () => {
+    const alpha = makeDoc(['alpha'], 'Alpha')
+    const zebra = makeDoc(['elsewhere', 'zebra'], 'Zebra')
+    const hidden = makeDoc(['hidden'], 'Hidden')
+    setDirectory({directory: [alpha, hidden, zebra], drafts: []})
+    setCards('hm://site', [zebra.id.id, alpha.id.id])
+    render()
+    const links = Array.from(container.querySelectorAll('[role="treeitem"] > div > a'))
+    expect(links.map((link) => link.textContent)).toEqual(['Zebra', 'Alpha'])
+    expect(container.textContent).not.toContain('Hidden')
+  })
+
+  it('reads and navigates latest versions even when the active page names a version', () => {
+    makeDoc(['page'], 'Latest title')
+    setCards('hm://site', ['hm://site/page'])
+    render(hmId('site', {path: ['page'], version: 'old'}))
+    expect(useDocumentInfoMock.mock.calls.every(([id]) => !id.version && !id.blockRef)).toBe(true)
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Latest title')
+    click('Latest title')
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(hmId('site', {path: ['page']}))}, undefined)
+  })
+
+  it('does not overlay unpublished edits on published navigation', () => {
+    const guide = makeDoc(['guides'], 'Published guide')
+    setDirectory({
+      directory: [guide],
+      drafts: [{id: 'edit', editId: guide.id, metadata: {name: 'Draft title'}}],
+    })
+    setCards('hm://site', [guide.id.id])
+    render()
+    expect(container.textContent).toContain('Published guide')
+    expect(container.textContent).not.toContain('Draft title')
+  })
+
+  it('updates navigation when the latest published parent changes', () => {
+    makeDoc(['new'], 'New page')
+    setCards('hm://site', ['hm://site/guides'])
+    render()
+    expect(container.textContent).toContain('Guides')
+    setCards('hm://site', ['hm://site/new'])
+    render()
+    expect(container.textContent).toContain('New page')
+    expect(container.textContent).not.toContain('Guides')
+  })
+
+  it('follows cross-path Cards lazily and stops cycles', () => {
+    makeDoc(['group'], 'Group')
+    makeDoc(['elsewhere', 'child'], 'Child')
+    makeDoc(['deep'], 'Deep page')
+    setCards('hm://site', ['hm://site/group'])
+    setCards('hm://site/group', ['hm://site', 'hm://site/elsewhere/child'])
+    setCards('hm://site/elsewhere/child', ['hm://site/group', 'hm://site/deep'])
+    render()
+    expect(useDocumentInfoMock.mock.calls.some(([id]) => id.id === 'hm://site/elsewhere/child')).toBe(false)
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand Group"]')!.click())
+    expect(container.textContent).toContain('Child')
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(2)
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand Child"]')!.click())
+    expect(container.textContent).toContain('Deep page')
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(3)
+  })
+
+  it('opens the target of a moved Card and shows its Cards', () => {
+    const moved = makeDoc(['new', 'page'], 'Moved page', 'PUBLIC', {navigationCards: ['hm://site/guides']})
+    redirect('hm://site/old/page', moved.id.id)
+    setCards('hm://site', ['hm://site/old/page'])
+    render(hmId('site', {path: ['old', 'page']}))
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Moved page')
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand Moved page"]')!.click())
+    expect(container.textContent).toContain('Guides')
+    click('Moved page')
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(moved.id)}, undefined)
+  })
+
+  it('keeps a republished Card on its own address while showing the target', () => {
+    const target = makeDoc(['target'], 'Target page', 'PUBLIC', {navigationCards: ['hm://site/guides']})
+    redirect('hm://site/republished', target.id.id, true)
+    setCards('hm://site', ['hm://site/republished'])
+    render()
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand Target page"]')!.click())
+    expect(container.textContent).toContain('Guides')
+    click('Target page')
+    expect(openRoute).toHaveBeenCalledWith(
+      {key: 'document', id: latestId(hmId('site', {path: ['republished']}))},
+      undefined,
+    )
+  })
+
+  it('follows redirect chains and gives up on cycles', () => {
+    makeDoc(['final'], 'Final page')
+    redirect('hm://site/first', 'hm://site/second')
+    redirect('hm://site/second', 'hm://site/final')
+    redirect('hm://site/loop-a', 'hm://site/loop-b')
+    redirect('hm://site/loop-b', 'hm://site/loop-a')
+    setCards('hm://site', ['hm://site/first', 'hm://site/loop-a'])
+    render()
+    expect(container.textContent).toContain('Final page')
+    expect(container.textContent).toContain('Could not load page.')
+  })
+
+  it('stops a moved address that resolves back to an ancestor', () => {
+    redirect('hm://site/old-home', 'hm://site')
+    setCards('hm://site', ['hm://site/old-home'])
+    render()
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(0)
+  })
+
+  it('follows Cards into another space', () => {
+    const step = makeDoc(['guide', 'step'], 'Other step', 'PUBLIC', {space: 'other'})
+    const guide = makeDoc(['guide'], 'Other guide', 'PUBLIC', {space: 'other', navigationCards: [step.id.id]})
+    setCards('hm://site', [guide.id.id])
+    render()
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Expand Other guide"]')!.click())
+    click('Other step')
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(step.id)}, undefined)
+  })
+
+  it('shows retry for a Card target without document info', () => {
+    setCards('hm://site', ['hm://site/guides', 'hm://other/guide'])
+    render()
+    expect(container.textContent).toContain('Guides')
+    expect(container.textContent).toContain('Could not load page.')
+  })
+
+  it('keeps unlinked unpublished drafts accessible without creating path-tree entries', () => {
+    setDirectory({
+      directory: [],
+      drafts: [
+        {
+          id: 'draft-1',
+          locationId: hmId('site', {path: ['unlinked']}),
+          editId: hmId('site', {path: ['unlinked', '-draft-1']}),
+          metadata: {name: 'New draft'},
+        },
+        {id: 'draft-2', locationId: hmId('site'), metadata: {}},
+      ],
+    })
+    render()
+    expect(container.querySelector('[aria-label="Unpublished drafts"]')?.textContent).toContain('New draft')
+    expect(container.textContent).toContain('Untitled Document')
+    expect(container.textContent).not.toContain('-draft-2')
+    click('New draft')
+    expect(openRoute).toHaveBeenCalledWith(
+      {key: 'document', id: hmId('site', {path: ['unlinked', '-draft-1']})},
+      undefined,
+    )
+  })
+
+  it('shows retry when navigation cannot be loaded', () => {
+    infos.delete('hm://site')
+    render()
+    expect(container.textContent).toContain('Could not load navigation')
+    expect(container.querySelector('[role="treeitem"]')).toBeNull()
+    click('Retry')
+    expect(refetchInfo).toHaveBeenCalledOnce()
+  })
+
+  it('shows loading rather than an empty sidebar while the root is loading', () => {
+    useDocumentInfoMock.mockReturnValue({isInitialLoading: true})
+    render()
+    expect(container.querySelector('[aria-label="Loading navigation"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('No pages in navigation')
+  })
+
   it('marks Home active only when the home document is selected', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
-    const props = {siteId: hmId('site')}
-    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={null} />))
+    render()
     expect(container.querySelector('[aria-current="page"]')).toBeNull()
-    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={hmId('site')} />))
+    render(hmId('site'))
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Home')
   })
 
-  it('does not load or render unreferenced documents', () => {
-    const install = makeDoc(['guides', 'install'], 'Install Seed', 'PRIVATE')
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
-    useUnreferencedDocumentsMock.mockReturnValue({documents: [install], isLoading: false, indexIncomplete: false})
-
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />))
-
-    expect(useUnreferencedDocumentsMock).not.toHaveBeenCalled()
-    expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
-  })
-  it('keeps published metadata when an editing draft has no title override', () => {
-    const published = makeDoc(['guides'], 'Published guide')
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [published],
-      drafts: [
-        {
-          id: 'draft-1',
-          metadata: {},
-          editId: published.id,
-        } as unknown as HMListedDraft,
-      ],
-      isLoading: false,
-    })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
-    })
-
-    expect(container.textContent).toContain('Published guide')
-    expect(container.textContent).not.toContain('Untitled Document')
-  })
-
-  it('renders unpublished drafts in their parent directory', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [makeDoc(['guides'], 'Guides')],
-      drafts: [
-        {
-          id: 'draft-1',
-          metadata: {name: 'Unpublished guide'},
-          locationId: hmId('site', {path: ['guides']}),
-          editId: hmId('site', {path: ['guides', '-draft-1']}),
-        } as unknown as HMListedDraft,
-      ],
-      isLoading: false,
-    })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
-    })
-
-    act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
-
-    const draftRow = Array.from(container.querySelectorAll('a')).find(
-      (link) => link.textContent?.includes('Unpublished guide'),
-    )
-    expect(draftRow?.querySelector('[aria-label="Unpublished draft"]')?.getAttribute('class')).toContain(
-      'text-yellow-500',
-    )
-  })
-
-  it('labels an unnamed unpublished draft Untitled Document instead of its placeholder slug', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [makeDoc(['guides'], 'Guides')],
-      drafts: [
-        {
-          id: 'draft-2',
-          metadata: {},
-          locationId: hmId('site', {path: ['guides']}),
-          editId: hmId('site', {path: ['guides', '-draft-2']}),
-        } as unknown as HMListedDraft,
-      ],
-      isLoading: false,
-    })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
-    })
-    act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
-
-    const labels = Array.from(container.querySelectorAll('a')).map((link) => link.textContent ?? '')
-    expect(labels.some((label) => label.includes('Untitled Document'))).toBe(true)
-    expect(labels.some((label) => label.includes('-draft-2'))).toBe(false)
-  })
-
-  it('marks collections with a grid icon instead of a private icon', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [
-        makeCollection(['collections'], 'Collections'),
-        makeCollection(['private'], 'Private', 'PRIVATE'),
-        makeDoc(['document'], 'Document'),
-      ],
-      drafts: [],
-      isLoading: false,
-    })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
-    })
-
-    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(2)
-    expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
-  })
-
-  it('marks mounted agents with an agent icon', () => {
+  it('preserves document kinds and private indicators', () => {
+    const collection = makeDoc(['collection'], 'Collection')
+    collection.isCollection = true
     const agent = makeDoc(['helper'], 'Helper')
-    agent.metadata = {name: 'Helper', type: 'hm://hyper.media/agent'}
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [agent, makeCollection(['collections'], 'Collections'), makeDoc(['document'], 'Document')],
+    agent.metadata.type = 'hm://hyper.media/agent'
+    const privatePage = makeDoc(['private'], 'Private', 'PRIVATE')
+    setDirectory({
+      directory: [collection, agent, privatePage],
       drafts: [],
-      isLoading: false,
     })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
-    })
-
-    expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
-    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(1)
-    expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
+    setCards('hm://site', [collection.id.id, agent.id.id, privatePage.id.id])
+    render()
+    expect(container.querySelector('[aria-label="Collection"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Agent"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Private document"]')).not.toBeNull()
   })
 
-  it('reveals the active document and marks private rows', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],
-      drafts: [],
-      isLoading: false,
-    })
+  it('expands a row whose Card target is the active page', () => {
+    makeDoc(['group'], 'Group')
+    const child = makeDoc(['elsewhere', 'child'], 'Child')
+    setCards('hm://site', ['hm://site/group'])
+    setCards('hm://site/group', [child.id.id])
+    render(child.id)
+    expect(container.querySelector('[aria-label="Collapse Group"]')).not.toBeNull()
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Child')
+  })
 
+  it('reads the space listing only while searching', () => {
+    setCards('hm://site', ['hm://site/guides'])
+    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} searchVisible />))
+    expect(useDirectoryMock.mock.calls.every(([id]) => id === null)).toBe(true)
+    const input = container.querySelector('input')!
     act(() => {
-      root.render(
-        <SiteFileBrowser siteId={hmId('site')} activeDocumentId={hmId('site', {path: ['guides', 'private']})} />,
-      )
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setValue?.call(input, 'guides')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
     })
-
-    expect(container.textContent).toContain('Private guide')
-    expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy()
-    expect(container.querySelector('[aria-label="Private document"]')).toBeTruthy()
-    expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Private guide')
+    expect(useDirectoryMock).toHaveBeenLastCalledWith(hmId('site'), {mode: 'AllDescendants'})
   })
 
   it('shows title matches as a flat list and navigates', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed')
     install.id = hmId('site', {path: ['guides', 'install'], version: 'listed-version', latest: false})
-    const afterNavigate = vi.fn()
     const onPrefetch = vi.fn()
-    useDirectoryWithDraftsMock.mockReturnValue({
+    setDirectory({
       directory: [makeDoc(['guides'], 'Guides'), install],
       drafts: [],
-      isLoading: false,
     })
 
     act(() => {
       root.render(
         <Routing>
-          <SiteFileBrowser
-            siteId={hmId('site')}
-            activeDocumentId={null}
-            onAfterNavigate={afterNavigate}
-            onPrefetch={onPrefetch}
-            searchVisible
-          />
+          <SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onPrefetch={onPrefetch} searchVisible />
         </Routing>,
       )
     })
@@ -256,12 +393,11 @@ describe('SiteFileBrowser', () => {
     expect(onPrefetch).toHaveBeenNthCalledWith(1, latestId(install.id))
     expect(onPrefetch).toHaveBeenNthCalledWith(2, latestId(install.id))
     act(() => result.click())
-    expect(afterNavigate).toHaveBeenCalledOnce()
     expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(install.id)}, undefined)
   })
 
   it('hides search by default and focuses it when revealed', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    setDirectory({directory: [], drafts: []})
     const props = {siteId: hmId('site'), activeDocumentId: null}
 
     act(() => root.render(<SiteFileBrowser {...props} />))
@@ -272,11 +408,11 @@ describe('SiteFileBrowser', () => {
   })
 
   it('clears and closes document filtering from the input', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
+    setDirectory({
       directory: [makeDoc(['guides'], 'Guides')],
       drafts: [],
-      isLoading: false,
     })
+    setCards('hm://site', ['hm://site/guides'])
     const onSearchVisibleChange = vi.fn()
     act(() =>
       root.render(
@@ -304,7 +440,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('closes document filtering with Escape while the input is focused', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    setDirectory({directory: [], drafts: []})
     const onSearchVisibleChange = vi.fn()
     act(() =>
       root.render(
@@ -326,21 +462,14 @@ describe('SiteFileBrowser', () => {
   })
 
   it('keeps Home above filtered documents and navigates to the site root', () => {
-    const afterNavigate = vi.fn()
-    useDirectoryWithDraftsMock.mockReturnValue({
+    setDirectory({
       directory: [makeDoc(['guides'], 'Guides')],
       drafts: [],
-      isLoading: false,
     })
     act(() =>
       root.render(
         <Routing>
-          <SiteFileBrowser
-            siteId={hmId('site')}
-            activeDocumentId={hmId('site', {path: ['guides']})}
-            onAfterNavigate={afterNavigate}
-            searchVisible
-          />
+          <SiteFileBrowser siteId={hmId('site')} activeDocumentId={hmId('site', {path: ['guides']})} searchVisible />
         </Routing>,
       ),
     )
@@ -354,12 +483,11 @@ describe('SiteFileBrowser', () => {
     const home = Array.from(container.querySelectorAll('a')).find((link) => link.textContent === 'Home')!
     expect(home).toBeTruthy()
     act(() => home.click())
-    expect(afterNavigate).toHaveBeenCalledOnce()
-    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: hmId('site')}, undefined)
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(hmId('site'))}, undefined)
   })
 
   it('shows root creation actions only when a creation menu is provided', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    setDirectory({directory: [], drafts: []})
     const createDocument = vi.fn()
     const props = {siteId: hmId('site'), activeDocumentId: null}
 
@@ -387,7 +515,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('offers Agent from the root creation menu when the New menu has it', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    setDirectory({directory: [], drafts: []})
     const createAgent = vi.fn()
     act(() =>
       root.render(
