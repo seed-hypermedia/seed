@@ -86,6 +86,7 @@ type AppToolCallInfo = {
   error?: string // set on failure
   durationMs?: number
   writes?: {id: string; version: string; as: string; at: number}[] // what the tool published with ctx.seed, and as which account
+  sessions?: {sessionId: string; at: number}[] // sessions the tool started with ctx.agent.start
   createdAt: number
 }
 ```

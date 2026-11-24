@@ -1508,6 +1508,7 @@ export class Service {
       agentStateDir: (hostId) =>
         stmt<{state_dir: string}, [string]>(this.#db, `SELECT state_dir FROM agents WHERE id = ?`).get(hostId)
           ?.state_dir ?? null,
+      startAgentSession: (hostId, start) => this.#startAgentSessionFromTool(hostId, start),
       onAgentMemoryChanged: (hostId) => {
         const row = stmt<{account_id: string}, [string]>(this.#db, `SELECT account_id FROM agents WHERE id = ?`).get(
           hostId,
@@ -1612,6 +1613,33 @@ export class Service {
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
     invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+  }
+
+  /** A background session with an agent, started by one of its tools (`ctx.agent.start`). */
+  async #startAgentSessionFromTool(
+    agentId: string,
+    start: {message: string; title?: string; systemPrompt?: string; tools?: string[]; runId: string},
+  ): Promise<{sessionId: string}> {
+    const row = stmt<{account_id: string}, [string]>(this.#db, `SELECT account_id FROM agents WHERE id = ?`).get(
+      agentId,
+    )
+    if (!row) throw new APIError(404, 'Agent not found')
+    const session = this.#createSessionOnce(row.account_id, agentId, start.title ?? 'Started by a tool')
+    this.#forgetSessionDerived(row.account_id, session.sessionId)
+    await this.#messageSessionOnce(row.account_id, session.sessionId, [{type: 'text', text: start.message}], {
+      origin: 'workflow',
+      background: true,
+      runId: start.runId,
+      ...(start.systemPrompt || start.tools
+        ? {
+            runConfig: {
+              ...(start.systemPrompt ? {systemPrompt: start.systemPrompt} : {}),
+              ...(start.tools ? {tools: start.tools} : {}),
+            },
+          }
+        : {}),
+    })
+    return {sessionId: session.sessionId}
   }
 
   /** Serves a running tool's `ctx.seed` request (POST /hm/api/apps/tool-seed, bearer token per call). */

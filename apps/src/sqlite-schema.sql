@@ -450,8 +450,8 @@ CREATE TABLE app_tool_calls (
     error TEXT,
     duration_ms INTEGER,
     created_at INTEGER NOT NULL,
-    -- What the tool published through ctx.seed (JSON list of {id, version, as, at}).
-    writes_json TEXT
+    -- What the tool did beyond its output: {writes?: [{id, version, as, at}], sessions?: [{sessionId, at}]}.
+    effects_json TEXT
 ) WITHOUT ROWID;
 
 CREATE INDEX app_tool_calls_by_tool ON app_tool_calls (tool_id, created_at DESC);

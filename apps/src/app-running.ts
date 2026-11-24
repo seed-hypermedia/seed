@@ -76,7 +76,15 @@ export type AppRunDeps = {
   agentStateDir?: (hostId: string) => string | null
   /** Called after a tool changed its agent host's memory, so clients watching it refresh. */
   onAgentMemoryChanged?: (hostId: string) => void
+  /** Starts a background session with an agent host (`ctx.agent.start`); returns its id. */
+  startAgentSession?: (
+    hostId: string,
+    start: {message: string; title?: string; systemPrompt?: string; tools?: string[]; runId: string},
+  ) => Promise<{sessionId: string}>
 }
+
+/** How many sessions one tool call may start with its agent (`ctx.agent.start`). */
+export const MAX_SESSIONS_PER_TOOL_CALL = 3
 
 /** The accounts an agent publishes as, and which one is its default. */
 export type AgentSigning = {keys: {account: string; label?: string}[]; primary?: string}
@@ -121,7 +129,7 @@ type ToolCallRow = {
   error: string | null
   duration_ms: number | null
   created_at: number
-  writes_json?: string | null
+  effects_json?: string | null
 }
 
 /** A tool call's Seed access: alive only while the call runs, found by the call's token. */
@@ -141,6 +149,7 @@ type ToolSeedSession = {
    */
   actsForHost: boolean
   writes: api.AppToolWrite[]
+  sessions: {sessionId: string; at: number}[]
 }
 
 const toolSeedSessions = new Map<string, ToolSeedSession>()
@@ -538,7 +547,7 @@ function toCallInfo(row: ToolCallRow): api.AppToolCallInfo {
     ...(row.output_json !== null ? {output: JSON.parse(row.output_json)} : {}),
     ...(row.error !== null ? {error: row.error} : {}),
     ...(row.duration_ms !== null ? {durationMs: row.duration_ms} : {}),
-    ...(row.writes_json ? {writes: JSON.parse(row.writes_json) as api.AppToolWrite[]} : {}),
+    ...(row.effects_json ? (JSON.parse(row.effects_json) as Pick<api.AppToolCallInfo, 'writes' | 'sessions'>) : {}),
     createdAt: row.created_at,
   }
 }
@@ -554,6 +563,7 @@ export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unk
   if (!session) throw new AppRunError(401, 'This tool call is over, or the token is not one this server gave out')
   if (!body || typeof body !== 'object') throw new AppRunError(400, 'A ctx.seed request is a JSON object')
   const request = body as {op?: unknown; id?: unknown; document?: unknown; as?: unknown}
+  if (request.op === 'startAgent') return startAgentFromTool(deps, session, body as Record<string, unknown>)
   const id = typeof request.id === 'string' ? unpackHmId(request.id) : null
   if (!id) throw new AppRunError(400, `ctx.seed.${String(request.op)} needs an hm:// address`)
   const target = {...id, version: null, latest: true, blockRef: null, blockRange: null}
@@ -601,6 +611,41 @@ export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unk
     default:
       throw new AppRunError(400, `ctx.seed has no ${String(request.op)}: use resource, directory or publish`)
   }
+}
+
+/**
+ * Starts a session with the tool's agent (`ctx.agent.start(message, options)`): the check-first
+ * pattern, where cheap code decides whether there is work and only then wakes the model. Only a
+ * call acting for the agent may, at most {@link MAX_SESSIONS_PER_TOOL_CALL} times per call.
+ */
+async function startAgentFromTool(deps: AppRunDeps, session: ToolSeedSession, body: Record<string, unknown>) {
+  if (!deps.startAgentSession || !deps.agentStateDir?.(session.host.id))
+    throw new AppRunError(
+      409,
+      "ctx.agent.start works in an agent's tools: an app has no agent to start. Use a trigger document under the agent for that work.",
+    )
+  if (!session.actsForHost)
+    throw new AppRunError(
+      403,
+      'Only the agent’s writers and its triggers may make its tools start it (a model run costs). A tool whose document says callableBy: "viewers" may also.',
+    )
+  if (session.sessions.length >= MAX_SESSIONS_PER_TOOL_CALL)
+    throw new AppRunError(429, `A tool call may start the agent at most ${MAX_SESSIONS_PER_TOOL_CALL} times`)
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  if (!message) throw new AppRunError(400, 'ctx.agent.start(message): the message is the session’s first message')
+  const options = (body.options ?? {}) as Record<string, unknown>
+  const tools = Array.isArray(options.tools)
+    ? options.tools.filter((tool): tool is string => typeof tool === 'string')
+    : undefined
+  const {sessionId} = await deps.startAgentSession(session.host.id, {
+    message,
+    runId: `tool-call-${session.callId}-${session.sessions.length + 1}`,
+    ...(typeof options.title === 'string' && options.title ? {title: options.title} : {}),
+    ...(typeof options.systemPrompt === 'string' && options.systemPrompt ? {systemPrompt: options.systemPrompt} : {}),
+    ...(tools?.length ? {tools} : {}),
+  })
+  session.sessions.push({sessionId, at: Date.now()})
+  return {sessionId}
 }
 
 /** The account to publish as: the one named by `as` (a key field or its account), or the only key. */
@@ -666,6 +711,7 @@ export async function callAppTool(
     caller,
     signingKeys: {},
     writes: [],
+    sessions: [],
     actsForHost: false,
   }
   // A call that does not act for the host gets an empty scratch memory, removed afterwards.
@@ -749,11 +795,17 @@ export async function callAppTool(
     error: error ?? null,
     duration_ms: Date.now() - startedAt,
     created_at: startedAt,
-    writes_json: session.writes.length ? JSON.stringify(session.writes) : null,
+    effects_json:
+      session.writes.length || session.sessions.length
+        ? JSON.stringify({
+            ...(session.writes.length ? {writes: session.writes} : {}),
+            ...(session.sessions.length ? {sessions: session.sessions} : {}),
+          })
+        : null,
   }
   deps.db
     .query(
-      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at, writes_json)
+      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at, effects_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
@@ -767,7 +819,7 @@ export async function callAppTool(
       row.error,
       row.duration_ms,
       row.created_at,
-      row.writes_json ?? null,
+      row.effects_json ?? null,
     )
   return toCallInfo(row)
 }

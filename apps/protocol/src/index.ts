@@ -2280,6 +2280,8 @@ export type AppToolCallInfo = {
   durationMs?: number
   /** What the tool published through `ctx.seed`, each signed by one of the host's keys. */
   writes?: AppToolWrite[]
+  /** Sessions the tool started with its agent through `ctx.agent.start`. */
+  sessions?: {sessionId: string; at: number}[]
   createdAt: number
 }
 

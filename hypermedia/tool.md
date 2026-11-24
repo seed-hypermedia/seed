@@ -22,7 +22,7 @@ The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The
 The code contract is one async function:
 
 ```ts
-export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; memory: Memory; seed: Seed}): Promise<Output> {
+export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; memory: Memory; seed: Seed; agent: Agent}): Promise<Output> {
   // ...
 }
 ```
@@ -32,6 +32,7 @@ export default async function (input: Input, ctx: {app: string; publicConfig: ob
 - `ctx.privateConfig` is the private config that the host's server holds. A [signing key](./signing-key.md) field in it holds the account the key signs as, never the key.
 - `ctx.memory` reads and writes the host's memory (see "Memory" below).
 - `ctx.seed` reads and publishes documents through the host's server (see "Seed access" below).
+- `ctx.agent.start` wakes the host agent with a message (see "Starting the agent" below).
 
 # How a tool runs
 
@@ -64,6 +65,23 @@ ctx.memory.scope                                  // "host", or "scratch" (below
 - **Paths** stay inside the memory; a path that leaves it fails.
 - **Write files whole, one per event.** Calls, the agent's sessions and its triggers share an agent's memory, so follow the rules on [memory](./agent/memory.md#what-not-to-keep-in-workspace): no shared file read, changed and written back by concurrent calls.
 - An agent's Memory tab updates after a tool changes its memory.
+
+# Starting the agent
+
+A tool under an [agent](./agent.md) can start a session with it: cheap code checks whether there is work, and only then does the model run. A scheduled trigger that checks every 5 minutes then costs a model turn only when something changed.
+
+```ts
+const {sessionId} = await ctx.agent.start('Three new issues to triage: #12, #14, #15', {
+  title: 'Triage',                   // the session's title
+  systemPrompt: 'You triage issues.', // extra instructions for this run
+  tools: ['read', 'write'],          // a narrower tool list for this run
+})
+```
+
+- The session runs in the background, as the agent, like a trigger's session.
+- Only a call that acts for the agent may start it: its writers, its triggers, or anyone when the tool says `callableBy: "viewers"`.
+- A call may start the agent at most 3 times. The sessions are listed on the call record (`sessions`).
+- An app has no agent to start; `ctx.agent.start` fails in an app's tool.
 
 # Seed access
 

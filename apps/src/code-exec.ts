@@ -1493,6 +1493,8 @@ export function buildAppToolProgram(
     '    ),',
     '  remove: async (p) => __fs.rm(__memoryPath(p), {recursive: true, force: true}),',
     '}',
+    // ctx.agent.start: wakes the tool's agent with a message, after cheap checks in code.
+    '__seedContext.agent = {start: (message, options = {}) => __seedCall("startAgent", {message, options})}',
     '__seedContext.seed = {',
     '  resource: (id) => __seedCall("resource", {id: typeof id === "string" ? id : id?.url}),',
     '  directory: (id) => __seedCall("directory", {id: typeof id === "string" ? id : id?.url}),',
