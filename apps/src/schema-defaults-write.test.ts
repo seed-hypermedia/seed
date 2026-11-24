@@ -129,7 +129,9 @@ test('the published change carries the defaults as ordinary attributes', async (
   const result = await api.executeWriteVerb(ctx, {
     address: `hm://${ctx.accountId}/tasks/write-docs`,
     content: 'Write the docs.',
-    options: {name: 'Write docs'},
+    // The required checklist has no default, so the author passes it: a new document that would
+    // not conform to its type is refused.
+    options: {name: 'Write docs', metadata: {checklist: {done: false, steps: []}}},
   })
   expect(result.defaultsApplied).toEqual({status: 'todo', priority: 2, tags: []})
   expect(publishes).toHaveLength(1)
