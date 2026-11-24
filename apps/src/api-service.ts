@@ -126,6 +126,11 @@ import {
   sameDocumentVersion,
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
+  applyBlockEdits,
+  BlockEditError,
+  describeContentChange,
+  markdownUpdateTree,
+  MarkdownResolvedRangeError,
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
 import {appEmbedBlobs, findListingApp, missingCardBlobs, resolveAppParent, withHostLock} from '@/app-children'
@@ -144,7 +149,7 @@ import {
 } from '@seed-hypermedia/client/apps'
 import {withTimeout} from '@/poll-loop'
 import {loadMermaidParser} from './mermaid-parser'
-import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
+import type {CollectedBlob, ContentChange, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
@@ -12957,7 +12962,7 @@ function promptBlocksToMarkdown(blocks: HMBlockNode[]): string {
 function stripPromptMarkdownArtifacts(markdown: string): string {
   return markdown
     .replace(/^---\n---\n\n?/, '')
-    .replace(/[ \t]*<!-- id:[^>]+ -->/g, '')
+    .replace(/[ \t]*<!-- id:.*? -->/g, '')
     .trim()
 }
 
@@ -14275,6 +14280,8 @@ type ParsedWriteDocumentContent = {
   ops: DocumentOperation[]
   metadata: HMMetadata
   blocks: HMBlockNode[]
+  /** How the body was written. Markdown says less than blocks do, so an update compares it differently. */
+  format?: 'markdown' | 'json'
 }
 
 /**
@@ -16734,7 +16741,7 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force', 'edits'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -17342,6 +17349,7 @@ export async function executeWriteVerb(
                 ...(typeof options.name === 'string' ? {name: options.name} : {}),
                 ...(metadata ? {metadata} : {}),
                 ...(content !== undefined ? {content, format: 'markdown'} : {}),
+                ...(options.edits !== undefined ? {edits: options.edits} : {}),
               }),
               pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
             ),
@@ -18589,29 +18597,50 @@ async function writeDocumentUpdate(
   // No content at all means a metadata-only update: the body is left untouched. This must stay
   // distinct from empty content — diffing an absent body against the old tree would emit a
   // delete sweep of every block.
-  const hasContent =
+  const hasBody =
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
-  const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
-  if (parsed) await assertPublishableMermaid(parsed.blocks)
-  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
-  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
-  let contentOps: DocumentOperation[] = []
-  if (parsed) {
-    const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
-    const oldMap = createBlocksMap(oldNodes)
-    // Tables: markdown only carries table/column/row ids, so cell block ids and
-    // unexpressible attributes (column width, header column) are rebound from
-    // the old document before diffing.
-    const newTree = rebindTableIdentities(
-      oldNodes,
-      parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
+  const hasEdits = request.input.edits !== undefined
+  if (hasBody && hasEdits)
+    throw new APIError(
+      400,
+      'Pass either content (a whole new body) or options.edits (changes to blocks by id), not both.',
     )
-    contentOps = computeReplaceOps(oldMap, newTree)
+  const hasContent = hasBody || hasEdits
+  const stored = resource.document.content || []
+  const oldNodes = stored.map((node) => toAPIBlockNode(node))
+  let parsed = hasBody ? parseWriteDocumentContent(request.input) : undefined
+  let newTree: MarkdownBlockNode[] | undefined
+  if (hasEdits) {
+    // Edits start from the stored blocks, so a block no edit names is never parsed or compared.
+    const edited = applyBlockEditsOrBadRequest(
+      stored.map((node) => hmBlockNodeToBlockNode(node)),
+      request.input.edits,
+    )
+    newTree = rebindTableIdentities(oldNodes, edited.tree)
+    parsed = {ops: [], metadata: {}, blocks: markdownBlockNodesToHMBlockNodes(newTree)}
+  } else if (parsed) {
+    const written = parsed.blocks.map((node) => hmBlockNodeToBlockNode(node))
+    // Markdown: a block that reads as the stored one is the stored one (markdownUpdateTree).
+    // Blocks given as JSON are compared as given, after table cells get their ids back.
+    newTree =
+      parsed.format === 'markdown' ? markdownUpdateTree(stored, written) : rebindTableIdentities(oldNodes, written)
   }
+  const contentOps = newTree ? computeReplaceOps(createBlocksMap(oldNodes), newTree) : []
+  const changes = newTree ? describeContentChange(oldNodes, newTree, contentOps) : undefined
+  if (parsed) {
+    // Only what this write stores is checked: a dead link in a block it leaves alone was published
+    // by an earlier write and is not this one's to refuse.
+    const writtenBlocks = writtenBlockNodes(contentOps)
+    await assertPublishableMermaid(writtenBlocks)
+    await assertHmContentLinks(client, writtenBlocks, {skipResolve: request.input.skipLinkCheck === true})
+  }
+  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   // Nothing asked for at all is a mistake in the call. Content or metadata that the document already
   // holds is not: that write ends as "already up to date" below.
   if (!hasContent && !Object.values(metadata).some((value) => value !== undefined))
-    throw new APIError(400, 'No document updates specified — provide content and/or metadata')
+    throw new APIError(400, 'No document updates specified — provide content, edits and/or metadata')
+  const removal = hasBody && changes ? largeRemoval(changes) : undefined
+  if (removal && !request.dryRun && request.input.force !== true) throw new APIError(400, removal)
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -18629,10 +18658,9 @@ async function writeDocumentUpdate(
     const existing = await documentSchemaReport(client, packHmId(targetId), resource.document.metadata)
     refuseNonconformingWrite(request.command, packHmId(targetId), problems, request, existing.problems)
   }
-  const assets = await preflightDocumentAssets(client, parsed?.blocks ?? resource.document.content ?? [], {
-    ...resource.document.metadata,
-    ...metadata,
-  })
+  // The body as it will read: a block kept as stored keeps its stored links.
+  const body = newTree ? markdownBlockNodesToHMBlockNodes(newTree) : stored
+  const assets = await preflightDocumentAssets(client, body, {...resource.document.metadata, ...metadata})
   const plan = planDocumentUpdate(base, metadata, contentOps)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -18652,7 +18680,9 @@ async function writeDocumentUpdate(
         to: packHmId(hop.to),
         republish: hop.republish,
       })),
-      ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      ...(newTree ? {blockCount: body.length} : {metadataOnly: true}),
+      ...(changes ? {changes: contentChangeReport(changes)} : {}),
+      ...(removal && request.input.force !== true ? {wouldRefuse: removal} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
@@ -18692,11 +18722,65 @@ async function writeDocumentUpdate(
     redirectHops,
     version,
     cids: published.cids,
+    ...(changes ? {changes: contentChangeReport(changes)} : {}),
     ...typed,
     // Nothing was published when nothing changed, so there is no new version to read back; the
     // assets were checked before the publish either way.
     ...(update.changed ? await readBackDocumentAssets(client, packHmId(targetId), version, assets) : {}),
   })
+}
+
+type MarkdownBlockNode = ReturnType<typeof hmBlockNodeToBlockNode>
+
+/** Applies `options.edits` to the stored blocks; an edit that cannot apply is the caller's mistake. */
+function applyBlockEditsOrBadRequest(tree: MarkdownBlockNode[], edits: unknown) {
+  if (Array.isArray(edits) && edits.length > MAX_BLOCK_EDITS)
+    throw new APIError(400, `Too many edits: at most ${MAX_BLOCK_EDITS} in one update.`)
+  try {
+    return applyBlockEdits(tree, edits, (markdown) => {
+      const content = normalizeWriteContent(markdown, 'Edit content')
+      refusePartialRead(content)
+      return parseMarkdownOrBadRequest(content).tree
+    })
+  } catch (error) {
+    if (error instanceof BlockEditError)
+      throw new APIError(400, `${error.message} Nothing was published; no edit in the list was applied.`)
+    throw error
+  }
+}
+
+const MAX_BLOCK_EDITS = 500
+
+/** The blocks an update stores (new or rewritten), as block nodes for the content checks. */
+function writtenBlockNodes(ops: DocumentOperation[]): HMBlockNode[] {
+  const nodes: HMBlockNode[] = []
+  for (const op of ops) {
+    if (op.type !== 'ReplaceBlock') continue
+    const {type, id, text, link, annotations, ...attributes} = op.block as Record<string, unknown>
+    nodes.push({block: {type, id, text, link, annotations, attributes}, children: []} as unknown as HMBlockNode)
+  }
+  return nodes
+}
+
+/** What a content update did, as the write result reports it. */
+function contentChangeReport(change: ContentChange) {
+  const {added, rewritten, moved, deleted} = change
+  return {added, rewritten, moved, deleted}
+}
+
+const LARGE_REMOVAL_MIN_BLOCKS = 6
+
+/**
+ * A new body deletes every block it leaves out. A body that leaves out most of the document is far
+ * more often a mistake (a summary, one section, a page of a paged read, a draft written from
+ * memory) than a rewrite, so it is refused unless the write passes `options.force: true`. Edits
+ * are not checked: they delete only the blocks they name.
+ */
+function largeRemoval(change: ContentChange): string | undefined {
+  if (change.deleted < LARGE_REMOVAL_MIN_BLOCKS || change.deleted * 2 <= change.blocks) return undefined
+  return `This body would delete ${change.deleted} of the document's ${change.blocks} blocks and keep ${
+    change.blocks - change.deleted
+  }: a block that a replacement body leaves out is deleted. Nothing was published. To change part of the document, send options.edits (changes to blocks by id) instead of content. To keep blocks, write them back as the read returned them. If the document should lose these blocks, repeat the write with options.force: true.`
 }
 
 type AttributeWrite = {key: string[]; value: unknown}
@@ -20163,7 +20247,8 @@ export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof pa
   try {
     return parseMarkdown(resolveDocsMarkdown(content))
   } catch (error) {
-    if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
+    if (error instanceof MarkdownFrontmatterError || error instanceof MarkdownResolvedRangeError)
+      throw new APIError(400, error.message)
     throw error
   }
 }
@@ -20193,12 +20278,35 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
   if (format !== 'markdown' && format !== 'json') throw new APIError(400, 'Document format must be markdown or json')
   if (format === 'markdown') {
     const content = normalizeWriteContent(rawContent, 'Document content')
+    refusePartialRead(content)
     const {tree, metadata} = parseMarkdownOrBadRequest(content)
     const blocks = markdownBlockNodesToHMBlockNodes(tree)
-    return {ops: flattenToOperations(tree), metadata, blocks}
+    return {ops: flattenToOperations(tree), metadata, blocks, format}
   }
   const blocks = parseWriteJsonBlocks(rawContent)
-  return {ops: hmBlockNodesToOperations(blocks), metadata: normalizeMetadataInput(input.metadata), blocks}
+  return {ops: hmBlockNodesToOperations(blocks), metadata: normalizeMetadataInput(input.metadata), blocks, format}
+}
+
+/**
+ * The line a paged read of a document's markdown ends with (see paginateReadResult). It marks the
+ * text as part of a document.
+ */
+function readPageMarker(offset: number, end: number, total: number): string {
+  return `<!-- page: characters ${offset}-${end} of ${total}; part of the document, not all of it -->`
+}
+
+const READ_PAGE_MARKER = /^[ \t]*<!-- page: characters \d+-\d+ of \d+;[^>]*-->[ \t]*$/m
+
+/**
+ * A page of a paged read written as a document's body would delete every block on the other
+ * pages, so a body that still holds a page marker is refused.
+ */
+function refusePartialRead(content: string): void {
+  if (!READ_PAGE_MARKER.test(content)) return
+  throw new APIError(
+    400,
+    'The content holds a `<!-- page: … -->` line from a paged read, so it is part of a document and not a whole body; writing it would delete the blocks on the other pages. Nothing was published. To change part of a long document, send options.edits, which names blocks by id and needs only the page that holds them. To replace the whole body, join every page and remove the page lines.',
+  )
 }
 
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
@@ -20245,9 +20353,7 @@ function commentMarkdownToBlocks(
       ],
       mentionedAccounts: [],
     }
-  const prepared = prepareCommentMentions(
-    markdownBlockNodesToHMBlockNodes(parseMarkdown(resolveDocsMarkdown(content)).tree),
-  )
+  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdownOrBadRequest(content).tree))
   if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
     throw new APIError(400, plainMentionsError(prepared.plainMentions))
   }
@@ -20574,6 +20680,11 @@ export function paginateReadResult(rawResult: Record<string, unknown>, rawInput:
     const end = offset + chunk.length
     const more = end < total
     const range = `characters ${offset}–${end} of ${total}`
+    // A page of a document's markdown says so in the text itself, where a write can see it.
+    const marked =
+      result.type === 'hypermedia_document' && field === 'markdown'
+        ? `${chunk}${chunk.endsWith('\n') ? '' : '\n'}${readPageMarker(offset, end, total)}\n`
+        : chunk
     const paged = {
       ...result,
       summary: `${typeof result.summary === 'string' ? `${result.summary} ` : ''}${
@@ -20581,7 +20692,7 @@ export function paginateReadResult(rawResult: Record<string, unknown>, rawInput:
           ? `Showing ${range} of ${field}; read the same address with options {offset: ${end}} for the next page.`
           : `Showing ${range} of ${field} (the end).`
       }`,
-      [field]: chunk,
+      [field]: marked,
       page: {field, offset, end, total, ...(more ? {nextOffset: end} : {})},
     }
     // JSON escaping and the result's other fields count against the model ceiling too.
@@ -21100,7 +21211,8 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
     if (outputFormat === 'json') {
       result.resource = resource
     } else {
-      const markdown = await documentToResolvedMarkdown(resource.document, {client})
+      // `ipfs://` links stay as they are stored, so the markdown can be written back as it was read.
+      const markdown = await documentToResolvedMarkdown(resource.document, {client, ipfsGateway: false})
       result.markdown = ensureToolResultSize(markdown)
     }
     return result

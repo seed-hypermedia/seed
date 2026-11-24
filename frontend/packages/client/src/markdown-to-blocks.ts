@@ -866,6 +866,11 @@ export type ParseMarkdownOptions = {
    * paths that must render whatever they are given.
    */
   strictFrontmatter?: boolean
+  /**
+   * `true` (default) throws {@link MarkdownResolvedRangeError} on a `<!-- resolved -->` range that
+   * is never closed. `false` drops everything after it, for display paths.
+   */
+  strictResolvedRanges?: boolean
 }
 
 export function parseFrontmatter(
@@ -975,11 +980,12 @@ const RESOLVED_EMBED_OPEN =
 const RESOLVED_EMBED_CLOSE = /^\s*<!--\s*\/embed:\s*([^\s]+)\s*-->\s*$/
 
 /**
- * Turns each resolved embed back into the embed it came from. Resolved markdown (what an agent's
- * `read` returns) prints an embed as its target's content between `<!-- embed: URL; title: …;
- * view: … -->` and `<!-- /embed: URL -->`. Written back, that range must become the Embed block
- * again, not paragraphs copied out of the embedded document, so a read-then-write round trip keeps
- * the document's embeds. Nested embeds inside the range belong to the embedded document and go
+ * Turns each embed written the earlier way back into the embed it came from. Resolved markdown used
+ * to print an embed as its target's content between `<!-- embed: URL; title: …; view: … -->` and
+ * `<!-- /embed: URL -->`; it now writes the embed block itself and shows the content in a
+ * `<!-- resolved -->` range ({@link stripResolvedRanges}). Markdown read before that change is
+ * still written back, so the old range still becomes the Embed block, not paragraphs copied out of
+ * the embedded document. Nested embeds inside the range belong to the embedded document and go
  * with it. Lines inside code fences are left alone.
  */
 export function collapseResolvedEmbeds(markdown: string): string {
@@ -1037,6 +1043,58 @@ export function collapseResolvedEmbeds(markdown: string): string {
   return out.join('\n')
 }
 
+const RESOLVED_OPEN = /^\s*<!--\s*resolved(?::[^>]*?)?\s*-->\s*$/
+const RESOLVED_CLOSE = /^\s*<!--\s*\/resolved\s*-->\s*$/
+
+/** Thrown when a `<!-- resolved -->` range is never closed: what follows it cannot be told from what it shows. */
+export class MarkdownResolvedRangeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MarkdownResolvedRangeError'
+  }
+}
+
+/**
+ * Drops what resolved markdown shows for the reader. `documentToResolvedMarkdown` follows an embed
+ * with its target's content, and a query with its results, between `<!-- resolved: … -->` and
+ * `<!-- /resolved -->`. None of that is part of the document: the embed or query block on the line
+ * above is. Ranges nest (an embedded document has embeds of its own), and a marker inside a code
+ * or math block is text.
+ */
+export function stripResolvedRanges(markdown: string, options: {strict?: boolean} = {}): string {
+  if (!/<!--\s*resolved/.test(markdown)) return markdown
+  const out: string[] = []
+  let depth = 0
+  let fence: number | '$$' | null = null
+  for (const line of markdown.split('\n')) {
+    const trimmed = line.trim()
+    if (fence === null) {
+      if (RESOLVED_OPEN.test(line)) {
+        depth++
+        continue
+      }
+      if (depth > 0 && RESOLVED_CLOSE.test(line)) {
+        depth--
+        continue
+      }
+      // A block may open after a list or quote marker (`- ```ts`).
+      const start = trimmed.replace(/^(?:(?:[-*+]|\d+[.)]|>) )+/, '')
+      const opening = /^(`{3,})/.exec(start)
+      if (opening) fence = opening[1]!.length
+      else if (start.startsWith('$$')) fence = '$$'
+    } else if (fence === '$$' ? trimmed === '$$' : /^`{3,}$/.test(trimmed) && trimmed.length >= fence) {
+      fence = null
+    }
+    if (depth === 0) out.push(line)
+  }
+  if (depth > 0 && options.strict !== false) {
+    throw new MarkdownResolvedRangeError(
+      'A `<!-- resolved -->` range is never closed with `<!-- /resolved -->`. Those ranges show what an embed or a query points at and are not part of the document: remove the range, or restore its closing line.',
+    )
+  }
+  return out.join('\n')
+}
+
 export function parseMarkdown(
   markdown: string,
   options: ParseMarkdownOptions = {},
@@ -1045,7 +1103,7 @@ export function parseMarkdown(
   metadata: HMMetadata
 } {
   const {content, metadata} = parseFrontmatter(markdown, options)
-  const lines = collapseResolvedEmbeds(content).split('\n')
+  const lines = collapseResolvedEmbeds(stripResolvedRanges(content, {strict: options.strictResolvedRanges})).split('\n')
   const infos = lines.map(analyzeLine)
   const root: Frame = {list: [], childIndent: 0}
   const stack: Frame[] = [root]

@@ -66,7 +66,7 @@ Most triggers are trigger documents, published with an `hm://` write and `option
 | `options.action` | what it does | its options |
 | --- | --- | --- |
 | `document` (the default) | creates a document (`document.create`) | `name`, `metadata`, `page`, `pageTarget`, `pageData`, `tool`, `trigger` |
-| `update` | publishes a new version of the document at the address | the same as `document` |
+| `update` | publishes a new version of the document at the address | the same as `document`, and `edits` |
 | `comment` | comments on the document at the address | `target`, `replyTo`, `allowPlainMentions` |
 | `move` | moves the document | `toPath` |
 | `redirect` | makes the address redirect | `toUrl` |
@@ -85,7 +85,20 @@ On `document` and `update`, three options turn the document into something more.
 
 Read `~/tools/write/pages`, `~/tools/write/apps` and `~/tools/write/triggers` before using them.
 
-For `update`, the write address **is** the document to edit. There is no separate option to name it. An update with `content` replaces the whole document body. An update with no `content` changes only metadata and leaves the body as it is. It never compares against an empty body, which would delete every [block](../protocol/blocks.md). <!-- id:QUdlrjMK -->
+For `update`, the write address **is** the document to edit. There is no separate option to name it. An update with no `content` and no `edits` changes only metadata and leaves the body as it is. It never compares against an empty body, which would delete every [block](../protocol/blocks.md). <!-- id:QUdlrjMK -->
+
+The body changes in one of two ways:
+
+- **`options.edits`** changes [blocks](../protocol/blocks.md) by id and leaves every other block as it is stored. An edit is `{replace: ID, content}`, `{after | before | into: ID, content}`, `{move: ID, after | before | into: ID}` or `{delete: ID}`. The cost follows the size of the change, and one page of a long document is enough to edit it. Edits apply in order, all or none.
+- **`content`** replaces the whole body. It is the markdown a [`read`](./read.md) returned, with the agent's changes. A block that is left out is deleted.
+
+Three rules keep a whole-body write from changing what the agent did not mean to change:
+
+- A block whose markdown is what the stored block reads as is the stored block. Nothing about it is stored again, even where markdown spells an annotation or a default differently. A block that lost its id comment gets its id back when its markdown matches a stored block.
+- A body that would delete more than half of the document's blocks (and at least six) is refused unless the write passes `options.force: true`.
+- A body that holds the `<!-- page: … -->` line of a paged read is refused.
+
+The result of a content update, and of a dry run, carries `changes: {added, rewritten, moved, deleted}`, counted in blocks. Links and diagrams are checked only in the blocks the write stores.
 
 An update stores only what differs. The runtime compares the new body with the document and asks the site to compute the change (`PrepareDocumentChange`, through the SDK's [`documentUpdateBlobs`](../build/sdk.md)). A block that did not change is not written again, and a block that did not move is not moved again. The runtime signs what the site prepared and publishes it.
 

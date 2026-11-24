@@ -157,11 +157,39 @@ Omit \`options.action\` (or use \`document\`). Write markdown in \`content\`; pa
 
 ## Update
 
-Use \`options.action: "update"\` at the existing document address. Supplying \`content\` replaces the whole body, so first read the current document and preserve block/table identity comments for retained content. Omit \`content\` to change only \`name\` or \`metadata\`. Blocks you kept with their identity comments are not rewritten, and normally nothing else that is unchanged is stored either (the site computes the change; when it cannot, the service builds it and a level whose order changed is stored whole, which reads the same). A write that changes nothing publishes nothing and returns \`unchanged: true\` with the document's current \`version\`; that is a success, do not retry it.
+Use \`options.action: "update"\` at the existing document address, and read the document first. Its body changes in one of two ways. Omit both to change only \`name\` or \`metadata\`.
+
+### Edits: change blocks by id
+
+\`options.edits\` is the usual way. It changes the blocks it names and nothing else, so it costs as much as the change, not as much as the document, and the page of a long document that holds a block is enough to edit it. A block's id is the \`X\` of its \`<!-- id:X -->\` comment in the read.
+
+- \`{"replace": "ID", "content": "…"}\` rewrites one block. Its children stay. When \`content\` holds several blocks, the rest follow it.
+- \`{"after": "ID", "content": "…"}\`, \`{"before": "ID", …}\` and \`{"into": "ID", …}\` add blocks beside a block, or as its last children. A heading's section is its children: \`into\` a heading adds at the end of its section, and \`after\` a heading comes after the whole section.
+- \`{"move": "ID", "after": "ID"}\` (or \`before\`, \`into\`) moves a block with its children.
+- \`{"delete": "ID"}\` or \`{"delete": ["ID", "ID"]}\` deletes blocks with their children.
+
+\`content\` is markdown as a read prints it. Leave id comments off new blocks. Edits apply in order, each to the result of the one before, and all or none.
+
+\`\`\`json
+{"address":"hm://TARGET_UID/notes","options":{"action":"update","edits":[{"replace":"Ab3xYz12","content":"The corrected sentence."},{"after":"Ab3xYz12","content":"A new paragraph."},{"delete":"Qr5tUv78"}],"signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
+\`\`\`
+
+### Content: a whole new body
+
+\`content\` replaces the body, for a rewrite. Write back the markdown of the read with your changes:
+
+- Keep each \`<!-- id:… -->\` comment whole. It is the block's identity, and for a block markdown cannot show (a video, a query, an embed) it also holds the type and attributes: \`<!-- id:X type:Query attrs:{…} -->\`. A block that keeps its comment and its text is not stored again.
+- A block you leave out is deleted. A body that would delete more than half of the document's blocks is refused; pass \`options.force: true\` only when the document should lose them.
+- The lines between \`<!-- resolved: … -->\` and \`<!-- /resolved -->\` under an embed or a query show what it points at. They are not part of the document: writing them back, or dropping them, changes nothing, and text edited inside them is ignored. To change an embed or a query, change its own line.
+- A page of a paged read ends with a \`<!-- page: … -->\` line and is refused as a body. Use edits for a long document.
 
 \`\`\`json
 {"address":"hm://TARGET_UID/notes","content":"Complete replacement body.","options":{"action":"update","name":"Renamed Notes","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
 \`\`\`
+
+### What the result says
+
+A content update, and a dry run of one, returns \`changes: {added, rewritten, moved, deleted}\` in blocks. Compare it with what you meant: a one-sentence fix that reports many blocks rewritten or deleted went wrong, and the previous version is still there to write back. Only what differs is stored (the site computes the change; when it cannot, the service builds it and a level whose order changed is stored whole, which reads the same). A write that changes nothing publishes nothing and returns \`unchanged: true\` with the document's current \`version\`; that is a success, do not retry it. Links and diagrams are checked only in the blocks the write stores.
 
 ## Many documents at once
 
