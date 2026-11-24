@@ -691,7 +691,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.ChangeBody, opts ...blob.ChangeOption) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]
@@ -711,7 +711,7 @@ func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.Chan
 	}
 	slices.SortFunc(deps, func(a, b cid.Cid) int { return strings.Compare(a.KeyString(), b.KeyString()) })
 
-	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts)
+	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts, opts...)
 	if err != nil {
 		return hb, err
 	}

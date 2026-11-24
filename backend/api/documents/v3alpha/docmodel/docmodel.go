@@ -515,7 +515,7 @@ func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encode
 // CreateChange creates a Change blob with the given signer and principal.
 // This allows using NopSigner for client-side signing scenarios where the signer doesn't actually sign.
 // After this the Document instance must be discarded.
-func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
+func (dm *Document) CreateChange(signer core.Signer, at time.Time, opts ...blob.ChangeOption) (hb blob.Encoded[*blob.Change], err error) {
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
 	}
@@ -529,7 +529,7 @@ func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Enco
 
 	at = at.Round(dm.crdt.clock.Precision)
 
-	hb, err = dm.crdt.prepareChange(at, signer, ops)
+	hb, err = dm.crdt.prepareChange(at, signer, ops, opts...)
 	if err != nil {
 		return hb, err
 	}

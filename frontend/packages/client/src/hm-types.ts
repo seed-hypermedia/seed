@@ -2100,6 +2100,7 @@ export const HMRawDocumentChangeSchema = z.object({
   author: z.string().optional(),
   deps: z.array(z.string()).optional(),
   createTime: z.string().optional(),
+  message: z.string().optional(),
 })
 export type HMRawDocumentChange = z.infer<typeof HMRawDocumentChangeSchema>
 
@@ -2378,6 +2379,8 @@ export const HMPrepareDocumentChangeInputSchema = z.object({
   changes: z.array(ProtoDocumentChangeSchema),
   capability: z.string().optional(),
   visibility: z.number().int().optional(),
+  /** Optional human-readable description of the change, like a commit message. */
+  message: z.string().optional(),
 })
 export type HMPrepareDocumentChangeInput = z.infer<typeof HMPrepareDocumentChangeInputSchema>
 

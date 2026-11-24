@@ -580,6 +580,8 @@ export type PrepareDocumentUpdateInput = {
   visibility?: number
   /** Aborts the request. */
   signal?: AbortSignal
+  /** Optional human-readable description of the change, like a commit message. */
+  message?: string
 }
 
 /** The outcome of {@link prepareDocumentUpdateBlobs}. */
@@ -642,6 +644,7 @@ export async function prepareDocumentUpdateBlobs(
       changes,
       capability: input.capability,
       visibility: input.visibility,
+      message: input.message,
     },
     {signal: input.signal},
   )
@@ -717,6 +720,8 @@ export type ClientBuiltDocumentUpdateInput = {
   visibility?: number
   /** This machine's clock in milliseconds. Defaults to `Date.now`. */
   now?: () => number
+  /** Optional human-readable description of the change, like a commit message. */
+  message?: string
 }
 
 /**
@@ -747,6 +752,7 @@ export async function clientBuiltDocumentUpdateBlobs(
     deps: input.state.heads.map((head) => CID.parse(head)),
     depth,
     ts: BigInt(headTs !== undefined && Number.isFinite(headTs) && headTs >= now ? headTs + 1 : now),
+    message: input.message,
   })
   const change = await createChange(unsignedBytes, input.signer)
   const generation = keptGeneration(input.currentGeneration, Number(ts))
@@ -835,6 +841,8 @@ export type DocumentUpdateBlobsInput = {
   prepareTimeoutMs?: number
   /** The largest prepared Change to sign. Defaults to {@link DEFAULT_MAX_PREPARED_CHANGE_BYTES}. */
   maxPreparedChangeBytes?: number
+  /** Optional human-readable description of the change, like a commit message. */
+  message?: string
 }
 
 /** The outcome of {@link documentUpdateBlobs}. */
@@ -893,6 +901,7 @@ export async function documentUpdateBlobs(input: DocumentUpdateBlobsInput): Prom
       currentGeneration: input.currentGeneration,
       visibility: input.visibility,
       now: input.now,
+      message: input.message,
     })
     return {...built, builtBy: 'local', localReason}
   }
@@ -934,6 +943,7 @@ export async function documentUpdateBlobs(input: DocumentUpdateBlobsInput): Prom
         changes,
         capability: input.capability,
         visibility: input.visibility,
+        message: input.message,
       },
       {signal: abort.signal},
     )

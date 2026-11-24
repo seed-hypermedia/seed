@@ -565,6 +565,8 @@ export type HMChange<Block = HMBlock> = HMBlob & {
   depth?: number
   /** The operations this Change applies to the document's content and metadata. */
   body?: HMChangeBody<Block>
+  /** Optional human-readable description of the Change, like a commit message; omitted when empty. */
+  message?: string
 }
 
 /**

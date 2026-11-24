@@ -34,6 +34,8 @@ export type CreateChangeOpsInput = {
   depth?: number
   /** Timestamp (defaults to Date.now()) */
   ts?: bigint
+  /** Optional human-readable description of the change, like a commit message. */
+  message?: string
 }
 
 /**
@@ -57,6 +59,8 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
     unsigned.deps = input.deps ?? []
     unsigned.depth = input.depth ?? 1
   }
+  // Omitted when empty, like the daemon does, so Changes without a message keep their encoding.
+  if (input.message) unsigned.message = input.message
   return {unsignedBytes: cborEncode(unsigned), ts}
 }
 

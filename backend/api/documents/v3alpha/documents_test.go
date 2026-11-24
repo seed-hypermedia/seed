@@ -3301,6 +3301,7 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 				ReplaceBlock: &documents.Block{Id: "c", Type: "paragraph", Text: "Block C"},
 			}},
 		},
+		Message: "Add block C",
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, prepared.UnsignedChange, "must return unsigned CBOR bytes")
@@ -3344,6 +3345,26 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 
 	// Step 7: Verify the version includes our submitted change CID.
 	require.Contains(t, got.Version, signedChange.CID.String(), "version must reference the submitted change")
+
+	// Step 8: The change message survives client-side signing and is reported by the changes API.
+	info, err := alice.GetDocumentChange(ctx, &documents.GetDocumentChangeRequest{Id: signedChange.CID.String()})
+	require.NoError(t, err)
+	require.Equal(t, "Add block C", info.Message)
+
+	list, err := alice.ListDocumentChanges(ctx, &documents.ListDocumentChangesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/prepare-test",
+		Version: got.Version,
+	})
+	require.NoError(t, err)
+	messages := map[string]string{}
+	for _, c := range list.Changes {
+		messages[c.Id] = c.Message
+	}
+
+	require.Equal(t, "Add block C", messages[signedChange.CID.String()])
+	require.Contains(t, messages, doc.Version)
+	require.Equal(t, "", messages[doc.Version], "changes created without a message must report none")
 }
 
 func TestPrepareChangeTakesOverRedirect(t *testing.T) {
