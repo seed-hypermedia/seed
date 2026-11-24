@@ -1,12 +1,24 @@
 import {isNodeSelection, isTextSelection, posToDOMRect} from '@tiptap/core'
+import {Node as PMNode} from 'prosemirror-model'
 import {EditorState, Plugin, PluginKey} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
 import {BaseUiElementCallbacks, BaseUiElementState, BlockNoteEditor, BlockSchema} from '../..'
 import {EventEmitter} from '../../shared/EventEmitter'
+import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
 export type FormattingToolbarCallbacks = BaseUiElementCallbacks
 
 export type FormattingToolbarState = BaseUiElementState
+
+/** Whether the range covers a whole node block (image, file, embed...), which has no text of its own. */
+function coversNodeBlock(doc: PMNode, from: number, to: number): boolean {
+  let found = false
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (selectableNodeTypes.includes(node.type.name) && pos >= from && pos + node.nodeSize <= to) found = true
+    return !found
+  })
+  return found
+}
 
 export class FormattingToolbarView<BSchema extends BlockSchema> {
   private formattingToolbarState?: FormattingToolbarState
@@ -28,15 +40,14 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
     // Sometime check for `empty` is not enough.
     // Doubleclick an empty paragraph returns a node size of 2.
     // So we check also for an empty text size.
-    const isEmptyTextBlock = !doc.textBetween(from, to).length && isTextSelection(state.selection)
+    // A range of selected cards has no text either, but still gets the toolbar.
+    const isEmptyTextBlock =
+      !doc.textBetween(from, to).length && isTextSelection(state.selection) && !coversNodeBlock(doc, from, to)
 
-    return !(
-      !view.hasFocus() ||
-      empty ||
-      isEmptyTextBlock ||
-      // Don't show menu if node selection (image, video, file, embed)
-      isNodeSelection(state.selection)
-    )
+    // A selected node block (image, video, file, embed...) shows the toolbar with its block options.
+    const isInlineNodeSelection = isNodeSelection(selection) && selection.node.type.spec.group !== 'block'
+
+    return !(!view.hasFocus() || empty || isEmptyTextBlock || isInlineNodeSelection)
   }
 
   constructor(

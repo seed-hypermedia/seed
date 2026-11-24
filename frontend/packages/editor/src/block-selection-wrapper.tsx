@@ -1,6 +1,6 @@
 import {cn} from '@shm/ui/utils'
 import {useEffect, useState} from 'react'
-import {selectBlockNodeById} from './block-utils'
+import {extendSelectionToBlock, selectBlockNodeById} from './block-utils'
 import type {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import type {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {fullBlockSelectionPluginKey} from './blocknote/core/extensions/FullBlockSelection/FullBlockSelectionPlugin'
@@ -104,10 +104,18 @@ export function BlockSelectionWrapper({
   }, [onSelectionChange, selected])
 
   const handleMouseDownCapture = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!selectOnMouseDown || !editor.isEditable) return
-    if (e.button !== 0 || e.shiftKey) return
+    if (!editor.isEditable || e.button !== 0) return
     const target = e.target as Element | null
     if (target?.closest?.(INTERACTIVE_CLICK_TARGET)) return
+    if (e.shiftKey) {
+      // Shift-click extends the selection to this block, for every card type. Stopping the event keeps ProseMirror and
+      // the browser from also extending a text selection to the click point.
+      e.preventDefault()
+      e.stopPropagation()
+      extendSelectionToBlock(editor, block.id)
+      return
+    }
+    if (!selectOnMouseDown) return
     e.preventDefault()
     const wasSelected = isBlockSelected(editor, block.id)
     onSelectMouseDown?.(wasSelected)
@@ -120,7 +128,7 @@ export function BlockSelectionWrapper({
     <div
       contentEditable={keepEditable ? undefined : false}
       className={cn(className, selected && 'bn-media-selected')}
-      onMouseDownCapture={selectOnMouseDown ? handleMouseDownCapture : undefined}
+      onMouseDownCapture={handleMouseDownCapture}
     >
       {children}
     </div>

@@ -1,10 +1,11 @@
 import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Node} from '@tiptap/pm/model'
-import {NodeSelection} from 'prosemirror-state'
 import {EditorView} from '@tiptap/pm/view'
+import {NodeSelection, Selection, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor, getBlockInfoFromPos} from './blocknote'
 import {updateGroupCommand} from './blocknote/core/api/blockManipulation/commands/updateGroup'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
+import {getBlockInfo, getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {HMBlockSchema} from './schema'
 
 /**
@@ -40,6 +41,53 @@ export function selectBlockNodeById(
   })
   if (found && opts?.focus !== false) view.focus()
   return found
+}
+
+/**
+ * Where the range ends on its target. upHead is the range's end when
+ * the target comes first and downHead when it comes after.
+ */
+type RangeTarget = {pos: number; upHead: number; downHead: number}
+
+// Extends selection to target in reading order, excluding nested children.
+function extendSelectionInReadingOrder(doc: Node, selection: Selection, target: RangeTarget): TextSelection | null {
+  // A selected card, or a range made by an earlier shift-click, extends from a whole block.
+  const fromText = !(selection instanceof NodeSelection) && selection.$anchor.parent.inlineContent
+  // The innermost block, for example a card in a grid or nested list rather than its outer block.
+  const anchorBlock = fromText ? null : getBlockInfo(getNearestBlockPos(doc, selection.anchor))
+  if (anchorBlock?.block.beforePos === target.pos) return null
+
+  const upwards = target.pos < (anchorBlock ? anchorBlock.block.beforePos : selection.anchor)
+  const anchor = !anchorBlock
+    ? selection.anchor
+    : upwards
+      ? anchorBlock.blockContent.afterPos
+      : anchorBlock.block.beforePos + 1
+  return TextSelection.create(doc, anchor, upwards ? target.upHead : target.downHead)
+}
+
+// Extends selection to the block with the given id, in reading order.
+export function extendSelectionToBlock(editor: BlockNoteEditor<HMBlockSchema>, blockId: string): boolean {
+  const view = editor._tiptapEditor?.view
+  if (!view) return false
+  const {block, blockContent} = getBlockInfo(getNodeById(blockId, view.state.doc))
+  const target = {pos: block.beforePos, upHead: block.beforePos + 1, downHead: blockContent.afterPos}
+  const extended = extendSelectionInReadingOrder(view.state.doc, view.state.selection, target)
+  if (!extended) return selectBlockNodeById(editor, blockId)
+  view.dispatch(view.state.tr.setSelection(extended).scrollIntoView())
+  view.focus()
+  return true
+}
+
+// Extends a selection that starts at a whole block, to a position in text.
+export function extendBlockSelectionToText(view: EditorView, pos: number): boolean {
+  const {selection, doc} = view.state
+  if (!(selection instanceof NodeSelection) && selection.$anchor.parent.inlineContent) return false
+  const extended = extendSelectionInReadingOrder(doc, selection, {pos, upHead: pos, downHead: pos})
+  if (!extended) return false
+  view.dispatch(view.state.tr.setSelection(extended))
+  view.focus()
+  return true
 }
 
 export function updateGroup(editor: BlockNoteEditor<HMBlockSchema>, block: any, listType: HMBlockChildrenType) {

@@ -4,7 +4,6 @@ import {act} from 'react-dom/test-utils'
 import {Schema} from 'prosemirror-model'
 import {EditorState, NodeSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 const editorGate = {canEdit: false, isEditing: false, beginEditIfNeeded: vi.fn()}
@@ -214,7 +213,7 @@ describe('MediaContainer image caption', () => {
     expect(editor.__view.state.selection instanceof NodeSelection).toBe(true)
   })
 
-  it('selects a contiguous media block range when shift-clicking another media block', () => {
+  it('leaves shift-clicks to BlockSelectionWrapper while editing', () => {
     editorGate.canEdit = true
     editorGate.isEditing = true
     const editor = makeEditor(true, true)
@@ -236,12 +235,14 @@ describe('MediaContainer image caption', () => {
 
     act(() => {
       firstMediaChild.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+    const selectedFirst = editor.__view.state.selection
+    act(() => {
       thirdMediaChild.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, shiftKey: true}))
     })
 
-    expect(editor.__view.state.selection instanceof MultipleNodeSelection).toBe(true)
-    const selection = editor.__view.state.selection as MultipleNodeSelection
-    expect(selection.nodes.map((node) => node.attrs.id)).toEqual(['block-1', 'block-2', 'block-3'])
+    expect(selectedFirst instanceof NodeSelection).toBe(true)
+    expect(editor.__view.state.selection.eq(selectedFirst)).toBe(true)
   })
 
   it('does not render copy or comment actions inside the media selection menu', () => {

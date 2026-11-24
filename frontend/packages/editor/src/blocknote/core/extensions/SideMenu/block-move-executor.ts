@@ -6,9 +6,9 @@
  */
 import {Fragment, Node, ResolvedPos} from 'prosemirror-model'
 import {TextSelection, type Transaction} from 'prosemirror-state'
+import {getNodeById} from '../../api/util/nodeUtil'
 import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import type {BlockSchema} from '../../extensions/Blocks/api/blockTypes'
-import {getNodeById} from '../../api/util/nodeUtil'
 import type {DropInstruction} from './drag-state'
 
 type NodeInfo = {
@@ -40,12 +40,17 @@ function isAncestorOf(doc: Node, candidateAncestorId: string, nodeId: string): b
  */
 export function executeBlockMove<BSchema extends BlockSchema>(
   editor: BlockNoteEditor<BSchema>,
-  sourceBlockIds: string[],
+  selectedBlockIds: string[],
   instruction: DropInstruction,
 ): void {
   const view = editor.prosemirrorView
   const {state} = view
   const tr = state.tr
+
+  // A block moves with its nested blocks, so filter out nested blocks.
+  const sourceBlockIds = selectedBlockIds.filter(
+    (id) => !selectedBlockIds.some((otherId) => otherId !== id && isAncestorOf(state.doc, otherId, id)),
+  )
 
   // Guard: prevent dropping into own descendants
   for (const sourceId of sourceBlockIds) {

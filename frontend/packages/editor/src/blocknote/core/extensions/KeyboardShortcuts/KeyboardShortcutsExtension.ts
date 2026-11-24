@@ -1,7 +1,7 @@
 import {Extension} from '@tiptap/core'
-import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
+import {deleteSelectedBlocks} from '../../api/blockManipulation/commands/deleteSelectedBlocks'
 import {
   getPrevBlockInfo,
   mergeBlocksCommand,
@@ -16,7 +16,6 @@ import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
-import {SelectionPluginKey} from '../Blocks/nodes/BlockNode'
 
 export const KeyboardShortcutsExtension = Extension.create<{
   editor: BlockNoteEditor<any>
@@ -31,6 +30,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
     // handleBackspace is partially adapted from https://github.com/ueberdosis/tiptap/blob/ed56337470efb4fd277128ab7ef792b37cfae992/packages/core/src/extensions/keymap.ts
     const handleBackspace = () =>
       this.editor.commands.first(({chain, commands}) => [
+        // Removes exactly the selected blocks when the selection is whole blocks.
+        () => commands.command(({state, dispatch}) => deleteSelectedBlocks(state, dispatch)),
         // Deletes the selection if it's not empty.
         () => commands.deleteSelection(),
         // Undoes an input rule if one was triggered in the last editor state change.
@@ -339,6 +340,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleDelete = () =>
       this.editor.commands.first(({commands}) => [
+        // Removes exactly the selected blocks when the selection is whole blocks.
+        () => commands.command(({state, dispatch}) => deleteSelectedBlocks(state, dispatch)),
         // Deletes the selection if it's not empty.
         () => commands.deleteSelection(),
         // Merges block with the next one (at the same nesting level or lower),
@@ -688,34 +691,6 @@ export const KeyboardShortcutsExtension = Extension.create<{
       //   this.options.editor.moveBlocksDown();
       //   return true;
       // },
-      'Shift-ArrowLeft': () => {
-        const {state, view} = this.editor
-        const {selection} = state
-        const {block} = getBlockInfoFromPos(state, selection.from - 1)
-        if (selection.from <= 3) {
-          return false
-        }
-        if (selection.from === selection.$from.start()) {
-          let currentPos = selection.from - 1
-          let currentNode = state.doc.resolve(currentPos).parent
-          let currentId = getBlockInfoFromPos(state, currentPos).block.node.attrs.id
-          while (block.node.attrs.id === currentId || ['blockNode', 'blockChildren'].includes(currentNode.type.name)) {
-            currentPos--
-            currentNode = state.doc.resolve(currentPos).parent
-            currentId = getBlockInfoFromPos(state, currentPos).block.node.attrs.id
-          }
-          const decoration = Decoration.widget(currentPos, () => {
-            const span = document.createElement('span')
-            span.style.backgroundColor = 'blue'
-            span.style.width = '10px'
-            span.style.height = '10px'
-            return span
-          })
-          const decorationSet = DecorationSet.create(state.doc, [decoration])
-          view.dispatch(state.tr.setMeta(SelectionPluginKey, decorationSet))
-        }
-        return false
-      },
     }
   },
 

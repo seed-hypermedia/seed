@@ -3,7 +3,7 @@ import {keydownHandler} from '@tiptap/pm/keymap'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
-import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
+import {extendBlockSelectionToText, findNextBlock, findPreviousBlock} from '../../../../block-utils'
 import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 
@@ -183,6 +183,48 @@ export const BlockManipulationExtension = Extension.create<{
               view.dom.removeEventListener('keydown', handleCaptionHistoryKey)
             },
           }
+        },
+      }),
+      new Plugin({
+        key: new PluginKey('ShiftClickTextFromBlock'),
+        props: {
+          handleDOMEvents: {
+            // Shift-clicking text while a card is selected extends from that card. Shift-clicks on cards themselves are
+            // handled by BlockSelectionWrapper and never get here.
+            mousedown(view, event) {
+              if (!view.editable || !event.shiftKey || event.button !== 0) return false
+              const coords = view.posAtCoords({left: event.clientX, top: event.clientY})
+              if (!coords || !view.state.doc.resolve(coords.pos).parent.inlineContent) return false
+              if (!extendBlockSelectionToText(view, coords.pos)) return false
+              event.preventDefault()
+              return true
+            },
+          },
+        },
+      }),
+      new Plugin({
+        key: new PluginKey('DoubleClickPastText'),
+        props: {
+          // A double-click in the empty space to the right of a block's text makes the browser select a "word" that runs
+          // on to the next text it finds, across any cards in between. Select the block's last word instead.
+          handleDoubleClick(view, pos, event) {
+            const $pos = view.state.doc.resolve(pos)
+            const block = $pos.parent
+            if (!block.inlineContent || $pos.parentOffset !== block.content.size) return false
+            if (event.clientX <= view.coordsAtPos(pos).right + 2) return false
+
+            const start = $pos.start()
+            // One character per inline node, so offsets in the text are offsets in the block.
+            const text = block.textBetween(0, block.content.size, undefined, '\ufffc')
+            // Split words the way the browser does for a double-click.
+            const segments = Array.from(new Intl.Segmenter(undefined, {granularity: 'word'}).segment(text))
+            const last = segments.filter((segment) => !/^\s*$/.test(segment.segment)).pop()
+            const selection = last?.isWordLike
+              ? TextSelection.create(view.state.doc, start + last.index, start + last.index + last.segment.length)
+              : TextSelection.create(view.state.doc, pos)
+            view.dispatch(view.state.tr.setSelection(selection))
+            return true
+          },
         },
       }),
       new Plugin({

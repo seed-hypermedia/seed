@@ -12,66 +12,8 @@ import {getBlockInfoFromPos} from '../helpers/getBlockInfoFromPos'
 import styles from './Block.module.css'
 import BlockAttributes from './BlockAttributes'
 
-export const SelectionPluginKey = new PluginKey('selectionPluginKey')
-const ClickSelectionPluginKey = new PluginKey('clickSelectionPluginKey')
 const PastePluginKey = new PluginKey('pastePluginKey')
 const headingBoxPluginKey = new PluginKey('headingBoxPluginKey')
-
-const SelectionPlugin = new Plugin({
-  key: SelectionPluginKey,
-  state: {
-    init() {
-      return DecorationSet.empty
-    },
-    apply(tr, oldState) {
-      return tr.getMeta(SelectionPluginKey) || oldState
-    },
-  },
-  props: {
-    decorations(state) {
-      return this.getState(state)
-    },
-  },
-})
-
-// Set selection to content between current selection and shift + left mouse click location.
-const ClickSelectionPlugin = new Plugin({
-  key: ClickSelectionPluginKey,
-  props: {
-    handleDOMEvents: {
-      mousedown(view, event) {
-        if (event.shiftKey && event.button === 0) {
-          const {state} = view
-          const editorBoundingBox = (view.dom.firstChild! as HTMLElement).getBoundingClientRect()
-          const coords = {
-            left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
-            top: event.clientY,
-          }
-          let pos = view.posAtCoords(coords)
-          if (!pos) {
-            return undefined
-          }
-          const {selection} = state
-          const selectedPos = state.doc.resolve(selection.from)
-          const nodePos = state.doc.resolve(pos.pos)
-          if (selectedPos.start() === selection.from && pos.pos === nodePos.end()) {
-            const decoration = Decoration.widget(nodePos.pos, () => {
-              const span = document.createElement('span')
-              span.style.backgroundColor = 'blue'
-              span.style.width = '10px'
-              span.style.height = '10px'
-              return span
-            })
-            const decorationSet = DecorationSet.create(state.doc, [decoration])
-            view.dispatch(state.tr.setMeta(SelectionPluginKey, decorationSet))
-          }
-          return false
-        }
-        return false
-      },
-    },
-  },
-})
 
 const PastePlugin = new Plugin({
   key: PastePluginKey,
@@ -473,8 +415,6 @@ export const BlockNode = Node.create<{
   addProseMirrorPlugins() {
     return [
       // PreviousBlockTypePlugin(),
-      SelectionPlugin,
-      ClickSelectionPlugin,
       PastePlugin,
       headingBoxPlugin,
       // Replace two short hyphen with a long dash

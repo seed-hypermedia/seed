@@ -119,10 +119,12 @@ function makeEditor() {
         state: {
           selection: {
             empty: false,
+            from: 1,
+            to: 2,
             $from: {pos: 1},
             $to: {pos: 2},
           },
-          doc: {},
+          doc: {textBetween: () => 'x'},
         },
       },
     },
