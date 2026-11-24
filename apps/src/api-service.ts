@@ -16733,8 +16733,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -17259,6 +17259,7 @@ export async function executeWriteVerb(
         ...passthrough,
         ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
         ...(options.allowPlainMentions === true ? {allowPlainMentions: true} : {}),
+        ...(options.force === true ? {force: true} : {}),
         ...commandInput,
       },
     })
@@ -18427,7 +18428,8 @@ async function writeDocumentCreate(
   const appCapability = app
     ? await requireWriteCapability(client, account, signer.publicKey, hmIdPathToEntityQueryPath(app.id.path))
     : undefined
-  const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  const {report: typed, problems} = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  refuseNonconformingWrite(request.command, `hm://${account}${path}`, problems, request)
   const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -18472,33 +18474,65 @@ async function writeDocumentCreate(
 
 /**
  * How a document fares against its effective attributes schema (its own `attributesSchema`, else the
- * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia schema — reported
- * beside the published id as `schema` and `warnings`, never as a refusal: conformance is advisory
- * (typed-documents.md), and a person may well build the type and its documents together.
+ * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia
+ * schema. The `report` goes beside the id as `schema` and `warnings`; `problems` are the lines a
+ * write refuses on (see `refuseNonconformingWrite`). A schema that cannot be loaded is only a
+ * warning: an unreachable type must not hold a document hostage.
  */
 async function documentSchemaReport(
   client: ReturnType<typeof createSeedClient>,
   id: string,
   metadata: HMMetadata,
-): Promise<Record<string, unknown>> {
+): Promise<{report: Record<string, unknown>; problems: string[]}> {
   const unpacked = unpackHmId(id)
-  if (!unpacked) return {}
-  const out: Record<string, unknown> = {}
+  if (!unpacked) return {report: {}, problems: []}
+  const report: Record<string, unknown> = {}
   const warnings: string[] = []
+  const problems: string[] = []
   const check = await checkDocumentSchema(client, unpacked, metadata as Record<string, unknown>).catch(() => null)
   if (check && check.via !== 'none') {
-    out.schema = check
+    report.schema = check
     if (check.error) warnings.push(`schema ${check.schema} could not be checked: ${check.error}`)
-    for (const violation of check.violations) warnings.push(`does not conform to ${check.schema}: ${violation}`)
+    for (const violation of check.violations) problems.push(`does not conform to ${check.schema}: ${violation}`)
   }
   const definition = (metadata as Record<string, unknown>).schemaDefinition
   if (typeof definition === 'string' && definition) {
     for (const violation of await checkSchemaDefinition(client, definition)) {
-      warnings.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
+      problems.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
     }
   }
-  if (warnings.length) out.warnings = warnings
-  return out
+  warnings.push(...problems)
+  if (warnings.length) report.warnings = warnings
+  return {report, problems}
+}
+
+/**
+ * A document that would not conform to its type is refused unless the write passes
+ * `options.force: true`: a warning beside a successful publish reads as success, and agents
+ * published off-type values that way (Clerk session 44422dd8 set a project's status to
+ * "In Progress" where the type allows "In Development"). A dry run reports instead of refusing.
+ * `existing` lists the problems the current version already has: an update is refused only for
+ * the ones it introduces, so a fix to an already-nonconforming document is never blocked by
+ * a field it did not touch.
+ */
+function refuseNonconformingWrite(
+  command: string,
+  id: string,
+  problems: string[],
+  request: {dryRun: boolean; input: Record<string, unknown>},
+  existing: string[] = [],
+): void {
+  if (request.dryRun || request.input.force === true) return
+  const introduced = problems.filter((problem) => !existing.includes(problem))
+  if (!introduced.length) return
+  throw new APIError(
+    400,
+    `${command} refused: ${id} would not conform to its type (${introduced.length} problem${
+      introduced.length === 1 ? '' : 's'
+    }): ${introduced.join(
+      '; ',
+    )}. Nothing was published. Fix the metadata to match the type (read the schema for its allowed values), or pass options.force: true to publish it anyway.`,
+  )
 }
 
 /**
@@ -18587,7 +18621,14 @@ async function writeDocumentUpdate(
     signer.publicKey,
     hmIdPathToEntityQueryPath(targetId.path),
   )
-  const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
+  const {report: typed, problems} = await documentSchemaReport(client, packHmId(targetId), {
+    ...resource.document.metadata,
+    ...metadata,
+  })
+  if (problems.length && !request.dryRun && request.input.force !== true) {
+    const existing = await documentSchemaReport(client, packHmId(targetId), resource.document.metadata)
+    refuseNonconformingWrite(request.command, packHmId(targetId), problems, request, existing.problems)
+  }
   const assets = await preflightDocumentAssets(client, parsed?.blocks ?? resource.document.content ?? [], {
     ...resource.document.metadata,
     ...metadata,

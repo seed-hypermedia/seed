@@ -6813,6 +6813,134 @@ describe('api service', () => {
     }
   })
 
+  test('a document write that breaks its type is refused unless options.force, and an update is refused only for what it breaks', async () => {
+    // Live incident (Clerk session 44422dd8): a project was created with status "In Progress" where
+    // its inherited type allows "In Development". The violation came back as a warning beside a
+    // successful publish, which the agent read as success. A nonconforming write must fail instead.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      let existing: {version: string; metadata: Record<string, unknown>} | null = null
+      const publishes: number[] = []
+      const doc = (path: string, version: string, metadata: Record<string, unknown>) => ({
+        type: 'document',
+        id: unpackHmId(`hm://${signerPublicKey}${path}`),
+        document: {
+          content: [],
+          version,
+          account: signerPublicKey,
+          authors: [signerPublicKey],
+          path,
+          createTime: '',
+          updateTime: '',
+          metadata,
+          genesis: version,
+          visibility: 'PUBLIC',
+        },
+      })
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push((init?.body as ArrayBuffer).byteLength)
+          return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existing?.version, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const requested = new URL(href).searchParams.get('id') ?? ''
+          if (requested.includes('/people/bob')) {
+            if (!existing) return Response.json(serialize({type: 'not-found', id: unpackHmId(requested)}))
+            return Response.json(serialize(doc('/people/bob', existing.version, existing.metadata)))
+          }
+          if (requested.includes('/people')) return Response.json(serialize(doc('/people', 'p1', {name: 'People'})))
+          return Response.json(serialize(doc('', 'r1', {name: 'Root'})))
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse' || !identity.identity.accountId)
+        throw new Error('unexpected response')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'Typed writer', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+      })
+      const write = async (input: Record<string, unknown>) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+      const address = `hm://${signerPublicKey}/people/bob`
+      const offType = {name: 'Bob', age: 'old', attributesSchema: 'hm://hyper.media/example/person'}
+      const setupPublishes = publishes.length
+
+      const refused = await write({address, content: 'Bob.', options: {name: 'Bob', metadata: offType}})
+      expect(String(refused.error)).toContain('would not conform to its type')
+      expect(String(refused.error)).toContain('$.metadata.age')
+      expect(String(refused.error)).toContain('options.force: true')
+      expect(publishes).toHaveLength(setupPublishes)
+
+      // A dry run reports the same problems without refusing.
+      const preview = await write({address, content: 'Bob.', dryRun: true, options: {name: 'Bob', metadata: offType}})
+      expect(preview.error).toBeUndefined()
+      expect(preview.dryRun).toBe(true)
+      expect(String(preview.warnings)).toContain('$.metadata.age')
+      expect(publishes).toHaveLength(setupPublishes)
+
+      // force publishes it anyway and says what is wrong.
+      const forced = await write({address, content: 'Bob.', options: {name: 'Bob', metadata: offType, force: true}})
+      expect(forced.error).toBeUndefined()
+      expect(String(forced.warnings)).toContain('$.metadata.age')
+      expect(publishes.length).toBeGreaterThan(setupPublishes)
+      existing = {version: String(forced.version), metadata: {...offType}}
+
+      // An update that leaves the existing violation alone is not blocked by it...
+      const afterForce = publishes.length
+      const renamed = await write({address, options: {action: 'update', name: 'Robert'}})
+      expect(renamed.error).toBeUndefined()
+      expect(publishes.length).toBeGreaterThan(afterForce)
+
+      // ...but one that adds a violation is refused.
+      const beforeBreak = publishes.length
+      const broken = await write({address, options: {action: 'update', metadata: {active: 'yes'}}})
+      expect(String(broken.error)).toContain('$.metadata.active')
+      expect(String(broken.error)).not.toContain('$.metadata.age')
+      expect(publishes.length).toBe(beforeBreak)
+
+      // Fixing the metadata publishes cleanly.
+      const fixed = await write({address, options: {action: 'update', metadata: {age: 42}}})
+      expect(fixed.error).toBeUndefined()
+      expect(fixed.warnings).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('write with options.tool publishes a tool under its app and keeps the app list in step', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
