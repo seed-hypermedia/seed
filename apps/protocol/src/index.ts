@@ -2227,6 +2227,11 @@ export type HostConfigInfo = {
   /** Who last changed the private config, and when; absent when it was never set. */
   updatedBy?: string
   updatedAt?: number
+  /**
+   * The account (`z6Mk…`) each signing-key field of the private config names: who the host's
+   * tools publish as. Public; the keys themselves never leave the server.
+   */
+  signingKeys?: Record<string, string>
 }
 
 /** Response for `GetHostConfig` and `SetHostPrivateConfig`. */

@@ -2,7 +2,7 @@
   "//": "Hypermedia schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node scripts/hypermedia/publish.mjs`.",
   "codec": "dag-cbor",
   "hash": "sha2-256",
-  "count": 127,
+  "count": 128,
   "schemas": {
     "hm://hyper.media/account": "bafyreib6bhgdwvqkcek25kdeg7cjzwvbzaaea2fcka3lddif4l3qw2v4ge",
     "hm://hyper.media/agent": "bafyreicuqsqj3uxdelncdpyk6e7rdj5ep2cgg6zplftwartsuy64zcnpae",
@@ -125,6 +125,7 @@
     "hm://hyper.media/schema/struct-schema": "bafyreifswxmu5gar4ttbvaq2e6twlb3zq7vlhovp7gkfilwydj6zloe7ai",
     "hm://hyper.media/schema/var-schema": "bafyreicrknmmv5dq5kavfbtnvd2ivjfef6vvnijncu2k34wb4z32txlz7m",
     "hm://hyper.media/signature": "bafyreic6phcybaltjnskgl4v4vmglv5q3wjhyr5wclfbm7nsxnsl5r62s4",
+    "hm://hyper.media/signing-key": "bafyreiahuwtxmp4dkqildqwj5ucxfbujaaytuymqi7emgwvlkv5nqjj6bq",
     "hm://hyper.media/string": "bafyreief5z32phwnenex5umhuo6s4xaoaicr7rugce3jtjxemnidtqqn6q",
     "hm://hyper.media/struct": "bafyreidhdx2yo5wv32phnl6gvf6lviojnp5dxvqizv2yhrbs2d6oyuzxgq",
     "hm://hyper.media/timestamp": "bafyreic35cdabjmssqrltwfgemxtyvxpslipo7otpmddvc3zdw4xoeurnu",

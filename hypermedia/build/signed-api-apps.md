@@ -52,13 +52,15 @@ type HostConfigInfo = {
   privateConfigKeys: string[] // names only; the values never leave the server
   updatedBy?: string // who last changed the private config
   updatedAt?: number
+  signingKeys?: Record<string, string> // field -> the account (z6Mk…) a signing-key field names
 }
 ```
 
 - `SetHostPrivateConfig` changes a host's private config on this server. Each value replaces that field, a `null` removes it, and fields not named keep their values. The result must match the host's `privateConfigSchema`.
   - The host must run on this server: an app that names it, or an agent mounted here. An app does not need to be started first.
   - The signer must be able to write the host's [space](../protocol/spaces.md).
-- `GetHostConfig` says which fields are set. Anyone may ask; it never returns values.
+- A field typed [signing key](../signing-key.md) names a key this server holds. Setting one is accepted only when the signer's own account holds that key here (among its server accounts), so a writer cannot attach someone else's key. Any writer may remove one.
+- `GetHostConfig` says which fields are set, and which account each signing-key field names. Anyone may ask; it never returns other values.
 - An agent's tools get its private config like an app's tools do. An agent needs no run step.
 
 # Calling a tool

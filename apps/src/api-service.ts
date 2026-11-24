@@ -1494,7 +1494,21 @@ export class Service {
       decrypt: (ciphertext) => decryptSecret(this.#db, ciphertext),
       serverId: this.#serverId,
       ...(this.#publicUrl ? {publicUrl: this.#publicUrl} : {}),
+      holdsSigningKey: (accountId, keyAccount) => this.#holdsSigningKey(accountId, keyAccount),
     }
+  }
+
+  /** Whether `accountId` holds the signing key of the account `keyAccount` among its server accounts. */
+  #holdsSigningKey(accountId: string, keyAccount: string): boolean {
+    const rows = stmt<{metadata_cbor: Uint8Array | null}, [string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ?`,
+    ).all(accountId)
+    return rows.some((row) => {
+      if (!row.metadata_cbor) return false
+      const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
+      return metadata.kind === 'hm-account-key' && metadata.accountId === keyAccount
+    })
   }
 
   /** Runs an app-running step, turning its errors into API errors with the same status. */

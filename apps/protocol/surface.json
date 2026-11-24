@@ -1550,6 +1550,7 @@
       "fields": {
         "hostId": "string",
         "privateConfigKeys": "string[]",
+        "signingKeys?": "Record<string, string>",
         "updatedAt?": "number",
         "updatedBy?": "string"
       }

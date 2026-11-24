@@ -1805,6 +1805,14 @@ export type HMSchemaVarSchema = {
 export type HMSignature = HMBytes
 
 /**
+ * Signing Key
+ * A field type for a private config: a signing key that the app environment holds for an app or agent, named by its account's `z6Mk…` principal, so the host's tools can publish as that account without ever seeing the key.
+ * A signing key that an app environment holds for an app or agent, named by its account's principal (`z6Mk…`). Only valid in a private config: the server signs with the key and never hands it out.
+ * Schema: hm://hyper.media/signing-key
+ */
+export type HMSigningKey = string
+
+/**
  * Timestamp
  * A point in time as an integer of Unix milliseconds, issued by a causal clock when a blob is signed and never checked against wall-clock time on arrival.
  * A point in time as an integer of Unix milliseconds, claimed by the signer and not checked against wall-clock time.

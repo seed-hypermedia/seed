@@ -35,7 +35,12 @@ export type AppRunDeps = {
   serverId: string
   /** The URL clients reach this server at, when configured: an app naming it needs no lookup. */
   publicUrl?: string
+  /** Whether `accountId` holds the signing key of `keyAccount` on this server (its own server accounts). */
+  holdsSigningKey: (accountId: string, keyAccount: string) => boolean
 }
+
+/** The schema type of a private config field that names a signing key the server holds. */
+export const SIGNING_KEY_TYPE = 'hm://hyper.media/signing-key'
 
 /** An error with an HTTP status, which the service turns into its own APIError. */
 export class AppRunError extends Error {
@@ -198,7 +203,8 @@ async function requireSpaceWriter(client: SeedClient, appId: UnpackedHypermediaI
   if (appId.uid === signer) return
   const path = appId.path?.length ? `/${appId.path.join('/')}` : ''
   const capability = await resolveCapability(client, appId.uid, signer, path).catch(() => undefined)
-  if (!capability) throw new AppRunError(403, 'Only someone who can write to the app’s space can run or stop it')
+  if (!capability)
+    throw new AppRunError(403, 'Only someone who can write to the app’s space can run it, stop it or change its config')
 }
 
 function toRunInfo(row: AppRunRow, deps: AppRunDeps): api.AppRunInfo {
@@ -315,13 +321,45 @@ async function savePrivateConfig(
   const merged = hostConfig.mergePrivateConfig(stored, changes)
   const violations = await schemaViolations(deps.client, host.metadata.privateConfigSchema, merged)
   if (violations.length) throw new AppRunError(400, `Private config does not match: ${violations.join('; ')}`)
+  // A signing key is attached only by someone who holds it here: a writer of the host cannot lend
+  // the host a key that belongs to someone else. Detaching (null) and keeping a key are allowed.
+  for (const field of await signingKeyFields(deps.client, host.metadata.privateConfigSchema)) {
+    const value = changes[field]
+    if (value === undefined || value === null || value === stored[field]) continue
+    if (typeof value !== 'string' || !deps.holdsSigningKey(signer, value))
+      throw new AppRunError(
+        403,
+        `${field} must be a signing key your account holds on this server: create or import it under Server accounts, then choose it here.`,
+      )
+  }
   hostConfig.writePrivateConfig(deps.db, deps, {hostId: hostId.id, spaceUid: hostId.uid}, merged, signer)
 }
 
-/** A host's config on this server: which private config fields are set (never their values). */
-export function getHostConfig(deps: AppRunDeps, action: {hostId: string}): api.HostConfigInfo {
+/** The private config fields whose type is a signing key. */
+async function signingKeyFields(client: SeedClient, ref: unknown): Promise<string[]> {
+  if (typeof ref !== 'string' || !ref) return []
+  const loaded = await loadSchemaRef(client, ref).catch(() => null)
+  return structFields(loaded?.schema)
+    .filter((field) => (field.schema as {type?: unknown}).type === SIGNING_KEY_TYPE)
+    .map((field) => field.name)
+}
+
+/**
+ * A host's config on this server: which private config fields are set (never their values), and
+ * the account each signing-key field names (public: it is who the host publishes as).
+ */
+export async function getHostConfig(deps: AppRunDeps, action: {hostId: string}): Promise<api.HostConfigInfo> {
   const hostId = versionless(action.hostId, 'host')
-  return {hostId: hostId.id, ...hostConfig.hostConfigState(deps.db, deps, hostId.id)}
+  const state = hostConfig.hostConfigState(deps.db, deps, hostId.id)
+  const info: api.HostConfigInfo = {hostId: hostId.id, ...state}
+  if (!state.privateConfigKeys.length) return info
+  const host = await loadDocument(deps.client, hostId, isToolHostType, 'app').catch(() => null)
+  const fields = host ? await signingKeyFields(deps.client, host.metadata.privateConfigSchema) : []
+  const values = fields.length ? hostConfig.readPrivateConfig(deps.db, deps, hostId.id) : {}
+  const signingKeys = Object.fromEntries(
+    fields.filter((field) => typeof values[field] === 'string').map((field) => [field, values[field] as string]),
+  )
+  return Object.keys(signingKeys).length ? {...info, signingKeys} : info
 }
 
 /**

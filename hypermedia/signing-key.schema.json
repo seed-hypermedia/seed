@@ -1,0 +1,6 @@
+{
+  "type": "hm://hyper.media/string",
+  "format": "signing-key",
+  "pattern": "^z[1-9A-HJ-NP-Za-km-z]{40,}$",
+  "description": "A signing key that an app environment holds for an app or agent, named by its account's principal (`z6Mk…`). Only valid in a private config: the server signs with the key and never hands it out."
+}
