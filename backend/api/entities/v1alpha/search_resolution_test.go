@@ -299,6 +299,135 @@ func TestSearchEntitiesFoodVersions(t *testing.T) {
 	require.True(t, isLatest(byContent["I hate food"].Id), "unrelated later edits carry the current text forward to the latest version")
 }
 
+// The version a hit links to is decided per hit from the history of its
+// genesis, and a search reads that history once per genesis. These two tests
+// pin the outcomes for hits without a block ID (titles) and for several hits
+// that share one genesis.
+func TestSearchEntitiesTitleVersions(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	clock := newTestClock()
+
+	// The title is never written again; only the body changes.
+	kept := createDoc(t, svc, kp, "/lantern", 1, clock, append([]blob.OpMap{titleOp(t, "Amber lantern")}, blockOps("b1", "first body")...)...)
+	kept.edit(t, clock, replaceOp("b1", "second body"))
+
+	// The title is rewritten after it was first indexed.
+	renamed := createDoc(t, svc, kp, "/harbor", 1, clock, titleOp(t, "Cobalt harbor"))
+	renamed.edit(t, clock, titleOp(t, "Cobalt harbor at dusk"))
+
+	got := searchAll(t, svc, "Amber lantern")
+	require.Len(t, got, 1)
+	require.Equal(t, kept.iri(), entityDoc(got[0].Id))
+	require.True(t, isLatest(got[0].Id), "a title untouched by later body edits must link to the latest version")
+
+	got = searchAll(t, svc, "Cobalt harbor")
+	byContent := map[string]*entpb.Entity{}
+	for _, e := range got {
+		t.Logf("hit %q -> %s", e.Content, e.Id)
+		require.Equal(t, renamed.iri(), entityDoc(e.Id))
+		byContent[e.Content] = e
+	}
+
+	require.Contains(t, byContent, "Cobalt harbor")
+	require.Contains(t, byContent, "Cobalt harbor at dusk")
+	require.False(t, isLatest(byContent["Cobalt harbor"].Id), "the superseded title must link to its old version")
+	require.True(t, isLatest(byContent["Cobalt harbor at dusk"].Id), "the current title must link to the latest version")
+}
+
+func TestSearchEntitiesSharedGenesisVersions(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	clock := newTestClock()
+
+	// Three documents on one genesis, so every hit below reads the same history.
+	a := createDoc(t, svc, kp, "/a", 1, clock, append(blockOps("a1", "walrus stays here"), blockOps("a2", "filler one")...)...)
+	b := createDocOnGenesis(t, svc, kp, "/b", 1, a.genesis, clock, append(blockOps("b1", "walrus was here"), blockOps("b2", "filler two")...)...)
+	c := createDocOnGenesis(t, svc, kp, "/c", 1, a.genesis, clock, blockOps("c1", "walrus is newest")...)
+
+	a.edit(t, clock, replaceOp("a2", "filler one edited"))
+	b.edit(t, clock, replaceOp("b1", "walrus moved on"))
+	c.edit(t, clock, blockOps("c2", "filler three")...)
+
+	got := searchAll(t, svc, "walrus")
+	byContent := map[string]*entpb.Entity{}
+	for _, e := range got {
+		t.Logf("hit %q -> %s", e.Content, e.Id)
+		byContent[e.Content] = e
+	}
+
+	require.Len(t, byContent, 4)
+
+	require.Equal(t, a.iri(), entityDoc(byContent["walrus stays here"].Id))
+	require.True(t, isLatest(byContent["walrus stays here"].Id), "an untouched block must link to its document's latest version")
+
+	require.Equal(t, b.iri(), entityDoc(byContent["walrus was here"].Id))
+	require.False(t, isLatest(byContent["walrus was here"].Id), "a rewritten block must keep linking to the version that had the text")
+	require.Equal(t, b.iri(), entityDoc(byContent["walrus moved on"].Id))
+	require.True(t, isLatest(byContent["walrus moved on"].Id))
+
+	require.Equal(t, c.iri(), entityDoc(byContent["walrus is newest"].Id))
+	require.True(t, isLatest(byContent["walrus is newest"].Id), "an untouched block must link to its document's latest version")
+}
+
+// A block whose text around the match changes gives one result per distinct
+// text: the older one keeps linking to the version that had it, the newer one
+// to the latest version. A block moved without a text change stays one result
+// on the latest version. Later edits to other blocks, in this document or in
+// one sharing its genesis, add no results.
+func TestSearchEntitiesEditedAndMovedBlocks(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	clock := newTestClock()
+
+	ops := []blob.OpMap{titleOp(t, "Pelican notes")}
+	ops = append(ops, blockOps("edited", "the pelican eats fish")...)
+	ops = append(ops, blockOps("moved", "a pelican that moves")...)
+	ops = append(ops, blockOps("still", "one pelican stays put")...)
+	ops = append(ops, blockOps("other", "unrelated filler")...)
+	doc := createDoc(t, svc, kp, "/pelican", 1, clock, ops...)
+	sibling := createDocOnGenesis(t, svc, kp, "/sibling", 1, doc.genesis, clock, blockOps("s1", "sibling filler")...)
+
+	doc.edit(t, clock, replaceOp("edited", "the pelican eats only fresh fish"))
+	doc.edit(t, clock, blob.NewOpMoveBlocks("", []string{"moved"}, nil))
+	doc.edit(t, clock, replaceOp("other", "unrelated filler edited"))
+	sibling.edit(t, clock, replaceOp("s1", "sibling filler edited"))
+
+	type result struct {
+		content string
+		block   string
+		latest  bool
+	}
+
+	var got []result
+
+	for _, e := range searchAll(t, svc, "pelican") {
+		t.Logf("hit %s %q -> %s", e.Type, e.Content, e.Id)
+		require.Equal(t, doc.iri(), entityDoc(e.Id))
+
+		block := ""
+		if i := strings.Index(e.Id, "#"); i >= 0 {
+			block = e.Id[i+1:]
+		}
+
+		got = append(got, result{content: e.Content, block: block, latest: isLatest(e.Id)})
+	}
+
+	require.ElementsMatch(t, []result{
+		{content: "Pelican notes", latest: true},
+		{content: "the pelican eats fish", block: "edited", latest: false},
+		{content: "the pelican eats only fresh fish", block: "edited", latest: true},
+		{content: "a pelican that moves", block: "moved", latest: true},
+		{content: "one pelican stays put", block: "still", latest: true},
+	}, got)
+}
+
 func TestSearchEntitiesAccountNameListedOnce(t *testing.T) {
 	t.Parallel()
 

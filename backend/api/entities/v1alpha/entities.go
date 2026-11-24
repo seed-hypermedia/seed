@@ -247,23 +247,167 @@ func progressToProto(prog *syncing.Progress) *entpb.DiscoveryProgress {
 	}
 }
 
-var qGetLatestBlockChange = dqb.Str(`
+// The three queries below answer the version upgrade heuristic of SearchEntities
+// (see the comment there) without reading a genesis' whole history per hit.
+// genesis_blob is not one document: documents that share a genesis share its
+// rows, and one such genesis on a desktop database holds 391k of them. The
+// heuristic used to walk every row newer than the hit, once per hit, which
+// made a body search take 13 s; these read a handful of rows instead.
+
+// qHasLaterBlockChange tells whether the block of a hit was written again at
+// or after the hit's timestamp. It is driven by the block ID, which is
+// selective (a block has as many rows as it has edits), instead of by the
+// genesis. Hits without a block ID use qGetNewestBlocklessChanges: the empty
+// block ID is shared by every title and metadata row of the database.
+var qHasLaterBlockChange = dqb.Str(`
+SELECT 1
+  FROM fts_index INDEXED BY fts_index_by_block
+  WHERE block_id = :blockID
+  AND genesis_blob = :genesisBlobID
+  AND type = :type
+  AND ts >= :Ts
+  AND rowid != :rowID
+  LIMIT 1
+`)
+
+// qGetNewestBlocklessChanges returns the two newest rows of one type that have
+// no block ID (titles) under a genesis. Two rows are enough to tell whether
+// any row other than a given one is at or after a timestamp, so the result is
+// read once per search and reused for every hit of that genesis and type.
+var qGetNewestBlocklessChanges = dqb.Str(`
 SELECT
+  rowid,
+  ts
+  FROM fts_index INDEXED BY fts_index_by_genesis_blob
+  WHERE genesis_blob = :genesisBlobID
+  AND type = :type
+  AND block_id = ''
+  ORDER BY ts DESC
+  LIMIT 2
+`)
+
+// qGetNewestGenesisChanges returns the two newest rows under a genesis: the
+// change a hit is upgraded to when its own block was not written again. Two
+// rows so a hit that is itself the newest row can be skipped. Read once per
+// search and genesis.
+var qGetNewestGenesisChanges = dqb.Str(`
+SELECT
+  fts_index.rowid,
+  fts_index.ts,
   fts_index.blob_id,
-  version,
-  block_id,
-  ts,
-  type,
+  fts_index.version,
   b.codec,
   b.multihash
-  FROM fts_index
+  FROM fts_index INDEXED BY fts_index_by_genesis_blob
   JOIN blobs b ON b.id = fts_index.blob_id
-  WHERE genesis_blob = :genesisBlobID
-  AND ts >= :Ts
-  AND type IN ('title', 'document', 'meta')
-  AND rowid != :rowID
-  ORDER BY ts ASC
+  WHERE fts_index.genesis_blob = :genesisBlobID
+  AND fts_index.type IN ('title', 'document', 'meta')
+  ORDER BY fts_index.ts DESC
+  LIMIT 2
 `)
+
+// genesisChange is one row of qGetNewestGenesisChanges or
+// qGetNewestBlocklessChanges (which fills rowID and tsMillis only).
+type genesisChange struct {
+	rowID    int64
+	tsMillis int64
+	blobID   int64
+	blobCID  string
+	version  string
+}
+
+// blocklessKey identifies the rows qGetNewestBlocklessChanges reads.
+type blocklessKey struct {
+	genesisBlobID int64
+	contentType   string
+}
+
+// versionUpgrades resolves the version upgrade heuristic for the hits of one
+// search, reading each genesis at most once.
+type versionUpgrades struct {
+	newest    map[int64][]genesisChange
+	blockless map[blocklessKey][]genesisChange
+}
+
+func newVersionUpgrades() *versionUpgrades {
+	return &versionUpgrades{
+		newest:    make(map[int64][]genesisChange),
+		blockless: make(map[blocklessKey][]genesisChange),
+	}
+}
+
+// blockChangedSince reports whether the hit's block (or its title, when the hit
+// has no block ID) was written again at or after tsMillis by a row other than
+// the hit's own.
+func (u *versionUpgrades) blockChangedSince(conn *sqlite.Conn, hit fullDataSearchResult, tsMillis int64) (bool, error) {
+	// Only these row types are document changes; a contact hit has a version
+	// too, but nothing rewrites it.
+	if hit.contentType != "title" && hit.contentType != "document" && hit.contentType != "meta" {
+		return false, nil
+	}
+
+	if hit.blockID != "" {
+		var found bool
+
+		err := sqlitex.Exec(conn, qHasLaterBlockChange(), func(*sqlite.Stmt) error {
+			found = true
+			return nil
+		}, hit.blockID, hit.genesisBlobID, hit.contentType, tsMillis, hit.rowID)
+		return found, err
+	}
+
+	key := blocklessKey{genesisBlobID: hit.genesisBlobID, contentType: hit.contentType}
+
+	rows, ok := u.blockless[key]
+	if !ok {
+		if err := sqlitex.Exec(conn, qGetNewestBlocklessChanges(), func(stmt *sqlite.Stmt) error {
+			rows = append(rows, genesisChange{rowID: stmt.ColumnInt64(0), tsMillis: stmt.ColumnInt64(1)})
+			return nil
+		}, hit.genesisBlobID, hit.contentType); err != nil {
+			return false, err
+		}
+
+		u.blockless[key] = rows
+	}
+
+	for _, row := range rows {
+		if row.rowID != hit.rowID && row.tsMillis >= tsMillis {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// newestChangeSince returns the newest change under the hit's genesis written at
+// or after tsMillis by a row other than the hit's own, if there is one.
+func (u *versionUpgrades) newestChangeSince(conn *sqlite.Conn, hit fullDataSearchResult, tsMillis int64) (genesisChange, bool, error) {
+	rows, ok := u.newest[hit.genesisBlobID]
+	if !ok {
+		if err := sqlitex.Exec(conn, qGetNewestGenesisChanges(), func(stmt *sqlite.Stmt) error {
+			rows = append(rows, genesisChange{
+				rowID:    stmt.ColumnInt64(0),
+				tsMillis: stmt.ColumnInt64(1),
+				blobID:   stmt.ColumnInt64(2),
+				version:  stmt.ColumnText(3),
+				blobCID:  cid.NewCidV1(uint64(stmt.ColumnInt64(4)), stmt.ColumnBytesUnsafe(5)).String(),
+			})
+			return nil
+		}, hit.genesisBlobID); err != nil {
+			return genesisChange{}, false, err
+		}
+
+		u.newest[hit.genesisBlobID] = rows
+	}
+
+	for _, row := range rows {
+		if row.rowID != hit.rowID && row.tsMillis >= tsMillis {
+			return row, true, nil
+		}
+	}
+
+	return genesisChange{}, false, nil
+}
 
 // QGetMovedBlocks resolves, for a page of events, the documents sharing their
 // genesis that were moved elsewhere: the redirect target, the old address and
@@ -1816,6 +1960,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 
 	finalResults := []fullDataSearchResult{}
+	upgrades := newVersionUpgrades()
 	for _, match := range bodyMatches {
 		if searchResults[match.Index].contentType != "contact" {
 			searchResults[match.Index].parentTitles = getParentsFcn(match)
@@ -1836,11 +1981,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		//    and mark with "&l" (latest) suffix.
 		//
 		// 2. If the indexed version is NOT the latest:
-		//    a. Query for all changes after the indexed version (qGetLatestBlockChange).
-		//    b. Iterate through changes in chronological order:
-		//       - If the SAME BLOCK (same type + blockID) was modified, stop iteration.
-		//         This means the content has changed, so keep the original version.
-		//       - Otherwise, track this change as the latest "unrelated" change.
+		//    a. Ask whether the SAME BLOCK (same type + blockID) was modified at or
+		//       after the indexed version (versionUpgrades.blockChangedSince). If so
+		//       the content has changed, so keep the original version.
+		//    b. Otherwise take the newest change under the same genesis as the
+		//       latest "unrelated" change (versionUpgrades.newestChangeSince).
 		//    c. If no same-block change was found (relatedFound=false):
 		//       - Upgrade to the latest unrelated change's version (content still exists).
 		//       - If that's still not the document's latest, upgrade to latest version.
@@ -1872,31 +2017,33 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				ts:      searchResults[match.Index].versionTime,
 			}
 
-			var errSameBlockChangeDetected = errors.New("same block change detected")
 			if !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
+				hit := searchResults[match.Index]
+				tsMillis := hit.versionTime.Seconds*1_000 + int64(hit.versionTime.Nanos)/1_000_000
 				relatedFound := false
-				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
-						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
-						blockID := stmt.ColumnText(2)
-						changeType := stmt.ColumnText(4)
-						currentChange := Change{
-							blobID:  stmt.ColumnInt64(0),
-							blobCID: cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String(),
-							version: stmt.ColumnText(1),
-							ts:      timestamppb.New(ts),
-						}
-						if searchResults[match.Index].contentType == changeType && blockID == searchResults[match.Index].blockID {
-							return errSameBlockChangeDetected
-						}
-						latestUnrelated = currentChange
-						return nil
-					}, searchResults[match.Index].genesisBlobID, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].rowID)
-				})
-				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
+
+				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+					var err error
+
+					relatedFound, err = upgrades.blockChangedSince(conn, hit, tsMillis)
+					if err != nil || relatedFound {
+						return err
+					}
+
+					newest, ok, err := upgrades.newestChangeSince(conn, hit, tsMillis)
+					if err != nil || !ok {
+						return err
+					}
+
+					latestUnrelated = Change{
+						blobID:  newest.blobID,
+						blobCID: newest.blobCID,
+						version: newest.version,
+						ts:      timestamppb.New(hlc.Timestamp(newest.tsMillis * 1000).Time()),
+					}
+					return nil
+				}); err != nil {
 					return nil, err
-				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
-					relatedFound = true
 				}
 				// If the latest unrelated change is still not the document's latest version,
 				// upgrade to the document's latest version and use the latest blob CID.
