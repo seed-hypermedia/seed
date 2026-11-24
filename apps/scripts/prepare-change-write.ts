@@ -232,7 +232,7 @@ await step('inserting a block after the first block of a level keeps the order',
   const anchor = markdown.indexOf('## Outlook')
   assert.ok(anchor > 0, markdown)
   // Under the title, right after its first paragraph and before the Outlook section.
-  const inserted = `${markdown.slice(0, anchor)}  Costs were flat.\n\n${markdown.slice(anchor)}`
+  const inserted = `${markdown.slice(0, anchor)}Costs were flat.\n\n${markdown.slice(anchor)}`
   const result = await write({address, content: inserted, options: {action: 'update'}})
   assert.equal(result.unchanged, undefined, JSON.stringify(result))
   const ops = await storedOps(result.version)
@@ -584,6 +584,191 @@ await step('seeded random edits of a nested document all read back as written', 
     [],
   )
   assert.ok(stats.server > 5, `only ${stats.server} of ${stats.rounds} changes were prepared by the site`)
+})
+
+// ── Reading a document and writing it back, edits by block id, and what a body leaves out ───────
+
+const richAddress = `hm://${account}/rich`
+const block = (block: Record<string, unknown>, children: unknown[] = []) => ({
+  block: {text: '', annotations: [], attributes: {}, ...block},
+  children,
+})
+const para = (id: string, text: string, attributes: Record<string, unknown> = {}, children: unknown[] = []) =>
+  block({type: 'Paragraph', id, text, attributes}, children)
+/** Every kind of block the read used to change on the way back. */
+const RICH = [
+  block({type: 'Heading', id: 'richhead', text: 'Rich', attributes: {childrenType: 'Group'}}, [
+    para('multiline', 'first line\nsecond line\nthird line'),
+    block({
+      type: 'Paragraph',
+      id: 'tworanges',
+      text: 'one two three',
+      annotations: [{type: 'Bold', starts: [0, 8], ends: [3, 13]}],
+    }),
+    block({
+      type: 'Paragraph',
+      id: 'mentions',
+      text: 'see ￼',
+      annotations: [{type: 'Embed', starts: [4], ends: [5], link: address}],
+    }),
+    para('listhold', '', {childrenType: 'Unordered'}, [
+      para('listone', 'an item', {childrenType: 'Group'}, [
+        block({type: 'Code', id: 'codeblok', text: 'if (a) {\n  b()\n}', attributes: {language: 'ts'}}),
+        block({type: 'Math', id: 'mathblok', text: 'x = 1\n  y = 2'}),
+      ]),
+      para('listtwo', 'another item'),
+    ]),
+    para('afterlst', 'a paragraph after the list'),
+    block({type: 'Embed', id: 'embedblk', link: address, attributes: {view: 'Card'}}),
+    block({
+      type: 'Query',
+      id: 'queryblk',
+      attributes: {style: 'List', query: {includes: [{space: account, path: '', mode: 'Children'}]}},
+    }),
+    block({type: 'Button', id: 'buttonbk', link: address, text: 'Open the report', attributes: {alignment: 'center'}}),
+  ]),
+  para('richtail', 'the end'),
+]
+const ZERO = {added: 0, rewritten: 0, moved: 0, deleted: 0}
+let rich = ''
+
+const blockIds = (doc: {content?: unknown[]}) => {
+  const ids: string[] = []
+  const visit = (nodes: any[]) =>
+    nodes.forEach((node) => {
+      ids.push(node.block.id)
+      visit(node.children ?? [])
+    })
+  visit((doc.content ?? []) as any[])
+  return ids
+}
+
+/** A refused write: the message, whether it was thrown or returned. */
+async function refusal(input: Record<string, unknown>): Promise<string> {
+  try {
+    const result = await write(input)
+    assert.notEqual(result.type, 'hypermedia_write_result', `the write was not refused: ${JSON.stringify(result)}`)
+    return String(result.message ?? JSON.stringify(result))
+  } catch (error) {
+    return (error as Error).message
+  }
+}
+
+await step('a document of every block kind writes back as nothing, exactly as read', async () => {
+  const made = await write({address: richAddress, options: {name: 'Rich', input: {content: RICH, format: 'json'}}})
+  assert.equal(made.type, 'hypermedia_write_result', JSON.stringify(made))
+  const before = await document('/rich')
+  rich = await readMarkdown(richAddress)
+  // What the embed and the query point at is shown, and marked as not part of the document.
+  assert.match(rich, /<!-- resolved: Quarterly report -->[\s\S]*Revenue grew[\s\S]*<!-- \/resolved -->/)
+  assert.match(rich, /<!-- resolved: query results -->/)
+  assert.match(rich, /type:Query attrs:/)
+  const result = await write({address: richAddress, content: rich, options: {action: 'update'}})
+  assert.equal(result.unchanged, true, JSON.stringify(result))
+  assert.deepEqual(result.changes, ZERO)
+  assert.equal((await document('/rich')).version, before.version)
+})
+
+await step('a body that lost its id comments keeps the ids of the blocks with text', async () => {
+  const before = await document('/rich')
+  const stripped = rich.replace(/ ?<!-- id:[A-Za-z0-9_-]+ -->/g, '')
+  assert.notEqual(stripped, rich)
+  const result = await write({address: richAddress, content: stripped, options: {action: 'update'}, dryRun: true})
+  assert.equal(result.type, 'hypermedia_write_result', JSON.stringify(result))
+  // Markdown without ids nests the list under the paragraph before it. So that paragraph is
+  // rewritten, and the list's own holder, a block with no text, goes. No block with text is made new.
+  assert.equal(result.changes.added, 0, JSON.stringify(result.changes))
+  assert.equal(result.changes.deleted, 1, JSON.stringify(result.changes))
+  assert.equal(result.changes.rewritten, 1, JSON.stringify(result.changes))
+  assert.equal((await document('/rich')).version, before.version)
+})
+
+await step('edits change the blocks they name and nothing else', async () => {
+  const before = await document('/rich')
+  const result = await write({
+    address: richAddress,
+    options: {
+      action: 'update',
+      edits: [
+        {replace: 'afterlst', content: 'a paragraph after the list, edited'},
+        {after: 'listtwo', content: '- a third item'},
+        {delete: 'tworanges'},
+        {move: 'richtail', before: 'richhead'},
+      ],
+    },
+  })
+  assert.equal(result.type, 'hypermedia_write_result', JSON.stringify(result))
+  assert.deepEqual(result.changes, {added: 1, rewritten: 1, moved: 1, deleted: 1})
+  const ops = await storedOps(result.version)
+  const replaced = ops.filter((op) => op.type === 'ReplaceBlock').map((op) => op.block.text)
+  assert.deepEqual(replaced.sort(), ['a paragraph after the list, edited', 'a third item'])
+  assert.deepEqual(
+    ops.filter((op) => op.type === 'DeleteBlocks' || op.type === 'DeleteBlock').length,
+    1,
+    JSON.stringify(ops),
+  )
+  const after = await document('/rich')
+  const kept = blockIds(before).filter((id) => id !== 'tworanges')
+  assert.deepEqual(
+    blockIds(after)
+      .filter((id) => kept.includes(id))
+      .sort(),
+    kept.sort(),
+    'a block no edit named lost its id',
+  )
+  assert.equal(blockIds(after)[0], 'richtail')
+  rich = await readMarkdown(richAddress)
+  const again = await write({address: richAddress, content: rich, options: {action: 'update'}})
+  assert.equal(again.unchanged, true, JSON.stringify(again))
+})
+
+await step('an edit that cannot apply publishes nothing', async () => {
+  const before = await document('/rich')
+  const message = await refusal({
+    address: richAddress,
+    options: {action: 'update', edits: [{delete: 'listone'}, {replace: 'nosuchid', content: 'x'}]},
+  })
+  assert.match(message, /Edit 2: the document has no block with id "nosuchid"/)
+  assert.equal((await document('/rich')).version, before.version)
+})
+
+await step('a body that leaves out most of the document is refused unless forced', async () => {
+  const before = await document('/rich')
+  const summary = 'A short summary of the document.\n'
+  const message = await refusal({address: richAddress, content: summary, options: {action: 'update'}})
+  assert.match(message, /would delete \d+ of the document's \d+ blocks/)
+  assert.equal((await document('/rich')).version, before.version)
+  const preview = await write({address: richAddress, content: summary, options: {action: 'update'}, dryRun: true})
+  assert.match(String(preview.wouldRefuse), /options\.force/)
+  assert.equal(preview.changes.deleted, blockIds(before).length)
+  const forced = await write({address: richAddress, content: summary, options: {action: 'update', force: true}})
+  assert.equal(forced.type, 'hypermedia_write_result', JSON.stringify(forced))
+  assert.deepEqual(blockIds(await document('/rich')).length, 1)
+})
+
+await step('one page of a long document cannot be its body, and is enough to edit it', async () => {
+  const longAddress = `hm://${account}/long`
+  const paragraphs = Array.from({length: 400}, (_, i) => `Paragraph ${i} ${'lorem ipsum dolor sit amet '.repeat(4)}`)
+  const made = await write({address: longAddress, content: paragraphs.join('\n\n'), options: {name: 'Long'}})
+  assert.equal(made.type, 'hypermedia_write_result', JSON.stringify(made))
+  const input = {address: longAddress}
+  const page = apisvc.paginateReadResult(
+    (await apisvc.executeReadVerb(context, input)) as Record<string, unknown>,
+    input,
+  ) as {markdown: string; page?: {nextOffset?: number}}
+  assert.ok(page.page?.nextOffset, 'the read was not paged')
+  assert.match(page.markdown, /<!-- page: characters 0-\d+ of \d+; part of the document, not all of it -->\n$/)
+  const message = await refusal({address: longAddress, content: page.markdown, options: {action: 'update'}})
+  assert.match(message, /part of a document and not a whole body/)
+  const id = /Paragraph 3 .*<!-- id:([A-Za-z0-9_-]+) -->/.exec(page.markdown)?.[1]
+  assert.ok(id, 'the page carries no block id')
+  const result = await write({
+    address: longAddress,
+    options: {action: 'update', edits: [{replace: id, content: 'Paragraph 3, rewritten from one page.'}]},
+  })
+  assert.deepEqual(result.changes, {added: 0, rewritten: 1, moved: 0, deleted: 0})
+  assert.equal(blockIds(await document('/long')).length, 400)
+  assert.equal((await storedOps(result.version)).length, 1)
 })
 
 fs.rmSync(stateDir, {recursive: true, force: true})

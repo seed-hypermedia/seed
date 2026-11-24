@@ -84,6 +84,8 @@ export {
   markdownBlockNodesToHMBlockNodes,
   hmAccountMentionUid,
   MarkdownFrontmatterError,
+  MarkdownResolvedRangeError,
+  stripResolvedRanges,
 } from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation, ParseMarkdownOptions} from './markdown-to-blocks'
 export {
@@ -113,8 +115,12 @@ export {
   hmBlockNodeToBlockNode,
   rebindTableIdentities,
   toAPIBlockNode,
+  markdownUpdateTree,
+  describeContentChange,
 } from './block-diff'
-export type {APIBlockNode, APIBlock} from './block-diff'
+export type {APIBlockNode, APIBlock, ContentChange} from './block-diff'
+export {applyBlockEdits, BlockEditError} from './block-edits'
+export type {BlockEditResult} from './block-edits'
 
 export {
   autoLinkChildToParent,

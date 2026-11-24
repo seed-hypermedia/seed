@@ -913,6 +913,12 @@ describe('document updates through PrepareDocumentChange', () => {
         'with the service clock behind the site, Changes built here still follow the ones under them',
         'with the service clock ahead of the site, the next update is built here and the document still reads',
         'seeded random edits of a nested document all read back as written',
+        'a document of every block kind writes back as nothing, exactly as read',
+        'a body that lost its id comments keeps the ids of the blocks with text',
+        'edits change the blocks they name and nothing else',
+        'an edit that cannot apply publishes nothing',
+        'a body that leaves out most of the document is refused unless forced',
+        'one page of a long document cannot be its body, and is enough to edit it',
       ])
       for (const step of steps) expect(step.status, `${step.step}: ${step.detail}`).toBe('pass')
       expect(output.code, all).toBe(0)
