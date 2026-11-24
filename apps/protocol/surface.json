@@ -1557,6 +1557,7 @@
     },
     "HostConfigInfo": {
       "fields": {
+        "agentSigning?": "{keys: {account: string; label?: string}[]; primary?: string}",
         "hostId": "string",
         "privateConfigKeys": "string[]",
         "signingKeys?": "Record<string, string>",

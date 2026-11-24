@@ -53,6 +53,7 @@ type HostConfigInfo = {
   updatedBy?: string // who last changed the private config
   updatedAt?: number
   signingKeys?: Record<string, string> // field -> the account (z6Mk…) a signing-key field names
+  agentSigning?: {keys: {account: string; label?: string}[]; primary?: string} // an agent's signing field
 }
 ```
 
@@ -62,6 +63,7 @@ type HostConfigInfo = {
 - A field typed [signing key](../signing-key.md) names a key this server holds. Setting one is accepted only when the signer's own account holds that key here (among its server accounts), so a writer cannot attach someone else's key. Any writer may remove one.
 - `GetHostConfig` says which fields are set, and which account each signing-key field names. Anyone may ask; it never returns other values.
 - An agent's tools get its private config like an app's tools do. An agent needs no run step.
+- An agent's signing keys are its built-in `signing` field: `{keys: {<account>: true}, primary: <account>}`, or `null` for none. Only the agent's owner sets it, from keys the owner holds on this server; `GetHostConfig` shows it as `agentSigning`. The agent publishes as `primary` unless a write names another key, and its tools publish through `ctx.seed` the same way.
 
 # Calling a tool
 

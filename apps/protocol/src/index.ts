@@ -2232,6 +2232,14 @@ export type HostConfigInfo = {
    * tools publish as. Public; the keys themselves never leave the server.
    */
   signingKeys?: Record<string, string>
+  /**
+   * An agent's signing keys: its built-in `signing` private config field, the accounts it
+   * publishes as (`primary` unless a write names another). Absent for apps, which name their keys
+   * with signing-key fields. Set with `SetHostPrivateConfig` and
+   * `privateConfig: {signing: {keys: {<account>: true}, primary: <account>}}` (or `signing: null`),
+   * by the agent's owner, from the keys the owner holds on this server.
+   */
+  agentSigning?: {keys: {account: string; label?: string}[]; primary?: string}
 }
 
 /** Response for `GetHostConfig` and `SetHostPrivateConfig`. */

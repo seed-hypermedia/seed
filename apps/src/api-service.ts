@@ -1505,7 +1505,99 @@ export class Service {
       holdsSigningKey: (accountId, keyAccount) => this.#holdsSigningKey(accountId, keyAccount),
       ...(this.#toolSeed ? {toolSeed: this.#toolSeed} : {}),
       publishAs: (keyAccount, document) => this.#publishAsHeldKey(keyAccount, document),
+      agentSigning: {
+        get: (hostId) => this.#agentSigning(hostId),
+        set: (signer, hostId, signing) => this.#setAgentSigning(signer, hostId, signing),
+      },
     }
+  }
+
+  /** The accounts a mounted agent publishes as (its definition's grants), or null when it is not an agent here. */
+  #agentSigning(agentId: string): appRunning.AgentSigning | null {
+    const row = stmt<{account_id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT account_id, definition_cbor FROM agents WHERE id = ?`,
+    ).get(agentId)
+    if (!row) return null
+    const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+    const names = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+    const primaryName = primarySigningKeyOf(definition)
+    const keys: appRunning.AgentSigning['keys'] = []
+    let primary: string | undefined
+    for (const name of names) {
+      const secret = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        this.#db,
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      ).get(row.account_id, name)
+      if (!secret?.metadata_cbor) continue
+      const metadata = cbor.decode<Record<string, unknown>>(secret.metadata_cbor)
+      if (metadata.kind !== 'hm-account-key' || typeof metadata.accountId !== 'string') continue
+      keys.push({account: metadata.accountId, ...(typeof metadata.label === 'string' ? {label: metadata.label} : {})})
+      if (name === primaryName) primary = metadata.accountId
+    }
+    return {keys, ...(primary ? {primary} : {})}
+  }
+
+  /**
+   * Sets which accounts an agent publishes as: `{keys: {<account>: true}, primary?: <account>}`, or
+   * null for none. Only the agent's owner, and only keys the owner holds on this server: the keys
+   * live on the owner's account, and the grant decides what the agent can publish as.
+   */
+  #setAgentSigning(signer: string, agentId: string, signing: unknown): void {
+    const row = stmt<{account_id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT account_id, definition_cbor FROM agents WHERE id = ?`,
+    ).get(agentId)
+    if (!row) throw new APIError(404, 'Agent not found')
+    const accountId = row.account_id
+    if (signer !== accountId)
+      throw new APIError(403, "Only the agent's owner can change its signing keys: they are held on the owner's account")
+    let accounts: string[] = []
+    let primary: string | undefined
+    if (signing !== null) {
+      if (!isPlainMap(signing) || !isPlainMap(signing.keys))
+        throw new APIError(400, 'signing is {keys: {<account>: true}, primary?: <account>}, or null for none')
+      accounts = Object.entries(signing.keys)
+        .filter(([, on]) => on === true)
+        .map(([account]) => account)
+      primary = typeof signing.primary === 'string' ? signing.primary : accounts[0]
+      if (primary && !accounts.includes(primary)) throw new APIError(400, 'signing.primary must be one of signing.keys')
+    }
+    const nameOf = new Map<string, string>()
+    for (const secret of stmt<{name: string; metadata_cbor: Uint8Array | null}, [string]>(
+      this.#db,
+      `SELECT name, metadata_cbor FROM secrets WHERE account_id = ?`,
+    ).all(accountId)) {
+      if (!secret.metadata_cbor) continue
+      const metadata = cbor.decode<Record<string, unknown>>(secret.metadata_cbor)
+      if (metadata.kind === 'hm-account-key' && typeof metadata.accountId === 'string')
+        nameOf.set(metadata.accountId, secret.name)
+    }
+    for (const account of accounts)
+      if (!nameOf.has(account))
+        throw new APIError(
+          403,
+          `${account} must be a signing key your account holds on this server: create or import it under Server accounts, then choose it here.`,
+        )
+    const ordered = primary ? [primary, ...accounts.filter((account) => account !== primary)] : accounts
+    const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+    if (ordered.length) {
+      definition.signingKeys = ordered.map((account) => nameOf.get(account)!)
+      definition.signingKey = definition.signingKeys[0]
+    } else {
+      delete definition.signingKeys
+      delete definition.signingKey
+    }
+    stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
+      cbor.encode(definition),
+      Date.now(),
+      accountId,
+      agentId,
+    ])
+    const response = this.#getAgent(accountId, agentId, accountId)
+    this.#emit({type: 'agent-change', accountId, agent: response.agent})
+    invalidateSpaceIndex(accountId, agentId)
+    this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
   }
 
   /** Serves a running tool's `ctx.seed` request (POST /hm/api/apps/tool-seed, bearer token per call). */

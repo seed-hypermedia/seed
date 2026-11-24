@@ -57,7 +57,18 @@ export type AppRunDeps = {
     keyAccount: string,
     document: ToolSeedDocument & {id: UnpackedHypermediaId},
   ) => Promise<{version: string}>
+  /**
+   * An agent's built-in `signing` private config field, kept in its definition: `get` answers null
+   * for a host that is not an agent here; `set` is the owner's change (see {@link api.HostConfigInfo}).
+   */
+  agentSigning?: {
+    get(hostId: string): AgentSigning | null
+    set(signer: string, hostId: string, signing: unknown): void
+  }
 }
+
+/** The accounts an agent publishes as, and which one is its default. */
+export type AgentSigning = {keys: {account: string; label?: string}[]; primary?: string}
 
 /** What a tool publishes with `ctx.seed.publish(id, document)`. */
 export type ToolSeedDocument = {
@@ -110,6 +121,8 @@ type ToolSeedSession = {
   caller: string
   /** Signing-key field -> the account it names, from the host's private config. */
   signingKeys: Record<string, string>
+  /** The key used when a publish names none and there are several (an agent's primary). */
+  defaultKey?: string
   writes: api.AppToolWrite[]
 }
 
@@ -393,7 +406,14 @@ async function signingKeyFields(client: SeedClient, ref: unknown): Promise<strin
 export async function getHostConfig(deps: AppRunDeps, action: {hostId: string}): Promise<api.HostConfigInfo> {
   const hostId = versionless(action.hostId, 'host')
   const state = hostConfig.hostConfigState(deps.db, deps, hostId.id)
-  const info: api.HostConfigInfo = {hostId: hostId.id, ...state}
+  const agentSigning = deps.agentSigning?.get(hostId.id)
+  const info: api.HostConfigInfo = {
+    hostId: hostId.id,
+    ...state,
+    ...(agentSigning?.keys.length
+      ? {privateConfigKeys: [...state.privateConfigKeys, 'signing'].sort(), agentSigning}
+      : {}),
+  }
   if (!state.privateConfigKeys.length) return info
   const host = await loadDocument(deps.client, hostId, isToolHostType, 'app').catch(() => null)
   const fields = host ? await signingKeyFields(deps.client, host.metadata.privateConfigSchema) : []
@@ -419,7 +439,18 @@ export async function setHostPrivateConfig(
     throw new AppRunError(400, 'privateConfig is an object of field values (null removes a field)')
   const host = await loadHostHere(deps, hostId)
   await requireSpaceWriter(deps.client, hostId, signer)
-  await savePrivateConfig(deps, signer, hostId, host, action.privateConfig)
+  // An agent's keys are its built-in `signing` field, kept with the agent; the rest is its
+  // schema-described private config, kept here.
+  const {signing, ...changes} = action.privateConfig
+  if (signing !== undefined) {
+    if (!deps.agentSigning?.get(hostId.id))
+      throw new AppRunError(
+        400,
+        'Only an agent has the built-in signing field. An app names its keys with signing-key fields in its privateConfigSchema.',
+      )
+    deps.agentSigning.set(signer, hostId.id, signing)
+  }
+  if (Object.keys(changes).length) await savePrivateConfig(deps, signer, hostId, host, changes)
   return getHostConfig(deps, {hostId: hostId.id})
 }
 
@@ -548,6 +579,7 @@ function chooseSigningKey(session: ToolSeedSession, as: unknown): string {
     return account
   }
   if (accounts.length === 1) return accounts[0]!
+  if (session.defaultKey && accounts.includes(session.defaultKey)) return session.defaultKey
   if (!accounts.length)
     throw new AppRunError(
       409,
@@ -622,6 +654,10 @@ export async function callAppTool(
     if (!deps.codeExec.runtimes.includes('ts')) throw new AppRunError(503, 'This server cannot run TypeScript tools')
     for (const field of keyFields)
       if (typeof privateConfig[field] === 'string') session.signingKeys[field] = privateConfig[field] as string
+    // A tool under an agent publishes as the agent's keys, its primary unless it names another.
+    const agentSigning = deps.agentSigning?.get(appId.id)
+    for (const key of agentSigning?.keys ?? []) session.signingKeys[key.account] = key.account
+    if (agentSigning?.primary) session.defaultKey = agentSigning.primary
     if (seedToken) toolSeedSessions.set(seedToken, session)
     const source = await fetchToolSource(deps.ipfsServerUrl, tool.metadata.code)
     const stateDir = path.join(

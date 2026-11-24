@@ -148,4 +148,122 @@ describe('host config', () => {
       cleanup()
     }
   })
+
+  test('an agent’s signing keys are its built-in signing field: the owner picks them from the keys it holds', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const owner = blobs.generateNobleKeyPair()
+    const writer = blobs.generateNobleKeyPair()
+    const space = blobs.principalToString(owner.principal)
+    const writerUid = blobs.principalToString(writer.principal)
+    const agentUrl = `hm://${space}/maple`
+    const version = 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy'
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    const now = Date.now()
+    db.query('INSERT OR IGNORE INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)').run(space, now, now)
+    const keys = ['Maple', 'Newsletter'].map((label) => {
+      const account = blobs.principalToString(blobs.generateNobleKeyPair().principal)
+      const name = `hm-account-${account.slice(0, 16)}`
+      db.query(
+        'INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).run(
+        crypto.randomUUID(),
+        space,
+        name,
+        new Uint8Array([0]),
+        cbor.encode({kind: 'hm-account-key', accountId: account, label}),
+        now,
+        now,
+      )
+      return {account, name, label}
+    })
+    const [maple, newsletter] = keys as [(typeof keys)[0], (typeof keys)[0]]
+    db.query(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      agentUrl,
+      space,
+      cbor.encode({name: 'Maple', systemPrompt: [{block: {id: 'p1', type: 'Paragraph', text: 'Hi', annotations: [], attributes: {}}, children: []}], modelProvider: 'p', model: 'm', signingKeys: [maple.name], signingKey: maple.name}),
+      dataDir,
+      'ready',
+      now,
+      now,
+    )
+    const definition = () =>
+      cbor.decode<Record<string, unknown>>(
+        (db.query('SELECT definition_cbor AS d FROM agents WHERE id = ?').get(agentUrl) as {d: Uint8Array}).d,
+      )
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+      if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
+      if (href.includes('/api/ListCapabilities'))
+        return Response.json(
+          serialize({
+            capabilities: [{id: 'c', issuer: space, delegate: writerUid, account: space, path: '', role: 'WRITER'}],
+          }),
+        )
+      if (href.includes('/api/Resource'))
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(agentUrl),
+            document: {
+              content: [],
+              metadata: {name: 'Maple', type: 'hm://hyper.media/agent', agentServerUrl: SERVER},
+              version,
+              genesis: version,
+              account: space,
+              authors: [space],
+              path: '',
+              createTime: '',
+              updateTime: '',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const send = async (key: blobs.NobleKeyPair, action: Record<string, unknown>) => {
+      try {
+        return (await svc.message(await apisvc.createSignedEnvelope(key, {action: action as never}))) as any
+      } catch (error) {
+        return {error: error instanceof Error ? error.message : String(error)}
+      }
+    }
+    const setSigning = (key: blobs.NobleKeyPair, signing: unknown) =>
+      send(key, {_: 'SetHostPrivateConfig', hostId: agentUrl, privateConfig: {signing}})
+    try {
+      // What the agent publishes as is part of its private config.
+      expect(await send(writer, {_: 'GetHostConfig', hostId: agentUrl})).toMatchObject({
+        config: {
+          privateConfigKeys: ['signing'],
+          agentSigning: {keys: [{account: maple.account, label: 'Maple'}], primary: maple.account},
+        },
+      })
+      // A writer of the agent cannot change it: the keys are the owner's.
+      expect(await setSigning(writer, {keys: {[newsletter.account]: true}})).toMatchObject({
+        error: expect.stringContaining("Only the agent's owner"),
+      })
+      // Not a key the owner holds: refused.
+      const stray = blobs.principalToString(blobs.generateNobleKeyPair().principal)
+      expect(await setSigning(owner, {keys: {[stray]: true}})).toMatchObject({
+        error: expect.stringContaining('holds on this server'),
+      })
+      // Both keys, newsletter first: the definition follows (the primary leads).
+      expect(
+        await setSigning(owner, {
+          keys: {[maple.account]: true, [newsletter.account]: true},
+          primary: newsletter.account,
+        }),
+      ).toMatchObject({config: {agentSigning: {primary: newsletter.account}}})
+      expect(definition()).toMatchObject({signingKeys: [newsletter.name, maple.name], signingKey: newsletter.name})
+      // None: the agent publishes as no one.
+      const cleared = await setSigning(owner, null)
+      expect(cleared.config.agentSigning).toBeUndefined()
+      expect(definition().signingKeys).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      cleanup()
+    }
+  })
 })
