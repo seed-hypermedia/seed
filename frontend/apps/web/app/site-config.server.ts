@@ -8,9 +8,6 @@ import {z} from 'zod'
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET
 
 const webDataDir = process.env.DATA_DIR || process.cwd()
-console.log('~~ process.env.DATA_DIR DATA_DIR', process.env.DATA_DIR)
-console.log('~~ process.env.DATA_DIR webDataDir', webDataDir)
-console.log('~~ process.env.DATA_DIR cwd', process.cwd())
 const configPath = join(webDataDir, 'config.json')
 const serviceConfigPath = join(webDataDir, 'service-config.json')
 
@@ -79,6 +76,7 @@ async function refreshConfigFromDisk(opts: {force?: boolean} = {}) {
   const now = Date.now()
   if (!opts.force && now - lastRefreshCheck < CONFIG_REFRESH_MS) return
   lastRefreshCheck = now
+  let reloaded = false
   for (const path of serviceConfig ? [serviceConfigPath] : [configPath, serviceConfigPath]) {
     const mtime = fileMtime(path)
     if (mtime === null || mtime === loadedMtimes.get(path)) continue
@@ -87,10 +85,18 @@ async function refreshConfigFromDisk(opts: {force?: boolean} = {}) {
       if (path === serviceConfigPath) serviceConfig = serviceConfigSchema.parse(data)
       else singleSiteConfig = siteConfigSchema.parse(data)
       loadedMtimes.set(path, mtime)
+      reloaded = true
     } catch (e) {
       // Keep serving the last good config; the next check retries.
       console.error(`Failed to reload ${path}:`, e instanceof Error ? e.message : e)
     }
+  }
+  if (reloaded) {
+    // Another process (or a hand edit) changed the sites. Not awaited: this runs
+    // on the request path, and the subscriptions do not decide what is served.
+    applyConfigSubscriptions().catch((e) => {
+      console.error('Error applying config subscriptions after a config reload', e)
+    })
   }
 }
 
@@ -199,44 +205,65 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
   await applyConfigSubscriptions()
 }
 
-export async function applyConfigSubscriptions() {
-  const siteAccounts = new Set<string>()
+function configuredSiteAccounts(): Set<string> {
+  const accounts = new Set<string>()
   if (serviceConfig) {
-    Object.values(serviceConfig.namedServices).forEach((config: SiteConfig) => {
-      if (config.registeredAccountUid) siteAccounts.add(config.registeredAccountUid)
-    })
-    if (serviceConfig.rootConfig.registeredAccountUid) siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid)
-  } else if (singleSiteConfig) {
-    if (singleSiteConfig.registeredAccountUid) siteAccounts.add(singleSiteConfig.registeredAccountUid)
-  } else {
-    throw new Error('No site config loaded!')
+    for (const config of Object.values(serviceConfig.namedServices)) {
+      if (config.registeredAccountUid) accounts.add(config.registeredAccountUid)
+    }
+    if (serviceConfig.rootConfig.registeredAccountUid) accounts.add(serviceConfig.rootConfig.registeredAccountUid)
+  } else if (singleSiteConfig?.registeredAccountUid) {
+    accounts.add(singleSiteConfig.registeredAccountUid)
   }
+  return accounts
+}
+
+// The site accounts this process last applied. It is the only thing this
+// process may unsubscribe from: the daemon can be shared (a desktop app's
+// daemon in development) and its other subscriptions belong to someone else.
+// It starts empty, so a process that has just started can only add.
+let appliedSiteAccounts = new Set<string>()
+let subscriptionsApplied: Promise<void> = Promise.resolve()
+
+/**
+ * Make the daemon subscribe to every configured site account, and drop the
+ * subscription of an account this process applied earlier that is no longer
+ * configured. Runs are serialized, so a config write and a reload cannot
+ * interleave.
+ */
+export function applyConfigSubscriptions(): Promise<void> {
+  const run = subscriptionsApplied.then(reconcileSubscriptions)
+  subscriptionsApplied = run.catch(() => {})
+  return run
+}
+
+async function reconcileSubscriptions() {
+  const siteAccounts = configuredSiteAccounts()
   const subs = await grpcClient.subscriptions.listSubscriptions({})
-  const toUnsubscribe: {account: string; path: string}[] = []
-  subs.subscriptions.forEach((sub) => {
-    if (!siteAccounts.has(sub.account) || sub.path !== '') toUnsubscribe.push({account: sub.account, path: sub.path})
-  })
+  const subscribedRoots = new Set(subs.subscriptions.filter((sub) => sub.path === '').map((sub) => sub.account))
+
+  // An account whose unsubscribe fails stays in the applied set, so the next run retries it.
+  const nextApplied = new Set(siteAccounts)
+  const removed = [...appliedSiteAccounts].filter((account) => !siteAccounts.has(account))
   await Promise.all(
-    toUnsubscribe.map(async ({account, path}) => {
-      console.log('Unsubscribing from ', account, path)
-      await grpcClient.subscriptions.unsubscribe({
-        account,
-        path,
-      })
+    removed.map(async (account) => {
+      if (!subscribedRoots.has(account)) return
+      console.log('Unsubscribing from ', account)
+      try {
+        await grpcClient.subscriptions.unsubscribe({account, path: ''})
+      } catch (e) {
+        console.error('Failed to unsubscribe from', account, e instanceof Error ? e.message : e)
+        nextApplied.add(account)
+      }
     }),
   )
-  const toSubscribe: {account: string}[] = []
-  siteAccounts.forEach((account) => {
-    if (!subs.subscriptions.some((sub) => sub.account === account && sub.path === '')) toSubscribe.push({account})
-  })
+  appliedSiteAccounts = nextApplied
+
+  const missing = [...siteAccounts].filter((account) => !subscribedRoots.has(account))
   await Promise.all(
-    toSubscribe.map(async ({account}) => {
+    missing.map(async (account) => {
       console.log('Subscribing to ', account)
-      await grpcClient.subscriptions.subscribe({
-        account,
-        path: '',
-        recursive: true,
-      })
+      await grpcClient.subscriptions.subscribe({account, path: '', recursive: true})
     }),
   )
 }
@@ -280,6 +307,7 @@ export async function rmService(name: string) {
       ),
     ),
   })
+  await applyConfigSubscriptions()
 }
 
 export async function writeSoloConfig(newConfig: SiteConfig) {
