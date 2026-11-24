@@ -458,7 +458,7 @@ fts_data AS MATERIALIZED (
     JOIN blobs INDEXED BY blobs_metadata
       ON blobs.id = structural_blobs.id
     JOIN public_keys
-      ON public_keys.id = structural_blobs.author
+      ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
     LEFT JOIN resources
       ON resources.id = structural_blobs.resource
   WHERE fts.rowid IN (SELECT value FROM json_each(?))
@@ -584,7 +584,7 @@ FROM fts_data AS f
     ON blobs.id = f.blob_id
 
   JOIN public_keys
-    ON public_keys.id = structural_blobs.author
+    ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 
   LEFT JOIN resolved
     ON resolved.rowid = f.rowid
@@ -1102,7 +1102,8 @@ author_scores AS (
 	JOIN resources r ON r.owner = da.author_id
 	JOIN resource_links rl ON rl.target = r.id
 	JOIN structural_blobs sb ON sb.id = rl.source
-	WHERE sb.author IS NULL OR sb.author <> da.author_id
+	WHERE COALESCE(sb.extra_attrs->>'account', sb.author) IS NULL
+	   OR COALESCE(sb.extra_attrs->>'account', sb.author) <> da.author_id
 	GROUP BY da.author_id
 )
 SELECT doc.iri AS doc_iri,
@@ -1249,12 +1250,12 @@ func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
 
 var qIsDeletedComment = dqb.Str(`
     SELECT
-        CASE WHEN extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
-    FROM structural_blobs
-    WHERE type = 'Comment'
-      AND author = :author_id
-      AND extra_attrs->>'tsid' = :tsid
-    ORDER BY ts DESC
+        CASE WHEN sb.extra_attrs->>'deleted' IS NOT NULL THEN 1 ELSE 0 END AS is_deleted
+    FROM structural_blobs sb
+    WHERE sb.type = 'Comment'
+      AND COALESCE(sb.extra_attrs->>'account', sb.author) = :author_id
+      AND sb.extra_attrs->>'tsid' = :tsid
+    ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC
     LIMIT 1;
 `)
 
@@ -1263,7 +1264,7 @@ var qIsDeletedComment = dqb.Str(`
 // Returns one row per comment: (author_id INTEGER, tsid TEXT, is_deleted INTEGER).
 //
 // The batch CTE drives the join so the planner can probe the partial index
-// `structural_blobs_by_tsid (extra_attrs->>'tsid', author) WHERE … IS NOT NULL`
+// `structural_blobs_by_tsid (TSID, account-or-author, timestamp, hash)`
 // once per batch entry — without the INDEXED BY hint the planner falls back
 // to `structural_blobs_by_type (type)`, which matches every Comment blob and
 // is dramatically slower for small batches against a populated DB. ROW_NUMBER
@@ -1283,18 +1284,18 @@ var qBatchDeletedComments = dqb.Str(`
             sb.extra_attrs->>'deleted' AS deleted_raw,
             ROW_NUMBER() OVER (
                 PARTITION BY b.author_id, b.tsid
-                ORDER BY sb.ts DESC
+                ORDER BY sb.ts DESC, sb.extra_attrs->>'hash' DESC
             ) AS rn
         FROM batch b
         JOIN structural_blobs sb INDEXED BY structural_blobs_by_tsid
           ON sb.extra_attrs->>'tsid' = b.tsid
-         AND sb.author = b.author_id
+         AND COALESCE(sb.extra_attrs->>'account', sb.author) = +b.author_id
         WHERE sb.type = 'Comment'
     )
     SELECT
         author_id,
         tsid,
-        CASE WHEN deleted_raw = '1' THEN 1 ELSE 0 END AS is_deleted
+        CASE WHEN deleted_raw IS NOT NULL THEN 1 ELSE 0 END AS is_deleted
     FROM ranked
     WHERE rn = 1;
 `)
@@ -2541,7 +2542,7 @@ FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
 WHERE blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
@@ -2568,7 +2569,7 @@ SELECT
 	structural_blobs.extra_attrs->>'deleted' AS is_deleted
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
+JOIN public_keys ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 LEFT JOIN public_blobs pb2 ON pb2.id = blobs.id
 JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
@@ -2616,7 +2617,7 @@ func commentEntityExists(conn *sqlite.Conn, id string) (bool, error) {
 var qCommentEntityExists = dqb.Str(`
 	SELECT 1
 	FROM structural_blobs sb
-	JOIN public_keys pk ON pk.id = sb.author
+	JOIN public_keys pk ON pk.id = COALESCE(sb.extra_attrs->>'account', sb.author)
 	WHERE sb.type = 'Comment'
 	AND pk.principal = :authority
 	AND sb.extra_attrs->>'tsid' = :tsid

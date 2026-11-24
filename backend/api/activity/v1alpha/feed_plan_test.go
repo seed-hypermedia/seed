@@ -78,6 +78,10 @@ func TestFeedQueriesUseIndexedOrdering(t *testing.T) {
 		// links: at most 832 on a 6.2 GB production database, 9.6 on average,
 		// which measured 4.5ms for the busiest target. What must not happen is
 		// this shape falling back to driving from structural_blobs.
+		// An author filter is selective too: it must seek the account index
+		// rather than walk the whole feed in ts order looking for that author's
+		// rows, which took the full table for a rarely posting account.
+		{name: "main/claimed/authors", query: buildMainEventsQuery(authorFilterExpr+" IN (SELECT +id FROM public_keys WHERE principal IN (unhex('ABCD'))) AND ", false), drivenBy: "structural_blobs_by_account", maySort: true},
 		{name: "mentions/claimed/filtered", query: claimedOrder(listMentionsCore), drivenBy: "resource_links", maySort: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

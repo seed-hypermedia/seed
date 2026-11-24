@@ -7,9 +7,12 @@ import (
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -212,6 +215,25 @@ func TestDelegatedContactSigner(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Contacts, 1)
 	testutil.StructsEqual(contact, resp.Contacts[0]).Compare(t, "delegated contact list mismatch")
+
+	// The canonical address names the account, not the signing delegate.
+	conn, release, err := alice.db.ReadConn(ctx)
+	require.NoError(t, err)
+	var contactCID cid.Cid
+
+	require.NoError(t, sqlitex.Exec(conn, `SELECT b.codec, b.multihash FROM blobs b JOIN structural_blobs sb ON sb.id = b.id WHERE sb.type = 'Contact'`, func(stmt *sqlite.Stmt) error {
+		contactCID = cid.NewCidV1(uint64(stmt.ColumnInt64(0)), stmt.ColumnBytes(1))
+		return nil
+	}))
+	release()
+	for _, iri := range []string{
+		"hm://" + contact.Id,
+		"hm://" + contact.Id + "?v=" + contactCID.String(),
+	} {
+		res, err := alice.GetResource(ctx, &documents.GetResourceRequest{Iri: iri})
+		require.NoError(t, err, iri)
+		require.Equal(t, "Delegated Subject", res.GetContact().GetName(), iri)
+	}
 }
 
 func TestListContacts(t *testing.T) {

@@ -10,19 +10,19 @@ A comment is a small signed [blob](./blobs.md). It names the document and the [v
 
 A [comment](../comment.md) is a signed [blob](../blob.md) of type `Comment`. Each version of a comment is a whole copy, called a snapshot. An edit publishes a new blob that replaces the old one. Documents work differently: they are built from a chain of [Changes](../change.md). <!-- id:E9aFqWno -->
 
-A comment names its target (`space`, `path` and `version`), its thread (`threadRoot` and `replyParent`) and a `body` of blocks. The `space` is the [space](./spaces.md) the document lives in. The [comment](../comment.md) type page lists the fields.
+A comment names its target (`space`, `path` and `version`), its thread (`threadRoot` and `replyParent`) and a `body` of blocks. When an agent key signs for an account, `account` names that account. The `space` is the [space](./spaces.md) the document lives in. The [comment](../comment.md) type page lists the fields.
 
-The [daemon](../software/daemon.md) checks the signature. Then it indexes the target as a link, the thread links, every link inside the body, and one full-text row per block. It does not check whether the signer may comment, because no such [permission](./permissions.md) exists. <!-- id:l9Egj3kZ -->
+The [daemon](../software/daemon.md) checks the signature. Then it indexes the target as a link, the thread links, every link inside the body, and one full-text row per block. Anyone may comment under their own signer, so there is no [permission](./permissions.md) to comment. When `account` differs from `signer`, the daemon also requires an `AGENT` capability from that account to the signer. That lets the signer speak for the account. It is not a permission to comment on the target. <!-- id:l9Egj3kZ -->
 
 # Identity, edits and deletion <!-- id:5XBqDd2P -->
 
-A comment's lasting name is `<author>/<tsid>`. The author is the signer's [principal](../principal.md). The [TSID](./blobs.md) is an id of 14 or 15 characters that includes a time. The first version of a comment makes its TSID from its own bytes. An edit or a tombstone carries that TSID in its `id` field. So all versions share one name, and each version has its own [CID](../cid.md). <!-- id:6hZOUU7j -->
+A comment's lasting name is `<authority>/<tsid>`. The authority is the signed `account` [principal](../principal.md) when present, and the signer otherwise. The [TSID](./blobs.md) is an id of 14 or 15 characters that includes a time. The first version of a comment makes its TSID from its own bytes. An edit or a tombstone carries that TSID in its `id` field. So all versions share one name, and each version has its own [CID](../cid.md). <!-- id:6hZOUU7j -->
 
-Among the blobs that share a TSID, the live version is the one with the newest timestamp. On a tie, the blob the node stored last wins. A blob with an empty `body` is a tombstone: it marks the comment as deleted, and listings stop showing it. The history stays, and `ListCommentVersions` returns every version. <!-- id:aFKTvLqM -->
+Among the blobs that share an authority and a TSID, the live version is the one with the newest timestamp. On a tie, the blob whose hash digest has the greatest first 8 bytes wins, so every node picks the same one whatever order the blobs arrived in. A blob with an empty `body` is a tombstone: it marks the comment as deleted, and listings stop showing it. The history stays, and `ListCommentVersions` returns every version that is not a tombstone. <!-- id:aFKTvLqM -->
 
-The name includes the signer. So a lookup by `<author>/<tsid>`, or a list of its versions, matches only blobs signed by that author. A blob from another key with the same TSID does not change what that address returns. <!-- id:3DG_MVv8 -->
+The name includes the authority. So a lookup by `<authority>/<tsid>`, or a list of its versions, matches only blobs indexed for that authority. Agent keys that may speak for the account can edit one account comment without changing its address. A blob from an unrelated key that only claims the same authority and TSID is rejected. Older blobs without `account` belong to the signer, so delegated edits made before the field existed are not merged. <!-- id:3DG_MVv8 -->
 
-A comment's address is `hm://<author>/<tsid>`. It always shows the newest version. Add `?v=<comment cid>` to pin one edit. The daemon's link indexer also reads an older form, `hm://c/<cid>`, but the apps never write it. On a [site](./sites.md), a comment appears under its target as `https://site/<path>/:comments/<author>/<tsid>`. [URLs](./urls.md) has the full grammar. <!-- id:-vALY0pB -->
+A comment's address is `hm://<authority>/<tsid>`. It always shows the newest version. Add `?v=<comment cid>` to pin one edit. The daemon's link indexer also reads an older form, `hm://c/<cid>`, but the apps never write it. On a [site](./sites.md), a comment appears under its target as `https://site/<path>/:comments/<authority>/<tsid>`. [URLs](./urls.md) has the full grammar. <!-- id:-vALY0pB -->
 
 # Threads and discussions <!-- id:bVkM7Gif -->
 
@@ -32,7 +32,7 @@ Clients group comments by thread. In the [Seed API](../build/web-api.md), `ListD
 
 # Which version was commented on <!-- id:LsYkU2Mr -->
 
-A comment records the document version its author saw, and reader apps show it under that version. Through that version, the daemon ties the comment to the document's [genesis](./documents.md) Change, the first Change of the document. So comment counts and the latest-comment pointer survive when a document is moved or republished. The path can change, but the genesis cannot. A comment with an empty `version` attaches to whatever document lives at the path. <!-- id:dL9bVnSR -->
+A comment records the document version its author saw, and reader apps show it under that version. Through that version, the daemon ties the comment to the document's [genesis](./documents.md) Change, the first Change of the document. Every head in a compound version must belong to the same document genesis, and a version that spans different genesises is invalid. When a comment arrives before the Changes its `version` names, the daemon stashes it and indexes it once they have all arrived, the same way it waits for a [Ref](../ref.md)'s heads. So comment counts and the latest-comment pointer survive when a document is moved or republished. The path can change, but the genesis cannot. A comment with an empty `version` attaches to whatever document lives at the path. <!-- id:dL9bVnSR -->
 
 # Block and range comments <!-- id:5aP3qCir -->
 

@@ -90,7 +90,7 @@ The node keeps a Ref that fails the rule. The bytes stay in the blob store. The 
 
 If `Cap1` arrives after bobLaptop's Ref in the example above, the retry covers bobLaptop, because bobLaptop writes as bob. A delegated profile waiting for its AGENT capability is stashed and retried the same way. <!-- id:54Myv9kJ -->
 
-Two more facts follow. Nothing checks who may write a Change. The node stores a [Change](../change.md) signed by anyone, and the Change becomes part of a document only when an authorized Ref points at it. Nothing checks [comments](./comments.md) either. Any key may attach a public comment to any document, and the `capability` field on comments is deprecated. Comment moderation is left to clients. <!-- id:dRcP68Ae -->
+Two more facts follow. Nothing checks who may write a Change. The node stores a [Change](../change.md) signed by anyone, and the Change becomes part of a document only when an authorized Ref points at it. No permission is needed to [comment](./comments.md) either. Any key may attach a public comment to any document under its own name, and the `capability` field on comments is deprecated. A comment that speaks for another account needs an AGENT capability from that account to its signer, and is stashed and retried like a Ref until it arrives. Comment moderation is left to clients. <!-- id:dRcP68Ae -->
 
 ## Where the check runs <!-- id:fr2j0riR -->
 

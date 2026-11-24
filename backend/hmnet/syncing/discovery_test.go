@@ -391,11 +391,11 @@ func TestCollectBlobs_IncludeAuthorProfiles(t *testing.T) {
 			return err
 		}
 		if err := sqlitex.Exec(conn,
-			`INSERT INTO resources (id, iri) VALUES (100, ?)`, nil, string(aliceRoot)); err != nil {
+			`INSERT INTO resources (id, iri, owner) VALUES (100, ?, 1)`, nil, string(aliceRoot)); err != nil {
 			return err
 		}
 		if err := sqlitex.Exec(conn,
-			`INSERT INTO resources (id, iri) VALUES (101, ?)`, nil, string(aliceDoc)); err != nil {
+			`INSERT INTO resources (id, iri, owner) VALUES (101, ?, 1)`, nil, string(aliceDoc)); err != nil {
 			return err
 		}
 
