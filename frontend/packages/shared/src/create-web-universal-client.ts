@@ -21,7 +21,6 @@ import type {
 
 export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'> & {
   listWritableLocations?: UniversalClient['listWritableLocations']
-  listUnreferencedDocuments?: UniversalClient['listUnreferencedDocuments']
   queryDocuments?: (request: QueryDocumentsRequest, options?: {signal?: AbortSignal}) => Promise<QueryDocumentsResponse>
   listAccounts?: (request: ListAccountsRequest, options?: {signal?: AbortSignal}) => Promise<ListAccountsResponse>
   listDocumentAttributeNames?: (
@@ -143,7 +142,6 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     request: deps.request,
     publish: deps.publish,
     queryDocuments: deps.queryDocuments,
-    listUnreferencedDocuments: deps.listUnreferencedDocuments,
     listAccounts: deps.listAccounts,
     listDocumentAttributeNames: deps.listDocumentAttributeNames,
     listDocumentAttributeValues: deps.listDocumentAttributeValues,

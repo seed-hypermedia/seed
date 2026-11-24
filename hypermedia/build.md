@@ -71,6 +71,7 @@ Each guide names a goal, lists what you need, and walks through real commands.
 - **Run your own agent on Seed.** [Using Seed from your own agent](./build/agents.md) sets up a bot key with a [capability](./protocol/permissions.md) from the space owner, the seed-cli skill, and the habit of writing a draft first. <!-- id:QPWhvptq -->
 - **Show Seed Agents in your app.** [Embedding the agents UI](./build/apps-ui.md) puts the Seed apps' own agents interface inside another web app. It signs with a key the app controls. <!-- id:UwmsrjX5 -->
 - **Build an app or a page.** [Building an app](./build/building-an-app.md) walks through an [app](./app.md) with its tools and pages. [Custom HTML pages](./build/custom-pages.md) explains how a document opens as a sandboxed page.
+- **Shape the sidebar.** [Sidebar navigation](./build/sidebar-navigation.md) explains how the sidebar is built from published [Card embeds](./block/embed-view.md) alone, while paths keep defining where documents live.
 
 # See also <!-- id:9kOzZp6w -->
 
@@ -141,3 +142,5 @@ Each guide names a goal, lists what you need, and walks through real commands.
 <./build/custom-pages.md> <!-- id:FhAlk7k7 type:Embed attrs:{"view":"Card"} -->
 
 <./build/desktop-navigation.md> <!-- id:Sd3VUB7v type:Embed attrs:{"view":"Card"} -->
+
+<./build/sidebar-navigation.md> <!-- id:dFamJCBC type:Embed attrs:{"view":"Card"} -->

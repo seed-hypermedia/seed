@@ -63,6 +63,25 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Rebuild document indexes. Drop the unreferenced-document index: its
+	// writes and its RPC were disabled on 2026-09-15, the tables have stayed
+	// empty since, and sidebar navigation now comes from Cards. A full
+	// reindex then resolves document attributes by op ID, so the order changes
+	// arrive in no longer matters, and derives navigation Cards and the other
+	// derived document fields for every document. They change what readers see,
+	// so they are derived during indexing, never by a lagging background job.
+	{Version: "2026-11-16.135116", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP INDEX IF EXISTS document_reference_targets_by_target;
+			DROP TABLE IF EXISTS document_reference_targets;
+			DROP TABLE IF EXISTS document_reference_summaries;
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
 	// Initialize the derived authority graph with earliest-mention provenance
 	// and its membership cache. MaybeReindex backfills them from validated
 	// structural blobs before startup completes, without a full reindex or

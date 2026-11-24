@@ -160,15 +160,20 @@ func TestDocIndexedAttrsStructuralLWWIsOrderIndependent(t *testing.T) {
 	for _, order := range []string{"old-first", "new-first"} {
 		t.Run("child_tombstone_replaces_parent/"+order, func(t *testing.T) {
 			attrs := DocIndexedAttrs{}
+
+			ix := newAttrIndex(attrs)
 			if order == "old-first" {
-				attrs.setOrdered("theme", "Legacy", 1, 0, 1)
-				attrs.setOrdered("theme.Color", nil, 2, 0, 1)
+				ix.setOrdered("theme", "Legacy", 1, 0, 1)
+				ix.setOrdered("theme.Color", nil, 2, 0, 1)
 			} else {
-				attrs.setOrdered("theme.Color", nil, 2, 0, 1)
-				attrs.setOrdered("theme", "Legacy", 1, 0, 1)
+				ix.setOrdered("theme.Color", nil, 2, 0, 1)
+				ix.setOrdered("theme", "Legacy", 1, 0, 1)
 			}
 
+			// The replaced parent stays as a tombstone at its own order, so it can
+			// still supersede older children indexed later.
 			require.Equal(t, DocIndexedAttrs{
+				"theme":       {Key: "theme", Value: nil, Ts: 1, Actor: 1, Kind: documentAttributeNull},
 				"theme.Color": {Key: "theme.Color", Value: nil, Ts: 2, Actor: 1, Kind: documentAttributeNull},
 			}, attrs)
 			require.Empty(t, attrs.PublicMap())
@@ -176,12 +181,14 @@ func TestDocIndexedAttrsStructuralLWWIsOrderIndependent(t *testing.T) {
 
 		t.Run("parent_tombstone_replaces_child/"+order, func(t *testing.T) {
 			attrs := DocIndexedAttrs{}
+
+			ix := newAttrIndex(attrs)
 			if order == "old-first" {
-				attrs.setOrdered("theme.Color", "Blue", 1, 0, 1)
-				attrs.setOrdered("theme", nil, 2, 0, 1)
+				ix.setOrdered("theme.Color", "Blue", 1, 0, 1)
+				ix.setOrdered("theme", nil, 2, 0, 1)
 			} else {
-				attrs.setOrdered("theme", nil, 2, 0, 1)
-				attrs.setOrdered("theme.Color", "Blue", 1, 0, 1)
+				ix.setOrdered("theme", nil, 2, 0, 1)
+				ix.setOrdered("theme.Color", "Blue", 1, 0, 1)
 			}
 
 			require.Equal(t, DocIndexedAttrs{

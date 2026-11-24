@@ -274,7 +274,11 @@ export async function documentPageContent({
     const result = await client.request<HMRequest['key']>(key, input, {signal: authorized})
     authorized.throwIfAborted()
     // Check the resolved resource as well: a redirect must not widen a resource or site grant.
-    if ((key === 'Resource' || key === 'ResourceMetadata') && result && typeof result === 'object') {
+    if (
+      (key === 'Resource' || key === 'ResourceMetadata' || key === 'DocumentInfo') &&
+      result &&
+      typeof result === 'object'
+    ) {
       const resolved = result as {id?: {uid?: string; path?: string[]}; document?: {account?: string; path?: string}}
       const uid = resolved.document?.account || resolved.id?.uid
       const path = resolved.document?.path?.split('/').filter(Boolean) ?? resolved.id?.path ?? []

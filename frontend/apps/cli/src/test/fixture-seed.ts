@@ -43,6 +43,16 @@ export async function seedTestFixtures(serverUrl: string): Promise<void> {
     },
     ...flattenToOperations(tree),
   ])
+
+  // Link the page from Home as a Card, as the app does when it publishes a child,
+  // so it appears in the sidebar, which follows Cards only.
+  await createDocumentUpdate(serverUrl, FIXTURE_ACCOUNT, '', [
+    {
+      type: 'ReplaceBlock',
+      block: {id: 'hierarchy-card', type: 'Embed', link: FIXTURE_HIERARCHY_HM_ID, attributes: {view: 'Card'}},
+    },
+    {type: 'MoveBlocks', blocks: ['hierarchy-card'], parent: ''},
+  ])
 }
 
 export function writeFixtureWebConfig(webDataDir: string): void {

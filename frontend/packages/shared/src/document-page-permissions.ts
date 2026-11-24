@@ -346,7 +346,7 @@ function querySpace(filter?: HMDocumentFilter): string | undefined {
 /** Site scopes are available only for APIs whose read boundary is explicit and enforceable. */
 export function pageReadRequest(key: HMRequest['key'], input: unknown): PagePermissionRequest {
   const object = input as Record<string, unknown> | null
-  if (key === 'Resource' || key === 'ResourceMetadata') {
+  if (key === 'Resource' || key === 'ResourceMetadata' || key === 'DocumentInfo') {
     const id = input as {uid: string; path?: string[]}
     return {
       kind: 'read',

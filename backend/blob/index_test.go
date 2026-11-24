@@ -10,6 +10,7 @@ import (
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
+	"time"
 
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
@@ -437,6 +438,7 @@ func TestWriterCheck_DirectWriter(t *testing.T) {
 func TestWriterValidityCache(t *testing.T) {
 	// A nil cache is a no-op: never panics, always misses.
 	var nilc *indexBatch
+
 	_, ok := nilc.get("k")
 	require.False(t, ok)
 	nilc.put("k", true)
@@ -542,4 +544,50 @@ func TestNewIRIRejectsForbiddenCharacters(t *testing.T) {
 		_, err := NewIRI(acc, path)
 		require.Error(t, err, "path %q should be rejected", path)
 	}
+}
+
+// A change may carry the same timestamp as a change it depends on. Loaders
+// order changes by timestamp, so ties must still put dependencies first, or
+// the document model sees a change before its genesis.
+func TestChangesWithTiedTimestampsLoadDependenciesFirst(t *testing.T) {
+	ctx := t.Context()
+	alice := coretest.NewTester("alice").Account
+	ts := time.UnixMilli(1740489952621)
+	genesis, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{}, ts)
+	require.NoError(t, err)
+	edit, err := NewChange(alice, genesis.CID, []cid.Cid{genesis.CID}, 1, ChangeBody{Ops: []OpMap{
+		must.Do2(NewOpSetKey("name", "Alice")),
+	}}, ts)
+	require.NoError(t, err)
+	ref, err := NewRef(alice, 0, genesis.CID, alice.Principal(), "", []cid.Cid{edit.CID}, ts.Add(time.Millisecond), VisibilityPublic)
+	require.NoError(t, err)
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
+	require.NoError(t, err)
+	// The edit is stored first, so it gets the lower local blob ID.
+	require.NoError(t, idx.PutMany(ctx, []blocks.Block{edit, genesis, ref}))
+
+	iri := must.Do2(NewIRI(alice.Principal(), ""))
+	changes, check := idx.iterChangesLatest(ctx, iri)
+	var got []cid.Cid
+
+	for c := range changes {
+		got = append(got, c.CID)
+	}
+
+	require.NoError(t, check())
+	require.Equal(t, []cid.Cid{genesis.CID, edit.CID}, got)
+
+	conn, release, err := db.ReadConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	records, err := changesFromHeadIDsConn(conn, idx.bs, []int64{blobIDForCID(t, db, edit.CID)}, 0)
+	require.NoError(t, err)
+	got = got[:0]
+	for _, r := range records {
+		got = append(got, r.CID)
+	}
+
+	require.Equal(t, []cid.Cid{genesis.CID, edit.CID}, got)
 }

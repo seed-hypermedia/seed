@@ -147,8 +147,8 @@ type docCRDT struct {
 
 	tree *treeOpSet
 
-	stateMetadata *btree.Map[[]string, *mvReg[metadataValue]]
-	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
+	stateMetadata *btree.Map[[]string, *lwwReg[metadataValue]]
+	stateBlocks   map[string]*lwwReg[blob.Block] // blockID -> winning block state.
 
 	clock        *cclock.Clock
 	actorsIntern map[core.PrincipalUnsafeString]core.PrincipalUnsafeString
@@ -166,8 +166,8 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
 		tree:          newTreeOpSet(),
-		stateMetadata: btree.New[[]string, *mvReg[metadataValue]](8, slices.Compare),
-		stateBlocks:   make(map[string]*mvReg[blob.Block]),
+		stateMetadata: btree.New[[]string, *lwwReg[metadataValue]](8, slices.Compare),
+		stateBlocks:   make(map[string]*lwwReg[blob.Block]),
 		clock:         cclock.New(),
 		actorsIntern:  make(map[core.PrincipalUnsafeString]core.PrincipalUnsafeString),
 		vectorClock:   make(map[core.PrincipalUnsafeString]time.Time),
@@ -176,6 +176,8 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 	return e
 }
 
+// GetMetadata returns the document metadata as a nested map. Tombstones are
+// skipped.
 func (e *docCRDT) GetMetadata() map[string]any {
 	out := make(map[string]any, e.stateMetadata.Len())
 
@@ -185,8 +187,8 @@ func (e *docCRDT) GetMetadata() map[string]any {
 		Value any
 	}
 	var attributes []attribute
-	for _, v := range e.stateMetadata.Items() {
-		id, vv, ok := v.GetLatestWithID()
+	for _, reg := range e.stateMetadata.Items() {
+		id, vv, ok := reg.GetLatestWithID()
 		if !ok || vv.Value == nil {
 			continue
 		}
@@ -203,52 +205,90 @@ func (e *docCRDT) GetMetadata() map[string]any {
 	return out
 }
 
+// setMetadata applies a write to a metadata key path.
+//
+// Key paths form a tree: a write to a path replaces everything above and below
+// it that is older. The result must be the same as applying every write sorted
+// by op ID, whatever order the writes actually arrive in. The state keeps at
+// most one entry per path, a value or a tombstone (nil), and a write follows
+// these rules:
+//
+//  1. If the path itself or any ancestor has an entry at least as new, the
+//     write is superseded and ignored.
+//  2. Otherwise it replaces the path's entry and deletes every older descendant.
+//  3. If a newer descendant exists, the write was already replaced by it, so it
+//     is stored as a tombstone instead of a value.
+//  4. Older ancestors holding a value become tombstones at their own op ID.
+//
+// A tombstone keeps its op ID because it still supersedes older writes below
+// it that arrive later. It is never visible, and a hidden ancestor can never
+// become visible again: only a newer write to the same path or above replaces it.
 func (e *docCRDT) setMetadata(id opID, key []string, value any) {
 	exactKey := slices.Clone(key)
-	if reg := e.stateMetadata.GetMaybe(exactKey); reg != nil {
-		currentID, _, ok := reg.GetLatestWithID()
-		if ok && currentID.Compare(id) >= 0 {
-			return
-		}
-	}
 
-	// Ancestor and descendant paths are mutually exclusive registers. Resolve
-	// them with the same total order as exact-key updates so replay order cannot
-	// resurrect a value that a later structural replacement removed.
-	var remove [][]string
+	var olderDescendants, olderAncestors [][]string
+
+	newerDescendant := false
 	for otherKey, reg := range e.stateMetadata.Items() {
-		if slices.Equal(otherKey, exactKey) {
-			continue
-		}
+		otherID, _, _ := reg.GetLatestWithID()
+		switch {
+		case slices.Equal(otherKey, exactKey) || isMetadataAncestor(otherKey, exactKey):
+			if otherID.Compare(id) >= 0 {
+				return
+			}
 
-		otherIsAncestor := len(otherKey) < len(exactKey) && slices.Equal(otherKey, exactKey[:len(otherKey)])
-		otherIsDescendant := len(exactKey) < len(otherKey) && slices.Equal(exactKey, otherKey[:len(exactKey)])
-		if !otherIsAncestor && !otherIsDescendant {
-			continue
+			if !slices.Equal(otherKey, exactKey) {
+				olderAncestors = append(olderAncestors, otherKey)
+			}
+		case isMetadataAncestor(exactKey, otherKey):
+			if otherID.Compare(id) > 0 {
+				newerDescendant = true
+			} else {
+				olderDescendants = append(olderDescendants, otherKey)
+			}
 		}
-
-		otherID, _, ok := reg.GetLatestWithID()
-		if !ok {
-			continue
-		}
-
-		order := otherID.Compare(id)
-		if order > 0 || order == 0 && otherIsDescendant {
-			return
-		}
-		remove = append(remove, otherKey)
 	}
 
-	for _, otherKey := range remove {
-		e.stateMetadata.Delete(otherKey)
+	if newerDescendant {
+		value = nil
 	}
 
 	reg := e.stateMetadata.GetMaybe(exactKey)
 	if reg == nil {
-		reg = newMVReg[metadataValue]()
+		reg = newLWWReg[metadataValue]()
 		e.stateMetadata.Set(exactKey, reg)
 	}
 	reg.Set(id, metadataValue{Key: slices.Clone(key), Value: value})
+
+	for _, otherKey := range olderDescendants {
+		e.stateMetadata.Delete(otherKey)
+	}
+
+	for _, otherKey := range olderAncestors {
+		ancestor := e.stateMetadata.GetMaybe(otherKey)
+
+		ancestorID, v, _ := ancestor.GetLatestWithID()
+		if v.Value != nil {
+			ancestor.replace(ancestorID, metadataValue{Key: v.Key, Value: nil})
+		}
+	}
+}
+
+// hasLiveMetadataDescendant reports whether any key path below key holds a
+// visible value.
+func (e *docCRDT) hasLiveMetadataDescendant(key []string) bool {
+	for otherKey, reg := range e.stateMetadata.Items() {
+		if isMetadataAncestor(key, otherKey) && reg.GetLatest().Value != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isMetadataAncestor reports whether a is a strict prefix of b.
+func isMetadataAncestor(a, b []string) bool {
+	return len(a) < len(b) && slices.Equal(a, b[:len(a)])
 }
 
 // Heads returns the map of head changes.
@@ -475,7 +515,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			blk := op.Block
 			reg := e.stateBlocks[blk.ID()]
 			if reg == nil {
-				reg = newMVReg[blob.Block]()
+				reg = newLWWReg[blob.Block]()
 				e.stateBlocks[blk.ID()] = reg
 			}
 			opid, err := checkedOpID(idx)

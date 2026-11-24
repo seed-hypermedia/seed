@@ -801,8 +801,8 @@ describe('document updates through PrepareDocumentChange', () => {
     }
 
     // 2. This machine's clock is ahead of the site's. A Change built here is then later than the
-    //    site's clock; the site cannot prepare the next one ("must be greater than ts of its
-    //    dependency"), so that one is built here too, one millisecond after the head.
+    //    site's clock; the site stamps the next one by the document's causal clock, one
+    //    millisecond after the head, so it still prepares it.
     // (Under the 40 seconds the daemon tolerates: a Change stamped further ahead than that is
     // stored and then not read, which no client-side stamp can repair.)
     const ahead = () => Date.now() + 20_000
@@ -819,8 +819,7 @@ describe('document updates through PrepareDocumentChange', () => {
       expect(local.update.ts).toBeGreaterThan(Date.now() + 10_000)
       const next = await stillWorks(docPath, tree)
       if (!next.update.changed) throw new Error('expected a change')
-      expect(next.update.builtBy).toBe('local')
-      expect(next.update.localReason).toContain("clock is not past the time of the document's latest change")
+      expect(next.update.builtBy).toBe('server')
       expect(next.update.ts).toBe(local.update.ts + 1)
       // And once more, so the Change after a fallback is checked too.
       const again = [...cloneTree(tree), {id: `after-${docPath.slice(1)}`, children: []}, {id: 'last', children: []}]
@@ -911,7 +910,7 @@ describe('document updates through PrepareDocumentChange', () => {
         'moving two neighbouring blocks together keeps the order',
         'two new sections, a nested list with two parents and a new table arrive in one update',
         'with the service clock behind the site, Changes built here still follow the ones under them',
-        'with the service clock ahead of the site, the next update is built here and the document still reads',
+        'with the service clock ahead of the site, the site still prepares the next update after the head',
         'seeded random edits of a nested document all read back as written',
         'a document of every block kind writes back as nothing, exactly as read',
         'a body that lost its id comments keeps the ids of the blocks with text',
