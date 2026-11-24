@@ -75,6 +75,70 @@ describe('trigger documents', () => {
     ])
   })
 
+  test('an agent’s triggers can start a session when a tool call fails, and run sessions with their own prompt and tools', async () => {
+    const agent: apisvc.TriggerHost = {kind: 'agent', id: 'hm://z6Mkspace/maple', accountId: 'z6Mkspace'}
+    const app: apisvc.TriggerHost = {kind: 'app', id: 'hm://z6Mkspace/inbox', accountId: 'z6Mkspace'}
+    const message = [
+      {
+        block: {id: 'm', type: 'Paragraph', text: 'The post failed: find out why.', annotations: [], attributes: {}},
+        children: [],
+      },
+    ]
+    const base = {
+      documentId: 'hm://z6Mkspace/maple/t',
+      version: 'v',
+      author: 'z6Mkspace',
+      name: 'T',
+      enabled: true,
+      source: {type: 'webhook'},
+      tool: null as string | null,
+      input: undefined,
+      content: [] as never[],
+      onFailure: null as 'session' | null,
+      session: null as {systemPrompt?: string; tools?: string[]} | null,
+    }
+    // A failed tool call starts a session whose message is the trigger's body.
+    const failing = apisvc.projectTriggerDocument(agent, {
+      ...base,
+      tool: 'hm://z6Mkspace/maple/post',
+      onFailure: 'session',
+      content: message as never[],
+    })
+    expect(failing.continuation).toEqual({kind: 'tool', tool: 'hm://z6Mkspace/maple/post', onFailure: 'thread'})
+    expect(failing.prompt).toContain('find out why')
+    expect(() =>
+      apisvc.projectTriggerDocument(agent, {...base, tool: 'hm://z6Mkspace/maple/post', onFailure: 'session'}),
+    ).toThrow('needs a message')
+    expect(() =>
+      apisvc.projectTriggerDocument(app, {
+        ...base,
+        tool: 'hm://z6Mkspace/inbox/post',
+        onFailure: 'session',
+        content: message as never[],
+      }),
+    ).toThrow('an app has no agent')
+    expect(() =>
+      apisvc.projectTriggerDocument(agent, {...base, tool: 'hm://z6Mkspace/maple/post', session: {tools: ['read']}}),
+    ).toThrow('session options belong')
+    // A session trigger runs with its own instructions and narrower tools.
+    const session = apisvc.projectTriggerDocument(agent, {
+      ...base,
+      content: message as never[],
+      session: {systemPrompt: 'You triage.', tools: ['read', 'search']},
+    })
+    expect(session.continuation).toEqual({kind: 'newThread', systemPrompt: 'You triage.', tools: ['read', 'search']})
+    // Written by an agent: the tool list is stored as a set.
+    expect(
+      (await apisvc.resolveWriteTrigger({onFailure: 'session', session: {systemPrompt: 'x', tools: ['read']}}, true))
+        .metadata,
+    ).toEqual({
+      type: 'hm://hyper.media/trigger',
+      onFailure: 'session',
+      session: {systemPrompt: 'x', tools: {read: true}},
+    })
+    await expect(apisvc.resolveWriteTrigger({onFailure: 'thread'}, true)).rejects.toThrow('onFailure is "session"')
+  })
+
   test('principals decode from dag-json bytes', () => {
     const key = blobs.generateNobleKeyPair()
     const bytes = new Uint8Array(key.principal)

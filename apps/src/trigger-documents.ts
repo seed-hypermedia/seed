@@ -12,6 +12,7 @@ import {
   isToolHostType,
   parentDocumentId,
   triggerDocumentFields,
+  type TriggerSessionOptions,
 } from '@seed-hypermedia/client/apps'
 import type {SeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, type HMBlockNode, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -32,8 +33,12 @@ export type TriggerDocument = {
   tool: string | null
   /** The tool's input template, if any. */
   input: unknown
-  /** The document's body: an agent session trigger's first message. */
+  /** The document's body: an agent session trigger's first message, or a failure session's. */
   content: HMBlockNode[]
+  /** `session`: a failed tool call starts a session with the agent. */
+  onFailure: 'session' | null
+  /** A session trigger's own instructions and tool list. */
+  session: TriggerSessionOptions | null
 }
 
 /** What a host lists: its readable triggers, and why any listed one could not be read. */
@@ -86,6 +91,8 @@ export async function readHostTriggers(
         tool: refs.tool,
         input: refs.input,
         content: document.content ?? [],
+        onFailure: refs.onFailure,
+        session: refs.session,
       }
       cache?.set(documentId, trigger)
       triggers.push(trigger)

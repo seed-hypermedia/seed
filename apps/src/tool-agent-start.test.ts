@@ -170,7 +170,7 @@ describe('ctx.agent.start', () => {
       // New work: one session, with the message and options the tool chose, recorded on the call.
       const first = await call(SPACE, agent, agentTool, {items: ['a', 'b']})
       expect(first.output).toEqual({fresh: ['a', 'b'], sessions: ['session-1'], refused: null})
-      expect(first.sessions).toEqual([{sessionId: 'session-1', at: expect.any(Number)}])
+      expect(first.sessions).toEqual<unknown>([{sessionId: 'session-1', at: expect.any(Number)}])
       expect(started).toEqual([
         {
           hostId: agent,

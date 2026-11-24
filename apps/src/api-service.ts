@@ -144,6 +144,7 @@ import {
   parentDocumentId,
   replaceContentOps,
   triggerDocumentOps,
+  triggerSessionOptionsFromMetadata,
   triggerSourceFromMetadata,
   triggerSourceToMetadata,
 } from '@seed-hypermedia/client/apps'
@@ -15372,7 +15373,10 @@ export async function resolveWriteTrigger(
   isUpdate: boolean,
 ): Promise<{metadata: Record<string, unknown>; blobs: CollectedBlob[]}> {
   if (!isRecord(raw))
-    throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/triggers')
+    throw new APIError(
+      400,
+      'options.trigger is {source, tool?, input?, enabled?, onFailure?, session?}: read ~/tools/write/triggers',
+    )
   // An update changes only what it names: {enabled: false} alone turns a trigger off.
   const source =
     raw.source === undefined && isUpdate
@@ -15383,6 +15387,16 @@ export async function resolveWriteTrigger(
     throw new APIError(400, 'options.trigger.tool is the hm:// URL of a tool of the same app or agent')
   if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean')
     throw new APIError(400, 'options.trigger.enabled is true or false')
+  if (raw.onFailure !== undefined && raw.onFailure !== null && raw.onFailure !== 'session')
+    throw new APIError(
+      400,
+      'options.trigger.onFailure is "session" (a failed tool call starts a session with you), or null',
+    )
+  if (raw.session !== undefined && raw.session !== null && !isPlainMap(raw.session))
+    throw new APIError(
+      400,
+      'options.trigger.session is {systemPrompt?, includeAgentSystemPrompt?, tools?: {<tool>: true}}, or null',
+    )
   // Written into the document's metadata: the source's sets as maps (one key per entry), and a
   // null clears an attribute (tool: null makes an agent's trigger start a session again).
   const metadata: Record<string, unknown> = {type: HM_TRIGGER_TYPE}
@@ -15391,6 +15405,18 @@ export async function resolveWriteTrigger(
   else if (raw.tool === null) metadata.tool = null
   if (raw.input !== undefined) metadata.input = raw.input
   if (raw.enabled !== undefined) metadata.enabled = raw.enabled
+  if (raw.onFailure !== undefined) metadata.onFailure = raw.onFailure
+  if (raw.session !== undefined) {
+    const session = raw.session === null ? null : triggerSessionOptionsFromMetadata(raw.session)
+    // The tool list is a set: stored as {<tool>: true}, one key per tool.
+    metadata.session = session
+      ? {
+          ...(session.systemPrompt ? {systemPrompt: session.systemPrompt} : {}),
+          ...(session.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+          ...(session.tools?.length ? {tools: Object.fromEntries(session.tools.map((tool) => [tool, true]))} : {}),
+        }
+      : null
+  }
   return {metadata, blobs: []}
 }
 
@@ -15857,7 +15883,7 @@ export function userTimeBlock(timezone: string | undefined, now = new Date()): s
 }
 
 /** An app or a mounted agent whose trigger documents this server fires. */
-type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
+export type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
 
 /**
  * A trigger document as engine fields: its validated source, and either a tool call (its `tool`,
@@ -15869,27 +15895,57 @@ const APP_RESOURCE_TYPES = new Set(['hm://hyper.media/app', HM_TOOL_TYPE, 'hm://
 const APP_TRIGGER_NEEDS_TOOL =
   "An app's trigger calls one of the app's tools (options.trigger.tool). Work an agent does on an app's data (a digest, a shopping list) is the agent's own trigger, under its document, with the instructions as its content: read ~/tools/write/triggers."
 
-function projectTriggerDocument(
+export function projectTriggerDocument(
   host: TriggerHost,
   trigger: triggerDocuments.TriggerDocument,
 ): {source: api.AgentTriggerSource; continuation?: api.TriggerContinuation; prompt: string; agentId: string | null} {
   const source = normalizeAgentTriggerSource(trigger.source as api.AgentTriggerSource)
   if (trigger.tool) {
+    // On failure, an agent's tool trigger can start a session: the body is that session's message.
+    if (trigger.onFailure === 'session') {
+      if (host.kind !== 'agent')
+        throw new Error('onFailure: "session" starts the agent, and an app has no agent: remove it from this trigger')
+      if (!trigger.content.length)
+        throw new Error('onFailure: "session" needs a message: write what the agent should do about a failure')
+    }
+    if (trigger.session)
+      throw new Error('session options belong to a trigger that starts a session, not one that calls a tool')
     return {
       source,
-      continuation: {kind: 'tool', tool: trigger.tool, ...(trigger.input !== undefined ? {input: trigger.input} : {})},
-      // A tool trigger has no message; an empty block list keeps the stored shape.
-      prompt: JSON.stringify({type: 'seed-prompt-blocks', blocks: []}),
+      continuation: {
+        kind: 'tool',
+        tool: trigger.tool,
+        ...(trigger.input !== undefined ? {input: trigger.input} : {}),
+        ...(trigger.onFailure === 'session' ? {onFailure: 'thread' as const} : {}),
+      },
+      // A tool trigger has no message unless a failure starts a session; an empty block list keeps
+      // the stored shape.
+      prompt:
+        trigger.onFailure === 'session'
+          ? serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[])
+          : JSON.stringify({type: 'seed-prompt-blocks', blocks: []}),
       agentId: host.kind === 'agent' ? host.id : null,
     }
   }
   // Without a tool, a firing starts a session with the agent the trigger lives under.
   if (host.kind === 'app') throw new Error(APP_TRIGGER_NEEDS_TOOL)
   const agentId = host.id
+  if (trigger.onFailure) throw new Error('onFailure belongs to a trigger that calls a tool')
   if (!trigger.content.length)
     throw new Error('This trigger starts a session but has no message: write it in the trigger')
+  const session = trigger.session
   return {
     source,
+    ...(session
+      ? {
+          continuation: {
+            kind: 'newThread' as const,
+            ...(session.systemPrompt ? {systemPrompt: session.systemPrompt} : {}),
+            ...(session.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+            ...(session.tools?.length ? {tools: session.tools} : {}),
+          },
+        }
+      : {}),
     prompt: serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[]),
     agentId,
   }
