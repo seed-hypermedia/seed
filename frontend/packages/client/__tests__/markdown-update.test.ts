@@ -166,6 +166,71 @@ describe('a markdown body written back', () => {
     expect(edited.ops.filter((op) => op.type === 'ReplaceBlock')).toHaveLength(1)
   })
 
+  it('counts moves by the blocks that changed place, not the ones they passed', () => {
+    const flat = ['a', 'b', 'c', 'd', 'e'].map((id) => paragraph(id, `text ${id}`))
+    const doc = {...richDocument(), content: flat} as unknown as HMDocument
+    const body = (ids: string[]) => ids.map((id) => `text ${id} <!-- id:${id} -->`).join('\n\n')
+    expect(opsFor(doc, body(['b', 'c', 'd', 'e', 'a'])).change).toMatchObject({moved: 1, added: 0, deleted: 0})
+    expect(opsFor(doc, body(['e', 'd', 'c', 'b', 'a'])).change).toMatchObject({moved: 4})
+    expect(opsFor(doc, body(['a', 'c', 'e'])).change).toMatchObject({moved: 0, deleted: 2})
+    expect(opsFor(doc, 'text a <!-- id:a -->\n\n  text b <!-- id:b -->\n\ntext c <!-- id:c -->').change).toMatchObject({
+      moved: 1,
+      rewritten: 1,
+      deleted: 2,
+    })
+  })
+
+  it('keeps text that looks like markup, and space at the edges, in table cells and headings', () => {
+    const cellTexts = ['see <!-- id:fake --> here', ' leading', 'trailing ', '<!-- col:fake -->', 'a | b']
+    const content = [
+      node({type: 'Heading', id: 'h', text: ' spaced heading '}),
+      node({type: 'Table', id: 't'}, [
+        node({type: 'TableColumn', id: 'c1'}),
+        ...cellTexts.map((text, i) =>
+          node({type: 'TableRow', id: `r${i}`}, [paragraph(`cell${i}`, text, {attributes: {columnId: 'c1'}})]),
+        ),
+      ]),
+    ]
+    const parsed = parseMarkdown(blocksToMarkdown({metadata: {}, content} as unknown as HMDocument)).tree
+    expect(parsed[0]!.block.text).toBe(' spaced heading ')
+    const rows = parsed[1]!.children.filter((n) => n.block.type === 'TableRow')
+    expect(rows.map((row) => row.block.id)).toEqual(cellTexts.map((_, i) => `r${i}`))
+    expect(rows.map((row) => row.children[0]!.block.text)).toEqual(cellTexts)
+  })
+
+  it('skips resolved ranges wherever a block can sit', () => {
+    const markdown = [
+      '- <hm://site/a> <!-- id:e1 type:Embed -->',
+      '  <!-- resolved: A -->',
+      '  ```',
+      '  <!-- /resolved -->',
+      '  ```',
+      '  $$',
+      '  <!-- /resolved -->',
+      '  $$',
+      '  - shown item <!-- id:x1 -->',
+      '  <!-- /resolved -->',
+      '- second <!-- id:p2 -->',
+      '',
+      '  ```md <!-- id:c1 -->',
+      '  <!-- resolved: not a marker -->',
+      '  ```',
+    ].join('\n')
+    const [list] = parseMarkdown(markdown).tree
+    expect(list!.children.map((n) => [n.block.id, n.block.type])).toEqual([
+      ['e1', 'Embed'],
+      ['p2', 'Paragraph'],
+    ])
+    expect(list!.children[1]!.children[0]!.block).toMatchObject({
+      id: 'c1',
+      type: 'Code',
+      text: '<!-- resolved: not a marker -->',
+    })
+    expect(
+      parseMarkdown('text\n<!-- resolved: x -->\nshown', {strictResolvedRanges: false}).tree.map((n) => n.block.text),
+    ).toEqual(['text'])
+  })
+
   it('refuses a resolved range that never ends, and skips markers inside code', () => {
     expect(() => parseMarkdown('text\n<!-- resolved: x -->\nshown')).toThrow(MarkdownResolvedRangeError)
     expect(

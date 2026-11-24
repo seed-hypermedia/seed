@@ -259,7 +259,7 @@ function renderNode(
     const extra = extraAttributes(type, attributes, false)
     const contentInd = ind + ' '.repeat(marker.length)
     const table = tableToMarkdown(node, contentInd, (t, a) =>
-      renderInline(t, a, {atLineStart: false, mentionLabel: opts.mentionLabel}),
+      renderInline(t, a, {atLineStart: false, leadingSpace: true, mentionLabel: opts.mentionLabel}),
     )
     // A table with no columns has no GFM form; the comment alone carries it.
     out.push(ind + marker + blockComment(block.id, table ? undefined : 'Table', extra))
@@ -303,7 +303,11 @@ function renderNode(
           marker +
           '#'.repeat(level) +
           ' ' +
-          renderInline(text, block.annotations, {atLineStart: false, mentionLabel: opts.mentionLabel}) +
+          renderInline(text, block.annotations, {
+            atLineStart: false,
+            leadingSpace: true,
+            mentionLabel: opts.mentionLabel,
+          }) +
           ' ' +
           comment,
       )
@@ -557,8 +561,18 @@ type Span = {
 type RenderInlineOptions = {
   /** Escape characters that would start a block (heading, list, table…) at position 0. */
   atLineStart: boolean
+  /**
+   * Escape whitespace at the start of the text. Set where the text follows other syntax on its
+   * line (`# `, `| `), which would swallow it.
+   */
+  leadingSpace?: boolean
   /** See {@link BlocksToMarkdownOptions.mentionLabel}. */
   mentionLabel?: (link: string, kind?: string) => string
+}
+
+/** The rendered text, with whitespace at its start kept when the options ask for it. */
+function keepLeadingSpace(out: string, options: RenderInlineOptions): string {
+  return options.leadingSpace && /^\s/.test(out) ? '\\' + out : out
 }
 
 const SPAN_STYLE: Record<string, string> = {
@@ -631,7 +645,8 @@ function spanPriority(s: Span): number {
 /** Render text + annotations as inline markdown. */
 function renderInline(text: string, annotations: HMAnnotation[] | undefined, options: RenderInlineOptions): string {
   const spans = spansFromAnnotations(text, annotations)
-  if (spans.length === 0) return escapeTrailingWhitespace(escapeInline(text, options.atLineStart))
+  if (spans.length === 0)
+    return keepLeadingSpace(escapeTrailingWhitespace(escapeInline(text, options.atLineStart)), options)
 
   const boundaries = new Set<number>([0, text.length])
   for (const s of spans) {
@@ -693,7 +708,7 @@ function renderInline(text: string, annotations: HMAnnotation[] | undefined, opt
     }
   }
   while (stack.length) out += stack.pop()!.close
-  return escapeTrailingWhitespace(out)
+  return keepLeadingSpace(escapeTrailingWhitespace(out), options)
 }
 
 /** Open/close markers for a span, given the chunk it is about to wrap. */

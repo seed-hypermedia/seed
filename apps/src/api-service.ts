@@ -18597,49 +18597,22 @@ async function writeDocumentUpdate(
   // No content at all means a metadata-only update: the body is left untouched. This must stay
   // distinct from empty content — diffing an absent body against the old tree would emit a
   // delete sweep of every block.
-  const hasBody =
-    request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
-  const hasEdits = request.input.edits !== undefined
-  if (hasBody && hasEdits)
-    throw new APIError(
-      400,
-      'Pass either content (a whole new body) or options.edits (changes to blocks by id), not both.',
-    )
-  const hasContent = hasBody || hasEdits
   const stored = resource.document.content || []
-  const oldNodes = stored.map((node) => toAPIBlockNode(node))
-  let parsed = hasBody ? parseWriteDocumentContent(request.input) : undefined
-  let newTree: MarkdownBlockNode[] | undefined
-  if (hasEdits) {
-    // Edits start from the stored blocks, so a block no edit names is never parsed or compared.
-    const edited = applyBlockEditsOrBadRequest(
-      stored.map((node) => hmBlockNodeToBlockNode(node)),
-      request.input.edits,
-    )
-    newTree = rebindTableIdentities(oldNodes, edited.tree)
-    parsed = {ops: [], metadata: {}, blocks: markdownBlockNodesToHMBlockNodes(newTree)}
-  } else if (parsed) {
-    const written = parsed.blocks.map((node) => hmBlockNodeToBlockNode(node))
-    // Markdown: a block that reads as the stored one is the stored one (markdownUpdateTree).
-    // Blocks given as JSON are compared as given, after table cells get their ids back.
-    newTree =
-      parsed.format === 'markdown' ? markdownUpdateTree(stored, written) : rebindTableIdentities(oldNodes, written)
-  }
-  const contentOps = newTree ? computeReplaceOps(createBlocksMap(oldNodes), newTree) : []
-  const changes = newTree ? describeContentChange(oldNodes, newTree, contentOps) : undefined
-  if (parsed) {
+  const contentUpdate = planContentUpdate(stored, request.input)
+  if (contentUpdate) {
     // Only what this write stores is checked: a dead link in a block it leaves alone was published
     // by an earlier write and is not this one's to refuse.
-    const writtenBlocks = writtenBlockNodes(contentOps)
-    await assertPublishableMermaid(writtenBlocks)
-    await assertHmContentLinks(client, writtenBlocks, {skipResolve: request.input.skipLinkCheck === true})
+    await assertPublishableMermaid(contentUpdate.written)
+    await assertHmContentLinks(client, contentUpdate.written, {skipResolve: request.input.skipLinkCheck === true})
   }
-  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
+  const contentOps = contentUpdate?.ops ?? []
+  const changes = contentUpdate?.changes
+  const metadata = mergeWriteMetadata(contentUpdate?.metadata ?? {}, request.input)
   // Nothing asked for at all is a mistake in the call. Content or metadata that the document already
   // holds is not: that write ends as "already up to date" below.
-  if (!hasContent && !Object.values(metadata).some((value) => value !== undefined))
+  if (!contentUpdate && !Object.values(metadata).some((value) => value !== undefined))
     throw new APIError(400, 'No document updates specified — provide content, edits and/or metadata')
-  const removal = hasBody && changes ? largeRemoval(changes) : undefined
+  const removal = contentUpdate?.refusal
   if (removal && !request.dryRun && request.input.force !== true) throw new APIError(400, removal)
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
@@ -18659,7 +18632,7 @@ async function writeDocumentUpdate(
     refuseNonconformingWrite(request.command, packHmId(targetId), problems, request, existing.problems)
   }
   // The body as it will read: a block kept as stored keeps its stored links.
-  const body = newTree ? markdownBlockNodesToHMBlockNodes(newTree) : stored
+  const body = contentUpdate?.body ?? stored
   const assets = await preflightDocumentAssets(client, body, {...resource.document.metadata, ...metadata})
   const plan = planDocumentUpdate(base, metadata, contentOps)
   if (request.dryRun)
@@ -18680,7 +18653,7 @@ async function writeDocumentUpdate(
         to: packHmId(hop.to),
         republish: hop.republish,
       })),
-      ...(newTree ? {blockCount: body.length} : {metadataOnly: true}),
+      ...(contentUpdate ? {blockCount: body.length} : {metadataOnly: true}),
       ...(changes ? {changes: contentChangeReport(changes)} : {}),
       ...(removal && request.input.force !== true ? {wouldRefuse: removal} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
@@ -18731,6 +18704,74 @@ async function writeDocumentUpdate(
 }
 
 type MarkdownBlockNode = ReturnType<typeof hmBlockNodeToBlockNode>
+
+/** What an update does to a document's body, worked out from the stored blocks and the write's input. */
+export type ContentUpdatePlan = {
+  /** Metadata a markdown body carries in its frontmatter. */
+  metadata: HMMetadata
+  /** The body as it will read. A block kept as stored keeps its stored form. */
+  body: HMBlockNode[]
+  /** The operations that turn the stored body into `body`; none when it already reads that way. */
+  ops: DocumentOperation[]
+  /** The blocks `ops` store (new or rewritten): the ones whose links and diagrams are checked. */
+  written: HMBlockNode[]
+  changes: ContentChange
+  /** Set when the write must not publish unless it passes `options.force` (see largeRemoval). */
+  refusal?: string
+}
+
+/**
+ * Plans the body of a document update. The body changes in one of two ways:
+ *
+ * - `edits` change blocks by id, starting from the stored blocks, so a block no edit names is
+ *   never parsed or compared;
+ * - `content` (also `body`, `text`) is a whole new body. Written as markdown, a block that reads as
+ *   the stored one is the stored one (markdownUpdateTree); given as JSON blocks, it is compared as
+ *   given, after table cells get their ids back.
+ *
+ * Returns undefined when the input carries neither: a metadata-only update, which leaves the body
+ * alone. That must stay distinct from an empty body, which deletes every block. Throws a 400 for
+ * input that cannot be applied. No network.
+ */
+export function planContentUpdate(
+  stored: HMBlockNode[],
+  input: Record<string, unknown>,
+): ContentUpdatePlan | undefined {
+  const hasBody = input.content !== undefined || input.body !== undefined || input.text !== undefined
+  const hasEdits = input.edits !== undefined
+  if (hasBody && hasEdits)
+    throw new APIError(
+      400,
+      'Pass either content (a whole new body) or options.edits (changes to blocks by id), not both.',
+    )
+  if (!hasBody && !hasEdits) return undefined
+  const oldNodes = stored.map((node) => toAPIBlockNode(node))
+  let metadata: HMMetadata = {}
+  let tree: MarkdownBlockNode[]
+  if (hasEdits) {
+    const edited = applyBlockEditsOrBadRequest(
+      stored.map((node) => hmBlockNodeToBlockNode(node)),
+      input.edits,
+    )
+    tree = rebindTableIdentities(oldNodes, edited.tree)
+  } else {
+    const parsed = parseWriteDocumentContent(input)
+    const written = parsed.blocks.map((node) => hmBlockNodeToBlockNode(node))
+    metadata = parsed.metadata
+    tree = parsed.format === 'markdown' ? markdownUpdateTree(stored, written) : rebindTableIdentities(oldNodes, written)
+  }
+  const ops = computeReplaceOps(createBlocksMap(oldNodes), tree)
+  const changes = describeContentChange(oldNodes, tree, ops)
+  return {
+    metadata,
+    body: markdownBlockNodesToHMBlockNodes(tree),
+    ops,
+    written: writtenBlockNodes(ops),
+    changes,
+    // Edits delete only the blocks they name, so only a whole body is checked for what it leaves out.
+    ...(hasBody ? {refusal: largeRemoval(changes)} : {}),
+  }
+}
 
 /** Applies `options.edits` to the stored blocks; an edit that cannot apply is the caller's mistake. */
 function applyBlockEditsOrBadRequest(tree: MarkdownBlockNode[], edits: unknown) {

@@ -663,6 +663,27 @@ type ParsedTableRow = {cells: ParsedTableCell[]; id?: string}
  * `<!-- col:… -->` comments are stripped from every cell and captured
  * per-cell (only header cells' col ids are used by the builder).
  */
+/** The first match of `re` in `text` that is not escaped with a backslash: `\<!-- id:x -->` is text. */
+function matchUnescaped(text: string, re: RegExp): RegExpExecArray | null {
+  const all = new RegExp(re.source, 'g')
+  for (let match = all.exec(text); match; match = all.exec(text)) {
+    let slashes = 0
+    while (text[match.index - 1 - slashes] === '\\') slashes++
+    if (slashes % 2 === 0) return match
+  }
+  return null
+}
+
+/** Trims a cell, keeping a final space the writer escaped (`text\ `). */
+function trimCell(raw: string): string {
+  const start = raw.replace(/^\s+/, '')
+  const end = start.replace(/\s+$/, '')
+  if (end.length === start.length) return end
+  let slashes = 0
+  while (end[end.length - 1 - slashes] === '\\') slashes++
+  return slashes % 2 === 1 ? end + start[end.length] : end
+}
+
 function splitTableRow(line: string): ParsedTableRow {
   const {text, id: afterPipeId} = stripBlockId(line.trim())
   let s = text.trim()
@@ -674,27 +695,28 @@ function splitTableRow(line: string): ParsedTableRow {
       cur += '|'
       i++
     } else if (s[i] === '|') {
-      rawCells.push(cur.trim())
+      rawCells.push(cur)
       cur = ''
     } else {
       cur += s[i]
     }
   }
-  const last = cur.trim()
   // A trailing pipe leaves an empty final segment — not a cell.
-  if (last !== '' || rawCells.length === 0) rawCells.push(last)
+  if (cur.trim() !== '' || rawCells.length === 0) rawCells.push(cur)
 
   let rowId = afterPipeId
   const cells = rawCells.map((raw): ParsedTableCell => {
     let cellText = raw
-    const idMatch = cellText.match(CELL_ID_RE)
+    const cut = (match: RegExpExecArray) =>
+      cellText.slice(0, match.index) + cellText.slice(match.index + match[0].length)
+    const idMatch = matchUnescaped(cellText, CELL_ID_RE)
     if (idMatch) {
       rowId = idMatch[1]
-      cellText = cellText.replace(idMatch[0], '')
+      cellText = cut(idMatch)
     }
     let colId: string | undefined
     let colAttrs: Record<string, unknown> | undefined
-    const colMatch = cellText.match(COL_ID_RE)
+    const colMatch = matchUnescaped(cellText, COL_ID_RE)
     if (colMatch) {
       colId = colMatch[1]
       if (colMatch[2]) {
@@ -704,9 +726,9 @@ function splitTableRow(line: string): ParsedTableRow {
           // ignore malformed column attrs
         }
       }
-      cellText = cellText.replace(colMatch[0], '')
+      cellText = cut(colMatch)
     }
-    return {text: cellText.trim(), colId, colAttrs}
+    return {text: trimCell(cellText), colId, colAttrs}
   })
   return {cells, id: rowId}
 }
