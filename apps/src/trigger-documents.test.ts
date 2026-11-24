@@ -236,10 +236,14 @@ describe('trigger documents', () => {
       const toolCallId = firing.toolCallId
       expect(firing.status).toBe('succeeded')
       expect(toolCallId).toBeString()
-      // The call is the app's, recorded as the trigger author's.
-      expect(await send(stranger, {_: 'GetAppToolCall', callId: toolCallId})).toMatchObject({
+      // The call is the app's, recorded as the trigger author's: the app's writers read it, a
+      // stranger does not (it answers as no call at all).
+      expect(await send(owner, {_: 'GetAppToolCall', callId: toolCallId})).toMatchObject({
         call: {caller: space, toolId: toolUrl, input: {text: 'hello'}, output: {echoed: 'hello'}},
       })
+      expect(await send(stranger, {_: 'GetAppToolCall', callId: toolCallId})).toMatchObject({error: 'No such run'})
+      expect(await send(stranger, {_: 'ListAppToolCalls', toolId: toolUrl})).toMatchObject({calls: []})
+      expect(await send(owner, {_: 'ListAppToolCalls', toolId: toolUrl})).toMatchObject({calls: [{id: toolCallId}]})
 
       // Taking the card out of the app removes the trigger.
       listsTrigger = false

@@ -187,7 +187,7 @@ Agents have their own vocabulary, defined once in the [Agents glossary](./agent/
 - **Public config of an app.** The settings in `metadata.publicConfig`. Every page and tool of the app can read them. See [App](./app.md).
 - **Private config of an app.** The secret settings. Only the server that runs the app holds them, encrypted, and they are never in the document. See [App](./app.md).
 - **Tool.** A document typed `hm://hyper.media/tool` that holds one function, with a schema for its input and one for its output. The server of its app or agent runs it. See [Tool](./tool.md).
-- **Call record.** What the server keeps of one tool call: who called, the tool's version, the input, the output or the error, and how long the call took. Call records are not private. See [Tool](./tool.md#calls-are-not-private).
+- **Call record.** What the server keeps of one tool call: who called, the tool's version, the input, the output or the error, what it published, and how long the call took. The host's writers read every record, and others only their own calls. See [Tool](./tool.md#who-reads-call-records).
 - **Page, custom page.** A document typed `hm://hyper.media/page` that carries a small web interface. It runs in a sandbox in the viewer's client, and a schema defines the input it takes from its URL. See [Page](./page.md).
 - **Page input.** The typed values a page takes from its URL, one `p.<name>` parameter for each field of its input schema. See [Page Input](./page-input.md).
 - **Page sandbox.** The closed box a custom page runs in. The page cannot leave it, and the viewer approves what the page may read, sign and publish. See [The Page Sandbox](./build/page-sandbox.md).

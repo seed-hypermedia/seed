@@ -241,7 +241,7 @@ describe('ctx.seed', () => {
       expect(call.writes).toEqual([
         {id: `hm://${SPACE}/recipes/lists/47`, version: 'bafynewversion', as: APP_KEY, at: expect.any(Number)},
       ])
-      expect(appRunning.getAppToolCall(deps, {callId: call.id}).writes).toHaveLength(1)
+      expect((await appRunning.getAppToolCall(deps, {callId: call.id}, [WRITER])).writes).toHaveLength(1)
 
       // A viewer may call the tool, but it cannot make the app publish (no confused deputy).
       const byViewer = await appRunning.callAppTool(deps, VIEWER, {appId: APP, toolId: TOOL, input: {week: '48'}})

@@ -61,7 +61,7 @@ The event of a webhook firing carries the posted JSON as `payload`. In a trigger
 
 A common pattern uses a trigger document. An agent publishes a tool under its own document. Then it publishes a trigger document beside the tool, with `options.trigger: {source: {type: 'webhook'}, tool: '<the tool's hm:// URL>', input: {payload: '$event.payload'}}`. From then on, deliveries run the tool's code directly, with no model. A failed call is recorded on the firing. A trigger document has no `onFailure`, so no session starts when the code fails. <!-- id:7kDY3C-p -->
 
-The posted body becomes tool input, and the server records it in the tool's call record. Call records are not private, so a sender must not post secrets to such a webhook. See [tool](../tool.md).
+The posted body becomes tool input, and the server records it in the tool's call record, which the host's writers can read. A sender should not post secrets to such a webhook. See [tool](../tool.md).
 
 The server does not poll for webhooks. Webhook triggers do keep the [activity monitor](./triggers.md) polling for their account, like any enabled trigger that is not a schedule.
 

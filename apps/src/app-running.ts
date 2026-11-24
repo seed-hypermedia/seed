@@ -10,7 +10,13 @@ import type {Database} from 'bun:sqlite'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import {appEmbeddedChildren, HM_TOOL_TYPE, isToolHostType, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {
+  appEmbeddedChildren,
+  HM_TOOL_TYPE,
+  isToolHostType,
+  parentDocumentId,
+  TOOL_ENTRY_FILE,
+} from '@seed-hypermedia/client/apps'
 import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {createSeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -748,24 +754,69 @@ export async function callAppTool(
   return toCallInfo(row)
 }
 
-/** One recorded call by id. */
-export function getAppToolCall(deps: AppRunDeps, action: {callId: string}): api.AppToolCallInfo {
+/**
+ * Whether any of `readers` may read every call of a host's tools: a writer of the host's space.
+ * Everyone else reads only the calls they made. (A call's input and output can hold what the tool
+ * read from its host's memory or private config.)
+ */
+async function readsAllCalls(deps: AppRunDeps, hostId: string, readers: string[]): Promise<boolean> {
+  const host = unpackHmId(hostId)
+  if (!host) return false
+  for (const reader of readers) if (await isSpaceWriter(deps.client, host, reader)) return true
+  return false
+}
+
+/** One recorded call by id: for writers of its host, and for whoever made it. */
+export async function getAppToolCall(
+  deps: AppRunDeps,
+  action: {callId: string},
+  readers: string[],
+): Promise<api.AppToolCallInfo> {
   const row = deps.db.query('SELECT * FROM app_tool_calls WHERE id = ?').get(action.callId) as ToolCallRow | null
-  if (!row) throw new AppRunError(404, 'No such run')
+  // Someone else's call answers as no call at all, so its existence does not leak either.
+  if (!row || (!readers.includes(row.caller) && !(await readsAllCalls(deps, row.app_id, readers))))
+    throw new AppRunError(404, 'No such run')
   return toCallInfo(row)
 }
 
-/** A tool's recorded calls, newest first. Anyone who can read the tool can read them. */
-export function listAppToolCalls(
+/**
+ * A tool's recorded calls, newest first: all of them for writers of its host, otherwise only the
+ * calls `readers` made themselves.
+ */
+export async function listAppToolCalls(
   deps: AppRunDeps,
   action: {toolId: string; limit?: number; before?: number},
-): api.AppToolCallInfo[] {
+  readers: string[],
+): Promise<api.AppToolCallInfo[]> {
+  const toolId = versionless(action.toolId, 'tool')
+  const limit = Math.max(1, Math.min(200, Math.floor(action.limit ?? 50)))
+  const parent = parentDocumentId(toolId)
+  const all = parent ? await readsAllCalls(deps, parent.id, readers) : false
+  const rows = (
+    deps.db
+      .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`)
+      .all(toolId.id, action.before ?? Number.MAX_SAFE_INTEGER, all ? limit : 1000) as ToolCallRow[]
+  ).filter((row) => all || readers.includes(row.caller))
+  return rows.slice(0, limit).map(toCallInfo)
+}
+
+/** Recent calls with nothing they carried (no input, output, error text or writes): for unsigned readers. */
+export function listAppToolCallSummaries(
+  deps: AppRunDeps,
+  action: {toolId: string; limit?: number},
+): api.AppToolCallSummary[] {
   const toolId = versionless(action.toolId, 'tool')
   const limit = Math.max(1, Math.min(200, Math.floor(action.limit ?? 50)))
   const rows = deps.db
-    .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`)
-    .all(toolId.id, action.before ?? Number.MAX_SAFE_INTEGER, limit) as ToolCallRow[]
-  return rows.map(toCallInfo)
+    .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? ORDER BY created_at DESC LIMIT ?`)
+    .all(toolId.id, limit) as ToolCallRow[]
+  return rows.map((row) => ({
+    id: row.id,
+    toolId: row.tool_id,
+    ok: row.error === null,
+    ...(row.duration_ms !== null ? {durationMs: row.duration_ms} : {}),
+    createdAt: row.created_at,
+  }))
 }
 
 /** Every app running on this server, most recently started or updated first. */

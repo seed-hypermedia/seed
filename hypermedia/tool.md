@@ -6,7 +6,7 @@ A **tool** is a small function that lives in a [document](./protocol/documents.m
 
 The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The document holds three things: what goes in, what comes out, and the code. A tool lives directly under an [app](./app.md) or an [agent](./agent.md), called its host. The host lists the tool with a [card embed](./block/embed-view.md). The [app environment](./software/app-environment.md) that runs the host runs the function. The server refuses a tool written anywhere else.
 
-**Calls are not private.** The server records every call with its input and its output. Anyone who can reach the server can read those records. Never pass secrets or private data as a tool's input or output. The section "Calls are not private" below has the details.
+**Call records.** The server records every call with its input and its output. Only the host's writers read a tool's call records, plus whoever made each call. The section "Who reads call records" below has the details.
 
 # What a tool is made of
 
@@ -65,21 +65,19 @@ await ctx.seed.publish(recordUrl, {name, metadata, content}, {as}) // creates or
 
 An app's tools run once a writer of its [space](./protocol/spaces.md) has run the app. An agent's tools run whenever the agent is mounted on its server.
 
-# Calls are not private
+# Who reads call records
 
-The server does not check who asks for a tool's call records:
+A record holds the full input, the full output (or the error) and what the tool published. A tool can read its host's private config and memory, so its output can carry them. The server therefore checks who asks:
 
-- The signed API gives a tool's calls to any signed [account](./protocol/identity.md) that knows the tool's hm:// id, and one call to any signed account that knows the call id.
-- The server also gives a running app's recent calls over plain HTTP, with no signature at all.
-- Each record includes the full input and the full output.
+- A writer of the host's [space](./protocol/spaces.md) reads every call of the host's tools.
+- Any other signed [account](./protocol/identity.md) reads only the calls it made. Someone else's call answers as no call at all.
+- Plain HTTP, with no signature, lists only that calls happened: when, how long, and whether each worked. Never what they carried.
+- An agent reading `<tool>/:calls` reads as its owner and its signing accounts.
 
-So follow these rules:
+Still follow these rules:
 
-- Never pass a secret, such as a password or an API key, as tool input.
-- Never return private data as tool output.
-- Put the secrets a tool needs in the host's private config. The tool reads them from `ctx.privateConfig`, and they do not appear in the call record unless the code returns them.
-
-Making the app's document private does not hide its call records.
+- Never pass a secret, such as a password or an API key, as tool input: the caller and the host's writers see it.
+- Put the secrets a tool needs in the host's private config. The tool reads them from `ctx.privateConfig`, and they appear in the call record only if the code returns them.
 
 # Who calls a tool
 

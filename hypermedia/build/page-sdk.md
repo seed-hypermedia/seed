@@ -91,7 +91,7 @@ A page directly under an [app](../app.md) or an [agent](../agent.md)'s document 
 - The call resolves to the tool's output, and rejects with the tool's error.
 - The viewer allows it once, for that tool, or for every tool of the host.
 - Pages of one app share their permissions. Seed remembers them for the app, not for the page.
-- The server records the input and the output, and call records are not private. Never send secrets through `seed.app.call`. See [tool](../tool.md).
+- The server records the input and the output. The viewer and the app's writers can read that record. Never send secrets through `seed.app.call`. See [tool](../tool.md).
 
 # Creating and editing documents
 

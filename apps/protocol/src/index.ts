@@ -2283,6 +2283,15 @@ export type AppToolCallInfo = {
   createdAt: number
 }
 
+/** A call as unsigned readers see it: when, how long, and whether it worked; nothing it carried. */
+export type AppToolCallSummary = {
+  id: string
+  toolId: string
+  ok: boolean
+  durationMs?: number
+  createdAt: number
+}
+
 /** One document a tool published during a call. */
 export type AppToolWrite = {
   /** The document's hm:// address. */

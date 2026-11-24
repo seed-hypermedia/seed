@@ -234,15 +234,20 @@ describe('running apps', () => {
       expect(await (await http.read(new Request(`${base}/${space}/weather/get-weather`))).json()).toMatchObject({
         app: appUrl,
         tool: {id: toolUrl},
-        calls: [{input: {city: 'Lisbon'}}],
+        // Unsigned readers see that calls happened, never what they carried.
+        calls: [{toolId: toolUrl, ok: true}],
       })
+      expect(
+        JSON.stringify(await (await http.read(new Request(`${base}/${space}/weather/get-weather`))).json()),
+      ).not.toContain('Lisbon')
       // Calling is signed: an anonymous POST is refused with where to send the signed action.
       const posted = await http.call()
       expect(posted.status).toBe(405)
       expect(await posted.json()).toMatchObject({error: expect.stringContaining('CallAppTool')})
       expect((await http.read(new Request(`${base}/${space}/nope`))).status).toBe(404)
 
-      // A run is readable on its own, with who triggered it and the tool version that ran.
+      // A run is readable on its own by whoever made it (and the app's writers), with who
+      // triggered it and the tool version that ran.
       const one = await send(stranger, {_: 'GetAppToolCall', callId: (call as {call: {id: string}}).call.id})
       expect(one).toMatchObject({
         _: 'AppToolCallResponse',

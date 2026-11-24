@@ -1,12 +1,12 @@
 ---
 name: "Signed API: running apps"
-summary: These signed API actions run an app on an app environment, stop it, call its tools and list the recorded calls, which are not private.
+summary: These signed API actions run an app on an app environment, set a host's config, call its tools and read the recorded calls, which only the host's writers and each call's caller can read.
 ---
 These actions of the [signed API](./signed-api.md) run an [app](../app.md) on an [app environment](../software/app-environment.md) and call its [tools](../tool.md). For example, a client sends `RunApp` to start an app, then `CallAppTool` to run one of its tools.
 
 The [signed API](./signed-api.md) page has the envelope, the endpoint, errors, [access levels](./signed-api.md#access-levels) and idempotency.
 
-The server does not check who reads a tool's call records. They include inputs and outputs. See "Calling a tool" and "Reading without a signature" below.
+A tool's call records include inputs and outputs, so only the host's writers read every call, and anyone else only the calls they made. See "Calling a tool" and "Reading without a signature" below.
 
 # Running an app
 
@@ -91,8 +91,8 @@ type AppToolCallInfo = {
 ```
 
 - `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Any signed [account](../protocol/identity.md) may call. A failed run is still a response, with `call.error` set.
-- `GetAppToolCall` returns one recorded call by id. The server makes no access check: any signed account that knows the call id gets the call.
-- `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200). The server makes no access check: any signed account that knows the tool's id gets the calls.
+- `GetAppToolCall` returns one recorded call by id, to a writer of the host's space or to whoever made the call. Anyone else gets "No such run", as for a call that does not exist.
+- `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200): all of them for a writer of the host's space, otherwise only the signer's own calls.
 
 A running tool reaches its server for [`ctx.seed`](../tool.md#seed-access) at `POST /hm/api/apps/tool-seed`, with a token that only that call holds and that stops working when the call ends. Nothing else uses that route.
 
@@ -104,9 +104,9 @@ The same server answers plain JSON under the API prefix, for programs that are n
 
 - `GET /hm/api/apps` lists the apps running here.
 - `GET /hm/api/apps/<space>/<app path>` returns a running app with its tools.
-- `GET /hm/api/apps/<space>/<app path>/<tool>` returns the tool and its recent calls. `?limit=` sets how many.
+- `GET /hm/api/apps/<space>/<app path>/<tool>` returns the tool and a summary of its recent calls: `{id, toolId, ok, durationMs, createdAt}` each. `?limit=` sets how many.
 
-The calls include their inputs and outputs. Nobody is asked to sign in, so anyone who can reach the server can read them.
+Nobody is asked to sign in here, so the summaries carry nothing a call held: no input, output, error text or writes. Read those with the signed actions.
 
 A `POST` to a tool answers 405. Calling is always a signed `CallAppTool`, so every run names the account that started it.
 

@@ -1702,8 +1702,9 @@ export class Service {
   }
 
   /** A tool's recorded calls, newest first. */
+  /** A tool's recent calls for the unsigned HTTP listing: summaries only, nothing they carried. */
   listRunningAppToolCalls(toolId: string, limit?: number) {
-    return this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit}))
+    return this.#appRun(async () => appRunning.listAppToolCallSummaries(this.#appRunDeps(), {toolId, limit}))
   }
 
   #assertClientProtocol(clientProtocol: number): void {
@@ -1964,7 +1965,7 @@ export class Service {
         return {
           _: 'AppToolCallResponse',
           call: await this.#appRun(async () =>
-            appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall),
+            appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall, [verified.accountId]),
           ),
         }
       case 'RunTriggerNow':
@@ -1975,7 +1976,9 @@ export class Service {
         return {
           _: 'ListAppToolCallsResponse',
           calls: await this.#appRun(async () =>
-            appRunning.listAppToolCalls(this.#appRunDeps(), envelope.action as api.ListAppToolCalls),
+            appRunning.listAppToolCalls(this.#appRunDeps(), envelope.action as api.ListAppToolCalls, [
+              verified.accountId,
+            ]),
           ),
         }
       case 'SetSecret':
@@ -4258,12 +4261,16 @@ export class Service {
     return true
   }
 
-  /** What agents read of this server's app records: tool calls and trigger firings. */
-  #appHistory(): AppHistory {
+  /**
+   * What an agent reads of this server's app records: tool calls and trigger firings. It reads as
+   * its owner and its signing accounts: all calls of hosts they can write, and its own calls.
+   */
+  #appHistory(accountId: string, definition: api.AgentDefinition): AppHistory {
+    const readers = [accountId, ...agentSigningAccountUids(this.#db, accountId, definition)]
     return {
       calls: (toolId, limit) =>
-        this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit})),
-      call: (callId) => this.#appRun(async () => appRunning.getAppToolCall(this.#appRunDeps(), {callId})),
+        this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit}, readers)),
+      call: (callId) => this.#appRun(async () => appRunning.getAppToolCall(this.#appRunDeps(), {callId}, readers)),
       triggerFirings: async (documentId) => {
         const id = unpackHmId(documentId)
         const host = id ? parentDocumentId(id) : null
@@ -6229,7 +6236,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
@@ -8122,7 +8129,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(run.accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
@@ -8965,7 +8972,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
