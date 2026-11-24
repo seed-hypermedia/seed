@@ -41,7 +41,7 @@ export function DocumentCreateButton({
   const primary = options ? options[0]?.onSelect : () => onCreate('document')
 
   return (
-    <div className="bg-background flex h-8 items-center overflow-hidden rounded-lg border border-neutral-500 shadow-xs">
+    <div className="bg-background flex h-8 items-center overflow-hidden rounded-md border border-neutral-500 shadow-xs">
       <Button
         type="button"
         size="sm"
