@@ -1143,8 +1143,14 @@ export function ValueEditor({
   // A scalar that is a member of the schema's literal union renders as a
   // dropdown of the options (mixed types supported).
   const allLiteralOptions = resolvedSchema ? literalOptionsOf(resolvedSchema) : null
-  const literalOptions =
-    allLiteralOptions && allLiteralOptions.some((option) => option.value === value) ? allLiteralOptions : undefined
+  const isLiteralMember = !!allLiteralOptions && allLiteralOptions.some((option) => option.value === value)
+  // An empty string is what a blank text field holds: on a field that picks from options it means
+  // "nothing chosen yet", so it gets the options too (with the text escape hatch).
+  const literalOptions = allLiteralOptions && (isLiteralMember || value === '') ? allLiteralOptions : undefined
+  // A field that picks from options and holds no value shows the options with none selected.
+  if (allLiteralOptions && (value === undefined || value === null) && !isLiteralMember) {
+    return <LiteralValueSelect value={undefined} options={allLiteralOptions} onValue={onValue} />
+  }
   if (typeof value === 'boolean') {
     return (
       <ScalarLeafEditor

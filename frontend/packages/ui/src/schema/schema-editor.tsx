@@ -406,7 +406,9 @@ function IconAction({
   className?: string
 }) {
   return (
-    <Tooltip content={tooltip}>
+    // `asChild`: the button itself is the trigger. A wrapping inline span would sit the button on the
+    // text baseline, a few pixels off its neighbours in a row of actions.
+    <Tooltip content={tooltip} asChild>
       <button
         type="button"
         aria-label={label}
@@ -1151,6 +1153,7 @@ function StructFieldsEditor({
                     ? 'Required — every value includes this field. Click to make it optional.'
                     : 'Optional — a value may leave this field out. Click to require it.'
                 }
+                asChild
               >
                 <button
                   type="button"
@@ -1159,7 +1162,7 @@ function StructFieldsEditor({
                   aria-label={`Required ${q(name)}`}
                   onClick={() => update(name, {required: !required})}
                   className={cn(
-                    'hover:bg-muted focus-visible:ring-ring/40 cursor-pointer rounded px-1 py-0.5 text-xs outline-none focus-visible:ring-2',
+                    'hover:bg-muted focus-visible:ring-ring/40 inline-flex h-6 shrink-0 cursor-pointer items-center rounded px-1 text-xs leading-none outline-none focus-visible:ring-2',
                     required
                       ? 'text-muted-foreground/70 opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'
                       : 'text-muted-foreground',

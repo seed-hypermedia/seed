@@ -1,10 +1,9 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {fieldSchema, requiredFieldNames, structFields, type SchemaRegistry} from './schema/engine'
+import {requiredFieldNames, structFields, type SchemaRegistry} from './schema/engine'
 import {Braces, Check} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
-import {seedValue} from './schema/data-editor'
 import {SchemaRegistryProvider} from './schema/schema-context'
-import {SchemaErrorSummary} from './schema/value-editor-schema'
+import {SchemaErrorSummary, unsetFieldValue} from './schema/value-editor-schema'
 import {RESERVED_METADATA_KEYS, SCHEMA_DEFINITION_KEY} from './schema/schema-document'
 import {BINDING_SCHEMA_KEYS} from '@shm/shared/models/schema-draft'
 import {
@@ -228,10 +227,10 @@ export function DocumentMetadataView({
           key,
           required: requiredKeys.includes(key),
           present,
-          value: present ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
+          value: present ? current[key] : unsetFieldValue(schemaRoot, key, registry),
         }
       }),
-    [requiredKeys, optionalSchemaKeys, current, schemaRoot],
+    [requiredKeys, optionalSchemaKeys, current, schemaRoot, registry],
   )
   const schemaKeySet = useMemo(() => new Set(schemaRows.map((r) => r.key)), [schemaRows])
   const otherEntries = useMemo(() => entries.filter(([k]) => !schemaKeySet.has(k)), [entries, schemaKeySet])
