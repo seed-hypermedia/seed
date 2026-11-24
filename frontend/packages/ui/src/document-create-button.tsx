@@ -41,13 +41,13 @@ export function DocumentCreateButton({
   const primary = options ? options[0]?.onSelect : () => onCreate('document')
 
   return (
-    <div className="bg-background flex items-center overflow-hidden rounded-md border border-green-900 shadow-xs dark:border-green-700">
+    <div className="bg-background flex h-8 items-center overflow-hidden rounded-lg border border-neutral-500 shadow-xs">
       <Button
         type="button"
         size="sm"
         disabled={disabled || !primary}
         aria-label="New"
-        className="rounded-none"
+        className="h-full gap-1.5 rounded-none pr-3 pl-2.5 has-[>svg]:pl-2.5"
         onClick={primary}
       >
         <Plus className="size-4" />
@@ -60,9 +60,9 @@ export function DocumentCreateButton({
             size="icon"
             disabled={disabled}
             aria-label="Choose what to create"
-            className="h-8 w-7 min-w-7 rounded-none border-l border-green-900 px-0 dark:border-green-700"
+            className="h-full w-7 min-w-7 rounded-none border-l border-neutral-500 px-0 has-[>svg]:px-0"
           >
-            <ChevronDown className="size-4" />
+            <ChevronDown className="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">

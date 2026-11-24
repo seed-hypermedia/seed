@@ -50,7 +50,7 @@ describe('DocumentCreateButton', () => {
     act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
 
     const group = container.firstElementChild as HTMLDivElement
-    expect(group.className).toContain('rounded-md')
+    expect(group.className).toContain('rounded-lg')
     expect(group.className).toContain('border')
     expect(group.className).toContain('overflow-hidden')
     expect(container.querySelectorAll('button')[1]?.className).toContain('border-l')
