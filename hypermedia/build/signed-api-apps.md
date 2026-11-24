@@ -91,7 +91,7 @@ type AppToolCallInfo = {
 }
 ```
 
-- `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Any signed [account](../protocol/identity.md) may call. A failed run is still a response, with `call.error` set.
+- `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Writers of the host's space may call, and any signed [account](../protocol/identity.md) when the tool's document sets `callableBy: "viewers"` (writers only for a private host). Anyone else is refused before the tool runs. A failed run is still a response, with `call.error` set.
 - `GetAppToolCall` returns one recorded call by id, to a writer of the host's space or to whoever made the call. Anyone else gets "No such run", as for a call that does not exist.
 - `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200): all of them for a writer of the host's space, otherwise only the signer's own calls.
 

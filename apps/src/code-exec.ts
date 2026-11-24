@@ -1429,8 +1429,6 @@ export const APP_PRIVATE_CONFIG_ENV = 'SEED_APP_PRIVATE_CONFIG'
 /** Where a tool's `ctx.seed` sends its requests, and the token that ties them to this one call. */
 export const APP_TOOL_SEED_URL_ENV = 'SEED_TOOL_SEED_URL'
 export const APP_TOOL_SEED_TOKEN_ENV = 'SEED_TOOL_SEED_TOKEN'
-/** `host` when the call has its host's memory, `scratch` when it has an empty one (see ctx.memory). */
-export const APP_TOOL_MEMORY_SCOPE_ENV = 'SEED_TOOL_MEMORY_SCOPE'
 /** Where ctx.memory lives inside the program: the workspace (tests running outside a VM set it). */
 export const APP_TOOL_MEMORY_DIR_ENV = 'SEED_TOOL_MEMORY_DIR'
 
@@ -1467,12 +1465,10 @@ export function buildAppToolProgram(
     '  return body.result',
     '}',
     // ctx.memory: the host's memory (an agent's own, or the app's private memory on its server),
-    // mounted as the workspace. A call that does not act for the host gets an empty scratch one.
+    // mounted as the workspace.
     'const __fs = await import("node:fs/promises")',
     'const __path = await import("node:path")',
     `const __memoryRoot = __path.resolve(process.env.${APP_TOOL_MEMORY_DIR_ENV} || process.cwd())`,
-    `const __memoryScope = process.env.${APP_TOOL_MEMORY_SCOPE_ENV} || "host"`,
-    `delete process.env.${APP_TOOL_MEMORY_SCOPE_ENV}`,
     'const __memoryPath = (p) => {',
     '  const abs = __path.resolve(__memoryRoot, String(p ?? "").replace(/^\\/+/, ""))',
     '  if (abs !== __memoryRoot && !abs.startsWith(__memoryRoot + __path.sep)) throw new Error(`ctx.memory: ${p} is outside memory`)',
@@ -1480,7 +1476,6 @@ export function buildAppToolProgram(
     '}',
     'const __missing = (error, value) => (error?.code === "ENOENT" ? value : Promise.reject(error))',
     '__seedContext.memory = {',
-    '  scope: __memoryScope,',
     '  read: async (p) => __fs.readFile(__memoryPath(p), "utf8").catch((error) => __missing(error, null)),',
     '  write: async (p, value) => {',
     '    const abs = __memoryPath(p)',

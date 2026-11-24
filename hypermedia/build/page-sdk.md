@@ -88,6 +88,7 @@ A page directly under an [app](../app.md) or an [agent](../agent.md)'s document 
 - `tool` is the tool's name in the host (`"get-weather"`) or its hm:// URL.
 - `input` must be an object.
 - The viewer must be signed in. The call is signed as the viewer, and the server records the viewer as the caller.
+- A viewer who cannot write the host can call only tools whose document sets `callableBy: "viewers"`. Mark every tool a page calls for its visitors that way.
 - The call resolves to the tool's output, and rejects with the tool's error.
 - The viewer allows it once, for that tool, or for every tool of the host.
 - Pages of one app share their permissions. Seed remembers them for the app, not for the page.

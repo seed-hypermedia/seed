@@ -496,7 +496,9 @@ function RunAppDialog({
     <div className="grid gap-5">
       <div className="grid gap-1">
         <DialogTitle>Run app</DialogTitle>
-        <DialogDescription>Anyone can call its tools once it runs.</DialogDescription>
+        <DialogDescription>
+          Once it runs, its writers and triggers can call its tools, and viewers can call those that allow them.
+        </DialogDescription>
       </div>
       <div className="grid gap-2">
         <Label>Server</Label>

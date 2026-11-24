@@ -25,7 +25,6 @@ import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
 import {
   APP_PRIVATE_CONFIG_ENV,
-  APP_TOOL_MEMORY_SCOPE_ENV,
   APP_TOOL_SEED_TOKEN_ENV,
   APP_TOOL_SEED_URL_ENV,
   buildAppToolProgram,
@@ -142,12 +141,6 @@ type ToolSeedSession = {
   signingKeys: Record<string, string>
   /** The key used when a publish names none and there are several (an agent's primary). */
   defaultKey?: string
-  /**
-   * Whether this call acts for the host: its memory, and publishing as its keys. True for the
-   * host's writers and its triggers (which call as their author), and for anyone when the tool's
-   * document says `callableBy: "viewers"`.
-   */
-  actsForHost: boolean
   writes: api.AppToolWrite[]
   sessions: {sessionId: string; at: number}[]
 }
@@ -596,11 +589,6 @@ export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unk
     case 'publish': {
       if (!deps.publishAs) throw new AppRunError(503, 'This app environment cannot publish for tools')
       const keyAccount = chooseSigningKey(session, request.as)
-      if (!session.actsForHost)
-        throw new AppRunError(
-          403,
-          'This tool publishes as the app, so only writers of the app (and its triggers) may call it. A tool whose document says callableBy: "viewers" may be called by anyone, and must check its input.',
-        )
       const document = (request.document ?? {}) as ToolSeedDocument
       if (typeof document !== 'object' || Array.isArray(document))
         throw new AppRunError(400, 'ctx.seed.publish(id, {name?, metadata?, content?})')
@@ -623,11 +611,6 @@ async function startAgentFromTool(deps: AppRunDeps, session: ToolSeedSession, bo
     throw new AppRunError(
       409,
       "ctx.agent.start works in an agent's tools: an app has no agent to start. Use a trigger document under the agent for that work.",
-    )
-  if (!session.actsForHost)
-    throw new AppRunError(
-      403,
-      'Only the agent’s writers and its triggers may make its tools start it (a model run costs). A tool whose document says callableBy: "viewers" may also.',
     )
   if (session.sessions.length >= MAX_SESSIONS_PER_TOOL_CALL)
     throw new AppRunError(429, `A tool call may start the agent at most ${MAX_SESSIONS_PER_TOOL_CALL} times`)
@@ -687,8 +670,32 @@ async function fetchToolSource(ipfsServerUrl: string, code: unknown): Promise<st
 }
 
 /**
+ * Who may call a host's tool. Its writers may, and its triggers (they call as their author, a
+ * writer). Viewers may only when the tool's document says `callableBy: "viewers"`; for a private
+ * host that still means writers, since this server cannot yet tell who may read it. A call that is
+ * allowed runs with all of the host: its memory, its keys and (for an agent) the agent.
+ */
+async function requireMayCall(
+  deps: AppRunDeps,
+  hostId: UnpackedHypermediaId,
+  host: {visibility?: unknown},
+  tool: {metadata: Record<string, unknown>},
+  caller: string,
+): Promise<void> {
+  if (await isSpaceWriter(deps.client, hostId, caller)) return
+  if (tool.metadata.callableBy === 'viewers' && host.visibility !== 'PRIVATE') return
+  throw new AppRunError(
+    403,
+    tool.metadata.callableBy === 'viewers'
+      ? 'This tool’s host is private: only its writers and its triggers may call its tools.'
+      : 'Only the writers of this app or agent, and its triggers, may call this tool. Its document can allow viewers with callableBy: "viewers".',
+  )
+}
+
+/**
  * Calls a tool of a running app: its latest code, with the app's public config and private config
- * as `ctx`. Anyone may call. The call is recorded whether it succeeds or fails.
+ * as `ctx`. Its host's writers and triggers may call (viewers when the tool allows them; see
+ * requireMayCall). The call is recorded whether it succeeds or fails.
  */
 export async function callAppTool(
   deps: AppRunDeps,
@@ -704,6 +711,7 @@ export async function callAppTool(
   if (!appEmbeddedChildren(appId, app.content).some((child) => child.id.id === toolId.id))
     throw new AppRunError(404, `${toolId.id} is not a tool of this app`)
   const tool = await loadDocument(deps.client, toolId, HM_TOOL_TYPE, 'tool')
+  await requireMayCall(deps, appId, app, tool, caller)
 
   const startedAt = Date.now()
   const callId = crypto.randomUUID()
@@ -720,10 +728,7 @@ export async function callAppTool(
     signingKeys: {},
     writes: [],
     sessions: [],
-    actsForHost: false,
   }
-  // A call that does not act for the host gets an empty scratch memory, removed afterwards.
-  let scratchDir: string | null = null
   try {
     const inputViolations = await schemaViolations(deps.client, tool.metadata.inputSchema, action.input)
     if (inputViolations.length) {
@@ -749,8 +754,6 @@ export async function callAppTool(
     const agentSigning = deps.agentSigning?.get(appId.id)
     for (const key of agentSigning?.keys ?? []) session.signingKeys[key.account] = key.account
     if (agentSigning?.primary) session.defaultKey = agentSigning.primary
-    session.actsForHost =
-      session.toolMetadata.callableBy === 'viewers' || (await isSpaceWriter(deps.client, appId, caller))
     if (seedToken) toolSeedSessions.set(seedToken, session)
     const source = await fetchToolSource(deps.ipfsServerUrl, tool.metadata.code)
     // The host's memory: an agent's own memory, or the app's private memory on this server.
@@ -758,8 +761,7 @@ export async function callAppTool(
     const hostStateDir =
       agentStateDir ??
       path.join(deps.dataDir, 'app-runs', crypto.createHash('sha256').update(appId.id).digest('hex').slice(0, 24))
-    if (!session.actsForHost) scratchDir = fs.mkdtempSync(path.join(deps.dataDir, 'tool-scratch-'))
-    const stateDir = scratchDir ?? hostStateDir
+    const stateDir = hostStateDir
     fs.mkdirSync(stateDir, {recursive: true})
     const execution = await deps.codeExec.execute({
       principal: {accountId: appId.uid, agentId: `app:${appId.id}`, sessionId: callId},
@@ -768,14 +770,13 @@ export async function callAppTool(
       code: buildAppToolProgram(source, action.input, {app: appId.id, publicConfig: app.metadata.publicConfig ?? {}}),
       env: {
         [APP_PRIVATE_CONFIG_ENV]: JSON.stringify(privateConfig),
-        [APP_TOOL_MEMORY_SCOPE_ENV]: scratchDir ? 'scratch' : 'host',
         ...(seedToken && deps.toolSeed
           ? {[APP_TOOL_SEED_URL_ENV]: deps.toolSeed.url, [APP_TOOL_SEED_TOKEN_ENV]: seedToken}
           : {}),
       },
       ...(seedToken && deps.toolSeed?.hostPort ? {hostPort: deps.toolSeed.hostPort} : {}),
     })
-    if (agentStateDir && !scratchDir && execution.changedFiles?.length) deps.onAgentMemoryChanged?.(appId.id)
+    if (agentStateDir && execution.changedFiles?.length) deps.onAgentMemoryChanged?.(appId.id)
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {
       const detail = readableToolError(execution.stderr.trim() || parsed.logs || '')
@@ -790,7 +791,6 @@ export async function callAppTool(
     error = cause instanceof Error ? cause.message : String(cause)
   } finally {
     if (seedToken) toolSeedSessions.delete(seedToken)
-    if (scratchDir) fs.rmSync(scratchDir, {recursive: true, force: true})
   }
   const row: ToolCallRow = {
     id: callId,

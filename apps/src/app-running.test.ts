@@ -121,7 +121,15 @@ describe('running apps', () => {
           )
         if (href.includes('/weather/get-weather'))
           return Response.json(
-            serialize(document(toolUrl, {name: 'get-weather', type: 'hm://hyper.media/tool', code: 'ipfs://bafycode'})),
+            // A public utility: viewers may call it.
+            serialize(
+              document(toolUrl, {
+                name: 'get-weather',
+                type: 'hm://hyper.media/tool',
+                code: 'ipfs://bafycode',
+                callableBy: 'viewers',
+              }),
+            ),
           )
         if (href.includes('/weather'))
           return Response.json(
@@ -269,7 +277,11 @@ describe('running apps', () => {
         `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ).run(agentUrl, space, new Uint8Array([160]), 'x', 'ready', now, now)
       expect(await send(stranger, {_: 'GetAppRun', appId: agentUrl})).toMatchObject({run: {appId: agentUrl}})
-      const agentCall = await send(stranger, {
+      // The agent's tool does not allow viewers: a stranger is refused before it runs.
+      expect(
+        await send(stranger, {_: 'CallAppTool', appId: agentUrl, toolId: agentToolUrl, input: {city: 'Oslo'}}),
+      ).toMatchObject({error: expect.stringContaining('Only the writers of this app or agent')})
+      const agentCall = await send(owner, {
         _: 'CallAppTool',
         appId: agentUrl,
         toolId: agentToolUrl,
@@ -305,7 +317,7 @@ describe('running apps', () => {
       expect(
         await send(owner, {_: 'SetHostPrivateConfig', hostId: agentUrl, privateConfig: {extra: null}}),
       ).toMatchObject({config: {privateConfigKeys: ['apiKey']}})
-      const agentCallWithKey = await send(stranger, {
+      const agentCallWithKey = await send(owner, {
         _: 'CallAppTool',
         appId: agentUrl,
         toolId: agentToolUrl,

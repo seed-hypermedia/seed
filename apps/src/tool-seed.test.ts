@@ -83,7 +83,7 @@ function document(url: string, metadata: Record<string, unknown>, extra: Record<
 }
 
 describe('ctx.seed', () => {
-  test('a tool reads public documents and publishes as the app’s key; viewers cannot make it publish', async () => {
+  test('a tool reads public documents and publishes as the app’s key; viewers cannot call it', async () => {
     const db = new Database(':memory:', {create: true, strict: true})
     if (!sqlite.openWithDatabase(db).ok) throw new Error('schema')
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-tool-seed-test-'))
@@ -243,9 +243,11 @@ describe('ctx.seed', () => {
       ])
       expect((await appRunning.getAppToolCall(deps, {callId: call.id}, [WRITER])).writes).toHaveLength(1)
 
-      // A viewer may call the tool, but it cannot make the app publish (no confused deputy).
-      const byViewer = await appRunning.callAppTool(deps, VIEWER, {appId: APP, toolId: TOOL, input: {week: '48'}})
-      expect(byViewer.error).toContain('only writers of the app (and its triggers) may call it')
+      // A viewer cannot call it at all (the tool does not allow viewers), so it cannot make the app
+      // publish: no confused deputy.
+      await expect(
+        appRunning.callAppTool(deps, VIEWER, {appId: APP, toolId: TOOL, input: {week: '48'}}),
+      ).rejects.toThrow('Only the writers of this app or agent')
       expect(published).toHaveLength(1)
 
       // Once a call is over its token is worthless.

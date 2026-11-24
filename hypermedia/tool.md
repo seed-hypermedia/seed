@@ -58,10 +58,9 @@ await ctx.memory.read('receipts/42.done')        // the file's text, or null whe
 await ctx.memory.write('receipts/42.done', 'sent') // a string, or a value written as JSON
 await ctx.memory.list('receipts')                  // names, a directory ending in /
 await ctx.memory.remove('receipts/42.done')
-ctx.memory.scope                                  // "host", or "scratch" (below)
 ```
 
-- **Who gets it.** A call from a writer of the host's space, or from one of its [triggers](./trigger.md) (which call as their author), works in the host's memory. So does any call of a tool whose document sets `callableBy: "viewers"`. Every other call gets an empty scratch memory, deleted when the call ends, and `ctx.memory.scope` is `"scratch"`.
+- **Every call** works in the host's memory: only those the host allows may call its tools at all (see "Who calls a tool").
 - **Paths** stay inside the memory; a path that leaves it fails.
 - **Write files whole, one per event.** Calls, the agent's sessions and its triggers share an agent's memory, so follow the rules on [memory](./agent/memory.md#what-not-to-keep-in-workspace): no shared file read, changed and written back by concurrent calls.
 - An agent's Memory tab updates after a tool changes its memory.
@@ -79,7 +78,7 @@ const {sessionId} = await ctx.agent.start('Three new issues to triage: #12, #14,
 ```
 
 - The session runs in the background, as the agent, like a trigger's session.
-- Only a call that acts for the agent may start it: its writers, its triggers, or anyone when the tool says `callableBy: "viewers"`.
+- Any call the tool runs may start it. A tool that allows viewers lets viewers wake the agent too, so check its input.
 - A call may start the agent at most 3 times. The sessions are listed on the call record (`sessions`).
 - An app has no agent to start; `ctx.agent.start` fails in an app's tool.
 
@@ -96,7 +95,7 @@ await ctx.seed.publish(recordUrl, {name, metadata, content}, {as}) // creates or
 - **Reads** return public documents only. A [private document](./protocol/privacy.md) is refused.
 - **Publishing** signs with one of the host's [signing keys](./signing-key.md): the account a signing-key field of its private config names. With one key, it is used; with several, `as` names the field (`ctx.privateConfig.<field>`). `content` is markdown and replaces the body; `metadata` maps are stored one entry per key.
 - The key's account must be able to write the target, through a [capability](./protocol/permissions.md) granted to it, like any writer.
-- **Who may make a host publish.** A tool that publishes runs for the host's writers and for its triggers, which call as their author. A tool whose document sets `callableBy: "viewers"` may also publish when a viewer calls it, so it must check its input itself.
+- **Every call may publish.** A tool that allows viewers (`callableBy: "viewers"`) lets them make the host publish, so it must check its input itself.
 - Every publish is recorded on the call, with the account that signed it.
 
 An app's tools run once a writer of its [space](./protocol/spaces.md) has run the app. An agent's tools run whenever the agent is mounted on its server.
@@ -116,6 +115,8 @@ Still follow these rules:
 - Put the secrets a tool needs in the host's private config. The tool reads them from `ctx.privateConfig`, and they appear in the call record only if the code returns them.
 
 # Who calls a tool
+
+**Who may call.** The host's writers, and its [triggers](./trigger.md) (which call as their author, a writer). Viewers too, but only when the tool's document sets `callableBy: "viewers"`; for a [private](./protocol/privacy.md) host that still means writers only, since the server cannot yet tell who may read it. Anyone else is refused before the tool runs, and nothing is recorded.
 
 - A [page](./page.md) of the same host, with `seed.app.call(tool, input)`, signed as the viewer. See the [page SDK](./build/page-sdk.md).
 - A [trigger](./trigger.md) of the same host. The server records the call as made by the trigger's author.

@@ -44,7 +44,7 @@ An app runs only on the server it names. A server that the app does not name ref
 
 The server reads the app and its tools from its own node. That node may not hold a document yet, for example one published from a desktop or through another site. The server then looks for it on the network first. This can take up to 25 seconds.
 
-While the app runs, anyone can call its tools, and its triggers fire. When the app stops, both stop.
+While the app runs, its writers and triggers can call its tools (and viewers, for tools that allow them with `callableBy: "viewers"`), and its triggers fire. When the app stops, both stop.
 
 # What runs where
 

@@ -192,11 +192,10 @@ describe('ctx.agent.start', () => {
         sessions: ['session-2', 'session-3', 'session-4'],
         refused: expect.stringContaining('at most 3 times'),
       })
-      // A viewer's call cannot wake the agent (a model run costs).
-      expect((await call(VIEWER, agent, agentTool, {items: ['d']})).output).toMatchObject({
-        sessions: [],
-        refused: expect.stringContaining('writers and its triggers'),
-      })
+      // A viewer cannot run the agent's tool at all (it does not allow viewers), so cannot wake it.
+      await expect(call(VIEWER, agent, agentTool, {items: ['d']})).rejects.toThrow(
+        'Only the writers of this app or agent',
+      )
       // An app has no agent to wake.
       expect((await call(SPACE, app, appTool, {items: ['e']})).output).toMatchObject({
         sessions: [],
