@@ -1551,7 +1551,10 @@ export class Service {
     if (!row) throw new APIError(404, 'Agent not found')
     const accountId = row.account_id
     if (signer !== accountId)
-      throw new APIError(403, "Only the agent's owner can change its signing keys: they are held on the owner's account")
+      throw new APIError(
+        403,
+        "Only the agent's owner can change its signing keys: they are held on the owner's account",
+      )
     let accounts: string[] = []
     let primary: string | undefined
     if (signing !== null) {

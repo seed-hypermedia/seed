@@ -183,7 +183,16 @@ describe('host config', () => {
     ).run(
       agentUrl,
       space,
-      cbor.encode({name: 'Maple', systemPrompt: [{block: {id: 'p1', type: 'Paragraph', text: 'Hi', annotations: [], attributes: {}}, children: []}], modelProvider: 'p', model: 'm', signingKeys: [maple.name], signingKey: maple.name}),
+      cbor.encode({
+        name: 'Maple',
+        systemPrompt: [
+          {block: {id: 'p1', type: 'Paragraph', text: 'Hi', annotations: [], attributes: {}}, children: []},
+        ],
+        modelProvider: 'p',
+        model: 'm',
+        signingKeys: [maple.name],
+        signingKey: maple.name,
+      }),
       dataDir,
       'ready',
       now,

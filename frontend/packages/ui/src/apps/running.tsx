@@ -169,7 +169,8 @@ export function appServerErrorMessage(error: unknown): string {
   return message
 }
 
-function useAccountUid() {
+/** The signed-in account the app-environment actions are signed as. */
+export function useAccountUid() {
   const {selectedIdentity} = useUniversalAppContext()
   return useStream(selectedIdentity) ?? null
 }

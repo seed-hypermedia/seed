@@ -134,6 +134,7 @@ So follow these rules:
 
 - Never pass a secret as tool input, and never return private data as tool output.
 - Put the secrets a tool needs in the app's private config. The tool reads them from `ctx.privateConfig`.
+- A tool that publishes needs a key: give the app a [signing key](../signing-key.md) field in its private config schema, attach a key under **Settings > Signing keys**, and use **Add access** to let that key write the collections it fills. Anyone who can edit the app can act as its keys, so grant only what the tools write.
 - A webhook body or a trigger event that becomes tool input is recorded too.
 - Making the app's document private does not hide its call records.
 

@@ -22,10 +22,10 @@ describe('agent settings row summaries', () => {
       {id: '2', name: 'key-b', accountId: 'z6MkBob'},
     ] as unknown as SigningIdentity[]
     expect(describeAgentIdentities({...base, signingKeys: ['key-a', 'key-b', 'key-c']}, identities)).toBe(
-      'Authors as Alice, z6MkBob, key-c',
+      'Publishes as Alice, z6MkBob, key-c',
     )
-    expect(describeAgentIdentities({...base, signingKey: 'key-a'}, identities)).toBe('Authors as Alice')
-    expect(describeAgentIdentities(base, identities)).toBe('No identity granted yet.')
+    expect(describeAgentIdentities({...base, signingKey: 'key-a'}, identities)).toBe('Publishes as Alice')
+    expect(describeAgentIdentities(base, identities)).toBe('No signing key yet: it cannot publish.')
   })
 
   it('counts the enabled MCP servers', () => {

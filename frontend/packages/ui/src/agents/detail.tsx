@@ -116,6 +116,7 @@ import {
   X,
 } from 'lucide-react'
 import {AccountAvatar} from '@shm/ui/account-avatar'
+import {AgentPrivateConfigPage} from './private-config'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/apps-protocol'
@@ -523,7 +524,9 @@ export function AgentDetailPage({
     settingsPage === 'permissions'
       ? 'Permissions'
       : settingsPage === 'identities'
-        ? 'Authorship identities'
+        ? agentDocId
+          ? 'Private config'
+          : 'Signing keys'
         : 'MCP servers'
   const webCapabilities = serverHealth.data
     ? {
@@ -731,6 +734,15 @@ export function AgentDetailPage({
                   saving={updateAgent.isLoading}
                   readOnly={!canWrite}
                   onOpenIdentities={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
+                />
+              ) : settingsPage === 'identities' && agentDocId ? (
+                // Keys and settings the server keeps for this agent: the same host config an app has.
+                <AgentPrivateConfigPage
+                  serverUrl={serverUrl}
+                  agentId={agentId}
+                  agentDocument={agentDocument.data?.type === 'document' ? agentDocument.data.document : null}
+                  isOwner={isOwner}
+                  canWrite={canWrite}
                 />
               ) : settingsPage === 'identities' ? (
                 <AgentIdentitiesPage
@@ -986,10 +998,10 @@ export function AgentDetailPage({
                     onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'permissions'})}
                   />
                   <AgentSettingsPageRow
-                    title="Authorship identities"
+                    title={agentDocId ? 'Private config' : 'Signing keys'}
                     description={describeAgentIdentities(agent.data.agent.definition, signingIdentities.data || [])}
                     icon={<KeyRound className="size-4" />}
-                    actionLabel={isOwner ? 'Manage identities' : 'View identities'}
+                    actionLabel={isOwner ? 'Manage' : 'View'}
                     onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
                   />
                   {isOwner ? (
@@ -1964,13 +1976,13 @@ function AgentPermissionsPage({
                   <KeyRound className="text-muted-foreground size-4 shrink-0" />
                   <SizableText size="sm" color="muted" className="min-w-0 flex-1 truncate">
                     {grantedIdentities.length
-                      ? `Authors as ${grantedIdentities
+                      ? `Publishes as ${grantedIdentities
                           .map((identity) => identity.label || identity.accountId || identity.name)
                           .join(', ')}`
-                      : 'No authorship identity granted yet'}
+                      : 'No signing key yet'}
                   </SizableText>
                   <Button variant="outline" size="xs" className="shrink-0" onClick={onOpenIdentities}>
-                    Authorship identities
+                    Signing keys
                     <ArrowRight className="size-3.5" />
                   </Button>
                 </div>
@@ -1992,7 +2004,7 @@ function AgentPermissionsPage({
   )
 }
 
-/** Settings > Authorship identities: the signing identities the agent may publish as. Owners grant,
+/** Settings > Signing keys (agents without a document; mounted agents use AgentPrivateConfigPage). Owners grant,
  * remove and create them; writers only see the list. */
 function AgentIdentitiesPage({
   serverUrl,

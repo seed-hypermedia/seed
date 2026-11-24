@@ -314,13 +314,33 @@ async function expectedFields(client: SeedClient, ref: unknown): Promise<string 
   return `{${fields.map((field) => `${field.name}${field.required ? '' : '?'}: ${kind(field.schema)}`).join(', ')}}`
 }
 
-async function schemaViolations(client: SeedClient, ref: unknown, value: unknown): Promise<string[]> {
+async function schemaViolations(
+  client: SeedClient,
+  ref: unknown,
+  value: unknown,
+  options: {partial?: boolean} = {},
+): Promise<string[]> {
   if (typeof ref !== 'string' || !ref) return []
   const loaded = await loadSchemaRef(client, ref).catch(() => null)
   if (!loaded) return [`schema ${ref} could not be loaded`]
-  return validateSchema(loaded.schema, value, '$', {}, loaded.registry).map((violation) =>
+  // Partial: every value given must have its field's type, but required fields may still be
+  // missing (a config is filled in steps; a tool call checks it is complete).
+  const schema = options.partial ? withoutRequired(loaded.schema) : loaded.schema
+  return validateSchema(schema, value, '$', {}, loaded.registry).map((violation) =>
     typeof violation === 'string' ? violation : JSON.stringify(violation),
   )
+}
+
+/** A struct schema whose top-level fields are all optional. */
+function withoutRequired<T>(schema: T): T {
+  const properties = (schema as {properties?: Record<string, Record<string, unknown>>}).properties
+  if (!properties) return schema
+  return {
+    ...schema,
+    properties: Object.fromEntries(
+      Object.entries(properties).map(([name, entry]) => [name, {...entry, required: false}]),
+    ),
+  }
 }
 
 /**
@@ -374,7 +394,7 @@ async function savePrivateConfig(
 ) {
   const stored = hostConfig.readPrivateConfig(deps.db, deps, hostId.id)
   const merged = hostConfig.mergePrivateConfig(stored, changes)
-  const violations = await schemaViolations(deps.client, host.metadata.privateConfigSchema, merged)
+  const violations = await schemaViolations(deps.client, host.metadata.privateConfigSchema, merged, {partial: true})
   if (violations.length) throw new AppRunError(400, `Private config does not match: ${violations.join('; ')}`)
   // A signing key is attached only by someone who holds it here: a writer of the host cannot lend
   // the host a key that belongs to someone else. Detaching (null) and keeping a key are allowed.

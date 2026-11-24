@@ -80,9 +80,9 @@ Five toggle rows configure the [grant](./grants.md) set. The verbs are not grant
 
 A toggle saves when you change it. The server's health response says what is available: `web_search` is greyed out when no search backend is set up, and `execute` when the server reports that it cannot run code. When you can fix the cause on your computer, the row says how. Each row's info button opens the exact description and schemas the model sees. The `query` and `attributes` [callables](./callables.md) have no toggle, because they are always on (`attributes` reads a document's [attributes](../metadata.md)). With Publish enabled, the row says which identities the agent authors as and links to the identities page. <!-- id:U5HeS5l- -->
 
-## Settings: Authorship identities <!-- id:XKd1IVKy -->
+## Settings: Private config <!-- id:XKd1IVKy -->
 
-This page lists the [signing identities](./identity.md) the agent may sign and publish as, one row each with its profile icon and name, plus **Grant** and **New Account**. While publishing is off, a notice links back to Permissions, because the agent does not use its identities until publishing is on. Only the owner can manage identities. Writers see the list and nothing else.
+This page holds what the agent's server keeps for it, the same [host config](../build/signed-api-apps.md#host-config) an app has. **Signing keys** lists the [accounts](./identity.md) the agent publishes as, one row each with its icon, name, a Primary badge, and what that key can write in the space, with **Add access** for the space's owner. The owner adds a key they hold on the server (or makes a new one), makes another one primary, or detaches one; writers see the list and nothing else. Below are the agent's own private config fields and public config, when its document describes them with `privateConfigSchema` and `publicConfigSchema`. An agent without a document keeps the older Signing keys page.
 
 ## Settings: MCP servers
 
