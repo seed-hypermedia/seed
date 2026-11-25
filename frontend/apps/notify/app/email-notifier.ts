@@ -1476,14 +1476,7 @@ async function evaluateMentionEventForNotifications(
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
   }
 
-  // Owner is the metadata link's anchor; a web session may have signed on the assignee's behalf.
-  if (
-    sourceType === 'metadata/link' &&
-    mentionEvent.sourceContext === 'Owner' &&
-    effectiveAuthorUid === targetAccountUid
-  ) {
-    return
-  }
+  if (effectiveAuthorUid === targetAccountUid) return
 
   let siteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
   if (!siteUrl) {

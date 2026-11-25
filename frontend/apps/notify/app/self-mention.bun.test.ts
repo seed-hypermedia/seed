@@ -41,16 +41,23 @@ afterEach(() => {
 })
 
 it.each([
-  ['Owner', owner, 0],
-  ['Owner', writer, 1],
-  ['Owner', ownerSession, 0],
-  ['Owner', writerSession, 1],
-  ['Reviewer', owner, 1],
-] as const)('routes %s metadata set by %s (%i inbox rows)', async (sourceContext, author, count) => {
+  ['metadata/Link', 'Owner', owner, 0],
+  ['metadata/Link', 'Owner', writer, 1],
+  ['metadata/Link', 'Owner', ownerSession, 0],
+  ['metadata/Link', 'Owner', writerSession, 1],
+  ['metadata/Link', 'Reviewer', owner, 0],
+  ['metadata/Link', 'Reviewer', writer, 1],
+  ['metadata/Link', 'Assignee', owner, 0],
+  ['metadata/Link', 'Assignee', writer, 1],
+  ['doc/Embed', 'block-1', owner, 0],
+  ['doc/Embed', 'block-1', writer, 1],
+  ['doc/Embed', 'block-1', ownerSession, 0],
+  ['doc/Embed', 'block-1', writerSession, 1],
+] as const)('routes %s at %s by %s (%i inbox rows)', async (sourceType, sourceContext, author, count) => {
   const stamp = new Timestamp({seconds: BigInt(Math.floor(Date.now() / 1000))})
   const value = {
     source: `hm://${space}/tasks/example`,
-    sourceType: 'metadata/Link',
+    sourceType,
     sourceContext,
     target: `hm://${owner}`,
     sourceBlob: {author, cid, createTime: stamp},
