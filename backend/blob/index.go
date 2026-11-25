@@ -1259,17 +1259,15 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 // snapshot, so the batch needs no locking and never sees another connection's
 // uncommitted state.
 //
-// It memoizes isValidWriter results and collects the authority subjects that
-// capabilities changed. Indexing a capability only stores its delegation;
-// flushAuthority later refreshes the keyline_members cache once for all
-// pending subjects, drops the memoized writer results, and retries blobs that
-// were denied before the grants arrived. It also defers per-space comment
-// totals. Callers must flush before relying on the index and before committing.
+// It memoizes isValidWriter results and collects the delegates that new
+// capabilities named. Indexing a capability stores its delegations and updates
+// Keyline's stored edges at once; flushAuthority later drops the memoized
+// writer results and retries blobs that were denied before the grants arrived.
+// It also defers per-space comment totals. Callers must flush before relying on
+// the index and before committing.
 type indexBatch struct {
 	writers map[string]bool
 
-	// authoritySubjects are delegation subjects whose cached members are stale.
-	authoritySubjects map[keyline.Node]bool
 	// authorityDelegates are key nodes that received a grant. Blobs they, or
 	// keys acting for them, signed may now be authorized.
 	authorityDelegates map[keyline.Node]bool
@@ -1281,7 +1279,6 @@ type indexBatch struct {
 func newIndexBatch() *indexBatch {
 	return &indexBatch{
 		writers:            make(map[string]bool),
-		authoritySubjects:  make(map[keyline.Node]bool),
 		authorityDelegates: make(map[keyline.Node]bool),
 		commentSpaces:      make(map[string]bool),
 	}
@@ -1354,8 +1351,8 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *indexBat
 		return v, nil
 	}
 
-	// Keyline computes this relation in the same transaction that indexes the
-	// grants. Breadcrumbs also cover preflight checks for not-yet-created paths.
+	// Keyline's stored edges answer this in the same transaction that indexes
+	// the grants. Scopes also cover preflight checks for not-yet-created paths.
 	valid, err = capabilityRowExists(conn, qAuthorityCanWrite(), writerID, parentsJSON)
 	if err != nil {
 		return false, err
@@ -1364,16 +1361,9 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *indexBat
 	return valid, nil
 }
 
-// authorityScopesJSON lists the authority nodes of resource and its ancestor
-// scopes as a JSON array, for checking cached members of any of them.
+// authorityScopesJSON lists authorityScopes of resource as a JSON array.
 func authorityScopesJSON(resource IRI) string {
-	breadcrumbs := resource.Breadcrumbs()
-	nodes := make([]keyline.Node, len(breadcrumbs))
-	for i, iri := range breadcrumbs {
-		nodes[i] = resourceNode(iri)
-	}
-
-	return unsafeutil.StringFromBytes(must.Do2(json.Marshal(nodes)))
+	return unsafeutil.StringFromBytes(must.Do2(json.Marshal(authorityScopes(resource))))
 }
 
 // capabilityRowExists reports whether an authority lookup returns a row.
@@ -1431,7 +1421,7 @@ func SQLCanWriteRootByOwnerID(ownerIDExpr string) string {
 	return fmt.Sprintf(sqlCanWriteRootByOwnerID, ownerIDExpr)
 }
 
-const sqlCanWriteRootByOwnerID = `EXISTS (
+var sqlCanWriteRootByOwnerID = `EXISTS (
 	SELECT 1
 	FROM public_keys caller
 	WHERE caller.principal = ?
@@ -1439,11 +1429,9 @@ const sqlCanWriteRootByOwnerID = `EXISTS (
 		%[1]s = caller.id
 		OR EXISTS (
 			SELECT 1
-			FROM keyline_members m
-			JOIN public_keys owner ON owner.id = %[1]s
-			WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'space:z' || base58btc_encode(owner.principal))
-			AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
-			AND m.power IN ('w', 'a')
+			FROM public_keys owner
+			WHERE owner.id = %[1]s
+			AND ` + sqlAuthorityCanWrite(sqlKeyNode("owner.principal")+", "+sqlSpaceNode("owner.principal"), sqlKeyNode("caller.principal")) + `
 		)
 	)
 )`
@@ -1453,22 +1441,17 @@ var qCanWriteRootByID = dqb.Str(`
 	WHERE (?1 != 0 AND ?1 = ?2)
 	OR EXISTS (
 		SELECT 1
-		FROM keyline_members m
-		JOIN public_keys owner ON owner.id = ?1
-		JOIN public_keys caller ON caller.id = ?2
-		WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'space:z' || base58btc_encode(owner.principal))
-		AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
-		AND m.power IN ('w', 'a')
+		FROM public_keys owner, public_keys caller
+		WHERE owner.id = ?1 AND caller.id = ?2
+		AND ` + sqlAuthorityCanWrite(sqlKeyNode("owner.principal")+", "+sqlSpaceNode("owner.principal"), sqlKeyNode("caller.principal")) + `
 	)
 `)
 
 var qAuthorityCanWrite = dqb.Str(`
 	SELECT 1 AS valid
-	FROM keyline_members m
-	JOIN public_keys caller ON caller.id = ?1
-	WHERE m.subject IN (SELECT id FROM keyline_nodes WHERE name IN (SELECT value FROM json_each(?2)))
-	AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(caller.principal))
-	AND m.power IN ('w', 'a')
+	FROM public_keys caller
+	WHERE caller.id = ?1
+	AND ` + sqlAuthorityCanWrite("SELECT value FROM json_each(?2)", sqlKeyNode("caller.principal")) + `
 `)
 
 func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
@@ -1487,12 +1470,9 @@ func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid
 // AGENT capability chain in either direction grants.
 var qIsValidAgentKey = dqb.Str(`
 	SELECT 1
-	FROM keyline_members m
-	JOIN public_keys issuer ON issuer.id = :issuer
-	JOIN public_keys delegate ON delegate.id = :delegate
-	WHERE m.subject = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(issuer.principal))
-	AND m.member = (SELECT id FROM keyline_nodes WHERE name = 'key:z' || base58btc_encode(delegate.principal))
-	AND m.power IN ('w', 'a')
+	FROM public_keys issuer, public_keys delegate
+	WHERE issuer.id = :issuer AND delegate.id = :delegate
+	AND ` + sqlAuthorityCanWrite(sqlKeyNode("issuer.principal"), sqlKeyNode("delegate.principal")) + `
 	LIMIT 1
 `)
 
@@ -2403,6 +2383,10 @@ func reindexStashedBlobs(opts indexOpts, conn *sqlite.Conn, reason stashReason, 
 	childOpts := opts
 	countAsDeferred := !opts.ObservedAt.IsZero()
 	childOpts.ObservedAt = time.Time{}
+
+	// A caller that defers propagation seeds its pass only with the blobs it
+	// indexed itself, so unstashed blobs propagate their own visibility.
+	childOpts.DeferPropagation = false
 
 	// We collect the stashed blobs into closures, to avoid nested SQLite queries,
 	// because the result set here would select and update the same table, which sometimes gives unexpected results.

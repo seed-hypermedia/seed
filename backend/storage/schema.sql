@@ -8,6 +8,12 @@ CREATE TABLE kv (
     value TEXT
 ) WITHOUT ROWID;
 
+-- Keyline's authority graph (backend/blob/keylinesqlite), derived from
+-- Capability blobs. Every blob_id references the blob that defines the row, so
+-- a blob Keyline cites cannot be deleted until a reindex drops the row.
+-- Implied delegations, which follow from how nodes are named rather than from
+-- a blob, have a NULL blob_id.
+
 -- Interned authority graph identities with earliest-mention provenance.
 -- ts is the signed Unix millisecond timestamp; blob_key is the canonical CID
 -- used to break timestamp ties independently of local blob IDs.
@@ -15,43 +21,55 @@ CREATE TABLE kv (
 CREATE TABLE keyline_nodes (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL CHECK (name != ''),
-    blob_id INTEGER CHECK (blob_id > 0),
+    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0),
     ts INTEGER,
     blob_key TEXT CHECK (blob_key != ''),
     CHECK ((blob_id IS NULL AND ts IS NULL AND blob_key IS NULL) OR (blob_id IS NOT NULL AND ts IS NOT NULL AND blob_key IS NOT NULL))
 ) STRICT;
 
+CREATE INDEX keyline_nodes_by_blob ON keyline_nodes (blob_id) WHERE blob_id IS NOT NULL;
+
+-- Delegations and revocations are rowid tables: their IDs are long text, and
+-- each secondary index entry would otherwise repeat it.
+--
+-- Powers are stored as keyline.Power numbers, which order them:
+-- 1 Sync, 2 Read, 3 Write, 4 Admin.
 CREATE TABLE keyline_delegations (
-    id TEXT PRIMARY KEY CHECK (id != ''),
+    id TEXT UNIQUE NOT NULL CHECK (id != ''),
     issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
     audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
     subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
-    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
-    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
-) STRICT, WITHOUT ROWID;
+    power INTEGER NOT NULL CHECK (power BETWEEN 1 AND 4),
+    blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0)
+) STRICT;
 
 CREATE TABLE keyline_revocations (
-    id TEXT PRIMARY KEY CHECK (id != ''),
+    id TEXT UNIQUE NOT NULL CHECK (id != ''),
     issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
     target TEXT NOT NULL CHECK (target != ''),
-    blob_id INTEGER NOT NULL CHECK (blob_id > 0)
-) STRICT, WITHOUT ROWID;
+    blob_id INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0)
+) STRICT;
 
-CREATE INDEX keyline_outgoing ON keyline_delegations (subject, issuer);
+CREATE INDEX keyline_outgoing ON keyline_delegations (subject, issuer, audience);
 CREATE INDEX keyline_delegations_by_issuer ON keyline_delegations (issuer);
-CREATE INDEX keyline_delegations_by_audience ON keyline_delegations (audience);
+CREATE INDEX keyline_delegations_by_audience ON keyline_delegations (audience, subject);
+CREATE INDEX keyline_delegations_by_blob ON keyline_delegations (blob_id) WHERE blob_id IS NOT NULL;
 CREATE INDEX keyline_targeting ON keyline_revocations (target);
 CREATE INDEX keyline_revocations_by_issuer ON keyline_revocations (issuer);
+CREATE INDEX keyline_revocations_by_blob ON keyline_revocations (blob_id);
 
--- Effective authority memberships derived from the Keyline graph.
-CREATE TABLE keyline_members (
+-- Evaluated Keyline edges: the strongest power live delegations about subject
+-- convey to audience, as a keyline.Power number (1 Sync, 2 Read, 3 Write,
+-- 4 Admin). keylinesqlite maintains them as facts arrive and answers
+-- authority checks by reachability over them.
+CREATE TABLE keyline_edges (
     subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
-    member INTEGER NOT NULL REFERENCES keyline_nodes (id),
-    power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
-    PRIMARY KEY (subject, member)
-) WITHOUT ROWID;
+    audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
+    power INTEGER NOT NULL CHECK (power BETWEEN 1 AND 4),
+    PRIMARY KEY (subject, audience)
+) STRICT, WITHOUT ROWID;
 
-CREATE INDEX keyline_members_by_member ON keyline_members (member, subject);
+CREATE INDEX keyline_edges_by_audience ON keyline_edges (audience, subject);
 
 -- Stores the public keys that we know about.
 -- The public key is stored in a principal encoding,

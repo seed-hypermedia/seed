@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"maps"
-	"math/bits"
 	"slices"
 )
 
@@ -15,8 +14,6 @@ import (
 // all-root searches while preserving the same least fixed point.
 type graph struct {
 	tx          ReadTx
-	budget      Limits
-	parent      func(Node) (Node, bool)
 	subset      map[ID]bool // Nil selects the complete transaction's fact set.
 	loaded      map[Node]bool
 	outgoing    map[[2]Node][]Delegation
@@ -29,23 +26,11 @@ type exclusion struct {
 	roots []Node
 }
 
-func newGraph(tx ReadTx, e Evaluator) (*graph, error) {
-	limits := e.Limits
-	for _, remaining := range []*int{&limits.MaxFacts, &limits.MaxBytes, &limits.MaxRelations, &limits.MaxWork} {
-		if *remaining < 0 {
-			return nil, fmt.Errorf("keyline: negative evaluation limit")
-		}
-
-		if *remaining == 0 {
-			// Keep unlimited distinct from a finite budget exhausted to zero.
-			*remaining = -1
-		}
-	}
-
+func newGraph(tx ReadTx) *graph {
 	return &graph{
-		tx: tx, budget: limits, parent: e.Parent, loaded: make(map[Node]bool),
+		tx: tx, loaded: make(map[Node]bool),
 		outgoing: make(map[[2]Node][]Delegation), delegations: make(map[ID]Delegation),
-	}, nil
+	}
 }
 
 // evaluate returns the revocation-aware standing rows of roots and of every
@@ -61,15 +46,11 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 	adminReach := make(map[Node][]Node)
 	for n, row := range positive {
 		for k, p := range row {
-			if err := g.work(ctx, 1); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, nil, err
 			}
 
 			if p == Admin {
-				if err := consume(&g.budget.MaxRelations, 1, "relations"); err != nil {
-					return nil, nil, err
-				}
-
 				adminReach[k] = append(adminReach[k], n)
 			}
 		}
@@ -81,7 +62,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 	usable := make(map[ID]bool)
 	pruned := false
 	for _, d := range g.delegations {
-		if err := g.work(ctx, 1); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 
@@ -100,10 +81,6 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 				return nil, nil, fmt.Errorf("keyline: read revocations of %q: %w", d.ID, err)
 			}
 
-			if err := g.fact(ctx, string(r.ID), string(r.Issuer), string(r.Target)); err != nil {
-				return nil, nil, err
-			}
-
 			if g.subset != nil && !g.subset[r.ID] {
 				continue
 			}
@@ -115,16 +92,12 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 			// Drain even total revocations: a later storage error cannot become
 			// an apparently successful answer about a partially read graph.
 			for _, n := range adminReach[r.Issuer] {
-				if err := g.work(ctx, 1); err != nil {
+				if err := ctx.Err(); err != nil {
 					return nil, nil, err
 				}
 
 				if excluded[n] {
 					continue
-				}
-
-				if err := consume(&g.budget.MaxRelations, 1, "relations"); err != nil {
-					return nil, nil, err
 				}
 
 				if excluded == nil {
@@ -155,17 +128,13 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 
 		// Group the union of revokers' coverage. Length framing preserves
 		// opaque node boundaries, including invalid UTF-8 and delimiters.
-		if err := g.work(ctx, len(excluded)*bits.Len(uint(len(excluded)))); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 
 		var key []byte
 
 		for _, n := range slices.Sorted(maps.Keys(excluded)) {
-			if err := consume(&g.budget.MaxBytes, len(n)+binary.MaxVarintLen64, "bytes"); err != nil {
-				return nil, nil, err
-			}
-
 			key = binary.AppendUvarint(key, uint64(len(n)))
 			key = append(key, n...)
 		}
@@ -183,7 +152,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 	for i := range contexts {
 		roots := make(map[Node]bool)
 		for _, d := range contexts[i].edges {
-			if err := g.work(ctx, 1); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, nil, err
 			}
 
@@ -200,7 +169,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 		for _, c := range contexts {
 			pending := false
 			for _, d := range c.edges {
-				if err := g.work(ctx, 1); err != nil {
+				if err := ctx.Err(); err != nil {
 					return nil, nil, err
 				}
 
@@ -217,7 +186,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 			}
 
 			for _, d := range c.edges {
-				if err := g.work(ctx, 1); err != nil {
+				if err := ctx.Err(); err != nil {
 					return nil, nil, err
 				}
 
@@ -238,7 +207,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 	caps := make(map[ID]Power)
 	for _, c := range contexts {
 		for _, d := range c.edges {
-			if err := g.work(ctx, 1); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, nil, err
 			}
 
@@ -257,7 +226,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 			}
 
 			for _, d := range c.edges {
-				if err := g.work(ctx, 1); err != nil {
+				if err := ctx.Err(); err != nil {
 					return nil, nil, err
 				}
 
@@ -265,8 +234,8 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 					continue
 				}
 
-				p := d.Power.min(levels[d.Subject][d.Issuer])
-				if p.Compare(caps[d.ID]) > 0 {
+				p := min(d.Power, levels[d.Subject][d.Issuer])
+				if p > caps[d.ID] {
 					caps[d.ID] = p
 					changed = true
 				}
@@ -293,7 +262,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 	// bounded by its requested power or revocation-adjusted cap.
 	conveyed := make(map[ID]Power, len(usable))
 	for id := range usable {
-		if err := g.work(ctx, 1); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 
@@ -309,7 +278,7 @@ func (g *graph) evaluate(ctx context.Context, roots []Node) (map[Node]map[Node]P
 			ceiling = d.Power
 		}
 
-		conveyed[id] = power.min(ceiling)
+		conveyed[id] = min(power, ceiling)
 	}
 
 	return levels, conveyed, ctx.Err()
@@ -330,18 +299,12 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 	var queue []change
 
 	add := func(root, node Node, power Power) error {
-		if err := g.work(ctx, 1); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		if excluded[root] || excluded[node] || power.Compare(levels[root][node]) <= 0 {
+		if excluded[root] || excluded[node] || power <= levels[root][node] {
 			return nil
-		}
-
-		if levels[root][node] == None {
-			if err := consume(&g.budget.MaxRelations, 1, "relations"); err != nil {
-				return err
-			}
 		}
 
 		if levels[root] == nil {
@@ -365,7 +328,7 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 	}
 
 	for head := 0; head < len(queue); head++ {
-		if err := g.work(ctx, 1); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 
@@ -380,16 +343,6 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 			}
 		}
 
-		if q.node == q.root && g.parent != nil {
-			// A computed parent edge behaves as a stored, unrevoked Admin
-			// delegation from the node to its parent.
-			if parent, ok := g.parent(q.root); ok && parent != q.root {
-				if err := add(q.root, parent, Admin); err != nil {
-					return nil, err
-				}
-			}
-		}
-
 		if !g.loaded[q.root] && usable == nil {
 			if err := g.load(ctx, q.root); err != nil {
 				return nil, err
@@ -398,7 +351,7 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 
 		edges := g.outgoing[[2]Node{q.root, q.node}]
 		for _, d := range edges {
-			if err := g.work(ctx, 1); err != nil {
+			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 
@@ -411,7 +364,7 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 				power = ceiling
 			}
 
-			if err := add(q.root, d.Audience, q.power.min(power)); err != nil {
+			if err := add(q.root, d.Audience, min(q.power, power)); err != nil {
 				return nil, err
 			}
 		}
@@ -421,13 +374,13 @@ func (g *graph) search(ctx context.Context, roots []Node, excluded map[Node]bool
 		}
 
 		for member, power := range levels[q.node] {
-			if err := add(q.root, member, q.power.min(power)); err != nil {
+			if err := add(q.root, member, min(q.power, power)); err != nil {
 				return nil, err
 			}
 		}
 
 		for outer, power := range parents[q.root] {
-			if err := add(outer, q.node, power.min(q.power)); err != nil {
+			if err := add(outer, q.node, min(power, q.power)); err != nil {
 				return nil, err
 			}
 		}
@@ -445,10 +398,6 @@ func (g *graph) load(ctx context.Context, subject Node) error {
 			return fmt.Errorf("keyline: read delegations for subject %q: %w", subject, err)
 		}
 
-		if err := g.fact(ctx, string(d.ID), string(d.Issuer), string(d.Audience), string(d.Subject)); err != nil {
-			return err
-		}
-
 		if g.subset != nil && !g.subset[d.ID] {
 			continue
 		}
@@ -458,44 +407,6 @@ func (g *graph) load(ctx context.Context, subject Node) error {
 			g.outgoing[key] = append(g.outgoing[key], d)
 			g.delegations[d.ID] = d
 		}
-	}
-
-	return nil
-}
-
-func (g *graph) work(ctx context.Context, n int) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	return consume(&g.budget.MaxWork, n, "work")
-}
-
-func (g *graph) fact(ctx context.Context, identifiers ...string) error {
-	if err := g.work(ctx, 1); err != nil {
-		return err
-	}
-
-	if err := consume(&g.budget.MaxFacts, 1, "facts"); err != nil {
-		return err
-	}
-
-	for _, id := range identifiers {
-		if err := consume(&g.budget.MaxBytes, len(id), "bytes"); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func consume(remaining *int, n int, resource string) error {
-	if n < 0 || (*remaining >= 0 && n > *remaining) {
-		return fmt.Errorf("%w: %s", ErrLimit, resource)
-	}
-
-	if *remaining >= 0 {
-		*remaining -= n
 	}
 
 	return nil

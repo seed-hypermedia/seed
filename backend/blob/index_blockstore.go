@@ -3,7 +3,6 @@ package blob
 import (
 	"context"
 	"seed/backend/ipfs"
-	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/syncperf"
 	"slices"
@@ -152,8 +151,8 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 			// one coalesced visibility propagation pass at the end instead of
 			// N separate recursive CTE walks (one per blob).
 			indexed := make([]int64, 0, len(batch))
-			// Capabilities go first, so the members cache is refreshed once
-			// for the whole batch before other blobs are authorized against it.
+			// Capabilities go first, so the batch's authority is in place
+			// before other blobs are authorized against it.
 			// Capabilities depend on no other blob, and the rest keep their order.
 			index := func(blk blocks.Block) error {
 				codec, hash := ipfs.DecodeCID(blk.Cid())
@@ -225,35 +224,11 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	return nil
 }
 
-// DeleteBlock removes a block and rebuilds authority if it contributed indexed
-// facts or mentions. The deletion and projection update commit atomically.
+// DeleteBlock removes a block. It fails while derived data cites the block,
+// such as Keyline facts from a Capability, or links from other blobs.
 func (idx *Index) DeleteBlock(ctx context.Context, c cid.Cid) error {
-	mCallsTotal.WithLabelValues("DeleteBlock").Inc()
-
-	return idx.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		structural, err := sqlitex.QueryOne[int](conn, qDeleteBlockIsStructural(), c.Hash())
-		if err != nil {
-			return err
-		}
-
-		if _, err := idx.bs.deleteBlock(conn, c); err != nil {
-			return err
-		}
-
-		if structural != 0 {
-			return idx.rebuildAuthority(conn)
-		}
-
-		return nil
-	})
+	return idx.bs.DeleteBlock(ctx, c)
 }
-
-var qDeleteBlockIsStructural = dqb.Str(`
-	SELECT EXISTS (
-		SELECT 1 FROM structural_blobs sb JOIN blobs b ON b.id = sb.id
-		WHERE b.multihash = ?
-	)
-`)
 
 // Has checks if a block is in the blockstore.
 func (idx *Index) Has(ctx context.Context, c cid.Cid) (bool, error) {

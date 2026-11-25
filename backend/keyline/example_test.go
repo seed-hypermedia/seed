@@ -59,7 +59,7 @@ func ExampleClosure() {
 	}
 
 	// Output:
-	// notes a
+	// notes admin
 	// drafts none
 }
 

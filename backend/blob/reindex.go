@@ -228,10 +228,6 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		}
 		coverDur = time.Since(coverStart)
 
-		if err := sqlitex.Exec(conn, qAuthoritySetVersion(), nil, authorityVersion); err != nil {
-			return err
-		}
-
 		return dbSetReindexTime(conn, time.Now().UTC().String())
 	}); err != nil {
 		return err
@@ -328,10 +324,6 @@ func (idx *Index) MaybeReindex(ctx context.Context) error {
 	}
 
 	if res != "" {
-		if err := idx.backfillAuthority(conn); err != nil {
-			return err
-		}
-
 		idx.reindexing.state.Store(int32(ReindexStateNotNeeded)) //nolint:gosec
 		return nil
 	}

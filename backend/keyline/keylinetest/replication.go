@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"iter"
 	"slices"
-	"strings"
 	"testing"
 
 	"seed/backend/keyline"
@@ -84,7 +83,7 @@ func testPartialReplication(t *testing.T, newStore NewStore) {
 	require.NoError(t, source.View(t.Context(), func(tx keyline.ReadTx) error {
 		var err error
 
-		closure, err = keyline.Collect((keyline.Evaluator{Limits: keyline.Limits{MaxFacts: 100}}).Closure(t.Context(), noGlobalScanTx{tx}, "doc"))
+		closure, err = keyline.Collect(keyline.Closure(t.Context(), noGlobalScanTx{tx}, "doc"))
 		return err
 	}))
 	require.ElementsMatch(t, batch.Delegations[:6], closure.Delegations)
@@ -164,41 +163,6 @@ func testClosureEmptyAndNodeOnly(t *testing.T, newStore NewStore) {
 	require.NoError(t, err)
 	require.Equal(t, keyline.Batch{Nodes: []keyline.NodeRecord{{"standalone", 1, 0, "standalone-blob"}}}, readClosure(t, store, "standalone"))
 	require.Equal(t, keyline.Batch{}, readClosure(t, store, ""))
-}
-
-func testNodeMentionByteBudgets(t *testing.T, newStore NewStore) {
-	store := newStore(t)
-	ctx := t.Context()
-	n := keyline.NodeRecord{ID: "doc", BlobID: 1, Timestamp: -1, BlobKey: strings.Repeat("blob", 64)}
-	want := keyline.Batch{Nodes: []keyline.NodeRecord{n}}
-	_, err := store.Apply(ctx, want)
-	require.NoError(t, err)
-	digest := readDigest(t, store)
-	total := len(n.ID) + len(n.BlobKey)
-	for _, budget := range []int{len(n.ID), total - 1, total} {
-		evaluator := keyline.Evaluator{Limits: keyline.Limits{MaxBytes: budget}}
-		require.NoError(t, store.View(ctx, func(tx keyline.ReadTx) error {
-			batch, err := keyline.Collect(evaluator.Closure(ctx, tx, n.ID))
-			if budget < total {
-				require.ErrorIs(t, err, keyline.ErrLimit)
-				require.Empty(t, batch)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, want, batch)
-			}
-
-			got, err := evaluator.Digest(ctx, tx)
-			if budget < total {
-				require.ErrorIs(t, err, keyline.ErrLimit)
-				require.Zero(t, got)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, digest, got)
-			}
-
-			return nil
-		}))
-	}
 }
 
 func testPositiveAndSubsetQueries(t *testing.T, newStore NewStore) {
@@ -371,12 +335,6 @@ func testReplicationFailures(t *testing.T, newStore NewStore) {
 		batch, err := keyline.Collect(keyline.Closure(t.Context(), tx, "s"))
 		require.NoError(t, err)
 		require.Len(t, batch.Delegations, 1)
-		for _, limit := range []keyline.Limits{{MaxFacts: 1}, {MaxBytes: 1}, {MaxRelations: 1}, {MaxWork: 1}} {
-			batch, err := keyline.Collect((keyline.Evaluator{Limits: limit}).Closure(t.Context(), tx, "s"))
-			require.ErrorIs(t, err, keyline.ErrLimit)
-			require.Equal(t, keyline.Batch{}, batch)
-		}
-
 		return nil
 	}))
 }

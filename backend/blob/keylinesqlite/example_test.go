@@ -6,15 +6,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"seed/backend/blob/keylinesqlite"
 	"seed/backend/keyline"
-	"seed/backend/keyline/keylinesqlite"
+	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 )
 
 // Authorize and perform a protected write in one application transaction.
 // Facts applied through Tx are visible to later queries before commit, and
-// they commit or roll back together with the application's own writes.
+// they commit or roll back together with the application's own writes. Each
+// fact cites a stored blob.
 func ExampleTx() {
 	ctx := context.Background()
 
@@ -24,14 +26,19 @@ func ExampleTx() {
 	}
 	defer os.RemoveAll(dir)
 
-	pool, err := sqlitex.Open(filepath.Join(dir, "app.db"), 0, 1)
+	pool, err := storage.OpenSQLite(filepath.Join(dir, "app.db"), 0, 1)
 	if err != nil {
 		panic(err)
 	}
 	defer pool.Close()
 
+	if err := storage.InitSQLiteSchema(pool); err != nil {
+		panic(err)
+	}
+
 	err = pool.WithTx(ctx, func(conn *sqlite.Conn) error {
-		if err := keylinesqlite.Init(ctx, conn); err != nil {
+		// Stand-ins for the capability blobs that carry these grants.
+		if err := sqlitex.ExecScript(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (1, x'01', 85, 0), (2, x'02', 85, 0);`); err != nil {
 			return err
 		}
 

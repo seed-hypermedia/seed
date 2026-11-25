@@ -160,3 +160,6 @@ hypermedia/.dev/
 # Playwright output from the @shm/ui e2e harness
 frontend/packages/ui/e2e/test-results/
 frontend/packages/ui/e2e/playwright-report/
+
+# pnpm falls back to a repo-local store when it cannot write the global one (e.g. under a sandbox).
+.pnpm-store/

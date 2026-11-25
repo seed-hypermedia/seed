@@ -15,13 +15,18 @@
 ## Tests
 
 - The core `keyline` package must not test against a concrete store; its tests cover store-free behavior and runnable
-  examples only. Put every store-dependent test in `keylinetest` and register it in `Run`, so `keylinemem`,
-  `keylinesqlite`, and any future store run it. Store-specific behavior, such as locking or SQL schema, belongs in that
-  store's package.
+  examples only. Put every store-dependent test in `keylinetest` and register it in `Run`, so `keylinemem`, Seed's
+  `backend/blob/keylinesqlite`, and any future store run it. Store-specific behavior, such as locking or SQL schema,
+  belongs in that store's package.
+- `backend/keyline` holds the port and `keylinemem`, its reference store. Seed-specific stores live outside it and
+  depend on it, never the reverse.
 - `keylinetest/conformance` mirrors upstream's `keyline/src/test_utils/conformance`: `gen.go` ports `gen.rs`,
   `oracle.go` ports `oracle/naive.rs` and `oracle/threshold.rs`, and `laws.go` ports `laws.rs` with one Go function per
   law under the upstream name. Port changes there file for file, keep the generator choice for choice, and register new
   laws in `runLaws`.
+- Laws for Go-only API, which upstream has no law for, live in `conformance/extensions.go`, carry no `// upstream:`
+  marker, and follow the ported laws in `runLaws`. Never add them to the ported files, so `laws.go` stays a port of
+  `laws.rs`.
 - `stores.build` memoizes stores by record list, so every law run on one input shares the same store. Nothing prevents a
   law from changing it, and a change would silently skew later laws on that input. A law must not change the state of a
   store from `stores.build`; a law that needs to insert other facts builds its own with `stores.fresh`. The one
@@ -37,6 +42,8 @@
   ports it, once across the package.
 - Mark ported code that adapts a specific upstream function with a comment naming the upstream file and function, so
   upstream diffs map to Go code.
+- Functionality upstream lacks, such as `MembersOf`, is listed in the README's differences
+  from upstream, so a reader can tell the port from Seed's additions. Add the entry in the same change as the code.
 - Run `backend/keyline/upstream.sh [ref]` to see upstream commits on tracked paths since the pin and unported or stale
   cases. It keeps a keyhive clone in `$TMPDIR/seed-keyline-upstream-clone` (override with `KEYHIVE_DIR`) and fetches it
   before each report.
@@ -54,7 +61,8 @@ To bump the pin:
 ## Checks
 
 ```sh
-direnv exec . go test -tags cpu -race ./backend/keyline/...
-direnv exec . go test -tags cpu ./backend/keyline/keylinemem -run '^$' -fuzz '^FuzzStructuredEvaluation$' -fuzztime=60s
+direnv exec . go test -race ./backend/keyline/... ./backend/blob/keylinesqlite
+direnv exec . go test ./backend/keyline/keylinemem -run '^$' -fuzz '^FuzzStructuredEvaluation$' -fuzztime=60s
+direnv exec . go test ./backend/blob/keylinesqlite -run '^$' -fuzz '^FuzzStructuredEvaluation$' -fuzztime=60s
 backend/keyline/upstream.sh
 ```

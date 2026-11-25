@@ -7,12 +7,12 @@ import (
 	"iter"
 	"math"
 	"path/filepath"
-	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 
+	"seed/backend/blob/keylinesqlite"
 	"seed/backend/keyline"
-	"seed/backend/keyline/keylinesqlite"
 	"seed/backend/keyline/keylinetest"
 	"seed/backend/keyline/keylinetest/conformance"
 	"seed/backend/util/dqb"
@@ -34,13 +34,9 @@ func TestSQLitePersistence(t *testing.T) {
 		Revocations: []keyline.Revocation{{"r", "missing revoker", "missing target", 9}, {"\xfe\x00", "\xff\xfe", "\xff\x00", 11}},
 	}
 	for pass := range 2 {
-		db, err := sqlitex.Open(path, 0, 2)
-		require.NoError(t, err)
+		db := keylinesqlite.OpenTestDB(t, path, 2)
 		func() {
 			defer func() { require.NoError(t, db.Close()) }()
-			require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-				return keylinesqlite.Init(ctx, conn)
-			}))
 
 			store := keylinesqlite.Store{Pool: db}
 			if pass == 0 {
@@ -84,312 +80,14 @@ func TestSQLiteNestedBatchRollback(t *testing.T) {
 	keylinetest.RequireState(t, store, keyline.Batch{Nodes: []keyline.NodeRecord{{"before", 1, 0, "before-blob"}, {"after", 4, 0, "after-blob"}}}, keyline.Batch{Nodes: []keyline.NodeRecord{{ID: "lost"}}})
 }
 
-func TestSQLiteSchema(t *testing.T) {
-	for _, mode := range []string{"idempotent", "unversioned", "legacy facts", "missing index", "changed index", "changed table", "caller rollback"} {
-		t.Run(mode, func(t *testing.T) {
-			ctx := t.Context()
-			conn, err := sqlite.OpenConn(filepath.Join(t.TempDir(), "schema.db"), 0)
-			require.NoError(t, err)
-			defer func() { require.NoError(t, conn.Close()) }()
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE TABLE application_data (value TEXT)`)(), nil))
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`INSERT INTO application_data VALUES ('untouched')`)(), nil))
-
-			switch mode {
-			case "unversioned":
-				require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE TABLE keyline_nodes (id TEXT)`)(), nil))
-				require.Error(t, keylinesqlite.Init(ctx, conn))
-			case "legacy facts":
-				require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE TABLE keyline_facts (id TEXT)`)(), nil))
-				require.Error(t, keylinesqlite.Init(ctx, conn))
-			case "caller rollback":
-				rollback := errors.New("rollback")
-				err := sqlitex.WithTx(conn, func() error {
-					require.NoError(t, keylinesqlite.Init(ctx, conn))
-					return rollback
-				})
-				require.ErrorIs(t, err, rollback)
-				n, err := sqlitex.QueryOne[int64](conn, dqb.Str(`SELECT count(*) FROM sqlite_schema WHERE name GLOB 'keyline_*'`)())
-				require.NoError(t, err)
-				require.Zero(t, n)
-			default:
-				require.NoError(t, keylinesqlite.Init(ctx, conn))
-				switch mode {
-				case "changed table":
-					require.NoError(t, sqlitex.Exec(conn, dqb.Str(`ALTER TABLE keyline_delegations ADD COLUMN unexpected TEXT`)(), nil))
-				case "missing index", "changed index":
-					require.NoError(t, sqlitex.Exec(conn, dqb.Str(`DROP INDEX keyline_outgoing`)(), nil))
-
-					if mode == "changed index" {
-						require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE INDEX keyline_outgoing ON keyline_delegations(issuer)`)(), nil))
-					}
-				}
-
-				if mode == "idempotent" {
-					require.NoError(t, keylinesqlite.Init(ctx, conn))
-				} else {
-					require.Error(t, keylinesqlite.Init(ctx, conn))
-				}
-			}
-
-			value, err := sqlitex.QueryOne[string](conn, dqb.Str(`SELECT value FROM application_data`)())
-			require.NoError(t, err)
-			require.Equal(t, "untouched", value)
-		})
-	}
-}
-
-func TestSQLiteApplicationSchemaObjects(t *testing.T) {
-	for _, mode := range []string{"before init", "after init"} {
-		t.Run(mode, func(t *testing.T) {
-			ctx := t.Context()
-			conn, err := sqlite.OpenConn(filepath.Join(t.TempDir(), "schema.db"), 0)
-			require.NoError(t, err)
-			defer func() { require.NoError(t, conn.Close()) }()
-
-			if mode == "after init" {
-				require.NoError(t, keylinesqlite.Init(ctx, conn))
-			}
-
-			// The application owns this cache's shape and contents, even when
-			// it shares the store's prefix. Init must not depend on either.
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE TABLE keyline_members (member TEXT, value TEXT)`)(), nil))
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE INDEX keyline_members_by_member ON keyline_members (member)`)(), nil))
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE VIEW keyline_application_view AS SELECT value FROM keyline_members`)(), nil))
-			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`INSERT INTO keyline_members VALUES ('alice', 'untouched')`)(), nil))
-			require.NoError(t, keylinesqlite.Init(ctx, conn))
-			require.NoError(t, keylinesqlite.Init(ctx, conn))
-			value, err := sqlitex.QueryOne[string](conn, dqb.Str(`SELECT value FROM keyline_application_view`)())
-			require.NoError(t, err)
-			require.Equal(t, "untouched", value)
-			index, err := sqlitex.QueryOne[string](conn, dqb.Str(`SELECT sql FROM sqlite_schema WHERE name = 'keyline_members_by_member'`)())
-			require.NoError(t, err)
-			require.Equal(t, "CREATE INDEX keyline_members_by_member ON keyline_members (member)", index)
-		})
-	}
-}
-
-func TestSQLiteCorruptRowsFailClosed(t *testing.T) {
-	for _, query := range []dqb.LazyQuery{
-		dqb.Str(`UPDATE keyline_delegations SET power = 257 WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = '' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = 'e' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = 'R' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = 'read' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = ' r' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = 'r ' WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET power = 'r' || char(0) WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET issuer = 999 WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET audience = 999 WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET subject = 999 WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_delegations SET blob_id = -1 WHERE id = 'd'`),
-		dqb.Str(`UPDATE keyline_revocations SET issuer = 999 WHERE id = 'r'`),
-		dqb.Str(`UPDATE keyline_revocations SET target = '' WHERE id = 'r'`),
-		dqb.Str(`UPDATE keyline_revocations SET blob_id = 0 WHERE id = 'r'`),
-		dqb.Str(`UPDATE keyline_nodes SET blob_id = 0 WHERE name = 'n'`),
-	} {
-		t.Run(query(), func(t *testing.T) {
-			ctx := t.Context()
-			store := newSQLiteTestStore(t, keyline.Batch{
-				Delegations: []keyline.Delegation{{"d", "doc", "alice", "doc", keyline.Read, 1}},
-				Revocations: []keyline.Revocation{{"r", "alice", "d", 2}},
-			})
-			_, err := store.Apply(ctx, keyline.Batch{Nodes: []keyline.NodeRecord{{"n", 3, 0, "n-blob"}}})
-			require.NoError(t, err)
-			require.NoError(t, store.Pool.WithTx(ctx, func(conn *sqlite.Conn) error {
-				require.NoError(t, sqlitex.Exec(conn, dqb.Str(`PRAGMA ignore_check_constraints = ON`)(), nil))
-				defer func() {
-					require.NoError(t, sqlitex.Exec(conn, dqb.Str(`PRAGMA ignore_check_constraints = OFF`)(), nil))
-				}()
-				return sqlitex.Exec(conn, query(), nil)
-			}))
-			require.NoError(t, store.View(ctx, func(tx keyline.ReadTx) error {
-				switch {
-				case strings.Contains(query(), "keyline_nodes"):
-					n, found, err := tx.Node(ctx, "n")
-					require.Error(t, err)
-					require.False(t, found)
-					require.Zero(t, n)
-				case strings.Contains(query(), "'d'"):
-					d, found, err := tx.Delegation(ctx, "d")
-					require.Error(t, err)
-					require.False(t, found)
-					require.Zero(t, d)
-				default:
-					r, found, err := tx.Revocation(ctx, "r")
-					require.Error(t, err)
-					require.False(t, found)
-					require.Zero(t, r)
-				}
-
-				return nil
-			}))
-		})
-	}
-}
-
-func TestSQLiteActiveTransactionRequired(t *testing.T) {
-	store := newSQLiteTestStore(t, keyline.Batch{})
-	conn, release, err := store.Pool.WriteConn(t.Context())
-	require.NoError(t, err)
-	defer release()
-	tx := keylinesqlite.Tx{Conn: conn}
-	_, _, err = tx.Node(t.Context(), "n")
-	require.ErrorContains(t, err, "active transaction")
-	_, _, err = tx.Delegation(t.Context(), "d")
-	require.ErrorContains(t, err, "active transaction")
-	_, _, err = tx.Revocation(t.Context(), "r")
-	require.ErrorContains(t, err, "active transaction")
-	_, err = tx.Apply(t.Context(), keyline.Batch{})
-	require.ErrorContains(t, err, "active transaction")
-	count := 0
-	for d, err := range tx.Delegations(t.Context(), "doc", "doc") {
-		require.ErrorContains(t, err, "active transaction")
-		require.Zero(t, d)
-		count++
-	}
-
-	require.Equal(t, 1, count)
-	count = 0
-	for r, err := range tx.Revocations(t.Context(), "d") {
-		require.ErrorContains(t, err, "active transaction")
-		require.Zero(t, r)
-		count++
-	}
-
-	require.Equal(t, 1, count)
-}
-
-func TestSQLiteQueryCancellation(t *testing.T) {
-	for _, operation := range []string{"node", "delegation", "revocation", "delegations", "revocations", "apply", "init"} {
-		t.Run(operation, func(t *testing.T) {
-			ctx := t.Context()
-			facts := keyline.Batch{
-				Delegations: []keyline.Delegation{{"d", "doc", "alice", "doc", keyline.Read, 1}},
-				Revocations: []keyline.Revocation{{"r", "alice", "d", 2}},
-			}
-			store := newSQLiteTestStore(t, facts)
-			conn, release, err := store.Pool.WriteConn(ctx)
-			require.NoError(t, err)
-			defer release()
-			err = sqlitex.WithTx(conn, func() error {
-				// The operation context is independent of the pool's context.
-				queryCtx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				old := conn.SetInterrupt(nil)
-				conn.SetInterrupt(old)
-				// Cancel during preparation, after the operation's initial
-				// context check. Re-registering invalidates cached statements.
-				require.NoError(t, conn.SetAuthorizer(sqlite.AuthorizeFunc(func(sqlite.ActionInfo) sqlite.AuthResult {
-					cancel()
-					return sqlite.AuthResult(sqlite.SQLITE_OK)
-				})))
-				tx := keylinesqlite.Tx{Conn: conn}
-				var err error
-
-				switch operation {
-				case "node":
-					_, _, err = tx.Node(queryCtx, "n")
-				case "delegation":
-					_, _, err = tx.Delegation(queryCtx, "d")
-				case "revocation":
-					_, _, err = tx.Revocation(queryCtx, "r")
-				case "delegations":
-					count := 0
-					for d, e := range tx.Delegations(queryCtx, "doc", "doc") {
-						require.Zero(t, d)
-						err = e
-						count++
-					}
-
-					require.Equal(t, 1, count)
-				case "revocations":
-					count := 0
-					for r, e := range tx.Revocations(queryCtx, "d") {
-						require.Zero(t, r)
-						err = e
-						count++
-					}
-
-					require.Equal(t, 1, count)
-				case "apply":
-					var changed bool
-
-					changed, err = tx.Apply(queryCtx, keyline.Batch{Nodes: []keyline.NodeRecord{{"lost", 3, 0, "lost-blob"}}})
-					require.False(t, changed)
-				case "init":
-					err = keylinesqlite.Init(queryCtx, conn)
-				}
-
-				require.ErrorIs(t, err, context.Canceled)
-				restored := conn.SetInterrupt(nil)
-				require.Equal(t, old, restored, "restore the owner's exact interrupt channel")
-				conn.SetInterrupt(old)
-				require.NoError(t, conn.SetAuthorizer(nil))
-				require.Empty(t, conn.CheckReset())
-				// An interrupted write may have rolled back the outer transaction.
-				// Propagate its error; only a new transaction promises reuse.
-				return err
-			})
-			require.ErrorIs(t, err, context.Canceled)
-			require.True(t, conn.GetAutocommit())
-			require.NoError(t, sqlitex.WithTx(conn, func() error {
-				tx := keylinesqlite.Tx{Conn: conn}
-				require.Equal(t, []keyline.Record{facts.Delegations[0], facts.Revocations[0]}, collectEnumeration(t, tx.Records(ctx)), "interrupted work must not change committed records")
-				changed, err := tx.Apply(ctx, keyline.Batch{Nodes: []keyline.NodeRecord{{"after cancellation", 4, 0, "after-blob"}}})
-				require.NoError(t, err, "the same connection remains usable in a new transaction")
-				require.True(t, changed)
-				return err
-			}))
-		})
-	}
-}
-
-func TestSQLiteOwnerCancellationPreserved(t *testing.T) {
-	store := newSQLiteTestStore(t, keyline.Batch{})
-	ctx := t.Context()
-	require.NoError(t, store.Pool.WithTx(ctx, func(conn *sqlite.Conn) error {
-		owner, cancel := context.WithCancel(ctx)
-		old := conn.SetInterrupt(owner.Done())
-		defer conn.SetInterrupt(old)
-		cancel()
-		_, _, err := (keylinesqlite.Tx{Conn: conn}).Node(ctx, "n")
-		require.Error(t, err, "a live query context must not mask the owner's cancellation")
-		require.Equal(t, owner.Done(), conn.SetInterrupt(old))
-		return nil
-	}))
-}
-
-func TestSQLiteCanceledPoolWait(t *testing.T) {
-	store := newSQLiteTestStore(t, keyline.Batch{})
-	conn, release, err := store.Pool.WriteConn(t.Context())
-	require.NoError(t, err)
-	defer release()
-	require.NotNil(t, conn)
-	ctx, cancel := context.WithCancel(t.Context())
-	finished := make(chan error, 1)
-	go func() {
-		_, err := store.Apply(ctx, keyline.Batch{Nodes: []keyline.NodeRecord{{"n", 1, 0, "n-blob"}}})
-		finished <- err
-	}()
-	cancel()
-	select {
-	case err := <-finished:
-		require.ErrorIs(t, err, context.Canceled)
-	case <-t.Context().Done():
-		t.Fatal("writer acquisition did not cancel")
-	}
-}
-
 // A running statement is interrupted only through the connection owner's
 // channel; a query context is checked before the query and between rows.
 func TestSQLiteInterruptRunningQuery(t *testing.T) {
 	for _, source := range []string{"owner"} {
 		t.Run(source, func(t *testing.T) {
 			ctx := t.Context()
-			conn, err := sqlite.OpenConn(filepath.Join(t.TempDir(), "interrupt.db"), 0)
-			require.NoError(t, err)
+			conn := keylinesqlite.OpenTestConn(t, filepath.Join(t.TempDir(), "interrupt.db"))
 			defer func() { require.NoError(t, conn.Close()) }()
-			require.NoError(t, keylinesqlite.Init(ctx, conn))
 			queryCtx, cancelQuery := context.WithCancel(ctx)
 			defer cancelQuery()
 			ownerCtx, cancelOwner := context.WithCancel(ctx)
@@ -417,7 +115,7 @@ func TestSQLiteInterruptRunningQuery(t *testing.T) {
 					UNION ALL SELECT n + 1 FROM numbers WHERE n < 1000000000
 				)
 				SELECT 1 AS id, 'n' AS name, sum(n) AS blob_id, 0 AS ts, 'blob' AS blob_key FROM numbers`)(), nil))
-			_, err = sqlitex.Read(ctx, conn, func(conn *sqlite.Conn) (struct{}, error) {
+			_, err := sqlitex.Read(ctx, conn, func(conn *sqlite.Conn) (struct{}, error) {
 				_, _, err := (keylinesqlite.Tx{Conn: conn}).Node(queryCtx, "n")
 				require.True(t, started)
 				require.Error(t, err)
@@ -444,10 +142,8 @@ func TestSQLiteInterruptRunningWrite(t *testing.T) {
 	for _, source := range []string{"owner"} {
 		t.Run(source, func(t *testing.T) {
 			ctx := t.Context()
-			conn, err := sqlite.OpenConn(filepath.Join(t.TempDir(), "interrupted-write.db"), 0)
-			require.NoError(t, err)
+			conn := keylinesqlite.OpenTestConn(t, filepath.Join(t.TempDir(), "interrupted-write.db"))
 			defer func() { require.NoError(t, conn.Close()) }()
-			require.NoError(t, keylinesqlite.Init(ctx, conn))
 			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`CREATE TABLE application_data (value TEXT)`)(), nil))
 			tx := keylinesqlite.Tx{Conn: conn}
 			base := keyline.Batch{
@@ -494,7 +190,7 @@ func TestSQLiteInterruptRunningWrite(t *testing.T) {
 			pending := keyline.Batch{Nodes: []keyline.NodeRecord{{"staged", 5, 0, "staged-blob"}, {"blocked", 6, 0, "blocked-blob"}}}
 			var operationErr error
 
-			err = sqlitex.WithTx(conn, func() error {
+			err := sqlitex.WithTx(conn, func() error {
 				changed, err := tx.Apply(ctx, caller)
 				require.NoError(t, err)
 				require.True(t, changed)
@@ -634,11 +330,13 @@ func newStore(t testing.TB) keyline.Store { return newSQLiteTestStore(t, keyline
 
 func TestStore(t *testing.T) { keylinetest.Run(t, newStore) }
 
-func TestConformance(t *testing.T) { conformance.Run(t, newStore) }
+// The conformance laws and fuzzers build thousands of stores, so they use
+// in-memory databases; TestStore and the store-specific tests keep files.
+func TestConformance(t *testing.T) { conformance.Run(t, newMemoryStore) }
 
-func FuzzEvaluation(f *testing.F) { conformance.FuzzEvaluation(f, newStore) }
+func FuzzEvaluation(f *testing.F) { conformance.FuzzEvaluation(f, newMemoryStore) }
 
-func FuzzStructuredEvaluation(f *testing.F) { conformance.FuzzStructuredEvaluation(f, newStore) }
+func FuzzStructuredEvaluation(f *testing.F) { conformance.FuzzStructuredEvaluation(f, newMemoryStore) }
 
 func BenchmarkEvaluation(b *testing.B) { keylinetest.BenchmarkEvaluation(b, newStore) }
 
@@ -688,16 +386,24 @@ func allows(t *testing.T, store keyline.Store, subject, audience keyline.Node, r
 	return allowed
 }
 
+// memoryStores numbers in-memory databases, so each store gets its own.
+var memoryStores atomic.Int64
+
+// newMemoryStore returns an empty store over its own in-memory database with
+// Seed's schema. The pool shares it between its connections.
+func newMemoryStore(t testing.TB) keyline.Store {
+	t.Helper()
+	db := keylinesqlite.OpenTestDB(t, fmt.Sprintf("file:keyline-test-%d?mode=memory", memoryStores.Add(1)), 4)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	return &keylinesqlite.Store{Pool: db}
+}
+
 func newSQLiteTestStore(t testing.TB, batch keyline.Batch) *keylinesqlite.Store {
 	t.Helper()
-	db, err := sqlitex.Open(filepath.Join(t.TempDir(), "authority.db"), 0, 4)
-	require.NoError(t, err)
+	db := keylinesqlite.OpenTestDB(t, filepath.Join(t.TempDir(), "authority.db"), 4)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return keylinesqlite.Init(t.Context(), conn)
-	}))
 	store := &keylinesqlite.Store{Pool: db}
-	_, err = store.Apply(t.Context(), batch)
+	_, err := store.Apply(t.Context(), batch)
 	require.NoError(t, err)
 	return store
 }
@@ -910,7 +616,7 @@ func TestSQLiteEnumerationCorruptRows(t *testing.T) {
 		{dqb.Str(`UPDATE keyline_nodes SET ts = NULL WHERE name = 'n2'`), 1},
 		{dqb.Str(`UPDATE keyline_nodes SET blob_key = '' WHERE name = 'n2'`), 1},
 		{dqb.Str(`UPDATE keyline_delegations SET blob_id = 0 WHERE id = 'd2'`), 3},
-		{dqb.Str(`UPDATE keyline_delegations SET power = 'read' WHERE id = 'd2'`), 3},
+		{dqb.Str(`UPDATE keyline_delegations SET power = 9 WHERE id = 'd2'`), 3},
 		{dqb.Str(`UPDATE keyline_revocations SET blob_id = 0 WHERE id = 'r2'`), 5},
 	} {
 		t.Run(tc.query(), func(t *testing.T) {

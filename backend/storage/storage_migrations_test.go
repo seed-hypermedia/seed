@@ -12,7 +12,6 @@ import (
 	"seed/backend/config"
 	"seed/backend/core/coretest"
 	"seed/backend/core/keystore"
-	"seed/backend/keyline/keylinesqlite"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
@@ -110,17 +109,6 @@ func runMigrationsTest(t *testing.T) {
 
 	for _, table := range freshTables {
 		checkSQLEqual(t, freshRawSchema[table], migratedRawSchema[table])
-
-		if strings.HasPrefix(table, "keyline_") {
-			require.Equal(t, freshRawSchema[table], migratedRawSchema[table], "Keyline requires exact DDL compatibility")
-		}
-	}
-
-	for _, db := range []*sqlitex.Pool{freshDB, migratedDB} {
-		require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-			require.NoError(t, keylinesqlite.Init(t.Context(), conn))
-			return nil
-		}))
 	}
 
 	// We want to check that the version file matches the version of the last migration.
@@ -157,38 +145,27 @@ func checkSQLEqual(t *testing.T, want, got string) {
 	require.Equal(t, want, got)
 }
 
-func TestKeylineMigrationDoesNotScheduleReindex(t *testing.T) {
+// TestKeylineMigration checks that the Keyline migration creates the current
+// schema on a database that predates Keyline, schedules a reindex to fill it,
+// and is safe to rerun.
+func TestKeylineMigration(t *testing.T) {
 	db := MakeTestMemoryDB(t)
 	idx := slices.IndexFunc(migrations, func(m migration) bool {
 		return m.Version == "2026-11-03.104504"
 	})
 	require.NotEqual(t, -1, idx, "Keyline migration must exist")
+	want := keylineSchema(t, db)
 
 	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		// Reproduce the preceding schema with validated blobs, completed search
-		// work, and both materialized and unmaterialized reconciliation scopes.
-		require.NoError(t, sqlitex.ExecScript(conn, `
-			DROP TABLE keyline_members;
-			DROP TABLE keyline_delegations;
+		return sqlitex.ExecScript(conn, `
+			DROP TABLE keyline_edges;
 			DROP TABLE keyline_revocations;
+			DROP TABLE keyline_delegations;
 			DROP TABLE keyline_nodes;
-			INSERT INTO kv (key, value) VALUES
-				('last_reindex_time', 'already-indexed'),
-				('keyline_projection_version', 'old-projection'),
-				('unrelated', 'preserved');
-			INSERT INTO blobs (id, multihash, codec, size, data) VALUES (1, X'0102', 113, 4, X'DEADBEEF');
-			INSERT INTO resources (id, iri) VALUES (1, 'hm://subject');
-			INSERT INTO structural_blobs (id, type, resource) VALUES (1, 'Capability', 1);
-			INSERT INTO fts (rowid, raw_content) VALUES (1, 'preserved content');
-			INSERT INTO embeddings (rowid, multilingual_minilm_l12_v2, fts_id) VALUES (1, vec_int8(zeroblob(384)), 1);
-			INSERT INTO embeddings_index (fts_id) VALUES (1);
-			INSERT INTO rbsr_scope (id, iri, kind, materialized, last_access) VALUES
-				(1, 'hm://subject', 0, 1, 123),
-				(2, 'hm://subject', 1, 0, 456);
-			INSERT INTO rbsr_item (scope, blob) VALUES (1, 1);
-		`))
-		return nil
+			INSERT INTO kv (key, value) VALUES ('last_reindex_time', 'already-indexed'), ('unrelated', 'preserved');
+		`)
 	}))
+	require.Empty(t, keylineSchema(t, db))
 
 	for range 2 {
 		require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
@@ -196,70 +173,32 @@ func TestKeylineMigrationDoesNotScheduleReindex(t *testing.T) {
 		}))
 	}
 
+	require.Equal(t, want, keylineSchema(t, db), "the migrated Keyline schema matches schema.sql")
 	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		require.NoError(t, keylinesqlite.Init(t.Context(), conn))
-		for _, table := range []string{T_KeylineNodes, T_KeylineDelegations, T_KeylineRevocations, T_KeylineMembers} {
-			count, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM "+table)
-			require.NoError(t, err)
-			require.Zero(t, count, "migration must leave %s for synchronous backfill", table)
-		}
-
-		for _, table := range []string{T_Blobs, T_StructuralBlobs, T_Resources, T_Fts, T_Embeddings, T_EmbeddingsIndex, T_RbsrItem} {
-			count, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM "+table)
-			require.NoError(t, err)
-			require.Equal(t, 1, count, "%s must be preserved", table)
-		}
-
-		blob, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM blobs WHERE id = 1 AND multihash = X'0102' AND codec = 113 AND size = 4 AND data = X'DEADBEEF'")
-		require.NoError(t, err)
-		require.Equal(t, 1, blob, "blob identity and bytes must be preserved")
-
-		for key, want := range map[string]string{"last_reindex_time": "already-indexed", "unrelated": "preserved"} {
-			value, err := GetKV(t.Context(), conn, key)
-			require.NoError(t, err)
-			require.Equal(t, want, value)
-		}
-
-		marker, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM kv WHERE key = 'keyline_projection_version'")
-		require.NoError(t, err)
-		require.Zero(t, marker)
-		scopes, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM rbsr_scope WHERE materialized = 0 AND ((id = 1 AND last_access = 123) OR (id = 2 AND last_access = 456))")
-		require.NoError(t, err)
-		require.Equal(t, 2, scopes, "scope identity and last access must survive stale-marking")
-		return nil
-	}))
-
-	// A retried migration also preserves an already populated projection,
-	// including reference-only identities.
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.ExecScript(conn, `
-			INSERT INTO keyline_nodes (id, name, blob_id, ts, blob_key)
-			VALUES (1, 'subject', 1, -1, 'opaque-blob'), (2, 'member', NULL, NULL, NULL), (3, 'epoch', 1, 0, 'opaque-blob');
-			INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id)
-			VALUES ('delegation', 1, 2, 1, 'a', 1);
-			INSERT INTO keyline_revocations (id, issuer, target, blob_id) VALUES ('revocation', 1, 'missing-target', 1);
-			INSERT INTO keyline_members (subject, member, power) VALUES (1, 2, 'a');
-		`)
-	}))
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return migrations[idx].Run(nil, conn)
-	}))
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		for _, query := range []string{
-			"SELECT count(*) FROM keyline_nodes WHERE id = 1 AND name = 'subject' AND blob_id = 1 AND ts = -1 AND blob_key = 'opaque-blob'",
-			"SELECT count(*) FROM keyline_nodes WHERE id = 2 AND name = 'member' AND blob_id IS NULL AND ts IS NULL AND blob_key IS NULL",
-			"SELECT count(*) FROM keyline_nodes WHERE id = 3 AND name = 'epoch' AND blob_id = 1 AND ts = 0 AND blob_key = 'opaque-blob'",
-			"SELECT count(*) FROM keyline_delegations WHERE id = 'delegation' AND issuer = 1 AND audience = 2 AND subject = 1 AND power = 'a' AND blob_id = 1",
-			"SELECT count(*) FROM keyline_revocations WHERE id = 'revocation' AND issuer = 1 AND target = 'missing-target' AND blob_id = 1",
-			"SELECT count(*) FROM keyline_members WHERE subject = 1 AND member = 2 AND power = 'a'",
+		for query, want := range map[string]int{
+			"SELECT count(*) FROM kv WHERE key = 'last_reindex_time' AND value = ''":  1,
+			"SELECT count(*) FROM kv WHERE key = 'unrelated' AND value = 'preserved'": 1,
 		} {
-			count, err := sqlitex.QueryOne[int](conn, query)
+			got, err := sqlitex.QueryOne[int](conn, query)
 			require.NoError(t, err)
-			require.Equal(t, 1, count, query)
+			require.Equal(t, want, got, query)
 		}
 
 		return nil
 	}))
+}
+
+// keylineSchema returns the definitions of Keyline's schema objects by name.
+func keylineSchema(t *testing.T, db *sqlitex.Pool) map[string]string {
+	t.Helper()
+	out := make(map[string]string)
+	for name, sql := range getRawSQLSchema(t, db) {
+		if strings.HasPrefix(name, "keyline_") {
+			out[name] = sql
+		}
+	}
+
+	return out
 }
 
 func TestRBSRRepairMigrationDoesNotScheduleReindex(t *testing.T) {
