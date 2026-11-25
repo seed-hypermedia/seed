@@ -502,7 +502,81 @@ describe('sidebar pins', () => {
     expect(container.querySelector('[aria-label="Pinned documents"]')).toBeNull()
   })
 
-  it('reorders, acknowledges updates, and unpins through the pin menu', () => {
+  it('separates personal pins from the tree and supports keyboard ordering', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide], drafts: [], isLoading: false})
+    const movePin = vi.fn()
+    const onNavigate = vi.fn()
+    renderBrowser({getPinsForSite: () => [pin, {...pin, path: ['notes'], title: 'Notes'}], movePin}, {onNavigate})
+    expect(container.querySelector('[data-slot="separator"]')).not.toBeNull()
+    const handle = container.querySelector<HTMLButtonElement>('[aria-label="Reorder Guide"]')
+    expect(handle).not.toBeNull()
+    act(() => handle!.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', altKey: true, bubbles: true})))
+    expect(movePin).toHaveBeenCalledWith('site', 0, 1)
+    expect(onNavigate).not.toHaveBeenCalled()
+    movePin.mockClear()
+    act(() => handle!.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', altKey: true, bubbles: true})))
+    expect(movePin).not.toHaveBeenCalled()
+  })
+
+  it('reorders with native drag events, ignores outside drops, and keeps navigation separate', () => {
+    const notes = {...makeDoc(['notes'], 'Notes'), version: 'v1'}
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide, notes], drafts: [], isLoading: false})
+    const movePin = vi.fn()
+    const onNavigate = vi.fn()
+    renderBrowser({getPinsForSite: () => [pin, {...pin, path: ['notes'], title: 'Notes'}], movePin}, {onNavigate})
+    const source = container.querySelector<HTMLElement>('[data-pin-id="site:guide"]')!
+    const target = container.querySelector<HTMLElement>('[data-pin-id="site:notes"]')!
+    const handle = source.querySelector('[aria-label="Reorder Guide"]')!
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      setData: (key: string, value: string) => data.set(key, value),
+      getData: (key: string) => data.get(key),
+      types: [],
+      setDragImage: vi.fn(),
+    }
+    const hitTest = vi.fn(() => [handle])
+    const original = document.elementsFromPoint
+    document.elementsFromPoint = hitTest
+    const dragEvent = (element: Element, type: string, y = 10) => {
+      const event = new MouseEvent(type, {bubbles: true, cancelable: true, clientX: 10, clientY: y})
+      Object.defineProperty(event, 'dataTransfer', {value: dataTransfer})
+      act(() => element.dispatchEvent(event))
+    }
+    try {
+      dragEvent(source, 'dragstart')
+      dragEvent(target, 'dragenter')
+      expect(target.querySelector('[data-drop-edge="after"]')).not.toBeNull()
+      dragEvent(target, 'drop')
+      dragEvent(source, 'dragend')
+      expect(movePin).toHaveBeenCalledWith('site', 0, 1)
+      expect(target.querySelector('[data-drop-edge]')).toBeNull()
+      expect(onNavigate).not.toHaveBeenCalled()
+      movePin.mockClear()
+      hitTest.mockReturnValue([target.querySelector('[aria-label="Reorder Notes"]')!])
+      dragEvent(target, 'dragstart')
+      dragEvent(source, 'dragenter', -1)
+      expect(source.querySelector('[data-drop-edge="before"]')).not.toBeNull()
+      dragEvent(source, 'drop', -1)
+      dragEvent(target, 'dragend')
+      expect(movePin).toHaveBeenCalledWith('site', 1, 0)
+      movePin.mockClear()
+      hitTest.mockReturnValue([handle])
+      dragEvent(source, 'dragstart')
+      dragEvent(target, 'dragenter')
+      dragEvent(source, 'dragend')
+      expect(movePin).not.toHaveBeenCalled()
+      expect(target.querySelector('[data-drop-edge]')).toBeNull()
+      dragEvent(source, 'dragstart')
+      dragEvent(document.body, 'dragenter')
+      dragEvent(document.body, 'drop')
+      dragEvent(source, 'dragend')
+      expect(movePin).not.toHaveBeenCalled()
+    } finally {
+      document.elementsFromPoint = original
+    }
+  })
+
+  it('keeps status and removal actions without ordering menu items', () => {
     const second = {...makeDoc(['notes'], 'Notes'), version: 'v1'}
     useDirectoryWithDraftsMock.mockReturnValue({directory: [guide, second], drafts: [], isLoading: false})
     const movePin = vi.fn()
@@ -523,10 +597,13 @@ describe('sidebar pins', () => {
       expect(item).toBeDefined()
       act(() => item.click())
     }
-    select('Guide', 'Move down')
-    expect(movePin).toHaveBeenCalledWith('site', 0, 1)
-    select('Notes', 'Move to top')
-    expect(movePin).toHaveBeenCalledWith('site', 1, 0)
+    const trigger = container.querySelector('[aria-label="Pin options for Guide"]')!
+    act(() => trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0})))
+    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
+      'Mark as up to date',
+      'Unpin',
+    ])
+    act(() => (document.querySelector('[role="menuitem"]') as HTMLElement).click())
     select('Guide', 'Mark as up to date')
     expect(acknowledgePin).toHaveBeenCalledWith(latestId(guide.id), 'v2', 'Guide')
     select('Guide', 'Unpin')

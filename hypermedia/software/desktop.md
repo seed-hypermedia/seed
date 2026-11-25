@@ -77,7 +77,7 @@ The editor itself is the shared `@shm/editor` package. [The shared packages](./p
 
 Pin a published document from its row in the sidebar's space browser. It appears in a compact **Pinned** section above the document tree. Pins belong to the selected space and stay on this device across app restarts; they do not sync between devices.
 
-Open a pin to navigate to the latest version. Its menu lets you move it up, down, or to the top, and unpin it. An update indicator means the published version differs from the version saved with the pin; choose **Mark as up to date** to acknowledge it. A document missing from the loaded space listing keeps its saved title and shows an unavailable indicator so you can remove the pin. Filtering the document tree temporarily hides the pinned section.
+Open a pin to navigate to the latest version. A divider separates pins from the document tree. Hover a pin to reveal its drag handle and Unpin action. Drag the handle to reorder pins, or focus it and press **Alt + Up/Down**. A line shows where a dragged pin will land. The pin menu contains status and removal actions. An update indicator means the published version differs from the version saved with the pin; choose **Mark as up to date** to acknowledge it. A document missing from the loaded space listing keeps its saved title and shows an unavailable indicator so you can remove the pin. Filtering the document tree temporarily hides the pinned section.
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 

@@ -22,7 +22,7 @@ import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/en
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {useQuery} from '@tanstack/react-query'
-import {ArrowDown, ArrowUp, ArrowUpToLine, ChevronRight, Folder, History, Pin, Search, Trash, X} from 'lucide-react'
+import {ChevronRight, Folder, History, Pin, Search, Trash, X} from 'lucide-react'
 import {ChangeEvent, KeyboardEvent, ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -263,7 +263,7 @@ export function DirectoryPinnedDocuments({
       </button>
       {expanded && (
         <div className="flex flex-col gap-1">
-          {resolvedPins.map((resolved, index) => {
+          {resolvedPins.map((resolved) => {
             const item =
               resolved.item ??
               ({
@@ -279,7 +279,7 @@ export function DirectoryPinnedDocuments({
                   isOutdated: resolved.status === 'outdated',
                   isDeleted: resolved.status === 'deleted',
                 }}
-                extraMenuItems={createPinMenuItems(resolved, index, resolvedPins.length, docId.uid, actions)}
+                extraMenuItems={createPinMenuItems(resolved, actions)}
               />
             )
           })}
@@ -289,13 +289,7 @@ export function DirectoryPinnedDocuments({
   )
 }
 
-function createPinMenuItems(
-  resolved: ResolvedPin,
-  index: number,
-  total: number,
-  siteUid: string,
-  actions: DocumentActionsContextValue,
-): MenuItemType[] {
+function createPinMenuItems(resolved: ResolvedPin, actions: DocumentActionsContextValue): MenuItemType[] {
   const id = pinnedDocumentToUnpackedId(resolved.pin)
   const items: MenuItemType[] = []
   if (resolved.status === 'outdated' && actions.acknowledgePin) {
@@ -320,41 +314,6 @@ function createPinMenuItems(
         actions.unpinDocument?.(id)
       },
     })
-  }
-  if (actions.movePin && total > 1) {
-    if (index > 0) {
-      items.push({
-        key: 'move-up',
-        label: 'Move up',
-        icon: <ArrowUp className="size-3.5" />,
-        onClick: (e) => {
-          e?.stopPropagation()
-          actions.movePin?.(siteUid, index, index - 1)
-        },
-      })
-    }
-    if (index < total - 1) {
-      items.push({
-        key: 'move-down',
-        label: 'Move down',
-        icon: <ArrowDown className="size-3.5" />,
-        onClick: (e) => {
-          e?.stopPropagation()
-          actions.movePin?.(siteUid, index, index + 1)
-        },
-      })
-    }
-    if (index > 0) {
-      items.push({
-        key: 'move-top',
-        label: 'Move to top',
-        icon: <ArrowUpToLine className="size-3.5" />,
-        onClick: (e) => {
-          e?.stopPropagation()
-          actions.movePin?.(siteUid, index, 0)
-        },
-      })
-    }
   }
   if (actions.unpinDocument) {
     items.push({
