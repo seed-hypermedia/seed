@@ -9,7 +9,7 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from './blocknote/react'
 import {MediaContainer} from './media-container'
-import {DisplayComponentProps, FALLBACK_EDITOR_WIDTH, MediaRender, MediaType} from './media-render'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, timeoutPromise} from './utils'
 
@@ -288,85 +288,44 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
   // Max image height in px.
   const maxHeight = 600
 
-  // Server-side there is no mounted editor to measure; the fallback keeps
-  // percentage math intact (P% widths and full-width images render exactly,
-  // only absolute-px widths depend on the real editor width).
-  const getEditorWidth = () => editor.domElement?.firstElementChild?.clientWidth || FALLBACK_EDITOR_WIDTH
-  const widthProp = block.props.width?.trim()
-  let width: number =
-    widthProp && widthProp.endsWith('%')
-      ? (parseFloat(widthProp) / 100) * getEditorWidth()
-      : parseFloat(widthProp || '') || getEditorWidth()
-  const [currentWidth, setCurrentWidth] = useState(width)
+  // Render the saved CSS width directly, including before the editor mounts.
+  // Caching pixels here makes later hover/scroll renders use stale layout.
+  const widthProp = block.props.width
+  const width = widthProp?.endsWith('%') ? widthProp : parseFloat(widthProp || '') || '100%'
+  const [resizeWidth, setResizeWidth] = useState<string | null>(null)
   const [showHandle, setShowHandle] = useState(false)
 
   const resizeParamsRef = useRef<{
     handleUsed: 'left' | 'right'
     initialWidth: number
     initialClientX: number
+    containerWidth: number
+    currentWidth: number
   } | null>(null)
 
   useEffect(() => {
-    const editorWidth = getEditorWidth()
-    const nextWidthProp = block.props.width?.trim()
-    if (nextWidthProp) {
-      const parsedWidth = parseFloat(nextWidthProp)
-      const nextWidth = nextWidthProp.endsWith('%') ? (parsedWidth / 100) * editorWidth : parsedWidth
-      width = Math.min(nextWidth || editorWidth, editorWidth)
-      setCurrentWidth(width)
-    } else {
-      width = editorWidth
-      setCurrentWidth(width)
-    }
-  }, [block.props.width])
+    const handleMouseMove = (event: MouseEvent) => {
+      const params = resizeParamsRef.current
+      if (!params) return
 
-  const windowMouseMoveHandler = (event: MouseEvent) => {
-    if (!resizeParamsRef.current) {
-      return
+      const {handleUsed, initialClientX, initialWidth, containerWidth} = params
+      const delta = handleUsed === 'left' ? initialClientX - event.clientX : event.clientX - initialClientX
+      params.currentWidth = Math.min(containerWidth, Math.max(minWidth, initialWidth + delta * 2))
+      setResizeWidth(`${Math.round((params.currentWidth / containerWidth) * 10000) / 100}%`)
     }
 
-    const {handleUsed, initialClientX, initialWidth} = resizeParamsRef.current
-
-    let newWidth: number
-    if (handleUsed === 'left') {
-      newWidth = initialWidth + (initialClientX - event.clientX) * 2
-    } else {
-      newWidth = initialWidth + (event.clientX - initialClientX) * 2
+    const handleMouseUp = () => {
+      const params = resizeParamsRef.current
+      if (!params) return
+      resizeParamsRef.current = null
+      setShowHandle(false)
+      assign({
+        props: {
+          width: `${Math.round((params.currentWidth / params.containerWidth) * 10000) / 100}%`,
+        },
+      })
+      setResizeWidth(null)
     }
-
-    // Ensures the image is not wider than the editor and not smaller than a
-    // predetermined minimum width.
-    if (newWidth < minWidth) {
-      width = minWidth
-      setCurrentWidth(minWidth)
-    } else if (newWidth > getEditorWidth()) {
-      width = getEditorWidth()
-      setCurrentWidth(getEditorWidth())
-    } else {
-      width = newWidth
-      setCurrentWidth(newWidth)
-    }
-  }
-
-  // Stops mouse movements from resizing the image and updates the block's
-  // `width` prop to the new value.
-  const windowMouseUpHandler = () => {
-    setShowHandle(false)
-
-    if (!resizeParamsRef.current) {
-      return
-    }
-    resizeParamsRef.current = null
-
-    assign({
-      props: {
-        width: `${Math.round((width / getEditorWidth()) * 10000) / 100}%`,
-      },
-    })
-  }
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => windowMouseMoveHandler(e)
-    const handleMouseUp = () => windowMouseUpHandler()
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
@@ -374,7 +333,7 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [])
+  }, [assign])
 
   // Hides the resize handles when the cursor leaves the image
   const imageMouseLeaveHandler = () => {
@@ -387,29 +346,20 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
 
   // Sets the resize params, allowing the user to begin resizing the image by
   // moving the cursor left or right.
-  const leftResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-
-    setShowHandle(true)
-
-    resizeParamsRef.current = {
-      handleUsed: 'left',
-      // @ts-ignore
-      initialWidth: currentWidth || width || parseFloat(block.props.width),
-      initialClientX: event.clientX,
-    }
-    editor.setTextCursorPosition(block.id, 'start')
-  }
-
-  const rightResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
+  const startResize = (event: React.MouseEvent<HTMLDivElement>, handleUsed: 'left' | 'right') => {
     event.preventDefault()
     setShowHandle(true)
 
+    // The handle sits inside MediaContainer's sized frame. Its parent defines
+    // the available width, including any list indentation or table column.
+    const media = event.currentTarget.parentElement!
+    const initialWidth = media.getBoundingClientRect().width
     resizeParamsRef.current = {
-      handleUsed: 'right',
-      // @ts-ignore
-      initialWidth: currentWidth || width || parseFloat(block.props.width),
+      handleUsed,
+      initialWidth,
       initialClientX: event.clientX,
+      containerWidth: media.parentElement!.clientWidth,
+      currentWidth: initialWidth,
     }
     editor.setTextCursorPosition(block.id, 'start')
   }
@@ -427,7 +377,7 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
         }
       }}
       onHoverOut={imageMouseLeaveHandler}
-      width={`${Math.round((currentWidth / getEditorWidth()) * 10000) / 100}%`}
+      width={resizeWidth ?? width}
       onSubmitUrl={handleMenuUrl}
       urlMenuLabel="Insert from URL"
       urlInputPlaceholder="Paste an image URL"
@@ -435,8 +385,8 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
     >
       {showHandle && (
         <>
-          <ResizeHandle style={{left: 4}} onMouseDown={leftResizeHandleMouseDownHandler} />
-          <ResizeHandle style={{right: 4}} onMouseDown={rightResizeHandleMouseDownHandler} />
+          <ResizeHandle style={{left: 4}} onMouseDown={(event) => startResize(event, 'left')} />
+          <ResizeHandle style={{right: 4}} onMouseDown={(event) => startResize(event, 'right')} />
         </>
       )}
       {imageSrc && (
