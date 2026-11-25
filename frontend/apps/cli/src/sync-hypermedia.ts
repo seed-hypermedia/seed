@@ -5,6 +5,7 @@
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]
  *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
  *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]
+ *   bun run src/sync-hypermedia.ts preflight
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): a tree of folders holding
@@ -23,6 +24,8 @@
  *       unchanged documents publish nothing.
  * pull: export every document of the space back into hypermedia/.
  * dev:  the local editing loop against the desktop dev app (see `space dev`).
+ * preflight: what a push would refuse to publish over, checked offline with no key (links, tree, CIDs).
+ *       check.mjs runs it, so a pull request fails on what would otherwise fail the release's publish.
  */
 
 import {spawnSync} from 'node:child_process'
@@ -35,6 +38,8 @@ import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
 import {
+  checkLinks,
+  checkTree,
   encodeSchemaBlob,
   exportSpace,
   importSpace,
@@ -299,6 +304,41 @@ export function movedDocsPaths(path: string): string[] {
   return [from, ...older].filter((p) => p !== clean).map((p) => slash + p)
 }
 
+/**
+ * Everything a push refuses to publish over that can be known without a key or a server: a schema
+ * or icon CID that does not match, a link that would break, a page outside the tree. These are the
+ * same functions the push calls, so a tree that passes here is not refused there for these reasons.
+ * The space is a placeholder: no rule depends on which account the tree is published to.
+ */
+export async function preflightProblems(dir = SCHEMAS_DIR): Promise<string[]> {
+  const problems: string[] = []
+  try {
+    await loadPublicationBlobs(dir)
+  } catch (err) {
+    problems.push((err as Error).message)
+  }
+  const opts = {account: PREFLIGHT_ACCOUNT, dir, layout} as ImportOptions
+  const prepared = new Map()
+  // A link is printed as the source wrote it where it can be: the placeholder space means nothing to a reader.
+  const shown = (link: string) => link.replace(`hm://${PREFLIGHT_ACCOUNT}`, `hm://${LIBRARY_AUTHORITY}`)
+  for (const b of checkLinks(opts, undefined, prepared))
+    problems.push(`${b.file}: broken link ${shown(b.link)} (${b.reason})`)
+  for (const v of checkTree(opts, prepared)) problems.push(`${v.file}: ${v.message}`)
+  return problems
+}
+
+const PREFLIGHT_ACCOUNT = 'z6MkpreflightPlaceholderSpaceNoDocumentIsPublishedHere'
+
+async function preflight() {
+  const problems = await preflightProblems()
+  if (problems.length) {
+    console.error(`${problems.length} problem(s) a push of hypermedia/ would be refused over:`)
+    for (const p of problems) console.error(`  ${p}`)
+    process.exit(1)
+  }
+  console.log('hypermedia/ is publishable: schema and icon CIDs match, no broken links, the tree is whole.')
+}
+
 /** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */
 function defaultKeyName(): string | undefined {
   return process.env.SEED_CLI_KEYFILE || process.env.SEED_CLI_MNEMONIC ? undefined : 'main'
@@ -415,11 +455,13 @@ async function main() {
   if (command === 'push') return push(args)
   if (command === 'pull') return pull(args)
   if (command === 'dev') return dev(args)
+  if (command === 'preflight') return preflight()
   console.error(
     [
       'usage: sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]',
       '       sync-hypermedia.ts pull [--server <url>] [--space <uid>]',
       '       sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]',
+      '       sync-hypermedia.ts preflight',
     ].join('\n'),
   )
   process.exit(2)

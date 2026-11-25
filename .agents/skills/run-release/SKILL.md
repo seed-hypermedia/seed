@@ -21,9 +21,15 @@ but confirm the version number with the user before pushing it.
    to `main` already triggered `Dev - Docker Images` on this exact commit:
    `gh run list --workflow "Dev - Docker Images" --branch main --limit 5 --json headSha,status,conclusion,databaseId`
    - Green for the commit → proceed.
+   - Also check the docs: the release's last job publishes `hypermedia/` to production, and a tree it refuses fails
+     the release. `gh run list --workflow "Repo HM sync (hypermedia)" --branch main --limit 3` — the newest run must be
+     green (it only runs on commits that touch `hypermedia/`, so it may be on an older commit). Red → fix on `main`
+     first. Never tag over a red docs sync; the release workflows refuse to build in that state anyway
+     (`hypermedia-check` job).
    - Red → diagnose with `gh run view <id>`; fix on `main` first, then restart at step 1.
    - Still running or missing → don't wait for it; releases are often cut in a rush. Instead run the most obvious,
      fastest checks locally and then tag. In order of cost-effectiveness:
+     - `pnpm hypermedia:check` (~20 s; includes the publish's own broken-link check).
      - Root `pnpm format:check` (~1 min; the most common release-killer). The root script chains pnpm workspaces, then
        `agents/`, then `vault/` with `&&` — later groups are masked until earlier ones pass, so only the root script
        proves all of them.

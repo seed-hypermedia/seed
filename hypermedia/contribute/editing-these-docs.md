@@ -22,7 +22,7 @@ Before it publishes anything, the script encodes every schema file and checks it
 
 # Rules when you edit <!-- id:i7YPkwE2 -->
 
-- Nothing is published while a relative link is broken. So fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
+- Nothing is published while a relative link is broken. So fix links in the same commit that moves or removes a page. `check.mjs` finds a broken link with the same code the publish uses, so a pull request fails on it. <!-- id:au3AMFtl -->
 - Nothing is published while a page has no parent page, or while a parent has no [Card embed](../block/embed-view.md) of a child. A new folder needs its landing page beside it. `node scripts/hypermedia/tree.mjs --fix` adds the missing cards to the end of each parent. Move them into the right group afterwards. <!-- id:tR3eRu1e -->
 - A page that uses a term from the [glossary](../glossary.md) or the [agents glossary](../agent/glossary.md) links the page that defines it. The two glossaries are the list of terms, so a new concept needs an entry there. `check.mjs` fails when a link is missing.
 - When you rename a file in git, the publish moves the document and leaves a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
@@ -36,7 +36,7 @@ You can send a correction as a pull request, or as a [comment](../protocol/comme
 # Checks and commands
 
 ```sh <!-- id:cKaIfLAn -->
-node scripts/hypermedia/check.mjs          # schemas, lockfile, generated types, bindings, frontmatter, tables, the tree rule, glossary links
+node scripts/hypermedia/check.mjs          # schemas, lockfile, generated types, bindings, frontmatter, tables, the tree rule, glossary links, broken links
 node scripts/hypermedia/tree.mjs --fix     # add the Card embed of each child that a parent lacks
 node scripts/hypermedia/concepts.mjs --fix # link the first mention of each glossary term a page uses
 pnpm hypermedia:push -- --dry-run          # read-only: what a publish would create, update, move or retire
@@ -52,6 +52,7 @@ pnpm hypermedia:push -- --dry-run          # read-only: what a publish would cre
 - A page has no parent page, or a parent has no Card embed of a child.
 - A table row has a different number of cells than its header.
 - A page names a glossary term without linking the page that defines it.
+- A link points at a page or a file that the folder does not publish. This is the offline part of the publish itself (`bun run src/sync-hypermedia.ts preflight` in `frontend/apps/cli`), so it needs `bun`.
 
 The summaries of schema pages go into the generated files. So after you change the summary of a schema page, run `node scripts/hypermedia/gen-registry.mjs` and `node scripts/hypermedia/typegen.mjs`.
 
@@ -83,7 +84,7 @@ The workflow `.github/workflows/sync-hypermedia.yml` publishes the folder to two
 | staging | every merge to `main` that touches `hypermedia/` | `staging.hyper.media` | `SEED_DOCS_STAGING_KEYFILE` |
 | production | a release tag, as the last job of the `Release - Docker Images` workflow | `hyper.media` | `SEED_DOCS_KEYFILE` |
 
-The workflow runs `check.mjs` first, and it publishes nothing when the check fails. On staging, the name of the home document gets the suffix ` [STAGING]` when it is published.
+The workflow runs `check.mjs` first, and it publishes nothing when the check fails. Both release workflows also run `check.mjs` as their first job, and they build nothing when it fails. On staging, the name of the home document gets the suffix ` [STAGING]` when it is published.
 
 Production content comes only from a tagged [release](./releasing.md):
 
