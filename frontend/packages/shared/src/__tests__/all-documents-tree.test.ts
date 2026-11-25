@@ -99,6 +99,14 @@ describe('all documents tree', () => {
     expect(filterDocumentsByTitle(docs, 'guides/install')).toEqual([])
   })
 
+  test('filters untitled documents by their path slug', () => {
+    const docs = [makeDoc(['untitled-abc'], ''), makeDoc(['guides'], 'Guides')]
+
+    expect(filterDocumentsByTitle(docs, 'abc')).toEqual([docs[0]])
+    expect(filterDocumentsByTitle(docs, 'untitled')).toEqual([docs[0]])
+    expect(filterDocumentsByTitle(docs, 'Guides')).toEqual([docs[1]])
+  })
+
   test('returns ancestor path keys for the active document', () => {
     expect(getAncestorPathKeys(['guides', 'install', 'linux'])).toEqual(['guides', 'guides/install'])
     expect(getAncestorPathKeys(['guides'])).toEqual([])

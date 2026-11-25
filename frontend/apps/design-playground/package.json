@@ -1,0 +1,37 @@
+{
+  "name": "@shm/design-playground",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 6007 --strictPort",
+    "build": "vite build",
+    "build:site": "node build-site.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@storybook/react": "10.6.5",
+    "@shm/ui": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "lucide-react": "^0.511.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "@tailwindcss/typography": "^0.5.15",
+    "tw-animate-css": "^1.3.0",
+    "tailwindcss": "^4.1.8",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react": "^18.2.56",
+    "@types/react-dom": "^18.2.19",
+    "@types/node": "^22.10.2",
+    "typescript": "5.8.3",
+    "vite": "6.4.2",
+    "vitest": "4.1.8",
+    "prettier": "^3.1.3",
+    "vite-tsconfig-paths": "5.1.4"
+  }
+}

@@ -5,13 +5,14 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 vi.mock('../image-processing', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../image-processing')>()),
-  processImage: (file: File) => Promise.resolve(file),
+  processImage: vi.fn((file: File) => Promise.resolve(file)),
 }))
 import {
   DocumentMetadataAffordanceButtons,
   EditableDocumentMetadataFields,
   HomeDocumentMetadataAffordanceBar,
 } from '../document-metadata-affordances'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage} from '../image-processing'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -32,6 +33,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.mocked(processImage).mockClear()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -62,6 +64,28 @@ function renderButtons(props: Partial<React.ComponentProps<typeof DocumentMetada
 
 function buttonWithText(text: string): HTMLButtonElement | null {
   return Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes(text)) ?? null
+}
+
+function click(element: Element | null | undefined) {
+  act(() => {
+    element?.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true, button: 0}))
+    element?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+  })
+}
+
+function menuItemWithText(text: string): HTMLElement {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) => item.textContent?.includes(text),
+  )!
+}
+
+async function uploadFromPicker(inputLabel: string, file: File) {
+  click(Array.from(document.body.querySelectorAll('[role="tab"]')).find((tab) => tab.textContent === 'Upload'))
+  const input = document.body.querySelector<HTMLInputElement>(`input[aria-label="${inputLabel}"]`)!
+  await act(async () => {
+    Object.defineProperty(input, 'files', {value: [file], configurable: true})
+    input.dispatchEvent(new Event('change', {bubbles: true}))
+  })
 }
 
 function openMobileMenu() {
@@ -119,36 +143,33 @@ describe('DocumentMetadataAffordanceButtons', () => {
     expect(onRequestSummary).toHaveBeenCalledOnce()
   })
 
-  it('uploads an icon image selected through the hidden file input', async () => {
+  it('uploads an icon image chosen from the icon picker', async () => {
     const fileUpload = vi.fn(async () => 'bafyicon')
     const onMetadata = vi.fn()
     renderButtons({fileUpload, onMetadata})
+    click(buttonWithText('Add icon'))
     const file = new File(['icon'], 'icon.png', {type: 'image/png'})
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose document icon"]')!
 
-    await act(async () => {
-      Object.defineProperty(input, 'files', {value: [file], configurable: true})
-      input.dispatchEvent(new Event('change', {bubbles: true}))
-    })
+    await uploadFromPicker('Choose document icon', file)
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({icon: 'ipfs://bafyicon'})
+    expect(processImage).toHaveBeenCalledWith(file, AVATAR_IMAGE_POLICY)
   })
 
-  it('uploads a cover image selected through the hidden file input', async () => {
+  it('uploads a cover image chosen from the cover picker', async () => {
     const fileUpload = vi.fn(async () => 'ipfs://bafycover')
     const onMetadata = vi.fn()
     renderButtons({fileUpload, onMetadata})
+    click(buttonWithText('Add cover image'))
+    expect(document.body.querySelector('input[aria-label="Choose document cover image"]')).not.toBeNull()
     const file = new File(['cover'], 'cover.png', {type: 'image/png'})
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose document cover image"]')!
 
-    await act(async () => {
-      Object.defineProperty(input, 'files', {value: [file], configurable: true})
-      input.dispatchEvent(new Event('change', {bubbles: true}))
-    })
+    await uploadFromPicker('Choose document cover image', file)
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({cover: 'ipfs://bafycover'})
+    expect(processImage).toHaveBeenCalledWith(file, COVER_IMAGE_POLICY)
   })
 
   it('keeps invisible affordances out of the tab order', () => {
@@ -197,49 +218,35 @@ describe('DocumentMetadataAffordanceButtons', () => {
     expect(container.querySelector('button[aria-label="Add document metadata"]')).toBeNull()
   })
 
-  it('uploads an icon selected from the mobile Add menu', async () => {
+  it('uploads an icon chosen after picking Add icon in the mobile Add menu', async () => {
     const fileUpload = vi.fn(async () => 'bafyicon')
     const onMetadata = vi.fn()
     renderButtons({mobileOnly: true, fileUpload, onMetadata})
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose document icon"]')!
-    const clickSpy = vi.spyOn(input, 'click')
     openMobileMenu()
-
-    act(() => {
-      Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-        .find((item) => item.textContent?.includes('Add icon'))
-        ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
-    })
-    expect(clickSpy).toHaveBeenCalledOnce()
-    const file = new File(['icon'], 'icon.png', {type: 'image/png'})
+    activateMenuItem(menuItemWithText('Add icon'))
     await act(async () => {
-      Object.defineProperty(input, 'files', {value: [file], configurable: true})
-      input.dispatchEvent(new Event('change', {bubbles: true}))
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
+    const file = new File(['icon'], 'icon.png', {type: 'image/png'})
+
+    await uploadFromPicker('Choose document icon', file)
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({icon: 'ipfs://bafyicon'})
   })
 
-  it('uploads a cover selected from the mobile Add menu', async () => {
+  it('uploads a cover chosen after picking Add cover image in the mobile Add menu', async () => {
     const fileUpload = vi.fn(async () => 'ipfs://bafycover')
     const onMetadata = vi.fn()
     renderButtons({mobileOnly: true, fileUpload, onMetadata, metadata: {icon: 'ipfs://icon-cid'}})
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose document cover image"]')!
-    const clickSpy = vi.spyOn(input, 'click')
     openMobileMenu()
-
-    act(() => {
-      Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-        .find((item) => item.textContent?.includes('Add cover image'))
-        ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
-    })
-    expect(clickSpy).toHaveBeenCalledOnce()
-    const file = new File(['cover'], 'cover.png', {type: 'image/png'})
+    activateMenuItem(menuItemWithText('Add cover image'))
     await act(async () => {
-      Object.defineProperty(input, 'files', {value: [file], configurable: true})
-      input.dispatchEvent(new Event('change', {bubbles: true}))
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
+    const file = new File(['cover'], 'cover.png', {type: 'image/png'})
+
+    await uploadFromPicker('Choose document cover image', file)
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({cover: 'ipfs://bafycover'})

@@ -1,36 +1,22 @@
 import {QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
 import {InlineDraftCard} from './inline-draft-card'
 import {InlineDraftListItem} from './inline-draft-list-item'
-import {NewDocumentCard} from './new-document-card'
-import {NewDocumentListItem} from './new-document-list-item'
 import {ReactNode} from 'react'
 
-/** Builds draft and create-button elements that appear before query block results. */
+/**
+ * Builds the draft elements that appear before query block results. The "New document" entry is
+ * rendered by `QueryBlockContent` itself so every view places it first.
+ */
 export function buildSlotItems(
   slot: QueryBlockDraftSlotData | null,
   style: 'Card' | 'List' | 'Table',
   banner: boolean,
-  hasQueryResults = false,
 ): {prependItems?: ReactNode[]; bannerContent?: ReactNode; tableDrafts?: QueryBlockDraftSlotData} {
   if (!slot) return {}
-  const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onMoveDraft, onUpdateDraftName} = slot
+  const {drafts, onOpenDraft, onDeleteDraft, onMoveDraft, onUpdateDraftName} = slot
   const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
-  if (!hasDrafts && !hasQueryResults) return {}
-  if (style === 'Table') return hasDrafts ? {tableDrafts: slot} : {}
-  const shouldHideCreateButton = style === 'Card' && banner && (hasDrafts || hasQueryResults)
-
-  const createButton =
-    onCreateDraft && !shouldHideCreateButton ? (
-      style === 'Card' ? (
-        <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
-      ) : (
-        <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
-      )
-    ) : null
-
-  if (!hasDrafts) {
-    return createButton ? {prependItems: [createButton]} : {}
-  }
+  if (!hasDrafts) return {}
+  if (style === 'Table') return {tableDrafts: slot}
 
   if (style === 'Card') {
     const cards = drafts.map(({draft, autoFocus}) => (
@@ -58,13 +44,9 @@ export function buildSlotItems(
           onUpdateDraftName={onUpdateDraftName!}
         />
       )
-      const remainingCards = cards.slice(1)
-      return {
-        prependItems: createButton ? [createButton, ...remainingCards] : remainingCards,
-        bannerContent: bannerEl,
-      }
+      return {prependItems: cards.slice(1), bannerContent: bannerEl}
     }
-    return {prependItems: createButton ? [createButton, ...cards] : cards}
+    return {prependItems: cards}
   }
 
   const listItems = drafts.map(({draft, autoFocus}) => (
@@ -78,5 +60,5 @@ export function buildSlotItems(
       onUpdateDraftName={onUpdateDraftName!}
     />
   ))
-  return {prependItems: createButton ? [createButton, ...listItems] : listItems}
+  return {prependItems: listItems}
 }

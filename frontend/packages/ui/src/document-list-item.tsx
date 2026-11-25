@@ -10,7 +10,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   formattedDate,
-  getMetadataName,
+  getDocumentTitle,
   hmId,
   InteractionSummaryPayload,
   useRouteLink,
@@ -132,7 +132,7 @@ export function DocumentListItem({
 
   const pinned = pinState?.isPinned ?? actions.isPinned?.(id) ?? false
   const itemVersion = 'version' in item ? item.version ?? null : null
-  const itemTitle = getMetadataName(metadata)
+  const itemTitle = getDocumentTitle({metadata, path: id.path}, 'Untitled Document')
   const isOwner = actions.selectedAccountUid === id.uid
   const hasPath = !!id.path?.length
   const selectedAccountCanWriteSource = isOwner || !!actions.canWriteDocument?.(id)
@@ -319,7 +319,7 @@ export function DocumentListItem({
                 )}
                 weight={computedIsRead ? undefined : 'bold'}
               >
-                {getMetadataName(metadata)}
+                {itemTitle}
               </SizableText>
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}

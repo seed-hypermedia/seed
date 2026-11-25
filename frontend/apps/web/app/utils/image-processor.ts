@@ -1,4 +1,4 @@
-import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
@@ -7,7 +7,7 @@ export async function _processImage(imageCid: string): Promise<string> {
   console.log('~ processImage', imageCid)
   try {
     // Fetch the image
-    const response = await fetch(`${DAEMON_FILE_URL}/${extractIpfsUrlCid(imageCid)}`)
+    const response = await fetch(`${DAEMON_HTTP_URL}/ipfs/${extractIpfsUrlCid(imageCid)}`)
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`)
     }

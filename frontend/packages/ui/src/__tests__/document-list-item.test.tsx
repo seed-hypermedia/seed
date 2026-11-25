@@ -3,11 +3,12 @@ import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
-import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
+import {DocumentActionsProvider, type DocumentActionsContextValue} from '@shm/shared/document-actions-context'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {DocumentListItem} from '../document-list-item'
+import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -79,9 +80,12 @@ function renderDocumentListItem(
     getDraft?: (id: ReturnType<typeof hmId>) => any
     origin?: string | null
     onCopyLink?: () => void
+    itemName?: string
+    pinDocument?: DocumentActionsContextValue['pinDocument']
+    pinState?: React.ComponentProps<typeof DocumentListItem>['pinState']
   } = {},
 ) {
-  const item = makeItem('Published title')
+  const item = makeItem(options.itemName ?? 'Published title')
   act(() => {
     root.render(
       <UniversalAppProvider
@@ -90,8 +94,14 @@ function renderDocumentListItem(
         origin={options.origin}
         universalClient={{request: vi.fn()} as any}
       >
-        <DocumentActionsProvider getDraft={options.getDraft} onCopyLink={options.onCopyLink}>
-          <DocumentListItem item={item} />
+        <DocumentActionsProvider
+          getDraft={options.getDraft}
+          onCopyLink={options.onCopyLink}
+          pinDocument={options.pinDocument}
+        >
+          <TooltipProvider>
+            <DocumentListItem item={item} pinState={options.pinState} />
+          </TooltipProvider>
         </DocumentActionsProvider>
       </UniversalAppProvider>,
     )
@@ -110,6 +120,24 @@ describe('DocumentListItem draft metadata', () => {
     expect(container.textContent).toContain('Draft list title')
     expect(container.textContent).not.toContain('Published title')
     expect(container.textContent).toContain('Draft')
+  })
+})
+
+describe('DocumentListItem pins', () => {
+  it('displays and saves the slug when pinning a document without a title', () => {
+    const pinDocument = vi.fn()
+    renderDocumentListItem({itemName: '', pinDocument})
+
+    expect(container.textContent).not.toContain('Untitled')
+    expect(container.querySelector('span.truncate')?.textContent).toBe('doc')
+    act(() => container.querySelector<HTMLButtonElement>('button')!.click())
+    expect(pinDocument).toHaveBeenCalledWith(makeItem('').id, 'doc', 'version-1')
+  })
+
+  it('preserves the unavailable pin styling with the slug fallback', () => {
+    renderDocumentListItem({itemName: '', pinState: {isPinned: true, isDeleted: true}})
+
+    expect(container.querySelector('.line-through')?.textContent).toBe('doc')
   })
 })
 

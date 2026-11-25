@@ -68,6 +68,8 @@ func TestFeedQueriesUseIndexedOrdering(t *testing.T) {
 		{name: "main/observed", query: buildMainEventsQuery("", true), drivenBy: "structural_blobs"},
 		{name: "mentions/claimed", query: claimedOrder(listMentionsCoreNoTargets), drivenBy: "structural_blobs"},
 		{name: "mentions/observed", query: listMentionsCoreNoTargets + limitMentionsByObserved, drivenBy: "structural_blobs"},
+		{name: "mentions/claimed/broad", query: claimedOrder(listMentionsCoreBroad), drivenBy: "structural_blobs"},
+		{name: "mentions/observed/broad", query: listMentionsCoreBroad + limitMentionsByObserved, drivenBy: "structural_blobs"},
 
 		// The filtered variant is the exception. Its target IN(...) predicate is
 		// selective, so seeking resource_links_by_target and sorting what comes

@@ -23,7 +23,7 @@ concurrency:
 jobs:
   e2e:
     name: Hostile page and web pane
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CI: '1'

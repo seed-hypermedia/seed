@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
+      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

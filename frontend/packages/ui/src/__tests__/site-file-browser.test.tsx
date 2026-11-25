@@ -428,6 +428,19 @@ describe('sidebar pins', () => {
     )
   }
 
+  it('uses the slug fallback when pinning a published tree row without a title', () => {
+    const untitled = {...guide, metadata: {name: ''}}
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [untitled], drafts: [], isLoading: false})
+    const pinDocument = vi.fn()
+    renderBrowser({pinDocument})
+
+    const button = container.querySelector<HTMLButtonElement>('[aria-label="Pin guide"]')
+    expect(button).not.toBeNull()
+    act(() => button!.click())
+    expect(pinDocument).toHaveBeenCalledWith(latestId(untitled.id), 'guide', 'v2')
+    expect(container.textContent).not.toContain('Untitled')
+  })
+
   it('pins a published tree row without navigating and excludes unpublished drafts', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [guide],
