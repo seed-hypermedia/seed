@@ -1,4 +1,5 @@
 import type {AgentMemoryEntry, AgentMemoryFile} from './client'
+import {CodeTextArea} from '../code-text-area'
 import {
   uploadFileToAgentServer,
   useAgentMemoryDirs,
@@ -36,7 +37,8 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {useSavedPanelLayout} from '../resizable-panels'
+import {Panel, Group, Separator} from 'react-resizable-panels'
 import {useMedia} from '../use-media'
 import {readAgentMemoryTabState, writeAgentMemoryTabState} from './memory-tab-state'
 
@@ -70,7 +72,8 @@ export function AgentMemoryTab({
   onOpenPathChange?: (path: string) => void
 }) {
   // Phones keep the tree stacked above the file; anything wider gets side-by-side panes whose
-  // divider drags, with the split remembered per browser (PanelGroup autoSaveId → localStorage).
+  // divider drags, with the split remembered per browser (Group autoSaveId → localStorage).
+  const savedPanels = useSavedPanelLayout('agent-memory-panes', ['agent-memory-tree', 'agent-memory-file'])
   const media = useMedia()
   const stacked = media.xs
   // Where the user left this browser last time (memory-tab-state.ts): the tab unmounts on every
@@ -582,18 +585,17 @@ export function AgentMemoryTab({
             </div>
           ) : null}
           {file.data.encoding === 'utf8' ? (
-            <textarea
+            <CodeTextArea
+              bare
               ref={fileScrollRef}
               onScroll={(event) => {
                 scrollTopsRef.current.file = event.currentTarget.scrollTop
                 persistTabStateSoon()
               }}
               aria-label={`Memory file ${selectedPath}`}
-              className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
               value={draftText ?? file.data.content ?? ''}
               onChange={(event) => setDraftText(event.currentTarget.value)}
               readOnly={readOnly}
-              spellCheck={false}
             />
           ) : (
             <BinaryFilePreview file={file.data} onDownload={() => file.data && saveFileToDisk(file.data)} />
@@ -748,19 +750,20 @@ export function AgentMemoryTab({
           {filePane}
         </div>
       ) : (
-        <PanelGroup
-          direction="horizontal"
-          autoSaveId="agent-memory-panes"
+        <Group
+          orientation="horizontal"
+          defaultLayout={savedPanels.defaultLayout}
+          onLayoutChanged={savedPanels.onLayoutChanged}
           className="border-border bg-card min-h-0 flex-1 overflow-hidden rounded-xl border"
         >
-          <Panel id="agent-memory-tree" order={1} defaultSize={25} minSize={12} maxSize={60}>
+          <Panel id="agent-memory-tree" defaultSize="25%" minSize="12%" maxSize="60%">
             {treePane}
           </Panel>
-          <PanelResizeHandle className="panel-resize-handle visible" />
-          <Panel id="agent-memory-file" order={2} minSize={40}>
+          <Separator className="panel-resize-handle visible" />
+          <Panel id="agent-memory-file" minSize="40%">
             {filePane}
           </Panel>
-        </PanelGroup>
+        </Group>
       )}
     </section>
   )
@@ -895,8 +898,8 @@ function BinaryFilePreview({file, onDownload}: {file: AgentMemoryFile; onDownloa
           </>
         ) : (
           <SizableText size="xs" color="muted" className="text-center">
-            The file content could not be loaded for preview. If this agent server was recently updated, restart it and
-            reopen the file.
+            The file content could not be loaded for preview. If this app environment was recently updated, restart it
+            and reopen the file.
           </SizableText>
         )}
       </div>

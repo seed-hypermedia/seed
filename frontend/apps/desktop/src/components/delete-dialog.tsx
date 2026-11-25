@@ -1,3 +1,4 @@
+import {isToolHostType} from '@seed-hypermedia/client/apps'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
 import {useListSite} from '@/models/documents'
@@ -7,6 +8,10 @@ import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
+import {useMountedAgentDeletion} from '@shm/ui/agents/delete-mounted-agent'
+import {useAppsPublisher, type AppRef} from '@shm/ui/apps/publish'
+import {appResourceKind} from '@shm/ui/apps/tabs'
+import {parentDocumentId} from '@seed-hypermedia/client/apps'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {DeleteDocumentDialog as SharedDeleteDocumentDialog} from '@shm/ui/delete-document-dialog'
 import {Spinner} from '@shm/ui/spinner'
@@ -28,10 +33,10 @@ export function useDeleteDialog() {
 }
 
 export function DeleteDocumentDialog({
-  input: {id, onSuccess},
+  input: {id, onSuccess, onMoveChildren},
   onClose,
 }: {
-  input: {id: UnpackedHypermediaId; onSuccess?: () => void}
+  input: {id: UnpackedHypermediaId; onSuccess?: () => void; onMoveChildren?: () => void}
   onClose?: () => void
 }) {
   const list = useListSite(id)
@@ -45,6 +50,15 @@ export function DeleteDocumentDialog({
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
+  const parentId = parentDocumentId(id)
+  const parent = useResource(parentId)
+  const appsPublisher = useAppsPublisher()
+  // A mounted agent goes with its document; the app environment call is signed by the same account.
+  const agentDeletion = useMountedAgentDeletion(
+    id,
+    doc.data?.type === 'document' ? doc.data.document.metadata : undefined,
+    cap?.accountUid,
+  )
 
   if (doc.isLoading)
     return (
@@ -58,6 +72,12 @@ export function DeleteDocumentDialog({
 
   const childDocIds = childDocs.map((item) => hmId(id.uid, {path: item.path}))
   const document = doc.data.document
+  const kind = appResourceKind(document.metadata.type)
+  // A deleted tool, trigger or page also leaves the list of the app or agent it belongs to.
+  const listingApp: AppRef | undefined =
+    parentId && parent.data?.type === 'document' && isToolHostType(parent.data.document.metadata.type)
+      ? {id: parentId, document: parent.data.document}
+      : undefined
 
   return (
     <SharedDeleteDocumentDialog
@@ -72,13 +92,17 @@ export function DeleteDocumentDialog({
         path: item.path,
       }))}
       canDelete={!!cap && roleCanWrite(cap.role)}
-      onConfirm={() =>
-        deleteEntity.mutateAsync({
+      subject={agentDeletion.isAgent ? 'agent' : kind ?? 'document'}
+      onConfirm={async () => {
+        await agentDeletion.deleteAgent()
+        await deleteEntity.mutateAsync({
           ids: [id, ...childDocIds],
           signingAccountUid: cap!.accountUid,
           capabilityId: cap!.capabilityId,
         })
-      }
+        if (listingApp) await appsPublisher.removeFromApp(listingApp, id)
+      }}
+      onMoveChildren={onMoveChildren}
       onClose={onClose}
       onSuccess={onSuccess}
     />

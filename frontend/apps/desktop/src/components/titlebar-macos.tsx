@@ -1,12 +1,13 @@
 import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
+import {SiteSidebarToggle} from '@shm/ui/site-sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
-import {NavMenuButton, NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
+import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
 import {TitlebarMainRow} from './titlebar-layout'
 
 export default function TitleBarMacos(props: TitleBarProps) {
-  const {clean, cleanTitle, assistantOpen, onToggleAssistant, ...restProps} = props
+  const {clean, cleanTitle, ...restProps} = props
   const sidebarWidth = useSidebarWidth()
   const sidebarContext = useSidebarContext()
   const isSidebarLocked = !!useStream(sidebarContext.isLocked)
@@ -26,19 +27,14 @@ export default function TitleBarMacos(props: TitleBarProps) {
         sidebarLocked={isSidebarLocked}
         sidebarWidth={sidebarWidth}
         sidebarControl={
-          <NavMenuButton
-            left={
-              isSidebarLocked ? undefined : (
-                <div
-                  className="w-[72px]" // this width to stay away from the macOS window traffic lights
-                />
-              )
-            }
-          />
+          <>
+            <div className="w-[72px]" />
+            <SiteSidebarToggle />
+          </>
         }
         navigation={<NavigationButtons />}
         omnibar={<Omnibar />}
-        actions={<PageActionButtons assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} />}
+        actions={<PageActionButtons />}
       />
     </TitlebarWrapper>
   )

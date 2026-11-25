@@ -103,6 +103,7 @@ export function DateValueField({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             aria-label={mode === 'date' ? 'Pick a date' : 'Pick a date and time'}
@@ -135,7 +136,7 @@ export function DateValueField({
                 value={timeText}
                 onChange={(e) => commit(parsed ?? new Date(), e.target.value)}
               />
-              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setOpen(false)}>
+              <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={() => setOpen(false)}>
                 Done
               </Button>
             </div>
@@ -145,6 +146,7 @@ export function DateValueField({
       {value && onClear && (
         <Tooltip content="Clear date">
           <Button
+            type="button"
             variant="ghost"
             size="iconSm"
             aria-label="Clear date"

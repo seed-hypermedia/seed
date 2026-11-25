@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -3300,6 +3301,7 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 				ReplaceBlock: &documents.Block{Id: "c", Type: "paragraph", Text: "Block C"},
 			}},
 		},
+		Message: "Add block C",
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, prepared.UnsignedChange, "must return unsigned CBOR bytes")
@@ -3343,6 +3345,26 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 
 	// Step 7: Verify the version includes our submitted change CID.
 	require.Contains(t, got.Version, signedChange.CID.String(), "version must reference the submitted change")
+
+	// Step 8: The change message survives client-side signing and is reported by the changes API.
+	info, err := alice.GetDocumentChange(ctx, &documents.GetDocumentChangeRequest{Id: signedChange.CID.String()})
+	require.NoError(t, err)
+	require.Equal(t, "Add block C", info.Message)
+
+	list, err := alice.ListDocumentChanges(ctx, &documents.ListDocumentChangesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/prepare-test",
+		Version: got.Version,
+	})
+	require.NoError(t, err)
+	messages := map[string]string{}
+	for _, c := range list.Changes {
+		messages[c.Id] = c.Message
+	}
+
+	require.Equal(t, "Add block C", messages[signedChange.CID.String()])
+	require.Contains(t, messages, doc.Version)
+	require.Equal(t, "", messages[doc.Version], "changes created without a message must report none")
 }
 
 func TestPrepareChangeTakesOverRedirect(t *testing.T) {
@@ -3655,16 +3677,16 @@ func TestPrepareChangeRedirectChainLimits(t *testing.T) {
 }
 
 // A redirect is not an authorisation. Following one on the write path replays a private document on
-// a public-only node, where every read RPC denies it, and that leaked two things to an
+// a server-mode node, where every read RPC denies it, and that leaked two things to an
 // unauthenticated caller: the target's existence, because "base_version is required" is only
 // reported when a document really is there; and its genesis and heads, to anyone who already knew
 // the version to ask with. The write path must refuse at the read instead, so neither depends on
 // what else the request happens to carry.
-func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T) {
+func TestPrepareChangeRefusesPrivateRedirectTargetOnServerModeNode(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	space := alice.me.Account.PublicKey.String()
 
 	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
@@ -3677,7 +3699,7 @@ func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T)
 	require.NoError(t, err)
 
 	// The redirect Ref is written straight to the index, the way one would arrive from a peer.
-	// CreateRef reads its target, and on a public-only node that read already refuses.
+	// CreateRef reads its target, and on a server-mode node that read already refuses.
 	privateState, err := alice.idx.ResolveLatest(ctx, blob.IRI("hm://"+space+"/private"))
 	require.NoError(t, err)
 	require.Equal(t, blob.VisibilityPrivate, privateState.Visibility)
@@ -3708,7 +3730,7 @@ func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T)
 		Path:    "/bait",
 		Changes: appendBlockChange("b", "Block B", "a"),
 	})
-	require.Error(t, err, "a redirect must not read a private document on a public-only node")
+	require.Error(t, err, "a redirect must not read a private document on a server-mode node")
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 
 	// Knowing the version: this is the request that used to come back with the private document's
@@ -3873,6 +3895,263 @@ func TestPrepareChangeBlockReordering(t *testing.T) {
 	require.Equal(t, "c", got.Content[0].Block.Id, "first block must be C after reorder")
 	require.Equal(t, "a", got.Content[1].Block.Id, "second block must be A after reorder")
 	require.Equal(t, "b", got.Content[2].Block.Id, "third block must be B after reorder")
+}
+
+// A request that re-lists a whole level starts with "first block at the start",
+// which is already true. That move used to be dropped only when the change was written,
+// leaving the block that follows it anchored on nothing: [f1, f2, f3] plus a new block
+// after f1 read back as [new, f1, f2, f3]. Similarly, clearing a map attribute and setting
+// some of the entries it already had used to store the clear only, losing the map.
+func TestPrepareChangeRelistedLevelAndClearedMap(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	move := func(block, left string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: block, Parent: "", LeftSibling: left},
+		}}
+	}
+	replace := func(block string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{Id: block, Type: "paragraph", Text: block},
+		}}
+	}
+	attr := func(value string, key ...string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{
+			SetAttribute: &documents.DocumentChange_SetAttribute{Key: key, Value: &documents.DocumentChange_SetAttribute_StringValue{StringValue: value}},
+		}}
+	}
+	clearAttr := func(key ...string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{
+			SetAttribute: &documents.DocumentChange_SetAttribute{Key: key, Value: &documents.DocumentChange_SetAttribute_NullValue{NullValue: &emptypb.Empty{}}},
+		}}
+	}
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/relist-test",
+		Changes: []*documents.DocumentChange{
+			move("f1", ""), replace("f1"),
+			move("f2", "f1"), replace("f2"),
+			move("f3", "f2"), replace("f3"),
+			attr("x", "source", "type"),
+			attr("1", "source", "a"),
+			attr("2", "source", "b"),
+		},
+	})
+	require.NoError(t, err)
+
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     account,
+		Path:        "/relist-test",
+		BaseVersion: doc.Version,
+		Changes: []*documents.DocumentChange{
+			move("f1", ""),
+			move("new", "f1"),
+			move("f2", "new"),
+			move("f3", "f2"),
+			replace("new"),
+			clearAttr("source"),
+			attr("x", "source", "type"),
+			attr("1", "source", "a"),
+		},
+	})
+	require.NoError(t, err)
+
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		doc.GenerationInfo.Generation,
+		genesisCid,
+		kp.Principal(),
+		"/relist-test",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: "/relist-test"})
+	require.NoError(t, err)
+
+	order := make([]string, len(got.Content))
+	for i, node := range got.Content {
+		order[i] = node.Block.Id
+	}
+
+	require.Equal(t, []string{"f1", "new", "f2", "f3"}, order)
+	require.Equal(t, map[string]any{"type": "x", "a": "1"}, got.Metadata.AsMap()["source"])
+
+	// Only what changed is stored: one move, one block, and the entry that is gone.
+	stored := &blob.Change{}
+	require.NoError(t, cbornode.DecodeInto(signedChange.RawData(), stored))
+	require.Equal(t, 3, stored.Body.OpCount, "stored ops: %v", stored.Body.Ops)
+}
+
+// Requests whose moves depend on each other: a parent written after the first move of the request,
+// and a parent and its child trading places. The latter made older daemons spin forever.
+func TestPrepareChangeParentsAndChildrenInOneRequest(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+	kp := alice.me.Account
+
+	const path = "/parents-test"
+
+	move := func(block, parent, left string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: block, Parent: parent, LeftSibling: left},
+		}}
+	}
+	replace := func(block string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{Id: block, Type: "paragraph", Text: block},
+		}}
+	}
+
+	var outline func(nodes []*documents.BlockNode) string
+
+	outline = func(nodes []*documents.BlockNode) string {
+		parts := make([]string, len(nodes))
+		for i, n := range nodes {
+			parts[i] = n.Block.Id
+			if sub := outline(n.Children); sub != "" {
+				parts[i] += "(" + sub + ")"
+			}
+		}
+
+		return strings.Join(parts, " ")
+	}
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           path,
+		Changes: []*documents.DocumentChange{
+			move("a", "", ""), replace("a"),
+			move("b", "", "a"), replace("b"),
+		},
+	})
+	require.NoError(t, err)
+
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	version := doc.Version
+
+	// prepare fails the test if the daemon doesn't answer, instead of hanging the whole suite.
+	prepare := func(changes ...*documents.DocumentChange) (*documents.PrepareChangeResponse, error) {
+		type result struct {
+			resp *documents.PrepareChangeResponse
+			err  error
+		}
+
+		done := make(chan result, 1)
+
+		go func() {
+			resp, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+				Account:     account,
+				Path:        path,
+				BaseVersion: version,
+				Changes:     changes,
+			})
+			done <- result{resp, err}
+		}()
+
+		select {
+		case r := <-done:
+			return r.resp, r.err
+		case <-time.After(20 * time.Second):
+			t.Fatal("PrepareChange is still running after 20s")
+			return nil, nil
+		}
+	}
+
+	// submit signs and stores the prepared change, and returns the document read back with what was stored.
+	submit := func(prepared *documents.PrepareChangeResponse) (*documents.Document, *blob.Change) {
+		signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+		require.NoError(t, err)
+
+		ref, err := blob.NewRef(
+			kp,
+			doc.GenerationInfo.Generation,
+			genesisCid,
+			kp.Principal(),
+			path,
+			[]cid.Cid{signedChange.CID},
+			time.Now().Round(blob.ClockPrecision),
+			blob.VisibilityPublic,
+		)
+		require.NoError(t, err)
+		require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+		got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{Account: account, Path: path})
+		require.NoError(t, err)
+
+		version = got.Version
+
+		stored := &blob.Change{}
+		require.NoError(t, cbornode.DecodeInto(signedChange.RawData(), stored))
+
+		return got, stored
+	}
+
+	// P and c are written after the first move of the request, and P gets its child before its own position.
+	prepared, err := prepare(
+		replace("x1"),
+		move("x1", "a", ""),
+		replace("P"),
+		replace("c"),
+		move("c", "P", ""),
+		move("P", "", "b"),
+	)
+	require.NoError(t, err)
+
+	got, stored := submit(prepared)
+	require.Equal(t, "a(x1) b P(c)", outline(got.Content))
+	require.Empty(t, got.DetachedBlocks)
+	require.Equal(t, 6, stored.Body.OpCount, "stored ops: %v", stored.Body.Ops)
+
+	// P(c) becomes c(P), the child moved first.
+	prepared, err = prepare(
+		move("c", "", "b"),
+		move("P", "c", ""),
+	)
+	require.NoError(t, err)
+
+	got, stored = submit(prepared)
+	require.Equal(t, "a(x1) b c(P)", outline(got.Content))
+	require.Empty(t, got.DetachedBlocks)
+	require.Equal(t, 2, stored.Body.OpCount, "stored ops: %v", stored.Body.Ops)
+
+	// The parent moved first would have to go under its own child: the request is refused.
+	_, err = prepare(
+		move("c", "P", ""),
+		move("P", "", "b"),
+	)
+	require.ErrorContains(t, err, "cycle detected")
+
+	// Nothing was stored, and the document still takes changes.
+	prepared, err = prepare(move("new", "P", ""), replace("new"))
+	require.NoError(t, err)
+
+	got, stored = submit(prepared)
+	require.Equal(t, "a(x1) b c(P(new))", outline(got.Content))
+	require.Equal(t, 2, stored.Body.OpCount, "stored ops: %v", stored.Body.Ops)
 }
 
 func TestPrepareChangeMetadataUpdate(t *testing.T) {
@@ -4416,4 +4695,127 @@ func TestHomeGenesisBootstrap(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, sdkGenesisCID.String(), got.Genesis)
 	})
+}
+
+// Applying the same changes twice must not produce any ops the second time,
+// regardless of the types of the values involved. The document is loaded from
+// the blob store here, so the committed state went through the CBOR round trip.
+func TestPrepareChangeIdenticalChangesAreNoOp(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	setAttr := func(value any, key ...string) *documents.DocumentChange {
+		attr := &documents.DocumentChange_SetAttribute{Key: key}
+		switch v := value.(type) {
+		case string:
+			attr.Value = &documents.DocumentChange_SetAttribute_StringValue{StringValue: v}
+		case int:
+			attr.Value = &documents.DocumentChange_SetAttribute_IntValue{IntValue: int64(v)}
+		case bool:
+			attr.Value = &documents.DocumentChange_SetAttribute_BoolValue{BoolValue: v}
+		case nil:
+			attr.Value = &documents.DocumentChange_SetAttribute_NullValue{NullValue: &emptypb.Empty{}}
+		default:
+			t.Fatalf("unsupported value type %T", value)
+		}
+
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetAttribute_{SetAttribute: attr}}
+	}
+
+	changes := []*documents.DocumentChange{
+		{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "No-op Test"},
+		}},
+		setAttr(5, "priority"),
+		setAttr(true, "showOutline"),
+		setAttr(false, "showActivity"),
+		setAttr(nil, "cover"),
+		setAttr(3, "theme", "header", "size"),
+		setAttr("fancy", "theme", "header", "layout"),
+		{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+		}},
+		{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{
+				Id:   "a",
+				Type: "Image",
+				Link: "https://example.com/image.png",
+				Attributes: must.Do2(structpb.NewStruct(map[string]any{
+					"width": 300,
+					"ratio": 1.5,
+				})),
+			},
+		}},
+		{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b", Parent: "", LeftSibling: "a"},
+		}},
+		{Op: &documents.DocumentChange_ReplaceBlock{
+			ReplaceBlock: &documents.Block{
+				Id:   "b",
+				Type: "Query",
+				Text: "Hello",
+				Attributes: must.Do2(structpb.NewStruct(map[string]any{
+					"query": map[string]any{"limit": 10, "includes": []any{map[string]any{"depth": 2}}},
+				})),
+				Annotations: []*documents.Annotation{{
+					Type:       "Bold",
+					Starts:     []int32{0},
+					Ends:       []int32{5},
+					Attributes: must.Do2(structpb.NewStruct(map[string]any{"weight": 700})),
+				}},
+			},
+		}},
+	}
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/noop-test",
+		Changes:        changes,
+	})
+	require.NoError(t, err)
+
+	prepare := func(changes []*documents.DocumentChange) blob.Change {
+		prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+			Account:     alice.me.Account.PublicKey.String(),
+			Path:        "/noop-test",
+			BaseVersion: doc.Version,
+			Changes:     changes,
+		})
+		require.NoError(t, err)
+
+		var change blob.Change
+
+		require.NoError(t, cbornode.DecodeInto(prepared.UnsignedChange, &change))
+		return change
+	}
+
+	change := prepare(changes)
+	require.Empty(t, change.Body.Ops, "re-applying identical changes must not produce ops")
+	require.Equal(t, 0, change.Body.OpCount)
+
+	// Writing back the blocks exactly as the API returned them must be a no-op too.
+	var readBack []*documents.DocumentChange
+
+	for _, node := range doc.Content {
+		readBack = append(readBack, &documents.DocumentChange{
+			Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: node.Block},
+		})
+	}
+
+	require.Len(t, readBack, 2)
+	change = prepare(readBack)
+	require.Empty(t, change.Body.Ops, "writing back blocks as read must not produce ops")
+
+	// Sanity check: a real change is still detected.
+	changed := proto.Clone(doc.Content[0].Block).(*documents.Block)
+	changed.Attributes.Fields["width"] = structpb.NewNumberValue(301)
+	change = prepare([]*documents.DocumentChange{
+		{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: changed}},
+		setAttr(6, "priority"),
+	})
+	require.Len(t, change.Body.Ops, 2)
+	require.Equal(t, 2, change.Body.OpCount)
 }

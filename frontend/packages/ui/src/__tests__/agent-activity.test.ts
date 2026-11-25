@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import type {AgentInfo} from '@seed-hypermedia/agents-protocol'
+import type {AgentInfo} from '@seed-hypermedia/apps-protocol'
 import {
   agentActivityReadKey,
   agentRowActivity,
@@ -128,7 +128,7 @@ describe('agent activity indicator', () => {
     expect(sessionRowActivity(working, server, read(80))).toMatchObject({tone: 'busy', short: 'Working'})
     const rollup = {at: 95, kind: 'tool', messageAt: 80, messageFrom: 'agent', sessionId: 's', busy: true} as const
     expect(sessionRowActivity(working, server, read(80), rollup)).toMatchObject({tone: 'busy', short: 'Running a tool'})
-    // No message yet and idle: the plain status dot.
+    // No message yet and idle: no activity label.
     expect(sessionRowActivity({...base, status: 'idle'}, server, read(10))).toBeNull()
     // Before the first-run baseline nothing is unread, but a working agent still shows.
     expect(sessionRowActivity(working, server, undefined)).toMatchObject({tone: 'busy'})

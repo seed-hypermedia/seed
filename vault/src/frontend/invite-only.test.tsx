@@ -234,7 +234,7 @@ describe('invite-only registration', () => {
       setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
       await renderApp(client)
 
-      await rtl.screen.findByText('Opening your invitation')
+      await rtl.screen.findByRole('status', {name: 'Signing in'})
       await rtl.waitFor(() => expect(replace).toHaveBeenCalled())
       const target = new URL(replace.mock.calls[0]![0] as string)
       expect(target.origin).toBe('http://localhost')
@@ -268,19 +268,55 @@ describe('invite-only registration', () => {
     expect(registerStart).not.toHaveBeenCalled()
   })
 
-  test('pre-login screen without a link keeps the invite input and the invite-only hint', async () => {
+  test('invitation input appears only after the server accepts a new registration email', async () => {
+    let resolveEmail!: (value: {exists: false}) => void
+    const lookup = new Promise<{exists: false}>((resolve) => {
+      resolveEmail = resolve
+    })
+    const preLogin = mock(async () => lookup)
+    const registerStart = registerStartMock()
     const client = createMockClient({
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      preLogin,
+      registerStart,
     })
-    setWindowUrl('http://localhost/vault')
+    setWindowUrl(inviteViaSiteUrl().replace(/&invite=[^&]+/, ''))
     await renderApp(client)
+    const input = await rtl.screen.findByLabelText('Enter your email to continue')
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    expect(rtl.screen.queryByText(/verification code/)).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Create account'})))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.change(input, {target: {value: invitedEmail}}))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'})))
+    expect(preLogin).toHaveBeenCalledWith({email: invitedEmail})
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => resolveEmail({exists: false}))
+    const invitation = await rtl.screen.findByLabelText('Invitation code')
+    expect(registerStart).not.toHaveBeenCalled()
+    await rtl.act(async () => rtl.fireEvent.change(invitation, {target: {value: inviteCode}}))
+    await rtl.act(async () => rtl.fireEvent.change(input, {target: {value: 'changed@example.com'}}))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+  })
 
-    await rtl.screen.findByLabelText('Enter your email to continue')
-    rtl.screen.getByLabelText('Invitation code')
-    rtl.screen.getByText(/This vault is invite-only. A code is required to create a new account/)
-    rtl.screen.getByText('Send code')
-    rtl.screen.getByText(/Terms and Privacy Policy/)
-    expect(rtl.screen.queryByText("You've been invited")).toBeNull()
+  test('an existing account on the creation path goes to sign-in without asking for an invitation', async () => {
+    const registerStart = registerStartMock()
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      preLogin: async () => ({exists: true, credentials: {password: true}, salt: 'salt'}),
+      registerStart,
+    })
+    setWindowUrl(inviteViaSiteUrl().replace(/&invite=[^&]+/, ''))
+    await renderApp(client)
+    await rtl.act(async () => rtl.fireEvent.click(await rtl.screen.findByRole('button', {name: 'Create account'})))
+    await rtl.act(async () =>
+      rtl.fireEvent.change(rtl.screen.getByLabelText('Enter your email to continue'), {target: {value: invitedEmail}}),
+    )
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'})))
+    await rtl.screen.findByText('Sign in with password')
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    expect(registerStart).not.toHaveBeenCalled()
   })
 
   test('pre-login screen hides the invite input when the vault is open', async () => {
@@ -301,5 +337,74 @@ describe('invite-only registration', () => {
 
     await rtl.screen.findByLabelText('Enter your email to continue')
     expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+  })
+
+  describe('direct vault entry', () => {
+    afterEach(() => {
+      window.sessionStorage.clear()
+    })
+
+    test('a vault session is shown as the vault, never bounced to the site', async () => {
+      const client = createMockClient({
+        getSession: async () => ({
+          authenticated: true,
+          relyingPartyOrigin: window.location.origin,
+          userId: 'user-1',
+          email: 'eric@example.com',
+          credentials: {password: true},
+        }),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByText('Unlock your vault')
+        expect(replace).not.toHaveBeenCalled()
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBeNull()
+      } finally {
+        replace.mockRestore()
+      }
+    })
+
+    test('without a session the site sign-in is asked to come back to the vault', async () => {
+      const client = createMockClient({
+        getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByRole('status', {name: 'Signing in'})
+        await rtl.waitFor(() => expect(replace).toHaveBeenCalled())
+        const target = new URL(replace.mock.calls[0]![0] as string)
+        expect(target.origin).toBe('http://localhost')
+        expect(target.pathname).toBe('/hm/sign-in')
+        expect(target.searchParams.get('next')).toBe('/vault')
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBe('1')
+      } finally {
+        replace.mockRestore()
+      }
+    })
+
+    test('a browser the site sent straight back signs in on the vault instead of looping', async () => {
+      const client = createMockClient({
+        getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        window.sessionStorage.setItem('vault:site-sign-in-return', '1')
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByLabelText('Enter your email to continue')
+        expect(replace).not.toHaveBeenCalled()
+        // Consumed: a later direct visit in this tab goes through the site again.
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBeNull()
+      } finally {
+        replace.mockRestore()
+      }
+    })
   })
 })

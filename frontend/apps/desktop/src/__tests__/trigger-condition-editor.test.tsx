@@ -2,7 +2,7 @@ import React, {useState} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act, Simulate} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import type {AgentTriggerSource} from '@seed-hypermedia/agents-protocol'
+import type {AgentTriggerSource} from '@seed-hypermedia/apps-protocol'
 
 const resolution = vi.hoisted(() => ({loading: false, missing: false}))
 vi.mock('@shm/shared/models/entity', () => ({

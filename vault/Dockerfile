@@ -8,15 +8,17 @@ WORKDIR /build
 COPY frontend/packages/shared ./frontend/packages/shared/
 COPY frontend/packages/client ./frontend/packages/client/
 COPY frontend/packages/ui ./frontend/packages/ui/
-COPY agents/protocol ./agents/protocol/
+COPY apps/protocol ./apps/protocol/
 COPY vault/package.json vault/bunfig.toml vault/bun.lock ./vault/
 RUN cd vault && bun install --frozen-lockfile --production
 COPY vault ./vault/
 RUN cd vault && bun run build
 
 FROM oven/bun:1.3.10
-WORKDIR /app
+# Bun emits absolute chunk imports under the build's /vault/ publicPath.
+WORKDIR /vault
 COPY --from=build /build/vault/dist/ .
+RUN bun run --no-install main.js --help > /dev/null
 VOLUME /data
 ENV SEED_VAULT_DB_PATH=/data/vault.sqlite
 EXPOSE 3000

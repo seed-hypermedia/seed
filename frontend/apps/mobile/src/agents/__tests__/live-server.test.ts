@@ -3,7 +3,7 @@
  */
 
 /**
- * End-to-end check of the signed action path against a real agents server.
+ * End-to-end check of the signed action path against a real app environment.
  *
  * This is the one test that proves the whole mobile chain actually talks to the runtime: a
  * vault-shaped Ed25519 account key signs a DAG-CBOR envelope through the shared client, and the
@@ -12,8 +12,8 @@
  *
  * Opt-in, because it needs a server running:
  *
- *   direnv exec . bash -lc 'cd agents && bun run dev'      # serves :3051
- *   SEED_AGENTS_TEST_SERVER=http://localhost:3051 npm test
+ *   direnv exec . bash -lc 'cd apps && bun run dev'      # serves :3051
+ *   SEED_APPS_TEST_SERVER=http://localhost:3051 npm test
  *
  * Runs in the `node` environment on purpose: jsdom provides no `fetch`, while React Native does —
  * so jsdom would fail here for a reason the real app never hits.
@@ -23,7 +23,7 @@ import {nobleKeyPairFromSeed, principalToString} from '@seed-hypermedia/client/b
 import {getAgentServerHealth, sendAgentAction} from '@shm/ui/agents/client'
 import {setAgentsPlatform} from '@shm/ui/agents/platform'
 
-const SERVER_URL = process.env.SEED_AGENTS_TEST_SERVER
+const SERVER_URL = process.env.SEED_APPS_TEST_SERVER
 const describeLive = SERVER_URL ? describe : describe.skip
 
 // Deterministic, and deliberately an account the dev server has never seen: the assertions below
@@ -31,7 +31,7 @@ const describeLive = SERVER_URL ? describe : describe.skip
 // subject and the test stays read-only.
 const TEST_SEED = new Uint8Array(32).fill(11)
 
-describeLive('agents server (live)', () => {
+describeLive('app environment (live)', () => {
   const serverUrl = SERVER_URL as string
   let accountUid: string
 

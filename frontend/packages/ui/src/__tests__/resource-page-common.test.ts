@@ -1,7 +1,11 @@
-import {hmId, type NavRoute} from '@shm/shared'
+import {hmId, unpackHmId, type NavRoute} from '@shm/shared'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
+  getDraftBreadcrumbEntry,
+  getBlockCommentDraftReference,
   getCommentReplyPanelRoute,
   getCommentsPanelTarget,
   hasUnpublishedDraftForResourceState,
@@ -19,9 +23,100 @@ import {
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
   orderDocumentMenuItems,
+  getDocumentPagePanelMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
   getBlockCitationsPanelRoute,
+  hasRenderableBlock,
 } from '../resource-page-common'
+
+describe('block references in rendered content', () => {
+  const published: HMBlockNode[] = [
+    {
+      block: {id: 'heading', type: 'Heading', text: 'User Story Map', attributes: {}, annotations: []},
+      children: [
+        {
+          block: {id: 'nested-block', type: 'Paragraph', text: 'A user story', attributes: {}, annotations: []},
+          children: [],
+        },
+      ],
+    },
+  ]
+  const draft = hmBlocksToEditorContent(published)
+  draft[0]!.children.push({id: 'draft-only', type: 'paragraph', content: [], props: {}, children: []})
+
+  it.each([
+    {name: 'published', content: published},
+    {name: 'draft', content: draft},
+  ])('finds top-level and nested links in $name content', ({content}) => {
+    expect(hasRenderableBlock(content, 'heading')).toBe(true)
+    expect(hasRenderableBlock(content, 'nested-block')).toBe(true)
+    expect(hasRenderableBlock(content, 'missing')).toBe(false)
+  })
+
+  it('finds newly added blocks only in the draft', () => {
+    expect(hasRenderableBlock(draft, 'draft-only')).toBe(true)
+    expect(hasRenderableBlock(published, 'draft-only')).toBe(false)
+  })
+
+  it('reports deleted blocks and empty content as missing', () => {
+    const removed = [{...draft[0]!, children: []}]
+    expect(hasRenderableBlock(removed, 'nested-block')).toBe(false)
+    expect(hasRenderableBlock([], 'heading')).toBe(false)
+  })
+})
+
+describe('draft breadcrumb metadata', () => {
+  const id = hmId('alice', {path: ['opaque-document-id']})
+  const draft = {id: 'draft-1', metadata: {}, visibility: 'PUBLIC', deps: [], lastUpdateTime: 0} as const
+
+  it('retains the published title for a body-only draft, including ancestor breadcrumbs', () => {
+    const entry = getDraftBreadcrumbEntry({
+      id,
+      draft: {...draft, deps: []},
+      publishedMetadata: {name: 'Document title'},
+      isUnpublishedDraft: false,
+      isLoading: false,
+    })
+    expect(entry).toMatchObject({metadata: {name: 'Document title'}, draftId: 'draft-1', isLoading: false})
+  })
+
+  it('applies saved draft titles and prefers the latest live title edit', () => {
+    const input = {
+      id,
+      draft: {...draft, deps: [], metadata: {name: 'Saved draft title'}},
+      publishedMetadata: {name: 'Published title'},
+      isUnpublishedDraft: false,
+      isLoading: false,
+    }
+    expect(getDraftBreadcrumbEntry(input)).toMatchObject({metadata: {name: 'Saved draft title'}})
+    expect(getDraftBreadcrumbEntry({...input, currentMetadata: {name: 'Live title'}})).toMatchObject({
+      metadata: {name: 'Live title'},
+    })
+    expect(getDraftBreadcrumbEntry({...input, currentMetadata: {name: ''}})).toMatchObject({
+      metadata: {name: ''},
+      fallbackName: 'Untitled Document',
+    })
+  })
+
+  it('shows a loading state until an ancestor title is available', () => {
+    expect(
+      getDraftBreadcrumbEntry({id, draft: {...draft, deps: []}, isUnpublishedDraft: false, isLoading: true}),
+    ).toMatchObject({isLoading: true})
+  })
+
+  it.each(['PUBLIC', 'PRIVATE'] as const)('uses a friendly label for an untitled %s draft', (visibility) => {
+    expect(
+      getDraftBreadcrumbEntry({
+        id,
+        draft: {...draft, deps: [], visibility},
+        isUnpublishedDraft: true,
+        isLoading: false,
+      }),
+    ).toMatchObject({
+      fallbackName: visibility === 'PRIVATE' ? 'New Private Document' : 'New Document',
+    })
+  })
+})
 
 describe('back to top visibility', () => {
   it('uses a 200px visibility threshold', () => {
@@ -55,10 +150,30 @@ describe('orderDocumentMenuItems', () => {
         item('copy-link'),
         item('directory'),
         item('versions'),
-        item('options'),
+        item('space-settings'),
         item('new'),
       ]).map(({key}) => key),
-    ).toEqual(['new', 'options', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
+    ).toEqual(['new', 'space-settings', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
+  })
+})
+
+describe('custom HTML page panel menu', () => {
+  it('keeps every document tab reachable without replacing the page or targeting a fragment', () => {
+    const open = vi.fn()
+    const id = {...hmId('alice', {path: ['app'], version: 'v1'}), blockRef: 'block1'}
+    const items = orderDocumentMenuItems(getDocumentPagePanelMenuItems(id, open))
+    expect(items.map((item) => item.label)).toEqual(['People', 'Comments', 'Citations', 'Attributes'])
+    for (const item of items) item.onClick?.({} as never)
+    expect(open.mock.calls.map(([panel]) => panel.key)).toEqual(['collaborators', 'comments', 'activity', 'metadata'])
+    for (const [panel] of open.mock.calls)
+      expect(panel.id).toMatchObject({uid: 'alice', path: ['app'], version: 'v1', blockRef: null, blockRange: null})
+    expect(open.mock.calls[2]![0].filterEventType).toEqual([
+      'comment/Embed',
+      'doc/Embed',
+      'doc/Link',
+      'doc/Button',
+      'metadata/Link',
+    ])
   })
 })
 
@@ -344,6 +459,106 @@ describe('shouldSuppressMainCommentEditor', () => {
   })
 })
 
+describe('getBlockCommentDraftReference', () => {
+  const docId = hmId('alice', {
+    path: ['doc'],
+    latest: true,
+    blockRef: 'current-selection',
+    blockRange: {start: 1, end: 3},
+  })
+  const route: Extract<NavRoute, {key: 'document'}> = {key: 'document', id: docId}
+
+  it('opens only the root Comments panel and retains the document selection', () => {
+    const request = getBlockCommentDraftReference({route, version: 'published-version', blockId: 'quoted-block'})
+    expect(request.route).toEqual({...route, panel: {key: 'comments', id: docId}})
+    expect(request.route.id).toBe(docId)
+    expect(request.reference.documentId).toBe(docId.id)
+    expect(request.reference.commentId).toBeUndefined()
+    expect(unpackHmId(request.reference.link)).toMatchObject({
+      version: 'published-version',
+      blockRef: 'quoted-block',
+      blockRange: {expanded: false},
+    })
+    expect(unpackHmId(request.reference.link)?.latest).toBeFalsy()
+  })
+
+  it('queues a fragment for the thread root even when a nested reply is selected', () => {
+    const panelDocId = hmId('bob', {path: ['discussion']})
+    const threadRoute: typeof route = {
+      ...route,
+      panel: {key: 'comments', id: panelDocId, openComment: 'bob/root', replyCommentId: 'bob/reply'},
+    }
+    const request = getBlockCommentDraftReference({
+      route: threadRoute,
+      version: 'published-version',
+      blockId: 'quoted-block',
+      blockRange: {start: 2, end: 12},
+    })
+    expect(request.route).toBe(threadRoute)
+    expect(request.reference.documentId).toBe(panelDocId.id)
+    expect(request.reference.commentId).toBe('bob/root')
+    expect(unpackHmId(request.reference.link)).toMatchObject({
+      uid: 'alice',
+      path: ['doc'],
+      version: 'published-version',
+      blockRef: 'quoted-block',
+      blockRange: {start: 2, end: 12},
+    })
+  })
+
+  it('pins the rendered source behind a republish alias without changing the alias route', () => {
+    const sourceId = hmId('bob', {path: ['original']})
+    const request = getBlockCommentDraftReference({
+      route,
+      sourceId,
+      version: 'source-version',
+      blockId: 'source-block',
+    })
+    expect(request.route.id).toBe(docId)
+    expect(request.reference.documentId).toBe(docId.id)
+    expect(unpackHmId(request.reference.link)).toMatchObject({
+      uid: 'bob',
+      path: ['original'],
+      version: 'source-version',
+      blockRef: 'source-block',
+    })
+  })
+
+  it('targets the resolved root for a legacy reply link without changing its route', () => {
+    const legacyRoute: typeof route = {
+      ...route,
+      panel: {key: 'comments', id: docId, openComment: 'alice/legacy-reply'},
+    }
+    const request = getBlockCommentDraftReference({
+      route: legacyRoute,
+      resolvedThreadRootId: 'alice/root',
+      version: 'v1',
+      blockId: 'block',
+    })
+    expect(request.route).toBe(legacyRoute)
+    expect(request.reference.commentId).toBe('alice/root')
+    expect(request.reference.documentId).toBe(docId.id)
+  })
+
+  it('uses the thread root when no specific reply is selected', () => {
+    const threadRoute: typeof route = {...route, panel: {key: 'comments', id: docId, openComment: 'alice/root'}}
+    const request = getBlockCommentDraftReference({route: threadRoute, version: 'v1', blockId: 'block'})
+    expect(request.route).toBe(threadRoute)
+    expect(request.reference.commentId).toBe('alice/root')
+  })
+
+  it('retains an existing root draft and replaces a different panel only when needed', () => {
+    const commentsRoute: typeof route = {...route, panel: {key: 'comments', id: docId}}
+    const active = getBlockCommentDraftReference({route: commentsRoute, version: 'v1', blockId: 'block'})
+    expect(active.route).toBe(commentsRoute)
+    expect(active.reference.commentId).toBeUndefined()
+    const otherRoute: typeof route = {...route, panel: {key: 'collaborators', id: docId}}
+    const opened = getBlockCommentDraftReference({route: otherRoute, version: 'v1', blockId: 'block'})
+    expect(opened.route).toEqual(commentsRoute)
+    expect(opened.route.id).toBe(docId)
+  })
+})
+
 describe('getCommentReplyPanelRoute', () => {
   const docId = hmId('alice', {path: ['doc']})
 
@@ -368,6 +583,82 @@ describe('getCommentReplyPanelRoute', () => {
       replyCommentVersion: 'comment-version',
       rootReplyCommentVersion: 'thread-root-version',
     })
+  })
+
+  it('keeps the root open when the selected reply has a different parent', () => {
+    const panelRoute = getCommentReplyPanelRoute({
+      docId,
+      isReplying: true,
+      comment: {
+        id: 'alice/nested-reply',
+        replyParent: 'alice/first-reply',
+        threadRoot: 'alice/root',
+        version: 'reply-version',
+        threadRootVersion: 'root-version',
+        targetAccount: 'alice',
+        targetPath: '/doc',
+      } as any,
+    })
+
+    expect(panelRoute).toMatchObject({
+      openComment: 'alice/root',
+      replyCommentId: 'alice/nested-reply',
+      isReplying: true,
+      replyCommentVersion: 'reply-version',
+      rootReplyCommentVersion: 'root-version',
+    })
+  })
+
+  it('opens a selected reply without requesting composer focus from its reply count', () => {
+    const panelRoute = getCommentReplyPanelRoute({
+      docId,
+      comment: {
+        id: 'alice/reply',
+        threadRoot: 'alice/root',
+        targetAccount: 'alice',
+        targetPath: '/doc',
+      } as any,
+    })
+
+    expect(panelRoute.openComment).toBe('alice/root')
+    expect(panelRoute.replyCommentId).toBe('alice/reply')
+    expect(panelRoute.isReplying).toBeUndefined()
+    expect(panelRoute.replyCommentVersion).toBeUndefined()
+  })
+
+  it('preserves the source document version and fragment when opening its thread', () => {
+    const sourceId = hmId('alice', {
+      path: ['doc'],
+      version: 'document-version',
+      blockRef: 'paragraph',
+      blockRange: {start: 2, end: 8},
+    })
+    const panelRoute = getCommentReplyPanelRoute({
+      docId: sourceId,
+      comment: {
+        id: 'alice/root',
+        targetAccount: 'alice',
+        targetPath: '/doc',
+        targetVersion: 'older-version',
+      } as any,
+    })
+
+    expect(panelRoute.id).toBe(sourceId)
+  })
+
+  it('does not set a separate reply target when the root refers to itself', () => {
+    const panelRoute = getCommentReplyPanelRoute({
+      docId,
+      comment: {
+        id: 'alice/root',
+        threadRoot: 'alice/root',
+        targetAccount: 'alice',
+        targetPath: '/doc',
+      } as any,
+    })
+
+    expect(panelRoute.openComment).toBe('alice/root')
+    expect(panelRoute.replyCommentId).toBeUndefined()
   })
 
   it('switches the panel target document when the replied comment belongs to another document', () => {

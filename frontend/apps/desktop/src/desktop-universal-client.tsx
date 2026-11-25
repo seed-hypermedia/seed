@@ -1,4 +1,5 @@
 import {createSeedClient} from '@seed-hypermedia/client'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {API_HTTP_URL} from '@shm/shared/constants'
 import type {UniversalClient} from '@shm/shared/universal-client'
@@ -50,6 +51,18 @@ export const desktopUniversalClient: UniversalClient = {
     return {...response, documents: response.documents.map(prepareHMDocumentInfo)}
   },
   listAccounts: (request, options) => grpcClient.documents.listAccounts(request, options),
+  listWritableLocations: async (accountUid) => {
+    const result = await grpcClient.accessControl.listCapabilitiesForDelegate({
+      delegate: accountUid,
+      pageSize: 2147483647,
+    })
+    return [
+      hmId(accountUid),
+      ...result.capabilities
+        .filter((cap) => (cap.role === 2 || cap.role === 3) && !cap.isExact)
+        .map((cap) => hmId(cap.account, {path: cap.path.split('/').filter(Boolean)})),
+    ]
+  },
   listDocumentAttributeNames: (request, options) => grpcClient.documents.listDocumentAttributeNames(request, options),
   listDocumentAttributeValues: (request, options) => grpcClient.documents.listDocumentAttributeValues(request, options),
 

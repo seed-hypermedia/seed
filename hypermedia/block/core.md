@@ -4,7 +4,7 @@ summary: The strict union of the fifteen built-in block types; extend it with yo
 ---
 **Core Block** is the union of the fifteen built-in [block](../block.md) types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). It is the strict core Hypermedia defines. Anyone can extend it by making a larger union that includes it plus their own block types. <!-- id:38pY0Ovx -->
 
-The Seed app also knows `Slot` (an invisible container for top-level lists and grids), `Link` (a [navigation menu item](../metadata/navigation-item.md)) and the legacy `Group`, which are not part of this union. Anything else still parses as the open block. [Blocks](../protocol/blocks.md) has one line per type, with its attributes. <!-- id:kAeT6_fu -->
+The [Seed app](../software/desktop.md) also knows `Slot` (an invisible container for top-level lists and grids), `Link` (a [navigation menu item](../metadata/navigation-item.md)) and the legacy `Group`, which are not part of this union. Anything else still parses as the open block. [Blocks](../protocol/blocks.md) has one line per type, with its attributes. <!-- id:kAeT6_fu -->
 
 # See also <!-- id:2AGhM2dz -->
 

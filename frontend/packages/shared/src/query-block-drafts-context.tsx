@@ -12,7 +12,7 @@ export type QueryBlockDraftSlotData = {
   onOpenDraft?: (draftId: string) => void
   onDeleteDraft?: (draftId: string) => void
   onMoveDraft?: (draftId: string) => void
-  onUpdateDraftName?: (draftId: string, name: string) => void
+  onUpdateDraftName?: (draftId: string, name: string) => Promise<void> | void
 }
 
 export type QueryBlockDraftSlotProps = {

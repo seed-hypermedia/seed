@@ -59,7 +59,7 @@ export function describeAgentError(
   if (isNetworkError(error)) {
     return {
       tone: 'warning',
-      title: serverLabel ? `Can’t reach ${serverLabel}` : 'Can’t reach the agent server',
+      title: serverLabel ? `Can’t reach ${serverLabel}` : 'Can’t reach the app environment',
       detail: `${failed} because the server isn’t responding.`,
     }
   }

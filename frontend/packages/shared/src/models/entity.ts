@@ -1,6 +1,6 @@
 import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, resolveId} from '@seed-hypermedia/client'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
@@ -306,6 +306,34 @@ export function useDomain(
     ...queryDomain(client, domain, forceCheck),
     ...queryOptions,
   })
+}
+
+/** Resolves domain-based HM references before they reach account-based resource and discovery APIs. */
+export function useResolvedHmId(url: string | undefined) {
+  const {domainResolver, universalClient: client} = useUniversalAppContext()
+  const directId = useMemo(() => unpackHmId(url), [url])
+  const needsResolution = !!url?.startsWith('hm://') && !!directId?.uid.includes('.')
+  const resolution = useQuery({
+    queryKey: ['resolved-hm-id', url],
+    enabled: needsResolution,
+    queryFn: () =>
+      resolveId(url!, {
+        domainResolver:
+          domainResolver ||
+          (async (domain) => {
+            const info = await client.request('GetDomain', {domain})
+            return info.registeredAccountUid
+              ? {registeredAccountUid: info.registeredAccountUid, isGateway: info.isGateway}
+              : null
+          }),
+      }),
+    retry: false,
+  })
+  return {
+    id: needsResolution ? resolution.data : directId,
+    isLoading: needsResolution && resolution.isInitialLoading,
+    error: needsResolution ? resolution.error : null,
+  }
 }
 
 export function useResolvedResource(

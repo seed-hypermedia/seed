@@ -1,0 +1,66 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "status": {
+      "value": {
+        "type": "hm://hyper.media/example/task-status"
+      },
+      "required": true,
+      "description": "Where the task stands. A new task starts as `todo`.",
+      "default": "todo"
+    },
+    "priority": {
+      "value": {
+        "type": "hm://hyper.media/integer",
+        "minimum": 1,
+        "maximum": 3
+      },
+      "description": "1 is most urgent and 3 is least. A new task starts in the middle.",
+      "default": 2
+    },
+    "tags": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "Labels for the task. A new task starts with an empty list.",
+      "default": []
+    },
+    "checklist": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "done": {
+            "value": {
+              "type": "hm://hyper.media/boolean"
+            },
+            "required": true,
+            "description": "Whether every step is finished.",
+            "default": false
+          },
+          "steps": {
+            "value": {
+              "type": "hm://hyper.media/list",
+              "items": {
+                "type": "hm://hyper.media/string"
+              }
+            },
+            "required": true,
+            "description": "The steps, in order."
+          }
+        }
+      },
+      "required": true,
+      "description": "The steps of the task. It has no default of its own, so a new task builds it from the defaults of its fields."
+    },
+    "due": {
+      "value": {
+        "type": "hm://hyper.media/date"
+      },
+      "description": "The day the task is due. It has no default, so a new task leaves it out."
+    }
+  },
+  "description": "A document type for a task, showing property defaults: the values a new task starts with."
+}

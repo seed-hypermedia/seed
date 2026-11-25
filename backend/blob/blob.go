@@ -213,21 +213,27 @@ type Encoded[T any] struct {
 	Decoded T
 }
 
-// TSID derives a TSID from the encoded blob.
-func (eb Encoded[T]) TSID() TSID {
-	switch blob := any(eb.Decoded).(type) {
-	case ReplacementBlob:
-		tsid := blob.TSID()
-		if tsid != "" {
+// RecordTSID returns the TSID of the record that the given blob and its raw data belong to.
+// Replacement blobs that update an existing record carry that record's TSID explicitly,
+// while a record's initial blob derives it from its timestamp and raw bytes.
+func RecordTSID(b Blob, data []byte) TSID {
+	if rb, ok := b.(ReplacementBlob); ok {
+		if tsid := rb.TSID(); tsid != "" {
 			return tsid
 		}
+	}
 
-		return NewTSID(blob.BlobTime(), eb.Data)
-	case Blob:
-		return NewTSID(blob.BlobTime(), eb.Data)
-	default:
+	return NewTSID(b.BlobTime(), data)
+}
+
+// TSID derives a TSID from the encoded blob.
+func (eb Encoded[T]) TSID() TSID {
+	blob, ok := any(eb.Decoded).(Blob)
+	if !ok {
 		panic(fmt.Errorf("BUG: type %T doesn't implement Blob interface", eb.Decoded))
 	}
+
+	return RecordTSID(blob, eb.Data)
 }
 
 func encodeBlob[T any](v T) (eb Encoded[T], err error) {

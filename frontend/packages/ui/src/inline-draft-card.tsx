@@ -4,6 +4,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
 import {OptionsDropdown} from './options-dropdown'
+import {toast} from './toast'
 import {cn} from './utils'
 
 export interface InlineDraftCardProps {
@@ -13,7 +14,7 @@ export interface InlineDraftCardProps {
   onOpenDraft: (draftId: string) => void
   onDeleteDraft: (draftId: string) => void
   onMoveDraft?: (draftId: string) => void
-  onUpdateDraftName: (draftId: string, name: string) => void
+  onUpdateDraftName: (draftId: string, name: string) => Promise<void> | void
 }
 
 export function InlineDraftCard({
@@ -47,8 +48,12 @@ export function InlineDraftCard({
   const saveName = useCallback(
     (name: string) => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = setTimeout(() => {
-        onUpdateDraftName(draft.id, name)
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          await onUpdateDraftName(draft.id, name)
+        } catch {
+          toast.error('Failed to save draft title')
+        }
       }, 500)
     },
     [draft.id, onUpdateDraftName],
@@ -61,12 +66,17 @@ export function InlineDraftCard({
     }
   }, [])
 
-  const openDraft = useCallback(() => {
+  const openDraft = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = undefined
     }
-    onUpdateDraftName(draft.id, title)
+    try {
+      await onUpdateDraftName(draft.id, title)
+    } catch {
+      toast.error('Failed to save draft title')
+      return
+    }
     onOpenDraft(draft.id)
   }, [draft.id, title, onOpenDraft, onUpdateDraftName])
 

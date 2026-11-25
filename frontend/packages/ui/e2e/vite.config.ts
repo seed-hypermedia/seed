@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import {defineConfig} from 'vite'
 
@@ -14,7 +15,7 @@ const ui = path.resolve(__dirname, '../src')
 const client = path.resolve(__dirname, '../../client/src')
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   root: path.resolve(__dirname, 'test-app'),
   define: {
     'process.env': {

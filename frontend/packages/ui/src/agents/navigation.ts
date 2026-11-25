@@ -1,13 +1,15 @@
 import {type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {type NavRoute} from '@shm/shared/routes'
-import {extractViewTermFromUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {extractViewTermFromUrl, unpackHmId, mountedAgentRoute} from '@shm/shared/utils/entity-id-url'
 import {type NavMode} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {getAgentsPlatform} from './platform'
+import {useCallback} from 'react'
 
 /** Navigates to a NavRoute using the host app's navigation (push/replace/spawn). */
 export function useNavigate(mode: NavMode = 'push') {
-  return getAgentsPlatform().useNavigate(mode)
+  const navigate = getAgentsPlatform().useNavigate(mode)
+  return useCallback((route: NavRoute) => navigate(mountedAgentRoute(route)), [navigate])
 }
 
 /** Click handler that navigates in place, or spawns a new window on meta/shift-click. */

@@ -18,6 +18,18 @@ export type HMBytes = Uint8Array | {'/': {bytes: string}}
 export type HMAccount = string
 
 /**
+ * Seed Agents
+ * An agent is a language model with memory, tools and its own Seed identity, which runs on an app environment and reads and writes Hypermedia like any other participant.
+ * Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID.
+ * Schema: hm://hyper.media/agent
+ */
+export type HMAgent = {
+  type: 'hm://hyper.media/agent'
+  /** HTTP(S) app environment registering this resource's exact versionless HMID as the agent ID. */
+  agentServerUrl: HMUrl
+} & {[key: string]: HMValue}
+
+/**
  * Blob
  * The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
  * The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp.
@@ -115,6 +127,8 @@ export type HMBlockButton = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Alternative label for the button. */
     name?: string
     /** Horizontal position of the button in its column. */
@@ -154,6 +168,8 @@ export type HMBlockCode = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Programming language used for syntax highlighting. */
     language?: string
   } & {[key: string]: unknown}
@@ -209,6 +225,8 @@ export type HMBlockEmbed = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** How the target renders: its content, a card, its comments or a plain link. */
     view?: HMBlockEmbedView
   } & {[key: string]: unknown}
@@ -238,6 +256,8 @@ export type HMBlockFile = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** File size in bytes. */
     size?: number
     /** File name shown to readers. */
@@ -263,6 +283,8 @@ export type HMBlockHeading = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   } & {[key: string]: unknown}
 }
 
@@ -286,6 +308,8 @@ export type HMBlockImage = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Display width in pixels. */
     width?: number
     /** Original file name of the image. */
@@ -309,6 +333,8 @@ export type HMBlockMath = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   } & {[key: string]: unknown}
 }
 
@@ -355,6 +381,8 @@ export type HMBlockParagraph = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Id of the TableColumn block this cell belongs to; set only on cells inside a TableRow. */
     columnId?: string
   } & {[key: string]: unknown}
@@ -374,6 +402,8 @@ export type HMBlockQuery = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of card columns in the `Card` style (default 3). */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** How results are shown: `Card`, `List` or `Table`. */
     style?: HMQueryStyle
     /** The query to run: spaces and paths to include, sort and limit. */
@@ -399,6 +429,8 @@ export type HMBlockTable = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   }
 }
 
@@ -416,6 +448,8 @@ export type HMBlockTableColumn = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Column width in pixels. · minimum: 0 */
     width?: number
     /** Marks a header column; honored only on the first column. */
@@ -437,10 +471,20 @@ export type HMBlockTableRow = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Marks the header row; honored only on the first row. */
     isHeader?: boolean
   }
 }
+
+/**
+ * Text Alignment
+ * The horizontal alignment of a block's text: left, center, right or justify.
+ * Horizontal alignment of a block's text: `left` (the default, also when the key is absent), `center`, `right` or `justify`.
+ * Schema: hm://hyper.media/block/text-alignment
+ */
+export type HMBlockTextAlignment = 'left' | 'center' | 'right' | 'justify'
 
 /**
  * Video Block
@@ -458,6 +502,8 @@ export type HMBlockVideo = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Display width in pixels. */
     width?: number
     /** Original file name of the video. */
@@ -519,6 +565,8 @@ export type HMChange<Block = HMBlock> = HMBlob & {
   depth?: number
   /** The operations this Change applies to the document's content and metadata. */
   body?: HMChangeBody<Block>
+  /** Optional human-readable description of the Change, like a commit message; omitted when empty. */
+  message?: string
 }
 
 /**
@@ -1129,6 +1177,38 @@ export type HMExampleStatus = 'draft' | 'published' | 'archived'
 export type HMExampleTags = string[]
 
 /**
+ * Example: Task Document
+ * A document type for a task that shows property defaults: a new task starts as todo with priority 2, no tags and an unfinished checklist.
+ * A document type for a task, showing property defaults: the values a new task starts with.
+ * Schema: hm://hyper.media/example/task-doc
+ */
+export type HMExampleTaskDoc = {
+  /** Where the task stands. A new task starts as `todo`. · default: "todo" */
+  status: HMExampleTaskStatus
+  /** 1 is most urgent and 3 is least. A new task starts in the middle. · minimum: 1 · maximum: 3 · default: 2 */
+  priority?: number
+  /** Labels for the task. A new task starts with an empty list. · default: [] */
+  tags?: string[]
+  /** The steps of the task. It has no default of its own, so a new task builds it from the defaults of its fields. */
+  checklist: {
+    /** Whether every step is finished. · default: false */
+    done: boolean
+    /** The steps, in order. */
+    steps: string[]
+  }
+  /** The day the task is due. It has no default, so a new task leaves it out. */
+  due?: HMDate
+}
+
+/**
+ * Example: Task Status
+ * The state of a task: todo, doing, or done.
+ * The state of a task: `todo`, `doing` or `done`.
+ * Schema: hm://hyper.media/example/task-status
+ */
+export type HMExampleTaskStatus = 'todo' | 'doing' | 'done'
+
+/**
  * Example: Tree
  * A node holding an integer value and links to child nodes.
  * A tree node holding an integer value and links to child nodes, showing a self-referencing type.
@@ -1165,7 +1245,7 @@ export type HMExampleWorldDoc = {
 }
 
 /**
- * Resource URL
+ * Hypermedia URL
  * A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
  * A reference to a Hypermedia document as an `hm://` URL string — rendered as a searchable pill showing the target's title.
  * Schema: hm://hyper.media/hm-url
@@ -1212,10 +1292,10 @@ export type HMMetadata = {
   cover?: HMIpfsUrl
   /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
-  /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
+  /** The app environment a space is bound to, set on the home document: the server its agents run on. Read before `agentServerUrl`, the older name of the same binding. */
+  appEnvironmentUrl?: HMUrl
+  /** The app environment that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
-  /** Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind. */
-  spaceAgents?: {[key: string]: HMValue}
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl
   /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */
@@ -1236,6 +1316,12 @@ export type HMMetadata = {
   showOutline?: boolean
   /** Whether to show the document's activity and tools. */
   showActivity?: boolean
+  /** Whether readers may start and join conversations on the space's documents. Set on a space home document; absent means they may. */
+  showConversations?: boolean
+  /** Whether the sidebar with the space's document browser starts open when readers arrive; when false it starts collapsed and readers can still open it. Set on a space home document; absent means it starts open. */
+  showDocumentBrowser?: boolean
+  /** Whether collections offer readers search, filter, sort and view controls. Set on a space home document; absent means they do. */
+  showCollectionControls?: boolean
   /** Width of the content column: `S`, `M` or `L`. */
   contentWidth?: 'S' | 'M' | 'L'
   /** Layout of the document's root-level blocks, a block children type. */
@@ -1249,6 +1335,8 @@ export type HMMetadata = {
   importCategories?: string
   /** Comma-separated tags kept from an external import (e.g. WordPress). */
   importTags?: string
+  /** Resource type, for example hm://hyper.media/page for a custom HTML page. */
+  type?: HMHmUrl
 } & {[key: string]: HMValue}
 
 /**
@@ -1273,6 +1361,28 @@ export type HMMetadataNavigationItem = {
  * Schema: hm://hyper.media/none
  */
 export type HMNone = never
+
+/**
+ * Page
+ * A page is a document typed hm://hyper.media/page that carries an HTML bundle and an input schema, runs sandboxed in the viewer's client, and acts as the viewer under approvals the viewer gives step by step.
+ * Resource attributes for a custom HTML page, with a sandboxed HTML bundle and a published input contract.
+ * Schema: hm://hyper.media/page
+ */
+export type HMPage = {
+  type: 'hm://hyper.media/page'
+  /** UnixFS folder containing index.html for this custom HTML page. */
+  html: HMIpfsUrl
+  /** Published HM struct schema defining this page's URL input fields. */
+  inputSchema: HMUrl
+} & {[key: string]: HMValue}
+
+/**
+ * Page Input
+ * A page takes typed input from its URL, declared by the struct schema its inputSchema names, and this closed, empty struct is the default for a page that takes none.
+ * The empty input contract for a custom HTML page that accepts no URL parameters.
+ * Schema: hm://hyper.media/page-input
+ */
+export type HMPageInput = Record<string, never>
 
 /**
  * Principal
@@ -1422,7 +1532,7 @@ export type HMRole = 'WRITER' | 'AGENT'
 
 /**
  * Schema
- * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
+ * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, and the starting point for every page about Hypermedia Schemas.
  * The meta-schema: the union of every shape a schema can take, itself a valid instance of this type.
  * Schema: hm://hyper.media/schema
  */
@@ -1459,7 +1569,7 @@ export type HMSchemaAnyof = {
 }
 
 /**
- * Reference Schema
+ * Include schema
  * The variant for a reference, which is a bare include or, when it carries refinements, an extension.
  * A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension.
  * Schema: hm://hyper.media/schema/include-schema
@@ -1558,8 +1668,8 @@ export type HMSchemaMapSchema = {
 
 /**
  * Property
- * One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
- * One field of a struct: the schema its value must match, whether it is required, and what it is for.
+ * One field of a struct, holding its value schema, whether a value must include it, a description of what it is for, and the default a new value starts with.
+ * One field of a struct: the schema its value must match, whether it is required, what it is for, and the value a new struct starts with.
  * Schema: hm://hyper.media/schema/property
  */
 export type HMSchemaProperty = {
@@ -1569,6 +1679,8 @@ export type HMSchemaProperty = {
   required?: boolean
   /** What the field is for, for people and for the editors that show it. */
   description?: string
+  /** The value an editor writes into a new struct for this field. It must match `value`. It only initializes: a struct that lacks the field is not read as if it had this value. */
+  default?: unknown
 }
 
 /**

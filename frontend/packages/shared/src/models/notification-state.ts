@@ -3,6 +3,8 @@ import {
   markAllNotificationsReadInState,
   markNotificationEventReadInState,
   markNotificationEventUnreadInState,
+  markNotificationsReadInState,
+  notificationMatchesSite,
 } from './notification-read-logic'
 
 /** The persisted inbox window returned by the notify service. */
@@ -160,8 +162,15 @@ export function reduceNotificationState(
   }
 
   if (action.type === 'mark-site-read') {
-    // Site-scoped mark-all is resolved on the notify service using the full inbox.
-    return state
+    // The notify service resolves this against the full inbox. Locally, mark the loaded
+    // notifications of the site, so the change shows before the service confirms it.
+    return {
+      ...state,
+      readState: markNotificationsReadInState(
+        state.readState,
+        state.inbox.notifications.filter((notification) => notificationMatchesSite(notification, action.siteUid)),
+      ),
+    }
   }
 
   if (action.type === 'set-config') {

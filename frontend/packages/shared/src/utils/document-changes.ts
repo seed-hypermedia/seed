@@ -1,11 +1,34 @@
 import {Empty} from '@bufbuild/protobuf'
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMBlock,
+  HMBlockNode,
+  HMMetadata,
+  HMPrepareDocumentChangeInput,
+  HMQuery,
+} from '@seed-hypermedia/client/hm-types'
 import isEqual from 'lodash/isEqual'
 import {nanoid} from 'nanoid'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
+
+type PlainDocumentChange = HMPrepareDocumentChangeInput['changes'][number]
+
+/** Convert protobuf blocks (including Struct attributes) to plain API change payloads. */
+export function documentChangesToPlain(changes: (DocumentChange | PlainDocumentChange)[]): PlainDocumentChange[] {
+  return changes.map(({op}) => {
+    if (op.case === 'replaceBlock') {
+      return {
+        op: {
+          case: 'replaceBlock',
+          value: op.value instanceof Block ? op.value.toJson({emitDefaultValues: true}) : op.value,
+        },
+      } as PlainDocumentChange
+    }
+    return {op}
+  })
+}
 
 export type AttributeValueType = 'boolValue' | 'nullValue' | 'intValue' | 'stringValue'
 
@@ -559,6 +582,33 @@ export type RebaseClassification = {
   autoMergeable: boolean
   conflictedBlockIds: string[]
   plan: RebasePlan
+}
+
+/**
+ * Collect ids of blocks present in both trees whose block differs by `isBlocksEqual`.
+ *
+ * `isBlocksEqual` already normalizes editor defaults (e.g. `childrenType: 'Group'`
+ * on childless media/embed blocks), so an untouched image written outside the
+ * editor does not count as a change. These are the edits a publish diff would
+ * write, so a rebase must treat them as the user's even when persisted touch
+ * tracking (`mineTouchedIds`) missed them — for example a draft restored from
+ * disk whose touch list was incomplete.
+ */
+export function collectChangedBlockIds(base: HMBlockNode[], mine: HMBlockNode[]): string[] {
+  const baseMap = flattenBlocks(base)
+  const changed: string[] = []
+  const walk = (ns: HMBlockNode[]) => {
+    for (const n of ns) {
+      const id = n.block?.id
+      if (id) {
+        const baseBlock = baseMap.get(id)
+        if (baseBlock && !isBlocksEqual(baseBlock, n.block)) changed.push(id)
+      }
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(mine)
+  return changed
 }
 
 /**

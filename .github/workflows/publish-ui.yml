@@ -44,8 +44,6 @@ jobs:
 
       # Keep versions aligned with mise.toml and package.json#packageManager.
       - uses: pnpm/action-setup@v4
-        with:
-          version: '10.32.0'
 
       - uses: actions/setup-node@v4
         with:
@@ -79,6 +77,12 @@ jobs:
 
       - name: Test UI components
         run: pnpm --filter @shm/ui test
+
+      - name: Install Chromium for page parameter form tests
+        run: pnpm --filter @shm/ui exec playwright install chromium --with-deps
+
+      - name: Test page parameter form in the browser
+        run: pnpm --filter @shm/ui test:e2e e2e/tests/page-parameters.e2e.ts
 
       - name: Build and validate the exact release tarball in a clean npm consumer
         env:

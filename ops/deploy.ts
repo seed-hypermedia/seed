@@ -73,6 +73,8 @@ export const NOTIFY_SERVICE_HOST = 'https://hyper.media/hm/api/notify'
 export const DEFAULT_UPSTREAM_API_URL = 'https://hyper.media'
 /** Where the agents service answers on a site's own origin. */
 export const AGENTS_API_PATH = '/hm/api/agents'
+/** The app environment's path for the same service; routed alike so either spelling reaches it. */
+export const APPS_API_PATH = '/hm/api/apps'
 /** Where the notify service answers on a site's own origin. */
 export const NOTIFY_API_PATH = '/hm/api/notify'
 export const LIGHTNING_URL_MAINNET = 'https://ln.seed.hyper.media'
@@ -423,13 +425,23 @@ export function notifyHost(config: SeedConfig): string {
 }
 
 /**
- * Public base URL of the agents service, or '' when it is not deployed. It is
- * the site itself under /hm/api/agents; on an enterprise node that path sits
+ * Public base URL of the app environment, or '' when it is not deployed. It is
+ * the site itself under /hm/api/apps; on an enterprise node that path sits
  * behind the same sign-in gate, so agents are for members only.
  */
 export function agentsHost(config: SeedConfig): string {
   if (!config.agents) return ''
-  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`
+}
+
+/**
+ * Where clients reach the app server: the site itself under /hm/api/apps (Caddy
+ * routes it to seed-agents), or '' when it is not deployed. The app server names
+ * it as the `appEnvironmentUrl` of apps its agents run.
+ */
+export function appsPublicUrl(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`
 }
 
 /**
@@ -783,7 +795,12 @@ export async function detectOldInstall(shell: ShellRunner): Promise<OldInstallIn
 // Legacy / orphan container cleanup
 // ---------------------------------------------------------------------------
 
-/** Host ports the new compose stack publishes. Kept in sync with docker-compose.yml. */
+/**
+ * Host ports the compose stack publishes and takes over from earlier installs.
+ * Kept in sync with docker-compose.yml, except 143 (the daemon's second libp2p
+ * port, for networks that block 56000): a foreign container on 143 is a mail
+ * server, not a legacy Seed install, so it is never evicted.
+ */
 export const SEED_PUBLISHED_PORTS = [80, 443, 3000, 56000] as const
 
 /** Watchtower-style autoupdater images shipped by older installs. */
@@ -1263,7 +1280,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
         }),
       agents: () =>
         p.confirm({
-          message: 'Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)',
+          message: 'Run the agents service? (served at <your domain>/hm/api/apps; calls model providers)',
           initialValue: existing?.agents ?? false,
         }),
       email: () =>
@@ -1655,8 +1672,7 @@ async function runEnterpriseWizard(
         }),
       agents: () =>
         p.confirm({
-          message:
-            'Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)',
+          message: 'Run the agents service? (served at <your domain>/hm/api/apps, members only; calls model providers)',
           initialValue: existing?.agents ?? false,
         }),
       // The hosting service's email relay replaces the SMTP account; it is
@@ -1879,7 +1895,7 @@ function agentsWebhookBlock(config: SeedConfig): string {
   if (!config.agents) return ''
   return `\t@agents_webhook {
 \t\tmethod POST
-\t\tpath ${AGENTS_API_PATH}/webhooks/*
+\t\tpath ${AGENTS_API_PATH}/webhooks/* ${APPS_API_PATH}/webhooks/*
 \t}
 \thandle @agents_webhook {
 \t\treverse_proxy seed-agents:3050
@@ -1891,7 +1907,7 @@ function agentsWebhookBlock(config: SeedConfig): string {
 function agentsGatedBlock(config: SeedConfig): string {
   if (!config.agents) return ''
   return `
-\t@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+\t@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 \thandle @agents {
 \t\timport gate
 \t\treverse_proxy seed-agents:3050
@@ -2001,7 +2017,7 @@ export function generateCaddyfile(config: SeedConfig): string {
   if (isEnterprise(config)) return generateEnterpriseCaddyfile(config)
   // A public site: the agents service, when enabled, is open like the site.
   const agents = config.agents
-    ? `\n@agentsroute {\n\tpath ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*\n}\n\nreverse_proxy @agentsroute seed-agents:3050\n`
+    ? `\n@agentsroute {\n\tpath ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*\n}\n\nreverse_proxy @agentsroute seed-agents:3050\n`
     : ''
   return `{$SEED_SITE_HOSTNAME}
 
@@ -2044,14 +2060,14 @@ export async function checkContainersHealthy(shell: ShellRunner, config?: SeedCo
 }
 
 /**
- * True when the running seed containers are on the image tag from config.
+ * True when the running seed containers match the configured image refs.
  *
  * The "no changes" fast-path trusts compose_env_sha as a proxy for what's
  * actually deployed, but that hash can desync from reality: a rollback, a
  * manual `docker` change, or an interrupted deploy can leave containers on a
- * different tag while the stored hash still says the new config was applied.
+ * different image while the stored hash still says the new config was applied.
  * Without this check the fast-path skips forever and never reconciles the
- * running image tag with config.release_channel.
+ * running images with the configured refs.
  */
 export function containersMatchReleaseChannel(shell: ShellRunner, config: SeedConfig): boolean {
   for (const {container, expectedImage} of expectedServiceImages(config)) {
@@ -2366,6 +2382,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_NOTIFY_HOST = notifyHost(config)
     vars.SEED_AGENTS_HOST = agentsHost(config)
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config)
     vars.SEED_SMTP_HOST = config.smtp?.host ?? ''
     vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : '587'
     vars.SEED_SMTP_USER = config.smtp?.user ?? ''
@@ -2378,6 +2395,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     // hosted agents service) and existing sites' env hash does not change.
     vars.SEED_AGENTS_HOST = agentsHost(config)
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config)
   }
 
   const profiles = composeProfiles(config)
@@ -2617,7 +2635,7 @@ export async function deploy(
     containersOnConfiguredTag &&
     caddyfileCurrent
   ) {
-    // Compose and config unchanged, containers running the configured tag.
+    // Compose and config unchanged, containers running the configured image refs.
     // Check if remote images have been updated (e.g. CI pushed a new tag).
     step('Checking for new images...')
     const hasNewImages = await checkForNewImages(config, paths, shell)
@@ -2641,7 +2659,11 @@ export async function deploy(
     step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`)
   }
   if (containersHealthy && !containersOnConfiguredTag) {
-    step(`Running containers do not match release channel '${config.release_channel}' — redeploying to reconcile.`)
+    step(
+      `Running containers do not match the configured images (${expectedServiceImages(config)
+        .map((i) => `${i.container}=${i.expectedImage}`)
+        .join(', ')}) — redeploying to reconcile.`,
+    )
   }
 
   await ensureSeedDir(paths, shell)
@@ -2916,8 +2938,14 @@ export function clearSeedCron(shell: ShellRunner): void {
   shell.runSafe(`echo '${removeSeedCronLines(existing)}' | crontab -`)
 }
 
+/** Absolute path to the bun binary for cron/wrapper lines: PATH lookup, else the bun running this script. */
+export function resolveBunPath(shell: ShellRunner): string {
+  return shell.runSafe('command -v bun') || process.execPath
+}
+
+/** Install or update this node's seed-managed deployment and cleanup cron jobs. */
 export async function setupCron(paths: DeployPaths, shell: ShellRunner): Promise<void> {
-  const bunPath = shell.runSafe('which bun') ?? '/usr/local/bin/bun'
+  const bunPath = resolveBunPath(shell)
   const existing = shell.runSafe('crontab -l 2>/dev/null') ?? ''
   const newCrontab = buildCrontab(existing, paths, bunPath)
 
@@ -2931,6 +2959,77 @@ export async function setupCron(paths: DeployPaths, shell: ShellRunner): Promise
   } catch (err) {
     log(`Warning: Failed to install cron job: ${err}`)
   }
+}
+
+/**
+ * Migrate legacy seed cron lines during a headless deploy. setupCron only runs
+ * from the wizard or `seed-deploy cron`, so legacy installs otherwise keep
+ * their old schedule and script path forever.
+ */
+export async function migrateLegacyCron(
+  paths: DeployPaths,
+  shell: ShellRunner,
+  scriptPath: string = process.argv[1] || '',
+): Promise<void> {
+  const existing = shell.runSafe('crontab -l 2>/dev/null') ?? ''
+  const deployLine = existing.split('\n').find((line) => line.includes('# seed-deploy'))
+  if (!deployLine) return
+
+  if (
+    !deployLine.includes(`"${paths.seedDir}/deploy.js"`) &&
+    !deployLine.includes(` ${paths.seedDir}/deploy.js `) &&
+    !deployLine.includes(`--dir "${paths.seedDir}"`)
+  ) {
+    return
+  }
+
+  const bunPath = resolveBunPath(shell)
+  const updated = buildCrontab(existing, paths, bunPath)
+  if (JSON.stringify(extractSeedCronLines(existing)) === JSON.stringify(extractSeedCronLines(updated))) return
+
+  let copyNeeded = false
+  let copySucceeded = false
+  if (scriptPath !== DEPLOY_SCRIPT_PATH) {
+    let source: string | undefined
+    if (scriptPath.endsWith('deploy.js')) {
+      try {
+        source = await readFile(scriptPath, 'utf-8')
+      } catch {
+        // A missing running script can still use an already-installed deploy.js.
+      }
+    }
+    if (source !== undefined) {
+      let targetMatches = false
+      try {
+        targetMatches = sha256(await readFile(DEPLOY_SCRIPT_PATH, 'utf-8')) === sha256(source)
+      } catch {
+        // Missing or unreadable target scripts are replaced from the running copy.
+      }
+      if (!targetMatches) {
+        copyNeeded = true
+        const dir = dirname(DEPLOY_SCRIPT_PATH)
+        copySucceeded =
+          shell.runSafe(`mkdir -p "${dir}" && cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === 'ok'
+        if (!copySucceeded) {
+          copySucceeded =
+            shell.runSafe(
+              `sudo mkdir -p "${dir}" && sudo cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && sudo chown "$(id -u):$(id -g)" "${dir}" "${DEPLOY_SCRIPT_PATH}" && echo ok`,
+            ) === 'ok'
+        }
+      }
+    }
+  }
+
+  const scriptExists = shell.runSafe(`test -f "${DEPLOY_SCRIPT_PATH}" && echo ok`) === 'ok'
+  if ((copyNeeded && !copySucceeded) || !scriptExists) {
+    log(`WARNING: could not install deploy.js at ${DEPLOY_SCRIPT_PATH} — leaving the legacy cron untouched.`)
+    return
+  }
+
+  const oldSchedule = deployLine.trim().split(/\s+/).slice(0, 5).join(' ')
+  await setupCron(paths, shell)
+  installWrapper(paths, shell)
+  log(`Migrated legacy cron (${oldSchedule} → */10) to ${DEPLOY_SCRIPT_PATH}.`)
 }
 
 // ---------------------------------------------------------------------------
@@ -3189,7 +3288,7 @@ async function maybeStopOtherRunningNode(target: DeployPaths, shell: ShellRunner
  * isn't writable.
  */
 export function installWrapper(paths: DeployPaths, shell: ShellRunner): void {
-  const bunPath = shell.runSafe('command -v bun') ?? '/usr/local/bin/bun'
+  const bunPath = resolveBunPath(shell)
   const wrapper = '/usr/local/bin/seed-deploy'
   const content = `#!/bin/sh\nexec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"\n`
   const b64 = Buffer.from(content).toString('base64')
@@ -3295,6 +3394,13 @@ async function cmdDeploy(
     }
 
     log(`Seed deploy v${VERSION} — config found at ${paths.configPath}, running headless.`)
+    if (autoUpdates(existing)) {
+      try {
+        await migrateLegacyCron(paths, shell)
+      } catch (err) {
+        log(`WARNING: cron migration failed: ${err}`)
+      }
+    }
     await deploy(existing, paths, shell, false, bootstrap)
     return
   }

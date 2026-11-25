@@ -5,6 +5,7 @@
  *   bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]
  *   bun run src/sync-hypermedia.ts pull [--server <url>] [--space <uid>]
  *   bun run src/sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]
+ *   bun run src/sync-hypermedia.ts preflight
  *
  * This is `seed-cli space import / export / dev` (utils/space-sync.ts) with the
  * folder's own layout on top (see `layout` below): a tree of folders holding
@@ -23,6 +24,8 @@
  *       unchanged documents publish nothing.
  * pull: export every document of the space back into hypermedia/.
  * dev:  the local editing loop against the desktop dev app (see `space dev`).
+ * preflight: what a push would refuse to publish over, checked offline with no key (links, tree, CIDs).
+ *       check.mjs runs it, so a pull request fails on what would otherwise fail the release's publish.
  */
 
 import {spawnSync} from 'node:child_process'
@@ -30,18 +33,26 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
+import {createSeedClient, fileToIpfsBlobs, parseMarkdown, type HMSigner} from '@seed-hypermedia/client'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {encodeSchemaBlob, exportSpace, importSpace, retireMissing, type SpaceLayout} from './utils/space-sync'
+import {
+  checkLinks,
+  checkTree,
+  encodeSchemaBlob,
+  exportSpace,
+  importSpace,
+  retireMissing,
+  type ImportOptions,
+  type SpaceLayout,
+} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const DIR = dirname(fileURLToPath(import.meta.url)) // frontend/apps/cli/src
 const REPO_ROOT = resolve(DIR, '../../../..')
 const SCHEMAS_DIR = resolve(REPO_ROOT, 'hypermedia')
-const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
 /** Every schema file under `dir`, relative to it (`block/image.schema.json`), sorted. */
 function listSchemaFiles(dir: string): string[] {
@@ -88,6 +99,8 @@ export const layout: SpaceLayout = {
   },
   schemaFileFor: (mdFile) => mdFile.replace(/\.md$/, '.schema.json'),
   selfAuthority: LIBRARY_AUTHORITY,
+  // No page without a parent page, no parent without a card of each child (scripts/hypermedia/tree.mjs fixes cards).
+  requireChildCards: true,
   fileForLinkPath(path) {
     if (path === '') return 'index.md'
     return `${path.replace(/^\//, '')}.md`
@@ -97,33 +110,43 @@ export const layout: SpaceLayout = {
 // ── Schema blobs ──────────────────────────────────────────────────────────────
 
 /** Encode every schema file and verify it against the lockfile; the blobs to publish. */
-async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>> {
-  const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as {schemas: Record<string, string>}
-  const files = listSchemaFiles(SCHEMAS_DIR)
+export async function loadSchemaBlobs(dir = SCHEMAS_DIR): Promise<Array<{data: Uint8Array; cid: string}>> {
+  const lock = JSON.parse(readFileSync(resolve(dir, 'schemas.lock.json'), 'utf8')) as {schemas: Record<string, string>}
+  const files = listSchemaFiles(dir)
   const blobs: Array<{data: Uint8Array; cid: string}> = []
-  let mismatches = 0
+  const mismatches: string[] = []
   for (const file of files) {
     const basename = file.replace(/\.schema\.json$/, '')
-    const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
+    const obj = JSON.parse(readFileSync(resolve(dir, file), 'utf8'))
     const {data, cid} = await encodeSchemaBlob(obj)
     const lockUrl = `hm://${LIBRARY_AUTHORITY}/${basename}`
     const expected = lock.schemas[lockUrl]
     if (!expected) {
-      console.error(`  ! ${file}: no lockfile entry for ${lockUrl}`)
-      mismatches++
+      mismatches.push(`${file}: no lockfile entry for ${lockUrl}`)
     } else if (expected !== cid) {
-      console.error(`  ! ${file}: CID mismatch\n      computed ${cid}\n      lockfile ${expected}`)
-      mismatches++
+      mismatches.push(`${file}: CID mismatch\n      computed ${cid}\n      lockfile ${expected}`)
     }
     blobs.push({data, cid})
   }
-  if (mismatches > 0) {
-    console.error(
-      `\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`,
+  if (mismatches.length > 0) {
+    throw new Error(
+      `${mismatches.join('\n')}\n${
+        mismatches.length
+      } schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`,
     )
-    process.exit(1)
   }
   return blobs
+}
+
+/** Load the release's schemas and home icon, verifying that the metadata names the bundled image. */
+export async function loadPublicationBlobs(dir = SCHEMAS_DIR): Promise<Array<{data: Uint8Array; cid: string}>> {
+  const schemas = await loadSchemaBlobs(dir)
+  const icon = await fileToIpfsBlobs(readFileSync(resolve(dir, 'assets/HyperMedia_IconInverse.png')))
+  const {metadata} = parseMarkdown(readFileSync(resolve(dir, 'index.md'), 'utf8'))
+  if (metadata.icon !== `ipfs://${icon.cid}`) {
+    throw new Error(`Home icon CID mismatch: set index.md icon to ipfs://${icon.cid}`)
+  }
+  return [...schemas, ...icon.blobs]
 }
 
 /** Refresh the lockfile and the bundled registry after schema files changed. */
@@ -145,14 +168,21 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
-/** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
-async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
-  const blobs = await loadSchemaBlobs()
-  console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile.`)
+/** Add a staging label to the home document at publication time, keeping source metadata unchanged. */
+export function publicationMetadataFor(serverUrl: string): ImportOptions['metadataFor'] {
+  if (new URL(serverUrl).hostname !== 'staging.hyper.media') return undefined
+  return (file, metadata) => (file === 'index.md' ? {...metadata, name: `${metadata.name} [STAGING]`} : metadata)
+}
+
+/** Publish the schema and icon blobs, then import hypermedia/ into `account` on `client`. */
+async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
+  const client = createSeedClient(serverUrl)
+  const blobs = await loadPublicationBlobs()
+  console.log(`Publication blobs: ${blobs.length} encoded, schema and icon CIDs verified.`)
   if (!dryRun) {
     // One request per blob through the daemon's blob endpoint: a site's API may cap its request
     // bodies at a few KB (staging does, at 4 KB), and the daemon route carries file-sized bodies.
-    console.log(`Publishing ${blobs.length} schema blobs...`)
+    console.log(`Publishing ${blobs.length} schema and icon blobs...`)
     for (const blob of blobs) await client.putBlob(blob)
     console.log('  done.\n')
   }
@@ -163,6 +193,8 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dir: SCHEMAS_DIR,
     layout,
     dryRun,
+    metadataFor: publicationMetadataFor(serverUrl),
+    movedFromFor: movedDocsPaths,
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
@@ -184,6 +216,127 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     } updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
   )
   return result
+}
+
+/**
+ * Where each page lived before the knowledge base was regrouped (agent/, build/, operate/, contribute/,
+ * software/, and the concept pages app, trigger). Block ids identify a moved page on their own; this
+ * covers a page that has none, so the old address still becomes a redirect.
+ */
+const MOVED_FROM: Record<string, string> = {
+  'agent/actor': 'app-environment/actor',
+  'agent/attachment': 'app-environment/attachment',
+  'agent/batch-step': 'app-environment/batch-step',
+  'agent/brief': 'app-environment/brief',
+  'agent/call': 'app-environment/call',
+  'agent/child': 'app-environment/child',
+  'agent/continue-as-new': 'app-environment/continue-as-new',
+  'agent/contract': 'app-environment/contract',
+  'agent/datalab-importer': 'app-environment/datalab-importer',
+  'agent/delegate': 'app-environment/delegate',
+  'agent/durable-sessions': 'app-environment/durable-sessions',
+  'agent/effect-outbox': 'app-environment/effect-outbox',
+  'agent/firing': 'app-environment/firing',
+  'agent/glossary': 'app-environment/glossary',
+  'agent/grants': 'app-environment/grants',
+  'agent/guide': 'app-environment/guide',
+  'agent/how-it-works': 'app-environment/system-overview',
+  'agent/in-the-app': 'app-environment/desktop-ui',
+  'agent/journal': 'app-environment/journal',
+  'agent/log': 'app-environment/log',
+  'agent/mcp': 'app-environment/mcp',
+  'agent/model-providers': 'app-environment/model-providers',
+  'agent/park': 'app-environment/park',
+  'agent/plan': 'app-environment/plan',
+  'agent/promotion': 'app-environment/promotion',
+  'agent/prompt': 'app-environment/prompt-injection-map',
+  'agent/read': 'app-environment/read',
+  'agent/runs': 'app-environment/runs',
+  'agent/script': 'app-environment/script',
+  'agent/security': 'app-environment/security',
+  'agent/session-continuation': 'app-environment/session-continuation',
+  'agent/space': 'app-environment/space',
+  'agent/space-index': 'app-environment/space-index',
+  'agent/step': 'app-environment/step',
+  'agent/tool-document': 'app-environment/tool-document',
+  'agent/tools': 'app-environment/tools',
+  'agent/triggers': 'app-environment/triggers',
+  'agent/typed-result': 'app-environment/typed-result',
+  'agent/wake-source': 'app-environment/wake-source',
+  'agent/wrench-palette': 'app-environment/wrench-palette',
+  'agent/write': 'app-environment/write',
+  app: 'apps/apps-and-tools',
+  'build/custom-pages': 'apps/document-pages',
+  'build/signed-api': 'app-environment/signed-api',
+  'build/websocket-subscriptions': 'app-environment/websocket-subscriptions',
+  'contribute/contributing': 'build/contributing',
+  'contribute/development': 'app-environment/development',
+  'contribute/local-ci': 'build/local-ci',
+  'contribute/releasing': 'build/releasing',
+  'contribute/sentry': 'build/sentry',
+  'operate/environments': 'app-environment/environments',
+  'operate/operations': 'app-environment/operations',
+  'operate/persistence': 'app-environment/persistence',
+  'operate/self-hosting': 'build/self-hosting',
+  'operate/troubleshooting': 'app-environment/troubleshooting',
+  'schema/workflows': 'schema/user-stories',
+  software: 'apps',
+  'software/app-environment': 'apps/app-environment',
+  'software/cli': 'apps/cli',
+  'software/daemon': 'apps/daemon',
+  'software/desktop': 'apps/desktop',
+  'software/explorer': 'apps/explorer',
+  'software/mobile': 'apps/mobile',
+  'software/notify': 'apps/notify',
+  'software/vault': 'apps/vault',
+  'software/web': 'apps/web',
+  trigger: 'apps/triggers',
+}
+
+/** The addresses a page may have lived at before, most likely first, in the caller's path form. */
+export function movedDocsPaths(path: string): string[] {
+  const slash = path.startsWith('/') ? '/' : ''
+  const clean = path.replace(/^\//, '')
+  const from = MOVED_FROM[clean]
+  if (!from) return []
+  // Pages under app-environment/ lived under agent/ before that, which is where production may still hold them.
+  const older = from.startsWith('app-environment/') ? [`agent/${from.slice('app-environment/'.length)}`] : []
+  return [from, ...older].filter((p) => p !== clean).map((p) => slash + p)
+}
+
+/**
+ * Everything a push refuses to publish over that can be known without a key or a server: a schema
+ * or icon CID that does not match, a link that would break, a page outside the tree. These are the
+ * same functions the push calls, so a tree that passes here is not refused there for these reasons.
+ * The space is a placeholder: no rule depends on which account the tree is published to.
+ */
+export async function preflightProblems(dir = SCHEMAS_DIR): Promise<string[]> {
+  const problems: string[] = []
+  try {
+    await loadPublicationBlobs(dir)
+  } catch (err) {
+    problems.push((err as Error).message)
+  }
+  const opts = {account: PREFLIGHT_ACCOUNT, dir, layout} as ImportOptions
+  const prepared = new Map()
+  // A link is printed as the source wrote it where it can be: the placeholder space means nothing to a reader.
+  const shown = (link: string) => link.replace(`hm://${PREFLIGHT_ACCOUNT}`, `hm://${LIBRARY_AUTHORITY}`)
+  for (const b of checkLinks(opts, undefined, prepared))
+    problems.push(`${b.file}: broken link ${shown(b.link)} (${b.reason})`)
+  for (const v of checkTree(opts, prepared)) problems.push(`${v.file}: ${v.message}`)
+  return problems
+}
+
+const PREFLIGHT_ACCOUNT = 'z6MkpreflightPlaceholderSpaceNoDocumentIsPublishedHere'
+
+async function preflight() {
+  const problems = await preflightProblems()
+  if (problems.length) {
+    console.error(`${problems.length} problem(s) a push of hypermedia/ would be refused over:`)
+    for (const p of problems) console.error(`  ${p}`)
+    process.exit(1)
+  }
+  console.log('hypermedia/ is publishable: schema and icon CIDs match, no broken links, the tree is whole.')
 }
 
 /** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */
@@ -220,7 +373,7 @@ async function push(args: string[]) {
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
 
-  await pushTo(createSeedClient(serverUrl), signer, account, dryRun, args.includes('--keep-stale'))
+  await pushTo(serverUrl, signer, account, dryRun, args.includes('--keep-stale'))
   console.log(`Root: hm://${account}`)
 }
 
@@ -274,7 +427,7 @@ async function dev(args: string[]) {
         if (behind === 0) console.log(`The published site on ${server} matches this folder.`)
         else
           console.log(
-            `⚠ The published site on ${server} (hm://${key.accountId}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
+            `⚠ The published site on ${server} (hm://${key.accountId}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Production docs follow Seed releases. Keep edits in hypermedia/ and publish through the tagged release workflow; direct production edits are prohibited.`,
           )
       } catch (err) {
         console.log(`Could not compare with ${server}: ${(err as Error).message}`)
@@ -282,8 +435,8 @@ async function dev(args: string[]) {
     },
     layout,
     beforePush: async ({client}) => {
-      const blobs = await loadSchemaBlobs()
-      console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile. Publishing...`)
+      const blobs = await loadPublicationBlobs()
+      console.log(`Publication blobs: ${blobs.length} encoded, schema and icon CIDs verified. Publishing...`)
       await client.publish({blobs})
     },
     onWritten: (files) => {
@@ -302,11 +455,13 @@ async function main() {
   if (command === 'push') return push(args)
   if (command === 'pull') return pull(args)
   if (command === 'dev') return dev(args)
+  if (command === 'preflight') return preflight()
   console.error(
     [
       'usage: sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>]',
       '       sync-hypermedia.ts pull [--server <url>] [--space <uid>]',
       '       sync-hypermedia.ts dev  [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push]',
+      '       sync-hypermedia.ts preflight',
     ].join('\n'),
   )
   process.exit(2)

@@ -8,7 +8,7 @@
  */
 
 import type {RunInfo, RunPlan} from '@shm/ui/agents/client'
-import {isRunLive, resolvePinnedPlan, runStatusLabel, runStatusTone, sessionStatusTone} from '../session-status'
+import {isRunLive, resolvePinnedPlan, runStatusLabel, runStatusTone} from '../session-status'
 
 function makeRun(overrides: Partial<RunInfo> & Pick<RunInfo, 'id' | 'status'>): RunInfo {
   return {
@@ -46,12 +46,6 @@ describe('run status', () => {
     for (const status of ['succeeded', 'failed', 'canceled'] as const) {
       expect(isRunLive(status)).toBe(false)
     }
-  })
-
-  it('maps session statuses to their dots', () => {
-    expect(sessionStatusTone('streaming')).toBe('active')
-    expect(sessionStatusTone('error')).toBe('error')
-    expect(sessionStatusTone('idle')).toBe('idle')
   })
 })
 

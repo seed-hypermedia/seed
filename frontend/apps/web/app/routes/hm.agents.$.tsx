@@ -6,7 +6,8 @@ import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
+import {agentsRouteFromUrl} from '@/agents-routing'
+import {LoaderFunctionArgs, MetaFunction, redirect} from '@remix-run/node'
 import {MetaDescriptor} from '@remix-run/react'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 
@@ -25,6 +26,10 @@ export const meta: MetaFunction = ({data}) => {
 }
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
+  // Only an agent, a session, or a run has a page here; the agents index and server pages are gone,
+  // so anything else lands on the site home.
+  const url = new URL(request.url)
+  if (!agentsRouteFromUrl(url.pathname, url.searchParams)) throw redirect('/')
   const parsedRequest = parseRequest(request)
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, async () => {

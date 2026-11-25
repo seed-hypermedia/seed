@@ -1,4 +1,4 @@
-import {useAssistantAutoOpen} from '@/assistant-panel-state'
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -6,24 +6,28 @@ import {
   hmId,
   routeToUrl,
   useJoinSite,
-  useRouteLink,
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
 import {documentCreationMachine, inferDocumentSchema, resolveDocumentCreationDestination} from '@shm/shared'
 import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock, deriveDocumentType} from '@shm/shared/models/document-machine'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
-import {ButtonLink} from '@shm/ui/button'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {useAgentServerOptions} from '@shm/ui/agents/models'
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
+import {Button} from '@shm/ui/button'
+import {accountMenuContentClassName, AccountMenuIdentity, AccountMenuSection} from '@shm/ui/account-menu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +56,7 @@ import {cn} from '@shm/ui/utils'
 import {
   Bell,
   Bot,
+  ContactRound,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -60,12 +65,13 @@ import {
   Import as ImportIcon,
   Layers,
   LayoutList,
+  KeyRound,
   ListChecks,
   LogOut,
   Plus,
   Search,
   User,
-  UserCog,
+  SquarePen,
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -189,6 +195,7 @@ export function useWebCreateDocumentMenuItem({
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
   const client = useUniversalClient()
+  const createAgent = useWebCreateAgentAtLocation(locationId, signingAccountId, !locationId.path?.length)
 
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility, collection = false) => {
@@ -236,6 +243,16 @@ export function useWebCreateDocumentMenuItem({
           icon: <Grid3X3 className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
         },
+        ...(createAgent.open
+          ? [
+              {
+                key: 'new-agent',
+                label: 'Agent',
+                icon: <Bot className="size-4" />,
+                onClick: createAgent.open,
+              },
+            ]
+          : []),
         {
           key: 'import',
           label: 'Import Markdown File',
@@ -244,40 +261,65 @@ export function useWebCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreate, canCreateChildren, createDraft, signingAccountId])
+  }, [canCreate, canCreateChildren, createAgent.open, createDraft, signingAccountId])
 
   return {
     menuItem,
     content:
       canCreate && canCreateChildren && signingAccountId ? (
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".md,.markdown,text/markdown,text/plain"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
-            event.currentTarget.value = ''
-            if (!file) return
-            toast.promise(
-              createWebDocumentDraftFromMarkdownFile({
-                client,
-                file,
-                locationId,
-                signingAccountId,
-                capabilityCid,
-                navigate: (route) => navigate(route),
-              }),
-              {
-                loading: 'Importing Markdown…',
-                success: 'Markdown imported.',
-                error: 'Failed to import Markdown.',
-              },
-            )
-          }}
-        />
+        <>
+          {createAgent.content}
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (!file) return
+              toast.promise(
+                createWebDocumentDraftFromMarkdownFile({
+                  client,
+                  file,
+                  locationId,
+                  signingAccountId,
+                  capabilityCid,
+                  navigate: (route) => navigate(route),
+                }),
+                {
+                  loading: 'Importing Markdown…',
+                  success: 'Markdown imported.',
+                  error: 'Failed to import Markdown.',
+                },
+              )
+            }}
+          />
+        </>
       ) : null,
   }
+}
+
+/**
+ * Agent creation under `locationId` for the web New menus: `open` is undefined while no app environment
+ * is known (the deployment names none and the visitor has used none) or nobody is signed in, hiding the entry.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
+ */
+function useWebCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  signingAccountId: string | undefined,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
+): {open?: () => void; content: ReactNode} {
+  registerWebAgentsPlatform()
+  const dialog = useAppDialog(CreateAgentDialog)
+  const serverUrls = useAgentServerOptions()
+  const open = useMemo(() => {
+    if (!serverUrls?.length || !signingAccountId || !atHome || locationId.path?.length) return undefined
+    return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})
+  }, [atHome, dialog.open, locationId, serverUrls, signingAccountId])
+  return {open, content: dialog.content}
 }
 
 function WebActorCreateButton({
@@ -311,6 +353,7 @@ function WebActorCreateButton({
     parentIsCollection,
     canEditParent,
   })
+  const createAgent = useWebCreateAgentAtLocation(destination, signingAccountId, !locationId.path?.length)
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,
@@ -362,11 +405,13 @@ function WebActorCreateButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         importLabel="Import Markdown File"
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onCreateAgent={createAgent.open}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
         }}
       />
+      {createAgent.content}
       <input
         ref={inputRef}
         type="file"
@@ -455,6 +500,8 @@ export function WebDocumentCreateButton({
 
   if (loading) return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   if (!canEdit || !signingAccountId) return null
+  // Only documents and collections take children; an agent's page is the agent.
+  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
 
   return (
     <WebActorCreateButton
@@ -500,6 +547,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
   const {isJoined, isLoaded: contactsLoaded, joinSite} = useJoinSite({siteUid})
+  const capability = useSelectedAccountCapability(hmId(siteUid))
+  const accountRole = capability?.role
+    ? {owner: 'Owner', writer: 'Writer', agent: 'Agent', none: undefined}[capability.role]
+    : isJoined
+      ? 'Member'
+      : undefined
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const universalClient = useUniversalClient()
@@ -528,13 +581,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
-  // space's own agents only matter here for the first-arrival auto-open.
-  const siteAgents = useSiteAgents(siteUid)
-  const hasSiteAgents = !!siteAgents.serverUrl
-  // First arrival: a signed-in reader of a space that publishes agents finds the panel already
-  // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
-  useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
+  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle). The
+  // host offers the toggle only to a signed-in reader with an agent they can see in this space.
+  const assistantToggle = useAssistantPanelToggle()
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 
@@ -569,6 +618,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     return (
       <>
         <div className="flex items-center gap-2">
+          <NotifsButton signedIn={false} />
           <PlaceholderAvatar onClick={() => createAccount({source: 'login'})} />
           {isPendingSpace ? null : <JoinButton onClick={() => createAccount({source: 'join'})} />}
         </div>
@@ -599,10 +649,29 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})
   }
 
+  const accountHeader = (
+    <div className="flex items-center gap-3 px-4 py-4">
+      <AccountMenuIdentity
+        avatar={
+          <HMIcon
+            id={account?.id ?? hmId(accountId!, {latest: true})}
+            name={account?.metadata?.name}
+            icon={account?.metadata?.icon}
+            size={40}
+          />
+        }
+        name={account?.metadata?.name}
+        role={accountRole}
+        email={keyPair.emailPrevalidation?.email}
+      />
+    </div>
+  )
+
   const menuItems = (
     <>
+      <AccountMenuSection>Settings</AccountMenuSection>
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
         onClick={() => {
           if (accountId) {
             navigate({key: 'profile', id: hmId(accountId, {latest: true})})
@@ -610,22 +679,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           setMobileMenuOpen(false)
         }}
       >
-        <User className="size-5" />
-        <span className="text-sm">My Profile</span>
-      </button>
-      <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
-        onClick={() => {
-          navigate({key: 'agents'})
-          setMobileMenuOpen(false)
-        }}
-      >
-        <Bot className="size-5" />
-        <span className="text-sm">Agents</span>
+        <ContactRound className="size-4" />
+        <span className="text-sm">My profile</span>
       </button>
       <div className="bg-border mx-4 h-px" />
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
         onClick={() => {
           if (vaultAccountSettingsUrl) {
             window.open(vaultAccountSettingsUrl, '_blank')
@@ -634,8 +693,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         }}
         disabled={!vaultAccountSettingsUrl}
       >
-        <UserCog className="size-5" />
-        <span className="text-sm">Manage account</span>
+        <KeyRound className="size-4" />
+        <span className="text-sm">Manage accounts</span>
       </button>
       <WebSpaceSettingsMenuItem
         siteUid={siteUid}
@@ -645,56 +704,66 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           navigate({key: 'site-settings', id: hmId(siteUid)})
         }}
       />
+      <button
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
+        onClick={() => {
+          navigate({key: 'drafts'})
+          setMobileMenuOpen(false)
+        }}
+      >
+        <SquarePen className="size-4" />
+        <span className="text-sm">Drafts</span>
+      </button>
       {maintenance ? (
         <button
-          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+          className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
           aria-haspopup="dialog"
           onClick={() => {
             setMobileMenuOpen(false)
             if (accountMenuTriggerRef.current) maintenance.openDialog(accountMenuTriggerRef.current)
           }}
         >
-          <ListChecks className="size-5" />
+          <ListChecks className="size-4" />
           <span className="text-sm">Document maintenance</span>
         </button>
       ) : null}
-      <div className="bg-border mx-4 h-px" />
+      <div className="bg-border h-px" />
+      <AccountMenuSection>My sites</AccountMenuSection>
       {canCreateSpace ? (
         <button
-          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left text-green-600 dark:text-green-500"
+          className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left font-normal text-green-600 dark:text-green-500"
           onClick={() => {
             setMobileMenuOpen(false)
             openCreateSpaceDialog()
           }}
         >
-          <Plus className="size-5" />
-          <span className="text-sm">Create my space</span>
+          <Plus className="size-4" />
+          <span className="text-sm">Create new site</span>
         </button>
       ) : (
         <>
-          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My space</div>
           <button
-            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+            className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
             onClick={() => {
               setMobileMenuOpen(false)
               goToMySite()
             }}
           >
-            <Globe className="size-5" />
+            <Globe className="size-4" />
             <span className="flex-1 truncate text-sm">{mySiteLabel}</span>
             {mySiteUrl ? <ExternalLink className="text-muted-foreground size-4" /> : null}
           </button>
         </>
       )}
-      <div className="bg-border mx-4 h-px" />
+      <div className="bg-border h-px" />
       <button
-        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="text-destructive hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left font-normal"
         onClick={() => {
           setMobileMenuOpen(false)
           logoutDialog.open({})
         }}
       >
-        <LogOut className="size-5" />
+        <LogOut className="size-4" />
         <span className="text-sm">Log out</span>
       </button>
     </>
@@ -704,9 +773,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     <>
       {isMobile ? (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <button
             ref={accountMenuTriggerRef}
+            aria-label="Account menu"
+            aria-expanded={mobileMenuOpen}
             className="flex cursor-pointer rounded-full shadow-lg"
             onClick={() => setMobileMenuOpen(true)}
           >
@@ -714,29 +785,29 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           </button>
           {joinButton}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
-            <div className="flex items-center gap-3 px-4 py-4">
-              {avatarIcon}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
-              </div>
+            <div className="font-normal [&_svg]:stroke-[1.5]">
+              {accountHeader}
+              {menuItems}
             </div>
-            <div className="bg-border h-px" />
-            {menuItems}
           </MobilePanelSheet>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button ref={accountMenuTriggerRef} className="flex cursor-pointer rounded-full shadow-lg">
+              <button
+                ref={accountMenuTriggerRef}
+                aria-label="Account menu"
+                className="flex cursor-pointer rounded-full shadow-lg"
+              >
                 {avatarIcon}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               side="bottom"
               align="end"
-              className="min-w-[200px]"
+              className={accountMenuContentClassName}
               onCloseAutoFocus={(event) => {
                 if (!openMaintenanceOnMenuClose.current) return
                 openMaintenanceOnMenuClose.current = false
@@ -746,13 +817,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 }
               }}
             >
-              <div className="flex items-center gap-3 px-2 py-2">
-                {avatarIcon}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
-                </div>
-              </div>
-              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              {accountHeader}
+              <AccountMenuSection>Settings</AccountMenuSection>
               <DropdownMenuItem
                 onClick={() => {
                   if (accountId) {
@@ -760,12 +826,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   }
                 }}
               >
-                <User className="size-4" />
-                My Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-                <Bot className="size-4" />
-                Agents
+                <ContactRound className="size-4" />
+                My profile
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
@@ -775,8 +837,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 }}
                 disabled={!vaultAccountSettingsUrl}
               >
-                <UserCog className="size-4" />
-                Manage account
+                <KeyRound className="size-4" />
+                Manage accounts
               </DropdownMenuItem>
               <WebSpaceSettingsMenuItem
                 siteUid={siteUid}
@@ -784,6 +846,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   navigate({key: 'site-settings', id: hmId(siteUid)})
                 }}
               />
+              <DropdownMenuItem onSelect={() => navigate({key: 'drafts'})}>
+                <SquarePen className="size-4" />
+                Drafts
+              </DropdownMenuItem>
               {maintenance ? (
                 <DropdownMenuItem
                   aria-haspopup="dialog"
@@ -796,17 +862,17 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <AccountMenuSection>My sites</AccountMenuSection>
               {canCreateSpace ? (
                 <DropdownMenuItem
                   onClick={openCreateSpaceDialog}
-                  className="text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
+                  className="font-normal text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
                 >
                   <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create my space
+                  Create new site
                 </DropdownMenuItem>
               ) : (
                 <>
-                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My space</div>
                   <DropdownMenuItem onClick={goToMySite}>
                     <Globe className="size-4" />
                     <span className="flex-1 truncate">{mySiteLabel}</span>
@@ -815,7 +881,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 </>
               )}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+              <DropdownMenuItem className="font-normal" variant="destructive" onClick={() => logoutDialog.open({})}>
                 <LogOut className="size-4" />
                 Log out
               </DropdownMenuItem>
@@ -846,13 +912,17 @@ export function WebSitePageShell({children, siteUid}: {children?: ReactNode; sit
   )
 }
 
-function NotifsButton() {
-  const storedView = typeof window !== 'undefined' ? localStorage.getItem('seed-notifications-view') : null
-  const linkProps = useRouteLink({key: 'notifications', view: storedView === 'unread' ? 'unread' : undefined})
+// Toggles the space Activity panel, or collapses the full Activity page. It opens on To you, or on All updates for a
+// signed-out reader, who has no notifications but can still follow the space.
+function NotifsButton({signedIn}: {signedIn: boolean}) {
+  const tab = signedIn ? 'to-you' : 'all-updates'
   const route = useNavRoute()
-  const isActive = route.key === 'notifications'
+  const navigate = useNavigate()
+  const isActive = isActivityOpen(route)
   const {originHomeId} = useUniversalAppContext()
-  const siteUid = originHomeId?.uid
+  // Gateway pages (/hm/<uid>/...) belong to the space in their route, not to the gateway's own site.
+  const siteUid = getRouteSpaceUid(route) ?? originHomeId?.uid
+  const collapse = useCollapseActivity(hmId(siteUid), route.key === 'feed' ? route.tab : tab)
   const inbox = useWebNotificationInbox(siteUid)
   const readState = useWebNotificationReadState(siteUid)
 
@@ -870,16 +940,23 @@ function NotifsButton() {
   }, [inbox.data, readState.data])
 
   return (
-    <Tooltip content="Notifications" asChild>
-      <ButtonLink
+    <Tooltip content="Activity" asChild>
+      <Button
         className={cn(
           'relative h-8 rounded-full border-1 border-transparent p-0',
           isActive && 'dark:bg-muted bg-black/5',
         )}
         variant="ghost"
         size="icon"
-        aria-current={isActive ? 'page' : undefined}
-        {...linkProps}
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route, tab)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+          // Pages outside any space have no panel to open, so open the site's full Activity page.
+          else if (siteUid) navigate({key: 'feed', id: hmId(siteUid), tab})
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -888,7 +965,7 @@ function NotifsButton() {
             <span className="sr-only">{unreadCount} unread notifications</span>
           </>
         ) : null}
-      </ButtonLink>
+      </Button>
     </Tooltip>
   )
 }

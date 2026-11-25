@@ -3,7 +3,6 @@ import {SEED_HOST_URL} from '@shm/shared/constants'
 import z from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-// @ts-expect-error ignore import
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {seedClient, getSigner} from './app-client'
@@ -64,6 +63,7 @@ async function writeHostState(newState: HostState) {
   return undefined
 }
 
+/** Persists hosting credentials and pending domain operations across desktop windows. */
 export const hostApi = t.router({
   get: t.procedure.query(async () => {
     return state
@@ -91,6 +91,18 @@ export const hostApi = t.router({
         (move) => move.id !== input.id || move.hostUrl !== input.hostUrl,
       ),
     })
+  }),
+  expireSession: t.procedure.input(z.object({sessionToken: z.string()})).mutation(async ({input}) => {
+    // A delayed rejection from an old request must not clear a newer login.
+    if (state.sessionToken !== input.sessionToken) return state
+    await writeHostState({
+      ...state,
+      authVersion: state.authVersion + 1,
+      sessionToken: null,
+      pendingSessionToken: null,
+    })
+    appInvalidateQueries(['HOST_SITES'])
+    return state
   }),
   logout: t.procedure.mutation(async () => {
     const sessionToken = state.sessionToken

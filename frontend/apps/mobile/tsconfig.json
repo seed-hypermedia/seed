@@ -8,7 +8,7 @@
       "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
       "@shm/ui/agents/*": ["../../packages/ui/src/agents/*"],
-      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
+      "@seed-hypermedia/apps-protocol": ["../../../apps/protocol/src/index.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

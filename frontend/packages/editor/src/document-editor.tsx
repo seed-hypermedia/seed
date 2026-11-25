@@ -709,7 +709,12 @@ export function DocumentEditor({
   return (
     <RenderResourceProvider resource={{kind: 'document', id: resourceId}}>
       <FragmentActionsContext.Provider value={fragmentActionsValue}>
-        <BlockNoteView editor={editor} className="hm-prose draft-editor">
+        <BlockNoteView
+          editor={editor}
+          className="hm-prose draft-editor"
+          data-highlight-resource={resourceId.id}
+          data-publish-shortcut="allow"
+        >
           {/* Editing-only positioners — gated behind isEditing */}
           {editable && (
             <>
@@ -784,8 +789,8 @@ export function DocumentEditor({
             onPointerDown={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              focusEditorEnd()
             }}
+            onClick={focusEditorEnd}
           />
         )}
         {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}

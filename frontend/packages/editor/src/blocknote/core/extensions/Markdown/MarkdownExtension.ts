@@ -5,6 +5,9 @@ import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {MarkdownToBlocks} from './MarkdownToBlocks'
 
+// Tags that only show up in HTML rendered from structured content, not in syntax-highlighted source.
+const FORMATTED_HTML = /<(p|ul|ol|li|table|pre|h[1-6]|blockquote|img|strong|b|em|i|u|s|del|code|a|sup|sub|mark)\b/i
+
 function containsMarkdownSymbols(pastedText: string) {
   // Regex to detect unique Markdown symbols at the start of a line
   const markdownUniqueSymbols = new RegExp(
@@ -185,10 +188,9 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 selection.$from.parent.content.content.length > 0
               if (isInlineTextPaste) return false
 
-              const isRichHtml = /<(ul|ol|table|pre|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(pastedHtml)
-
-              // Prefer HTML handling when there are rich html tags
-              if (isRichHtml) return false
+              // HTML with formatting tags is already rendered, so its plain
+              // text has lost the structure and can't be read as Markdown.
+              if (FORMATTED_HTML.test(pastedHtml)) return false
 
               const isMarkdown = checkMarkdownSymbols(pastedText)
               if (!isMarkdown) return false

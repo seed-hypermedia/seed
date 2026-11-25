@@ -2,13 +2,27 @@
 name: Capability
 summary: "A signed grant from a space owner to another key: a role (WRITER or AGENT), an optional path scope, and nothing that expires or revokes it."
 ---
-A **capability** is the blob that lets someone other than the space owner write into a [space](./protocol/identity.md). The owner signs it, names the key that receives the grant (the `delegate`), picks a [role](./role.md), and optionally limits it to a path. Every node checks [Refs](./ref.md) against the capabilities it has stored, so the whole network enforces the grant. [Permissions](./protocol/permissions.md) has the full model, the exact authorization rule and a worked example. <!-- id:EoJZUC30 -->
+A **capability** is a signed grant. It lets a key other than the owner write into a [space](./protocol/spaces.md). The owner signs this [blob](./protocol/blobs.md), names the key that receives the grant (the `delegate`), picks a [role](./role.md), and can limit the grant to a path. Every node checks [Refs](./ref.md) against the capabilities it has stored, so the whole network enforces the grant. [Permissions](./protocol/permissions.md) has the full model, the exact rule and a worked example. <!-- id:EoJZUC30 -->
 
-The `signer` is both the issuer and the space. Only the space owner's key can sign a capability for that space, so a delegate cannot issue grants in it. Any delegate can still pass its authority one more hop by making another key its AGENT. `role` is `WRITER` (publish under the path and everything beneath it) or `AGENT` (act as the issuer; the path must be empty). `path` scopes by segment and is always recursive: a grant at `/team` covers `/team/notes` but not `/teammates`. `label` is a public, immutable note of at most 512 bytes. `audience` appears only on the short-lived, unstored capabilities that peers and HTTP clients sign to prove they hold an account. A stored grant never sets it. <!-- id:Q9nzk6HJ -->
+# Fields
 
-There is no expiry and no revocation. A capability that names a Ref's signer gives the same result whether it arrives before that Ref or after it: the daemon stashes an unauthorized Ref and retries it when a capability naming its signer is indexed. A late grant one hop up an AGENT chain names a different key and does not trigger that retry. An AGENT delegate inherits the issuer's own space and the issuer's direct grants elsewhere for exactly one hop. <!-- id:bbIv8daq -->
+A capability has these fields. `type`, `signer`, `sig` and `ts` are the signed [blob](./blob.md) envelope. The `signer` is both the issuer and the space.
 
-Create one with `seed-cli capability create --delegate <uid> --role WRITER --path /team` in the [CLI](./build/cli.md), with `createCapability` in the [SDK](./build/sdk.md), from a document's Collaborators view in the [Seed app](./apps/desktop.md), or with the agent [write](./agent/write.md) action `capability.grant`. <!-- id:jBYfdmtC -->
+<!-- id:FvURpw93 -->
+| Field <!-- col:XkxACv2l --> | Required <!-- col:Jiy7LkFM --> | Meaning <!-- col:Ws3UCr0G --> <!-- id:RMOQ2SHF --> |
+| --- | --- | --- |
+| `type` | yes | `"Capability"` <!-- id:YOuEerbW --> |
+| `signer` | yes | the issuer, which is always the space owner <!-- id:ATxFH84v --> |
+| `sig`, `ts` | yes | signature and issue time; the time is recorded but never compared with anything <!-- id:-sDGilAw --> |
+| `delegate` | yes | the [principal](./principal.md) receiving the grant <!-- id:SI8uxynk --> |
+| `role` | yes | `WRITER` or `AGENT` <!-- id:2z-SPqs8 --> |
+| `path` | no | the scope; empty means the whole space <!-- id:jkOaP3w6 --> |
+| `label` | no | a public, immutable note of at most 512 bytes <!-- id:D-mFB2aE --> |
+| `audience` | no | used only by ephemeral authentication capabilities, never on stored grants <!-- id:BgEzfNch --> |
+
+`path` limits the grant by whole path segments, and always covers everything under it. A grant at `/team` covers `/team/notes` but not `/teammates`. An `AGENT` capability must have an empty path. The role name does not mean an AI [agent](./agent.md). `audience` appears only on short-lived capabilities that are never stored. Peers and HTTP clients sign those to prove they hold an account. <!-- id:Q9nzk6HJ -->
+
+A capability does not expire, and nothing revokes it. [Permissions](./protocol/permissions.md) explains the authorization rule, the one-hop AGENT chain, and what happens to a Ref that arrives before its grant. <!-- id:bbIv8daq -->
 
 # See also <!-- id:JzIvRXS3 -->
 

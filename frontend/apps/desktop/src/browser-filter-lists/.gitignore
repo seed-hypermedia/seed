@@ -1,0 +1,2 @@
+# Upstream list text is a build input for scripts/build-browser-filters.mjs; only engine.json ships.
+*.txt

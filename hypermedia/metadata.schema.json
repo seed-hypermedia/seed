@@ -37,20 +37,17 @@
       },
       "description": "The web address a space is published at; set on the home document when a site is registered."
     },
+    "appEnvironmentUrl": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "The app environment a space is bound to, set on the home document: the server its agents run on. Read before `agentServerUrl`, the older name of the same binding."
+    },
     "agentServerUrl": {
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "description": "The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers."
-    },
-    "spaceAgents": {
-      "value": {
-        "type": "hm://hyper.media/map",
-        "values": {
-          "type": "hm://hyper.media/value"
-        }
-      },
-      "description": "Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind."
+      "description": "The app environment that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`."
     },
     "attributesSchema": {
       "value": {
@@ -119,6 +116,24 @@
       },
       "description": "Whether to show the document's activity and tools."
     },
+    "showConversations": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether readers may start and join conversations on the space's documents. Set on a space home document; absent means they may."
+    },
+    "showDocumentBrowser": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether the sidebar with the space's document browser starts open when readers arrive; when false it starts collapsed and readers can still open it. Set on a space home document; absent means it starts open."
+    },
+    "showCollectionControls": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether collections offer readers search, filter, sort and view controls. Set on a space home document; absent means they do."
+    },
     "contentWidth": {
       "value": {
         "anyOf": [
@@ -163,6 +178,12 @@
         "type": "hm://hyper.media/string"
       },
       "description": "Comma-separated tags kept from an external import (e.g. WordPress)."
+    },
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/hm-url"
+      },
+      "description": "Resource type, for example hm://hyper.media/page for a custom HTML page."
     }
   },
   "values": {

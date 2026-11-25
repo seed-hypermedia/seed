@@ -1,10 +1,41 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {resolveHypermediaUrl} from './hm-resolver'
+import {resolveHypermediaUrl, resolveId} from './hm-resolver'
 
 describe('resolveHypermediaUrl', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('resolves domain-based HM references through the cached domain resolver', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const domainResolver = vi.fn(async () => ({registeredAccountUid: 'z6MksiteUid', isGateway: true}))
+    const result = await resolveId('hm://hyper.media/agent/guide?v=version-1#intro[2:5]', {domainResolver})
+    expect(domainResolver).toHaveBeenCalledWith('hyper.media')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      id: 'hm://z6MksiteUid/agent/guide',
+      uid: 'z6MksiteUid',
+      path: ['agent', 'guide'],
+      version: 'version-1',
+      latest: false,
+      blockRef: 'intro',
+      blockRange: {start: 2, end: 5},
+    })
+  })
+
+  it('resolves HM domains through HTTPS OPTIONS when not cached and fails unresolved aliases', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response('', {status: 200, headers: {'x-hypermedia-id': 'hm://z6MksiteUid/agent/guide'}}),
+      )
+      .mockResolvedValueOnce(new Response('', {status: 404}))
+    await expect(resolveId('hm://hyper.media/agent/guide')).resolves.toMatchObject({uid: 'z6MksiteUid'})
+    expect(fetchMock).toHaveBeenCalledWith('https://hyper.media/agent/guide', {method: 'OPTIONS'})
+    await expect(resolveId('hm://missing.example/doc')).rejects.toThrow(
+      'does not appear to be a Seed Hypermedia resource',
+    )
   })
 
   it('distinguishes ordinary successful web responses from failed resolution in strict mode', async () => {

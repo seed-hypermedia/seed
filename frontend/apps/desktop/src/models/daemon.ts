@@ -228,6 +228,11 @@ export function useVaultEmail(opts?: {enabled?: boolean}) {
     },
     enabled: opts?.enabled ?? true,
     staleTime: 0,
+    // The remote vault can be unreachable (device offline) even while the
+    // daemon reports CONNECTED. Keep the error local so a failed email fetch
+    // surfaces as `isError` instead of throwing into the app-wide ErrorBoundary
+    // and replacing the whole UI.
+    useErrorBoundary: false,
   })
 }
 
@@ -277,6 +282,9 @@ export function useVaultPasswordStatus(opts?: {enabled?: boolean}) {
     },
     enabled: opts?.enabled ?? true,
     staleTime: 0,
+    // See useVaultEmail: keep an offline remote-vault failure local rather than
+    // throwing into the app-wide ErrorBoundary.
+    useErrorBoundary: false,
   })
 }
 

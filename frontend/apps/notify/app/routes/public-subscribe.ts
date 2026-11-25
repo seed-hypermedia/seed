@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Public subscribe error:', error)
     if (error instanceof z.ZodError) {
-      return corsJson({error: 'Invalid request data', details: error.errors}, {status: 400})
+      return corsJson({error: 'Invalid request data', details: error.issues}, {status: 400})
     }
     return corsJson({error: 'Internal server error'}, {status: 500})
   }

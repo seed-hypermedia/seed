@@ -23,10 +23,10 @@ export function checkPasswordStrength(password: string): number {
   return 2
 }
 
-const strengthConfig: Record<number, string> = {
-  0: 'w-1/3 bg-destructive',
-  1: 'w-2/3 bg-yellow-500',
-  2: 'w-full bg-green-500',
+const strengthConfig: Record<number, {className: string; scaleX: number}> = {
+  0: {className: 'bg-destructive', scaleX: 1 / 3},
+  1: {className: 'bg-yellow-500', scaleX: 2 / 3},
+  2: {className: 'bg-green-500', scaleX: 1},
 }
 
 /**
@@ -52,6 +52,7 @@ export function PasswordInput({
 }) {
   const [showPassword, setShowPassword] = useState(false)
   const strength = showStrength ? checkPasswordStrength(value) : 0
+  const {className: strengthBarClass, scaleX: strengthScaleX} = strengthConfig[strength]!
 
   return (
     <div className="flex flex-col gap-2">
@@ -87,7 +88,10 @@ export function PasswordInput({
       </div>
       {showStrength && value ? (
         <div className="mt-1 h-1 overflow-hidden rounded-sm bg-black/10 dark:bg-white/10">
-          <div className={`h-full transition-all duration-300 ${strengthConfig[strength]}`} />
+          <div
+            className={`h-full w-full origin-left transition-[transform,background-color] duration-300 ${strengthBarClass}`}
+            style={{transform: `scaleX(${strengthScaleX})`}}
+          />
         </div>
       ) : null}
     </div>

@@ -8,6 +8,7 @@ import type {
   HMSigner,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import type {DocumentChange} from './client/.generated/documents/v3alpha/documents_pb'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 import type {
@@ -24,7 +25,7 @@ import type {
 export type PublishDocumentInput = {
   account: string
   signerAccountUid: string
-  changes: HMPrepareDocumentChangeInput['changes']
+  changes: (HMPrepareDocumentChangeInput['changes'][number] | DocumentChange)[]
   path?: string
   baseVersion?: string
   genesis?: string
@@ -54,6 +55,8 @@ export type DiscoveryService = {
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
+  /** Writable roots delegated to this identity, including path-scoped grants. */
+  listWritableLocations?: (accountUid: string) => Promise<UnpackedHypermediaId[]>
   /** Lists published documents not referenced by their immediate published parent. */
   listUnreferencedDocuments?: (
     request: {siteAccount: string; pageSize: number; pageToken: string},
@@ -102,6 +105,15 @@ export type UniversalClient = {
     /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
     scope?: 'all' | 'profile'
   }) => () => void
+
+  /**
+   * Keep the queries that show a resource (with `recursive`, its directory) fresh where the app
+   * has no feed of its own invalidating them: on the web, over the server's change stream.
+   * `onLive` is told when the signal starts and stops covering the resource (it starts out not
+   * live), so a caller polls only meanwhile. Returns how to stop. Call it from the browser, for
+   * data actually kept on screen: each tab holds one open connection while anything is watched.
+   */
+  watchChanges?: (opts: {id: UnpackedHypermediaId; recursive?: boolean}, onLive: (live: boolean) => void) => () => void
 
   // Discovery state tracking (desktop only - undefined on web)
   discovery?: DiscoveryService

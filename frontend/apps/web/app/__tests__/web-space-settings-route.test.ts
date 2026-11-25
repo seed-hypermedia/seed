@@ -107,10 +107,12 @@ describe('space settings page routing', () => {
   })
   it.each([
     [':settings', 'gateway', undefined],
+    [':settings/general', 'gateway', 'general'],
     [':settings/identity', 'gateway', 'identity'],
     [':settings/navigation', 'gateway', 'navigation'],
     [':settings/web-domain', 'gateway', 'web-domain'],
     ['hm/owner/:settings', 'owner', undefined],
+    ['hm/owner/:settings/general', 'owner', 'general'],
     ['hm/owner/:settings/identity', 'owner', 'identity'],
     ['hm/owner/:settings/navigation', 'owner', 'navigation'],
     ['hm/owner/:settings/web-domain', 'owner', 'web-domain'],

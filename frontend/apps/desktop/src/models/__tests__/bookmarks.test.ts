@@ -25,6 +25,23 @@ describe('bookmarkItemsFromStored', () => {
     })
   })
 
+  it("keeps a mounted agent's view so the bookmark reopens it", () => {
+    expect(bookmarkItemsFromStored([{url: 'hm://space/helper/:session/s-1'}])[0]).toMatchObject({
+      key: 'document',
+      id: {uid: 'space', path: ['helper']},
+      agentView: 'session',
+      agentSessionId: 's-1',
+    })
+    expect(bookmarkItemsFromStored([{url: 'hm://space/helper/:memory?file=notes%2Ftodo.md'}])[0]).toMatchObject({
+      agentView: 'memory',
+      agentMemoryPath: 'notes/todo.md',
+    })
+    expect(bookmarkItemsFromStored([{url: 'hm://space/helper/:settings/prompt'}])[0]).toMatchObject({
+      agentView: 'prompt',
+    })
+    expect(bookmarkItemsFromStored([{url: 'hm://space/document'}])[0]).not.toHaveProperty('agentView')
+  })
+
   it('keeps existing URL-only bookmarks compatible', () => {
     expect(bookmarkItemsFromStored([{url: 'hm://space/document'}])[0]).toMatchObject({
       key: 'document',

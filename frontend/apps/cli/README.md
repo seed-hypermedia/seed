@@ -25,8 +25,8 @@ seed-cli search "first note"
 seed-cli key list                                        # keys in the Seed app's vault and in the keyring
 ```
 
-Every write takes `-k <key>`; without it the default key signs. Writing into a space you do not own takes
-`-a <uid>` and a capability from its owner. `seed-cli <group> --help` lists a group's subcommands.
+Every write takes `-k <key>`; without it the default key signs. Writing into a space you do not own takes `-a <uid>` and
+a capability from its owner. `seed-cli <group> --help` lists a group's subcommands.
 
 ## Documentation
 
@@ -34,14 +34,14 @@ The reference lives in the Seed docs, published from the `hypermedia/` folder of
 
 - [CLI reference](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/cli.md): every command, flag,
   environment variable, and the output conventions
-- [Keys](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/keys.md): the vault, the keyring, `.hmkey.json`
-  files, headless machines and bot keys
-- [Publish a folder](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/publish-a-folder.md): the `space`
-  commands and the lossless markdown dialect
+- [Keys](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/keys.md): the vault, the keyring,
+  `.hmkey.json` files, headless machines and bot keys
+- [Publish a folder](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/publish-a-folder.md): the
+  `space` commands and the lossless markdown dialect
 - [Seed API](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/web-api.md) and
   [SDK](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/sdk.md): what the CLI calls and builds on
-- [The Seed CLI](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/apps/cli.md): the contributor's map of this
-  package
+- [The Seed CLI](https://github.com/seed-hypermedia/seed/blob/main/hypermedia/software/cli.md): the contributor's map of
+  this package
 
 ## Development
 

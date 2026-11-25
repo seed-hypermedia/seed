@@ -1,0 +1,733 @@
+import type * as api from '@/api'
+import {packBaseId, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import {extractViewTermFromUrl} from '@shm/shared/utils/entity-id-url'
+
+/** Activity event shape returned by the HM ActivityFeed API. */
+export type ActivityFeedEvent = Record<string, unknown>
+
+/** Returns a stable idempotency key for an HM activity event, when one can be derived safely. */
+export function activityEventKey(event: ActivityFeedEvent): string | null {
+  const feedEventId = stringField(event, 'feedEventId')
+  if (feedEventId) return feedEventId
+  const id = stringField(event, 'id')
+  const type = stringField(event, 'type')
+  if (id && type) return `${type}-${id}`
+  const blob = activityEventBlob(event)
+  if (blob) {
+    const cid = stringField(blob, 'cid')
+    if (cid && cid !== 'undefined') return `blob-${cid}`
+    const blobId = stringField(blob, 'blobId') || stringField(blob, 'blob_id')
+    if (blobId) return `blob-id-${blobId}`
+  }
+
+  const mention = activityEventMention(event)
+  if (mention) {
+    const sourceBlob = recordField(mention, 'sourceBlob') || recordField(mention, 'source_blob')
+    const cid = sourceBlob ? stringField(sourceBlob, 'cid') : undefined
+    const target = stringField(mention, 'target')
+    const mentionType = stringField(mention, 'mentionType') || stringField(mention, 'mention_type')
+    if (cid && cid !== 'undefined' && target) return `mention-${cid}-${mentionType || ''}-${target}`
+  }
+
+  return null
+}
+
+/**
+ * Returns the idempotency key used to deduplicate `trigger_firings` for an activity event.
+ *
+ * A single comment that @mentions an account produces TWO sibling events from `/api/ListEvents`: a
+ * `comment` event (`feedEventId: blob-<cid>`) and a `citation` event (`feedEventId: mention-<cid>--<target>`).
+ * Both carry the *same* origin CID — the comment version. They are indexed a few seconds apart, so the
+ * monitor can see them in different polls and the staleness watermark can drop whichever arrives second.
+ * To make the mention fire exactly once regardless of which sibling is processed first (and survive the
+ * other being dropped), we collapse the citation onto its comment sibling's `blob-<cid>` identity here.
+ *
+ * Comment events keep their natural `blob-<cid>` key, so non-mention activity (document comments, site
+ * updates) and existing firing keys are unchanged. Falls back to {@link activityEventKey} for shapes
+ * with no recognizable comment CID.
+ */
+export function activityFiringKey(event: ActivityFeedEvent): string | null {
+  const mention = activityEventMention(event)
+  const origin = mention && (recordField(mention, 'sourceBlob') || recordField(mention, 'source_blob'))
+  const originCid = origin && stringField(origin, 'cid')
+  if (originCid && originCid !== 'undefined') return `blob-${originCid}`
+  const key = activityEventKey(event)
+  if (!key) return null
+  if (key.startsWith('mention-')) {
+    const rest = key.slice('mention-'.length)
+    const separatorIndex = rest.indexOf('--')
+    // The CID precedes the first `--` in both the resolved citation form (`mention-<cid>--<target>`)
+    // and the raw `newMention` fallback (`mention-<cid>-<type>-<target>`). Collapsing onto `blob-<cid>`
+    // unifies the citation with the comment event that shares the same comment-version CID.
+    if (separatorIndex > 0) return `blob-${rest.slice(0, separatorIndex)}`
+  }
+  return key
+}
+
+/** Canonicalizes a user-entered HM document/resource URL for exact trigger matching. */
+export function canonicalizeResourceId(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol === 'hm:') {
+      const path = canonicalPath(url.pathname)
+      return `hm://${url.hostname}${path}`
+    }
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      const parts = url.pathname.split('/').filter(Boolean)
+      const hmIndex = parts.indexOf('hm')
+      if (hmIndex >= 0 && parts[hmIndex + 1]) {
+        const uid = decodeURIComponent(parts[hmIndex + 1]!)
+        const pathParts = parts.slice(hmIndex + 2).filter((part) => !part.startsWith(':'))
+        return `hm://${uid}${canonicalPath(pathParts.map(decodeURIComponent).join('/'))}`
+      }
+    }
+  } catch {
+    // Fall through and apply lightweight query/hash stripping below.
+  }
+  const [withoutHash] = trimmed.split('#', 1)
+  const [withoutQuery] = (withoutHash || trimmed).split('?', 1)
+  return withoutQuery?.replace(/\/+$/u, '') || trimmed
+}
+
+/**
+ * Does this activity event match these criteria? Every present field must match; an empty criteria
+ * object matches nothing (a rule that matches everything is never what someone meant).
+ *
+ * The one place that answers this question. A run parked on `ctx.waitForEvent({eventType, resource,
+ * author})` and a trigger watching a document are asking the same thing, and they must not answer
+ * it two slightly different ways — resource comparison in particular is subtle (versions, queries,
+ * and trailing slashes all have to fall away).
+ */
+export function matchesActivityCriteria(
+  criteria: {eventType?: string; resource?: string; author?: string},
+  event: ActivityFeedEvent,
+): boolean {
+  const {eventType, resource, author} = criteria
+  if (eventType === undefined && resource === undefined && author === undefined) return false
+  if (eventType !== undefined && stringField(event, 'type') !== eventType) return false
+  if (author !== undefined && stringField(event, 'author') !== author) return false
+  if (resource !== undefined) {
+    const eventResource = stringField(event, 'resource') ?? stringField(event, 'id')
+    if (!eventResource) return false
+    if (canonicalizeResourceId(eventResource) !== canonicalizeResourceId(resource)) return false
+  }
+  return true
+}
+
+/** Who is asking whether an event matches: what the matcher knows about the trigger's own agent. */
+export type TriggerMatchContext = {
+  /**
+   * Account uids the trigger's agent signs as. A `site-update` source skips activity these accounts
+   * authored (unless it sets `includeOwnActivity`), so an agent writing under a prefix it watches
+   * does not start itself again. Omitted, nothing is treated as the agent's own.
+   */
+  ownAccounts?: readonly string[]
+}
+
+/** Returns true when an HM activity event matches a saved agent trigger source. */
+export function activityMatchesTriggerSource(
+  source: api.AgentTriggerSource,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext = {},
+): boolean {
+  if (source.type === 'activity') {
+    return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event, context))
+  }
+  if (source.type === 'document-comment') return matchesDocumentComment(source, event)
+  if (source.type === 'user-mention') return matchesUserMention(source, event, context)
+  if (source.type === 'comment-reply') return matchesCommentReply(source, event, context)
+  if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event, context)
+  if (source.type === 'site-update') return matchesSiteUpdate(source, event, context)
+  return false
+}
+
+/** Returns the best event timestamp in milliseconds, or null if the feed did not provide one. */
+export function activityEventTimeMs(event: ActivityFeedEvent): number | null {
+  const eventAtMs = numberField(event, 'eventAtMs')
+  if (eventAtMs !== undefined) return eventAtMs
+  const loadedTime = timestampMs(event.time)
+  if (loadedTime !== null) return loadedTime
+  const eventTime = timestampMs(event.eventTime)
+  const observeTime = timestampMs(event.observeTime)
+  if (eventTime !== null && observeTime !== null) return Math.max(eventTime, observeTime)
+  return eventTime ?? observeTime
+}
+
+/** Returns compact non-content metadata useful for observing trigger matching. */
+export function activityDebugInfo(event: ActivityFeedEvent): Record<string, unknown> {
+  const blob = activityEventBlob(event)
+  const mention = activityEventMention(event)
+  return {
+    key: activityEventKey(event),
+    type: stringField(event, 'type') || eventDataCase(event),
+    timeMs: activityEventTimeMs(event),
+    blobType: blob ? stringField(blob, 'blobType') || stringField(blob, 'blob_type') : undefined,
+    resource: blob ? stringField(blob, 'resource') : undefined,
+    mentionTarget: mention ? stringField(mention, 'target') : undefined,
+    mentionSource: mention
+      ? stringField(mention, 'source') ||
+        stringField(mention, 'sourceDocument') ||
+        stringField(mention, 'source_document')
+      : undefined,
+  }
+}
+
+/** Creates a compact human-readable activity summary for trigger-created session titles and UI. */
+export function activitySummary(event: ActivityFeedEvent): string {
+  const blob = activityEventBlob(event)
+  if (blob) {
+    const blobType = stringField(blob, 'blobType') || stringField(blob, 'blob_type') || 'activity'
+    const resource = stringField(blob, 'resource')
+    return resource ? `${blobType} on ${resource}` : blobType
+  }
+  const mention = activityEventMention(event)
+  if (mention) {
+    const target = stringField(mention, 'target') || 'unknown target'
+    const source = stringField(mention, 'source')
+    return source ? `Mention of ${target} from ${source}` : `Mention of ${target}`
+  }
+  const type = stringField(event, 'type')
+  // A document attribute naming the target (owner, maintainer…), which the feed resolves as a
+  // document citation carrying the attribute key.
+  const metadataKey = type === 'citation' ? stringField(event, 'metadataKey') : undefined
+  if (metadataKey) {
+    const sourceRecord = recordField(event, 'source')
+    const sourceId = sourceRecord ? recordField(sourceRecord, 'id') : null
+    const sourceHref = sourceId ? stringField(sourceId, 'id') : undefined
+    return `Named as ${metadataKey} of ${sourceHref || 'a document'}`
+  }
+  // Resolved feed events (the shape /api/ListEvents returns) carry the comment itself: say whether
+  // it is a reply and where, instead of the bare event type ("citation").
+  const comment = recordField(event, 'comment')
+  if (comment && (type === 'comment' || type === 'citation')) {
+    const isReply = !!(stringField(comment, 'replyParent') || stringField(comment, 'threadRoot'))
+    const label = type === 'citation' ? `Mention in a ${isReply ? 'reply' : 'comment'}` : isReply ? 'Reply' : 'Comment'
+    // The comment's own target, not the event target (for a citation that is the mentioned profile).
+    const account = stringField(comment, 'targetAccount')
+    const targetPath = stringField(comment, 'targetPath') || ''
+    const target = account ? `hm://${account}${targetPath ? `/${targetPath.replace(/^\/+/, '')}` : ''}` : null
+    return target ? `${label} on ${target}` : label
+  }
+  if (type === 'run-completed') {
+    const title = stringField(event, 'runTitle') || 'A run'
+    const status = stringField(event, 'runStatus') || 'finished'
+    return `${title} ${status}`
+  }
+  if (type === 'schedule') {
+    // A Run now firing says so, and who ran it, rather than claiming its schedule fired.
+    if ((event as {manual?: unknown}).manual === true) return 'Run now'
+    const scheduledAt = numberField(event, 'scheduledAt')
+    const kind = stringField(event, 'scheduleKind') || 'schedule'
+    return scheduledAt ? `Scheduled ${kind} at ${new Date(scheduledAt).toISOString()}` : 'Scheduled run'
+  }
+  if (type === 'webhook') return webhookSummary(event)
+  const title = stringField(recordField(recordField(event, 'target') || {}, 'metadata') || {}, 'name')
+  return title ? `${type || 'activity'} on ${title}` : type || 'Seed activity'
+}
+
+/**
+ * What a webhook delivery was about, read from the payload rather than the bare word "webhook".
+ * GitHub's payloads name their subject (issue, pull request, discussion), the action, and the
+ * sender, so a firing can say "GitHub issue #1156 opened “…” by ericvicenti". Anything else is
+ * named by its delivery key.
+ */
+export function webhookSummary(event: ActivityFeedEvent): string {
+  const payload = recordField(event, 'payload')
+  if (payload) {
+    const action = stringField(payload, 'action')?.replace(/_/gu, ' ')
+    const sender = recordField(payload, 'sender')
+    const login = sender ? stringField(sender, 'login') : undefined
+    const by = login ? ` by ${login}` : ''
+    const subjects: Array<[key: string, label: string]> = [
+      ['pull_request', 'pull request'],
+      ['issue', 'issue'],
+      ['discussion', 'discussion'],
+    ]
+    for (const [key, label] of subjects) {
+      const subject = recordField(payload, key)
+      if (!subject) continue
+      const number = numberField(subject, 'number')
+      const title = stringField(subject, 'title')
+      const what = recordField(payload, 'comment')
+        ? `comment on ${label}`
+        : recordField(payload, 'review')
+          ? `review on ${label}`
+          : label
+      const head = `GitHub ${what}${number !== undefined ? ` #${number}` : ''}`
+      return `${head}${action ? ` ${action}` : ''}${title ? ` “${title}”` : ''}${by}`
+    }
+    const repository = recordField(payload, 'repository')
+    const repo = repository ? stringField(repository, 'full_name') : undefined
+    if (repo) return `GitHub ${action || 'event'} on ${repo}${by}`
+  }
+  const deliveryKey = stringField(event, 'deliveryKey')
+  return deliveryKey ? `Webhook delivery ${deliveryKey}` : 'Webhook delivery'
+}
+
+function matchesDocumentComment(
+  source: Extract<api.AgentTriggerSource, {type: 'document-comment'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  const sourceResource = canonicalizeResourceId(source.resource)
+  if (stringField(event, 'type') === 'comment') {
+    if (source.author && !jsonContainsString(recordField(event, 'author') || event, source.author)) return false
+    const target = activityCommentTarget(event)
+    return target
+      ? target === sourceResource || target.startsWith(`${sourceResource}/`)
+      : jsonContainsString(event, sourceResource)
+  }
+  const blob = activityEventBlob(event)
+  if (!blob) return false
+  const blobType = stringField(blob, 'blobType') || stringField(blob, 'blob_type')
+  if (blobType?.toLowerCase() !== 'comment') return false
+  if (source.author) {
+    const author = stringField(blob, 'author') || stringField(event, 'account')
+    if (author !== source.author) return false
+  }
+  const resource = stringField(blob, 'resource')
+  const canonicalResource = resource ? canonicalizeResourceId(resource) : undefined
+  return (
+    canonicalResource === sourceResource || (!!canonicalResource && canonicalResource.startsWith(`${sourceResource}/`))
+  )
+}
+
+function activityCommentTarget(event: ActivityFeedEvent): string | null {
+  const target = recordField(event, 'target')
+  const targetId = target ? recordField(target, 'id') : null
+  const targetIdString = targetId ? stringField(targetId, 'id') : undefined
+  if (targetIdString) return canonicalizeResourceId(targetIdString)
+  const comment = recordField(event, 'comment')
+  const account = comment ? stringField(comment, 'targetAccount') : undefined
+  if (!account) return null
+  const targetPath = comment ? stringField(comment, 'targetPath') || '' : ''
+  return canonicalizeResourceId(`hm://${account}${targetPath ? `/${targetPath.replace(/^\/+/, '')}` : ''}`)
+}
+
+/** Reads the mentioned account list, tolerating legacy triggers that stored a single `mentionedAccount`. */
+export function mentionedAccountsOf(source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>): string[] {
+  const legacy = (source as {mentionedAccount?: string}).mentionedAccount
+  const accounts = source.mentionedAccounts ?? (legacy ? [legacy] : [])
+  return accounts.filter((account) => !!account)
+}
+
+/**
+ * The account a trigger names as `self`: whichever accounts its agent signs as now, so a trigger
+ * about "me" keeps working when the agent's primary account changes or it gains another one.
+ */
+export const SELF_ACCOUNT = 'self'
+
+/** `source` with the agent's own accounts named as `self` in mention, reply and author conditions. */
+export function ownAccountsAsSelf(source: api.AgentTriggerSource, own: readonly string[]): api.AgentTriggerSource {
+  if (!own.length) return source
+  const asSelf = (accounts: readonly string[]) => [
+    ...new Set(accounts.map((account) => (own.includes(account) ? SELF_ACCOUNT : account))),
+  ]
+  if (source.type === 'activity')
+    return {
+      ...source,
+      conditions: source.conditions.map((condition) => ({
+        ...condition,
+        source: ownAccountsAsSelf(condition.source as api.AgentTriggerSource, own) as typeof condition.source,
+      })),
+    }
+  if (source.type === 'user-mention') return {...source, mentionedAccounts: asSelf(mentionedAccountsOf(source))}
+  if (source.type === 'comment-reply') return {...source, repliedToAccounts: asSelf(source.repliedToAccounts)}
+  if (source.type === 'document-author-comment') return {...source, documentAuthors: asSelf(source.documentAuthors)}
+  return source
+}
+
+/** `accounts` with `self` replaced by the agent's own accounts. */
+export function resolveSelfAccounts(accounts: readonly string[], context: TriggerMatchContext): string[] {
+  if (!accounts.includes(SELF_ACCOUNT)) return [...accounts]
+  return [...new Set(accounts.flatMap((account) => (account === SELF_ACCOUNT ? context.ownAccounts ?? [] : [account])))]
+}
+
+function matchesUserMention(
+  source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext,
+): boolean {
+  // The agent mentioning itself (from any of its accounts) is not someone summoning it.
+  if (mentionedAccountsOf(source).includes(SELF_ACCOUNT) && context.ownAccounts?.length) {
+    const authorRecord = recordField(event, 'author')
+    const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+    const comment = recordField(event, 'comment')
+    const mention = activityEventMention(event)
+    const sourceBlob = mention ? recordField(mention, 'sourceBlob') : null
+    const author =
+      (authorId && stringField(authorId, 'uid')) ||
+      (comment && stringField(comment, 'author')) ||
+      (sourceBlob && stringField(sourceBlob, 'author'))
+    if (author && context.ownAccounts.includes(author)) return false
+  }
+  return resolveSelfAccounts(mentionedAccountsOf(source), context).some((mentionedAccount) =>
+    matchesSingleMention(mentionedAccount, source, event),
+  )
+}
+
+/**
+ * Decides whether a single activity event is a genuine @mention of `mentionedAccount`.
+ *
+ * Two event shapes are supported:
+ *  - Raw ActivityFeed events (`newMention`), used by tests and any caller that bypasses the
+ *    resolving `/api/ListEvents` endpoint.
+ *  - Resolved `LoadedEvent`s (the shape `/api/ListEvents` actually returns), where mentions live in
+ *    comment-block `Embed` annotations (`type: 'comment'`) or in citation targets (`type: 'citation'`).
+ *
+ * Detection is structural (mirroring the notification classifier) rather than a substring scan, so a
+ * trigger fires only when the account is actually mentioned — not merely because its UID appears as an
+ * author, reply parent, or cited document. Both the comment event and its comment-sourced citation twin
+ * are allowed to match; duplicate firings are prevented downstream by {@link activityFiringKey}, which
+ * collapses the two siblings onto one shared comment-CID idempotency key.
+ */
+function matchesSingleMention(
+  mentionedAccount: string,
+  source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  // Raw ActivityFeed `newMention` events.
+  const mention = activityEventMention(event)
+  if (mention) {
+    const accountTarget = `hm://${mentionedAccount}`
+    const target = stringField(mention, 'target')
+    if (target !== mentionedAccount && target !== accountTarget && !target?.startsWith(`${accountTarget}/`)) {
+      return false
+    }
+    if (!source.resourcePrefix) return true
+    return [
+      stringField(mention, 'source'),
+      stringField(mention, 'sourceDocument') || stringField(mention, 'source_document'),
+      target,
+    ].some((value) => !!value && value.startsWith(source.resourcePrefix!))
+  }
+
+  // Resolved LoadedEvents.
+  const type = stringField(event, 'type')
+  if (type === 'comment') {
+    if (!commentMentionsAccount(recordField(event, 'comment'), mentionedAccount)) return false
+    return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+  }
+  if (type === 'citation') {
+    // A comment-sourced citation (`citationType: 'c'`) mirrors its comment event. We deliberately do
+    // NOT suppress it here: the two are emitted as separate feed events that can arrive in different
+    // polls, and the comment event is sometimes dropped by the staleness watermark. Letting either
+    // sibling match — deduplicated to one firing by {@link activityFiringKey} (shared comment CID) —
+    // makes the mention fire exactly once instead of being silently missed.
+    const target = recordField(event, 'target')
+    const targetId = target ? recordField(target, 'id') : null
+    if (mentionedAccountFromIdRecord(targetId) !== mentionedAccount) return false
+    return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+  }
+
+  return false
+}
+
+/**
+ * Matches a resolved comment event (the `/api/ListEvents` shape) that replies directly to a comment by
+ * one of the source's accounts. An account replying to itself never matches, so an agent continuing
+ * its own thread cannot trigger itself.
+ */
+function matchesCommentReply(
+  source: Extract<api.AgentTriggerSource, {type: 'comment-reply'}>,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext,
+): boolean {
+  const repliedToAccounts = resolveSelfAccounts(source.repliedToAccounts, context)
+  if (stringField(event, 'type') !== 'comment') return false
+  const comment = recordField(event, 'comment')
+  const parentAuthorRecord = recordField(event, 'replyParentAuthor')
+  const parentAuthorId = parentAuthorRecord ? recordField(parentAuthorRecord, 'id') : null
+  const replyingComment = recordField(event, 'replyingComment')
+  const parentAuthor =
+    (parentAuthorId && stringField(parentAuthorId, 'uid')) ||
+    (replyingComment && stringField(replyingComment, 'author'))
+  if (!parentAuthor || !repliedToAccounts.includes(parentAuthor)) return false
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author === parentAuthor) return false
+  // A trigger about the agent itself never fires on the agent's own activity, from any of its accounts.
+  if (author && source.repliedToAccounts.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+}
+
+/**
+ * Matches a resolved comment event on a document that one of the source's accounts authored, using
+ * the `targetAuthorUids` the feed resolves for the commented document. An author's own comments never
+ * match, so an agent commenting on its own document cannot trigger itself.
+ */
+function matchesDocumentAuthorComment(
+  source: Extract<api.AgentTriggerSource, {type: 'document-author-comment'}>,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext,
+): boolean {
+  const documentAuthors = resolveSelfAccounts(source.documentAuthors, context)
+  if (stringField(event, 'type') !== 'comment') return false
+  const targetAuthors = Array.isArray(event.targetAuthorUids)
+    ? event.targetAuthorUids.filter((uid): uid is string => typeof uid === 'string')
+    : []
+  if (!documentAuthors.some((account) => targetAuthors.includes(account))) return false
+  const comment = recordField(event, 'comment')
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const author = (authorId && stringField(authorId, 'uid')) || (comment && stringField(comment, 'author'))
+  if (author && documentAuthors.includes(author)) return false
+  if (author && source.documentAuthors.includes(SELF_ACCOUNT) && context.ownAccounts?.includes(author)) return false
+  return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+}
+
+/** Resolves the account UID a mention link points at, when it targets an account root or `:profile`. */
+function mentionedAccountFromLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null
+  const trimmed = link.trim()
+  if (!trimmed.startsWith('hm://')) return null
+  const view = extractViewTermFromUrl(trimmed)
+  const id = unpackHmId(view.url)
+  if (!id) return null
+  if (view.viewTerm === ':profile') return view.accountUid || id.uid // profile mention
+  if (view.viewTerm || id.path?.length) return null // points at a document or a view, not the account
+  return id.uid // account root
+}
+
+/** Resolves the account UID from a resolved `UnpackedHypermediaId` record, when it names an account. */
+function mentionedAccountFromIdRecord(idRecord: Record<string, unknown> | null): string | null {
+  if (!idRecord) return null
+  const uid = stringField(idRecord, 'uid')
+  if (!uid) return null
+  const path = idRecord['path']
+  const segments = Array.isArray(path) ? path.filter((segment): segment is string => typeof segment === 'string') : []
+  return mentionedAccountFromLink(packBaseId(uid, segments))
+}
+
+/** Returns true when a resolved comment's content embeds a mention of `mentionedAccount`. */
+function commentMentionsAccount(comment: Record<string, unknown> | null, mentionedAccount: string): boolean {
+  if (!comment) return false
+  return blockNodesMentionAccount(comment['content'], mentionedAccount)
+}
+
+function blockNodesMentionAccount(nodes: unknown, mentionedAccount: string): boolean {
+  if (!Array.isArray(nodes)) return false
+  return nodes.some((node) => {
+    if (!node || typeof node !== 'object') return false
+    const block = recordField(node as Record<string, unknown>, 'block')
+    const annotations = block ? block['annotations'] : undefined
+    if (Array.isArray(annotations)) {
+      for (const annotation of annotations) {
+        if (!annotation || typeof annotation !== 'object') continue
+        if ((annotation as Record<string, unknown>).type !== 'Embed') continue
+        if (mentionedAccountFromLink((annotation as Record<string, unknown>).link) === mentionedAccount) return true
+      }
+    }
+    return blockNodesMentionAccount((node as Record<string, unknown>).children, mentionedAccount)
+  })
+}
+
+/** Applies the optional resource/site prefix filter against the resources a mention event references. */
+function mentionMatchesResourcePrefix(event: ActivityFeedEvent, resourcePrefix: string | undefined): boolean {
+  if (!resourcePrefix) return true
+  const candidates: Array<string | undefined> = []
+  for (const field of ['source', 'target', 'commentId'] as const) {
+    const record = recordField(event, field)
+    const id = record ? recordField(record, 'id') : null
+    candidates.push(id ? stringField(id, 'id') : stringField(record || {}, 'id'))
+  }
+  if (candidates.some((value) => !!value && value.startsWith(resourcePrefix))) return true
+  // Fall back to a broad scan so unusual event shapes still honour an explicit prefix filter.
+  return jsonContainsString(event, resourcePrefix)
+}
+
+/**
+ * Matches any activity under a resource prefix. Activity the trigger's own agent authored never
+ * matches unless the source opts in with `includeOwnActivity`: otherwise an agent whose automation
+ * writes or comments under the prefix it watches would start itself again, with nothing to stop
+ * the loop.
+ */
+function matchesSiteUpdate(
+  source: Extract<api.AgentTriggerSource, {type: 'site-update'}>,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext,
+): boolean {
+  if (!source.includeOwnActivity && context.ownAccounts?.length) {
+    const author = activityAuthorUid(event)
+    if (author && context.ownAccounts.includes(author)) return false
+  }
+  const resource = siteUpdateResource(event)
+  if (resource) {
+    if (!resource.startsWith(source.resourcePrefix)) return false
+  } else if (!jsonContainsString(event, source.resourcePrefix)) {
+    return false
+  }
+
+  if (!source.eventTypes?.length) return true
+  const eventTypes = siteUpdateEventTypes(event)
+  return source.eventTypes.some((eventType) => eventTypes.some((actual) => activityTypeMatches(eventType, actual)))
+}
+
+/**
+ * The account uid that authored an activity event, or null when the event does not say. Reads the
+ * resolved `/api/ListEvents` shape (`author.id.uid`, or the comment's own `author`) and the raw
+ * feed shape (the new blob's `author`).
+ */
+export function activityAuthorUid(event: ActivityFeedEvent): string | null {
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const resolved = authorId ? stringField(authorId, 'uid') : undefined
+  if (resolved) return resolved
+  const direct = stringField(event, 'author')
+  if (direct) return accountUidOf(direct)
+  const comment = recordField(event, 'comment')
+  const commentAuthor = comment ? stringField(comment, 'author') : undefined
+  if (commentAuthor) return accountUidOf(commentAuthor)
+  const blob = activityEventBlob(event)
+  const blobAuthor = blob ? stringField(blob, 'author') : undefined
+  if (blobAuthor) return accountUidOf(blobAuthor)
+  return null
+}
+
+/** Reduces an account reference (`z6Mk…` or `hm://z6Mk…`) to its bare uid. */
+function accountUidOf(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.startsWith('hm://') ? trimmed.slice('hm://'.length).split(/[/?#]/)[0] ?? trimmed : trimmed
+}
+
+function siteUpdateResource(event: ActivityFeedEvent): string | null {
+  const blob = activityEventBlob(event)
+  const blobResource = blob ? stringField(blob, 'resource') : undefined
+  if (blobResource) return canonicalizeResourceId(blobResource)
+
+  const docId = recordField(event, 'docId')
+  const docIdString = docId ? stringField(docId, 'id') : undefined
+  if (docIdString) return canonicalizeResourceId(docIdString)
+
+  const target = recordField(event, 'target')
+  const targetId = target ? recordField(target, 'id') : null
+  const targetIdString = targetId ? stringField(targetId, 'id') : undefined
+  if (targetIdString) return canonicalizeResourceId(targetIdString)
+
+  const commentTarget = activityCommentTarget(event)
+  if (commentTarget) return commentTarget
+
+  const document = recordField(event, 'document')
+  const account = document ? stringField(document, 'account') : undefined
+  if (account) {
+    const path = document ? stringField(document, 'path') || '' : ''
+    return canonicalizeResourceId(`hm://${account}${path ? `/${path.replace(/^\/+/, '')}` : ''}`)
+  }
+
+  return null
+}
+
+function siteUpdateEventTypes(event: ActivityFeedEvent): string[] {
+  const types: string[] = []
+  const type = stringField(event, 'type')
+  if (type) types.push(type)
+
+  const dataCase = eventDataCase(event)
+  if (dataCase) types.push(dataCase)
+
+  const blob = activityEventBlob(event)
+  const blobType = blob ? stringField(blob, 'blobType') || stringField(blob, 'blob_type') : undefined
+  if (blobType) types.push(blobType)
+
+  return types
+}
+
+function activityTypeMatches(configured: string, actual: string): boolean {
+  const configuredType = configured.trim().toLowerCase()
+  const actualType = actual.trim().toLowerCase()
+  if (!configuredType || !actualType) return false
+  if (configuredType === actualType) return true
+
+  const aliases: Record<string, string[]> = {
+    change: ['doc-update', 'document-update', 'ref'],
+    ref: ['doc-update', 'document-update', 'change'],
+    comment: ['comment'],
+    'doc-update': ['change', 'ref', 'document-update'],
+    'document-update': ['change', 'ref', 'doc-update'],
+  }
+  return aliases[configuredType]?.includes(actualType) || false
+}
+
+function canonicalPath(path: string): string {
+  const withoutQuerySyntax = path.split('?')[0]?.split('#')[0] || ''
+  const clean = withoutQuerySyntax.replace(/^\/+|\/+$/gu, '')
+  return clean ? `/${clean}` : ''
+}
+
+function activityEventBlob(event: ActivityFeedEvent): Record<string, unknown> | null {
+  return recordField(event, 'newBlob') || recordField(event, 'new_blob') || activityEventDataValue(event, 'newBlob')
+}
+
+function activityEventMention(event: ActivityFeedEvent): Record<string, unknown> | null {
+  return (
+    recordField(event, 'newMention') || recordField(event, 'new_mention') || activityEventDataValue(event, 'newMention')
+  )
+}
+
+function eventDataCase(event: ActivityFeedEvent): string | undefined {
+  const data = recordField(event, 'data')
+  return data ? stringField(data, 'case') : undefined
+}
+
+function activityEventDataValue(
+  event: ActivityFeedEvent,
+  expectedCase: 'newBlob' | 'newMention',
+): Record<string, unknown> | null {
+  const data = recordField(event, 'data')
+  if (!data || stringField(data, 'case') !== expectedCase) return null
+  return recordField(data, 'value')
+}
+
+function recordField(record: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = record[field]
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function stringField(record: Record<string, unknown>, field: string): string | undefined {
+  const value = record[field]
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  return undefined
+}
+
+function numberField(record: Record<string, unknown>, field: string): number | undefined {
+  const value = record[field]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+function jsonContainsString(value: unknown, needle: string): boolean {
+  if (!needle) return false
+  if (typeof value === 'string') return value === needle || value.includes(needle)
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null || value === undefined) return false
+  if (Array.isArray(value)) return value.some((item) => jsonContainsString(item, needle))
+  if (typeof value === 'object')
+    return Object.values(value as Record<string, unknown>).some((item) => jsonContainsString(item, needle))
+  return false
+}
+
+function timestampMs(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>
+    const seconds = record.seconds
+    const nanos = record.nanos ?? record.nanosSinceSecond
+    const secondsNumber = typeof seconds === 'number' ? seconds : typeof seconds === 'string' ? Number(seconds) : NaN
+    const nanosNumber = typeof nanos === 'number' ? nanos : typeof nanos === 'string' ? Number(nanos) : 0
+    if (Number.isFinite(secondsNumber))
+      return secondsNumber * 1000 + (Number.isFinite(nanosNumber) ? nanosNumber / 1e6 : 0)
+  }
+  return null
+}

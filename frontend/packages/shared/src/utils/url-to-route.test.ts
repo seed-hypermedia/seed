@@ -1,8 +1,185 @@
 import {describe, expect, test} from 'vitest'
-import {hmId, unpackHmId} from './entity-id-url'
+import {navStateReducer} from './navigation'
+import {hmId, unpackHmId, routeToHmUrl, routeToUrl} from './entity-id-url'
 import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
+import {routeToHref} from '../routing'
 
 describe('hypermediaUrlToRoute', () => {
+  test.each(['hm://uid1/:feed/to-you', 'https://example.com/hm/uid1/:feed/to-you'])(
+    'preserves the To you feed tab from %s',
+    (url) => {
+      expect(hypermediaUrlToRoute(url)).toEqual({
+        key: 'feed',
+        id: unpackHmId(url.replace('/:feed/to-you', '')),
+        tab: 'to-you',
+        panel: null,
+      })
+    },
+  )
+
+  test('keeps the default feed route without an explicit tab', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:feed')).toEqual({
+      key: 'feed',
+      id: unpackHmId('hm://uid1'),
+      panel: null,
+    })
+  })
+
+  test('round-trips the To you tab with a version and block fragment', () => {
+    const route = {
+      key: 'feed' as const,
+      id: hmId('uid1', {version: 'v1', blockRef: 'block1'}),
+      tab: 'to-you' as const,
+      panel: null,
+    }
+    expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual({...route, id: unpackHmId('hm://uid1?v=v1#block1')})
+  })
+
+  test.each(['sessions', 'settings', 'triggers', 'memory', 'access'] as const)(
+    'round trips mounted agent %s through hm, gateway and custom-site URLs',
+    (view) => {
+      const id = hmId('alice', {path: ['team', 'helper']})
+      const route = {key: 'document' as const, id, agentView: view}
+      const hmUrl = `hm://alice/team/helper/:${view}`
+      expect(routeToHmUrl(route)).toBe(hmUrl)
+      expect(hypermediaUrlToRoute(hmUrl)).toMatchObject({key: 'document', id: {id: id.id}, agentView: view})
+      expect(hypermediaUrlToRoute(`https://seed.example/hm/alice/team/helper/:${view}`)).toMatchObject({
+        key: 'document',
+        id: {id: id.id},
+        agentView: view,
+      })
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:${view}`)
+    },
+  )
+
+  test.each(['permissions', 'identities', 'mcp'] as const)(
+    'the %s page lives under settings: /:settings/<page> round trips',
+    (view) => {
+      const id = hmId('alice', {path: ['team', 'helper']})
+      const route = {key: 'document' as const, id, agentView: view}
+      expect(routeToHmUrl(route)).toBe(`hm://alice/team/helper/:settings/${view}`)
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:settings/${view}`)
+      for (const url of [
+        `hm://alice/team/helper/:settings/${view}`,
+        `https://seed.example/hm/alice/team/helper/:settings/${view}`,
+      ]) {
+        expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: view})
+      }
+    },
+  )
+
+  test('a session view without a session id is the sessions list', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    expect(routeToHmUrl({key: 'document', id, agentView: 'session'})).toBe('hm://alice/team/helper/:sessions')
+    expect(routeToHmUrl({key: 'document', id, agentView: 'session', agentSessionId: 's/1'})).toBe(
+      'hm://alice/team/helper/:session/s%2F1',
+    )
+  })
+
+  test('the old /:tools links open the permissions page', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    for (const url of ['hm://alice/team/helper/:tools', 'https://seed.example/hm/alice/team/helper/:tools']) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: 'permissions'})
+    }
+    expect(routeToHmUrl({key: 'document', id, agentView: 'tools'})).toBe('hm://alice/team/helper/:settings/permissions')
+  })
+
+  test('the system prompt is a page inside settings: /:settings/prompt, with the old /:prompt still readable', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    const route = {key: 'document' as const, id, agentView: 'prompt' as const}
+    expect(routeToHmUrl(route)).toBe('hm://alice/team/helper/:settings/prompt')
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/team/helper/:settings/prompt')
+    for (const url of [
+      'hm://alice/team/helper/:settings/prompt',
+      'https://seed.example/hm/alice/team/helper/:settings/prompt',
+      'hm://alice/team/helper/:prompt',
+    ]) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: 'prompt'})
+    }
+    // Plain settings are untouched, and the site's own settings page keeps its tabs.
+    expect(hypermediaUrlToRoute('hm://alice/team/helper/:settings')).toMatchObject({agentView: 'settings'})
+    expect(hypermediaUrlToRoute('hm://alice/:settings/members')).toMatchObject({key: 'site-settings', tab: 'members'})
+  })
+
+  test('canonical agent navigation uses document URLs and preserves session and tool details', () => {
+    const agentId = 'hm://alice/helper'
+    expect(
+      routeToHref({key: 'agent-session', agentId, sessionId: 'session-123', serverUrl: 'https://api.example'}),
+    ).toBe('/hm/alice/helper/:session/session-123')
+    const session = hypermediaUrlToRoute('hm://alice/helper/:session/session-123')
+    expect(session).toMatchObject({
+      key: 'document',
+      id: {id: agentId},
+      agentView: 'session',
+      agentSessionId: 'session-123',
+    })
+    const triggerUrl = routeToHmUrl({key: 'agent', agentId, tab: 'triggers', triggerId: 'trigger-one'})
+    expect(triggerUrl).toBe('hm://alice/helper/:triggers/trigger-one')
+    expect(hypermediaUrlToRoute(triggerUrl!)).toMatchObject({agentView: 'triggers', agentTriggerId: 'trigger-one'})
+    const memoryUrl = routeToHmUrl({key: 'agent', agentId, tab: 'memory', memoryPath: 'notes/a b.md'})
+    expect(hypermediaUrlToRoute(memoryUrl!)).toMatchObject({agentView: 'memory', agentMemoryPath: 'notes/a b.md'})
+    expect(hypermediaUrlToRoute('hm://alice/:settings')).toMatchObject({key: 'site-settings'})
+  })
+  test('trigger detail paths round trip and take precedence over legacy query state', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    const route = {key: 'document' as const, id, agentView: 'triggers' as const, agentTriggerId: 'trigger one'}
+    expect(routeToHmUrl(route)).toBe('hm://alice/team/helper/:triggers/trigger%20one')
+    expect(routeToUrl(route, {hostname: 'https://seed.example'})).toBe(
+      'https://seed.example/hm/alice/team/helper/:triggers/trigger%20one',
+    )
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/team/helper/:triggers/trigger%20one')
+    for (const url of [
+      'hm://alice/team/helper/:triggers/trigger%20one',
+      'https://seed.example/hm/alice/team/helper/:triggers/trigger%20one?trigger=old',
+      'hm://alice/team/helper/:triggers?trigger=trigger+one',
+    ]) {
+      const parsed = hypermediaUrlToRoute(url)
+      expect(parsed).toMatchObject({
+        key: 'document',
+        id: {id: id.id},
+        agentView: 'triggers',
+        agentTriggerId: 'trigger one',
+      })
+      expect(routeToHmUrl(parsed!)).toBe('hm://alice/team/helper/:triggers/trigger%20one')
+    }
+  })
+
+  test('a tool run lives at <tool>/:call/<id> and round trips on every URL form', () => {
+    const id = hmId('alice', {path: ['apps', 'weather', 'forecast']})
+    const route = {key: 'document' as const, id, toolCallId: 'run-1'}
+    expect(routeToHmUrl(route)).toBe('hm://alice/apps/weather/forecast/:call/run-1')
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/apps/weather/forecast/:call/run-1')
+    for (const url of [
+      'hm://alice/apps/weather/forecast/:call/run-1',
+      'https://seed.example/hm/alice/apps/weather/forecast/:call/run-1',
+    ]) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, toolCallId: 'run-1'})
+    }
+  })
+
+  test('app tabs live at /:app/<view> and round trip on every URL form', () => {
+    const id = hmId('alice', {path: ['apps', 'weather']})
+    for (const appView of ['tools', 'pages', 'settings'] as const) {
+      const route = {key: 'document' as const, id, appView}
+      expect(routeToHmUrl(route)).toBe(`hm://alice/apps/weather/:app/${appView}`)
+      expect(routeToUrl(route, {hostname: 'https://seed.example'})).toBe(
+        `https://seed.example/hm/alice/apps/weather/:app/${appView}`,
+      )
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/apps/weather/:app/${appView}`)
+      for (const url of [
+        `hm://alice/apps/weather/:app/${appView}`,
+        `https://seed.example/hm/alice/apps/weather/:app/${appView}`,
+      ]) {
+        const parsed = hypermediaUrlToRoute(url)
+        expect(parsed).toMatchObject({key: 'document', id: {id: id.id}, appView})
+        expect(parsed).not.toHaveProperty('agentView')
+      }
+    }
+    // The agent terms keep their meaning: plain :tools and :settings are an agent's pages.
+    expect(hypermediaUrlToRoute('hm://alice/apps/weather/:tools')).toMatchObject({agentView: 'permissions'})
+    expect(hypermediaUrlToRoute('hm://alice/apps/weather/:settings')).toMatchObject({agentView: 'settings'})
+  })
+
   test('converts a base document URL into a document route', () => {
     expect(hypermediaUrlToRoute('hm://uid1')).toEqual({
       key: 'document',
@@ -86,7 +263,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:activity/citations')).toEqual({
       key: 'activity',
       id: unpackHmId('hm://uid1'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
   })
@@ -113,7 +290,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:activity/citations?panel=comments/abc123#blk1')).toEqual({
       key: 'activity',
       id: unpackHmId('hm://uid1#blk1'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: {key: 'comments', id: unpackHmId('hm://uid1#blk1'), openComment: 'abc123'},
     })
   })
@@ -225,4 +402,52 @@ test('round-trips a domain setup Hypermedia deep link', () => {
     tab: 'web-domain',
     domain: 'www.example.com',
   })
+})
+
+describe('comment continuation URLs', () => {
+  test.each([
+    'hm://uid1/doc/:comments/author/root?reply=author%2Freply',
+    'hm://uid1/doc?panel=comments%2Fauthor%2Froot&reply=author%2Freply',
+  ])('preserves context and reply target through round trips: %s', (url) => {
+    const route = hypermediaUrlToRoute(url)!
+    const comments = route.key === 'comments' ? route : 'panel' in route ? route.panel : null
+    expect(comments).toMatchObject({key: 'comments', openComment: 'author/root', replyCommentId: 'author/reply'})
+    expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual(route)
+    expect(routeToHmUrl(hypermediaUrlToRoute(routeToUrl(route, {hostname: 'https://example.com'})!)!)).toEqual(
+      routeToHmUrl(route),
+    )
+  })
+
+  test('prefers main comments when an old URL requests two comment views', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:comments/root?panel=comments/other&reply=child')).toMatchObject({
+      key: 'comments',
+      openComment: 'root',
+      replyCommentId: 'child',
+      panel: null,
+    })
+  })
+
+  test('ignores a reply target on a root list', () => {
+    const route = hypermediaUrlToRoute('hm://uid1/:comments?reply=child')!
+    expect(route).not.toHaveProperty('replyCommentId')
+    expect(routeToHmUrl(route)).not.toContain('reply=')
+  })
+})
+
+test('navigation never opens two Comments views', () => {
+  const id = hmId('uid1')
+  const state = navStateReducer(
+    {routes: [{key: 'document', id}], routeIndex: 0, lastAction: 'replace'},
+    {
+      type: 'push',
+      route: {
+        key: 'comments',
+        id,
+        openComment: 'root',
+        replyCommentId: 'child',
+        panel: {key: 'comments', id, openComment: 'other'},
+      },
+    },
+  )
+  expect(state.routes[1]).toMatchObject({key: 'comments', openComment: 'root', replyCommentId: 'child', panel: null})
 })

@@ -1,0 +1,10 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {"value": {"value": "hm://hyper.media/page"}, "required": true},
+    "html": {"value": {"type": "hm://hyper.media/ipfs-url"}, "required": true, "description": "UnixFS folder containing index.html for this custom HTML page."},
+    "inputSchema": {"value": {"type": "hm://hyper.media/url", "target": "hm://hyper.media/schema"}, "required": true, "description": "Published HM struct schema defining this page's URL input fields."}
+  },
+  "values": {"type": "hm://hyper.media/value"},
+  "description": "Resource attributes for a custom HTML page, with a sandboxed HTML bundle and a published input contract."
+}

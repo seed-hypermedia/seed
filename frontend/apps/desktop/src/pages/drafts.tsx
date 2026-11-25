@@ -15,10 +15,20 @@ import {GeneralPageContainer, GeneralPageHeader, GeneralPageSurface} from '@shm/
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
+import {ExploreState} from '@shm/ui/explore-primitives'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@shm/ui/components/alert-dialog'
 import {Text} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {FilePenLine, FileText, MessageSquare, Plus, Trash} from 'lucide-react'
-import {useMemo} from 'react'
+import {useMemo, useState} from 'react'
 
 type DocumentDraft = HMListedDraft & {
   type: 'document'
@@ -88,19 +98,24 @@ export default function DraftsPage() {
       <MainWrapper scrollable>
         <GeneralPageSurface>
           <GeneralPageContainer className="pb-8">
-            <GeneralPageHeader
-              title="Drafts"
-              loading={isLoading}
-              actions={
-                <Button onClick={() => void createDraft()}>
-                  <Plus className="size-4" />
-                  New document
-                </Button>
-              }
-            />
-            <Text className="text-muted-foreground">Continue editing your unpublished documents and comments.</Text>
+            <GeneralPageHeader title="Drafts" loading={isLoading} />
+            <Text className="text-muted-foreground">Documents and comments saved on this device.</Text>
             <Separator />
-            {!isLoading && drafts.length === 0 ? (
+            {documentDrafts.isError || commentDrafts.isError ? (
+              <div role="alert" className="flex items-center gap-3">
+                <Text>Could not load all drafts.</Text>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    void documentDrafts.refetch()
+                    void commentDrafts.refetch()
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+            {!isLoading && !documentDrafts.isError && !commentDrafts.isError && drafts.length === 0 ? (
               <EmptyDraftsState onCreate={() => void createDraft()} />
             ) : (
               <div className="flex flex-col gap-2">
@@ -123,17 +138,11 @@ export default function DraftsPage() {
 function EmptyDraftsState({onCreate}: {onCreate: () => void}) {
   return (
     <div className="flex min-h-72 flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center">
-      <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-        <FilePenLine className="text-muted-foreground size-6" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <Text weight="bold" size="lg">
-          No drafts yet
-        </Text>
-        <Text className="text-muted-foreground max-w-md text-sm">
-          Unpublished documents and comments will appear here automatically.
-        </Text>
-      </div>
+      <ExploreState
+        icon={<FilePenLine className="size-6" />}
+        title="No drafts yet"
+        detail="Unpublished documents and comments will appear here automatically."
+      />
       <Button variant="outline" onClick={onCreate}>
         <Plus className="size-4" />
         Create a document
@@ -180,7 +189,7 @@ function DocumentDraftItem({draft}: {draft: DocumentDraft}) {
       <Button
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-destructive focus-visible:text-destructive opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+        className="text-muted-foreground hover:text-destructive focus-visible:text-destructive"
         aria-label={`Discard ${title}`}
         onClick={() => deleteDialog.open({draftId: draft.id})}
       >
@@ -193,6 +202,7 @@ function DocumentDraftItem({draft}: {draft: DocumentDraft}) {
 
 function CommentDraftItem({draft}: {draft: CommentDraft}) {
   const navigate = useNavigate()
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const targetId = useMemo(() => unpackHmId(draft.targetDocId), [draft.targetDocId])
   const target = useResource(targetId)
   const title = target.data?.type === 'document' ? getMetadataName(target.data.document.metadata) : 'Comment draft'
@@ -204,7 +214,11 @@ function CommentDraftItem({draft}: {draft: CommentDraft}) {
         quotingBlockId: draft.quotingBlockId,
         context: draft.context,
       }),
-    onSuccess: () => invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST]),
+    onSuccess: () => {
+      setConfirmDiscard(false)
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+    },
+    onError: () => toast.error('Could not discard draft. Please try again.'),
   })
 
   return (
@@ -242,13 +256,25 @@ function CommentDraftItem({draft}: {draft: CommentDraft}) {
       <Button
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-destructive focus-visible:text-destructive opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+        className="text-muted-foreground hover:text-destructive focus-visible:text-destructive"
         aria-label={`Discard comment draft on ${title}`}
-        disabled={deleteDraft.isPending}
-        onClick={() => deleteDraft.mutate()}
+        disabled={deleteDraft.isLoading}
+        onClick={() => setConfirmDiscard(true)}
       >
-        {deleteDraft.isPending ? <Spinner /> : <Trash className="size-4" />}
+        {deleteDraft.isLoading ? <Spinner /> : <Trash className="size-4" />}
       </Button>
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Discard comment draft?</AlertDialogTitle>
+          <AlertDialogDescription>The unpublished comment will be removed from this device.</AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteDraft.isLoading}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleteDraft.isLoading} onClick={() => deleteDraft.mutate()}>
+              Discard draft
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

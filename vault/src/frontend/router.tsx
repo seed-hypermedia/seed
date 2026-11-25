@@ -1,3 +1,4 @@
+import {SignInLoading} from '@shm/ui/spinner'
 import {useEffect, useRef, type FormEvent} from 'react'
 import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
@@ -7,7 +8,15 @@ import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, siteInviteSignInUrl, useActions, useAppState, VAULT_BASENAME} from './store'
+import {
+  consumeSiteSignInReturn,
+  getPendingFlowPath,
+  markSiteSignInReturn,
+  siteInviteSignInUrl,
+  useActions,
+  useAppState,
+  VAULT_BASENAME,
+} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectSuccessView} from './views/ConnectSuccessView'
@@ -245,7 +254,8 @@ const VAULT_REFRESH_POLL_MS = 15_000
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
-  const isUnlocked = !!useAppState().decryptedDEK
+  const {decryptedDEK, inviteOnly, sessionChecked} = useAppState()
+  const isUnlocked = !!decryptedDEK
 
   useEffect(() => {
     void actions.checkSession().catch((error) => {
@@ -269,6 +279,8 @@ export function RootLayout() {
     return () => window.clearInterval(intervalId)
   }, [isUnlocked, actions])
 
+  if (inviteOnly && !sessionChecked) return <SignInLoading />
+
   return (
     <>
       <Header />
@@ -291,19 +303,27 @@ function InviteViaSiteSignIn() {
   useEffect(() => {
     window.location.replace(target)
   }, [target])
-  return (
-    <div className="w-full max-w-lg">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-left text-xl">Opening your invitation</CardTitle>
-          <CardDescription className="text-left">Taking you to the site to set up your account…</CardDescription>
-        </CardHeader>
-      </Card>
-    </div>
-  )
+  return <SignInLoading />
 }
 
-function RootView() {
+/**
+ * Starts the site delegation for an enterprise vault opened directly without a
+ * vault session, so that signing in also signs the person in to the site. The
+ * site sends them back here once its session exists.
+ */
+function EnterpriseSiteSignIn() {
+  const {webBaseUrl} = useAppState()
+  useEffect(() => {
+    const site = webBaseUrl || window.location.origin
+    const target = new URL('/hm/sign-in', site)
+    target.searchParams.set('next', VAULT_BASENAME)
+    markSiteSignInReturn()
+    window.location.replace(target.toString())
+  }, [webBaseUrl])
+  return <SignInLoading />
+}
+
+function RootView({returnedFromSiteSignIn}: {returnedFromSiteSignIn: boolean}) {
   const {
     session,
     decryptedDEK,
@@ -318,6 +338,21 @@ function RootView() {
 
   if (!sessionChecked) {
     return null
+  }
+
+  // A vault session (locked or unlocked) is shown as it is on any vault. Only a
+  // person without one is sent through the site, and only once: a browser that
+  // the site already knows comes straight back, and must not loop.
+  if (
+    inviteOnly &&
+    !session?.authenticated &&
+    !returnedFromSiteSignIn &&
+    !delegationRequest &&
+    !vaultConnectionRequest &&
+    !returnToPath &&
+    !inviteCode
+  ) {
+    return <EnterpriseSiteSignIn />
   }
 
   if (session?.authenticated) {
@@ -400,6 +435,9 @@ function ConnectRouteView() {
 
 /** Creates the application router with all route definitions. */
 export function createRouter() {
+  // Read once per page load: whether the site's sign-in just sent us back here.
+  const returnedFromSiteSignIn = consumeSiteSignInReturn()
+
   // TODO(burdiyan): some of these routes need more robust guards for checking whether session exists.
   // The current state is harmless — simply may cause confusion if the user navigates to those routes without having a session, and sees a half-baked page.
 
@@ -410,7 +448,7 @@ export function createRouter() {
         children: [
           {
             path: '/',
-            element: <RootView />,
+            element: <RootView returnedFromSiteSignIn={returnedFromSiteSignIn} />,
           },
           {
             element: <NarrowLayout />,

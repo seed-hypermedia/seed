@@ -1,5 +1,13 @@
-import {useMemo} from 'react'
+import {normalizeDate} from './utils/date'
 import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
+
+/** Selects a comment within its thread: the thread root opens, and a reply stays selected inside it. */
+export function commentThreadSelection(comment: HMComment): {openComment: string; replyCommentId?: string} {
+  return {
+    openComment: comment.threadRoot || comment.id,
+    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
+  }
+}
 
 /**
  * Removes trailing empty blocks from comment content before publishing.
@@ -95,40 +103,72 @@ export function getCommentGroups(comments?: Array<HMComment>, targetCommentId?: 
   return groups.sort((a, b) => (latestActivity.get(b.id) ?? 0) - (latestActivity.get(a.id) ?? 0))
 }
 
-export function useCommentParents(comments: Array<HMComment> | undefined, focusedCommentId: string) {
-  return useMemo(() => {
-    const focusedComment = comments?.find((c) => c.id === focusedCommentId)
-    if (!focusedComment) return null
-    let selectedComment: HMComment | null = focusedComment
-    const parentThread: HMComment[] = [focusedComment]
-    while (selectedComment?.replyParent) {
-      const parentComment: HMComment | null | undefined = selectedComment
-        ? comments?.find((c) => c.id == selectedComment?.replyParent)
-        : null
-      if (!parentComment) break
-
-      parentThread.unshift(parentComment)
-      selectedComment = parentComment
-    }
-
-    const authorAccounts = new Set<string>()
-    comments?.forEach((comment) => {
-      if (comment.author) authorAccounts.add(comment.author)
+/** Shows submitted roots before list refresh, without restoring acknowledged roots that were removed. */
+export function getSubmittedCommentGroups(
+  groups: HMCommentGroup[] | undefined,
+  submittedRoots: HMComment[],
+  acknowledgedRoots: ReadonlySet<string>,
+): HMCommentGroup[] {
+  const rootGroups = [...(groups ?? [])]
+  for (const submittedRoot of submittedRoots) {
+    if (rootGroups.some((group) => group.comments.some((comment) => comment.id === submittedRoot.id))) continue
+    if (acknowledgedRoots.has(submittedRoot.id)) continue
+    rootGroups.push({
+      id: submittedRoot.id,
+      type: 'commentGroup',
+      comments: [submittedRoot],
+      moreCommentsCount: 0,
     })
-
-    return {
-      thread: parentThread,
-      authorAccounts: Array.from(authorAccounts),
-    }
-  }, [comments, focusedCommentId])
+  }
+  return rootGroups
 }
 
-export function useCommentGroups(comments?: Array<HMComment>, targetCommentId?: string) {
-  // we are using the data object here for future migration to react-query
-  return useMemo(
-    () => ({
-      data: getCommentGroups(comments, targetCommentId),
-    }),
-    [comments, targetCommentId],
+/** Orders root discussions by creation time without changing activity feeds or the source list. */
+export function sortCommentGroupsByCreation(groups: readonly HMCommentGroup[]): HMCommentGroup[] {
+  return [...groups].sort(
+    (a, b) =>
+      (normalizeDate(a.comments[0]?.createTime)?.getTime() ?? 0) -
+        (normalizeDate(b.comments[0]?.createTime)?.getTime() ?? 0) || a.id.localeCompare(b.id),
   )
+}
+
+/** Resolves the root and all descendants, ordered by creation time, for a selected comment. */
+export function getCommentThread(comments: HMComment[] | undefined, commentId: string) {
+  const byId = new Map(comments?.map((comment) => [comment.id, comment]))
+  let root = byId.get(commentId)
+  if (!root) return null
+  const visited = new Set<string>()
+  while (root.replyParent) {
+    if (visited.has(root.id)) return null
+    visited.add(root.id)
+    const parent = byId.get(root.replyParent)
+    if (!parent) {
+      root = byId.get(root.threadRoot || '') ?? root
+      break
+    }
+    root = parent
+  }
+  const rootId = root.id
+  const descendants = new Set([rootId])
+  // threadRoot also keeps replies visible when an intermediate parent was deleted.
+  for (const comment of comments ?? []) {
+    if (comment.threadRoot === rootId) descendants.add(comment.id)
+  }
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const comment of comments ?? []) {
+      if (comment.replyParent && descendants.has(comment.replyParent) && !descendants.has(comment.id)) {
+        descendants.add(comment.id)
+        changed = true
+      }
+    }
+  }
+  const replies = (comments ?? []).filter((comment) => comment.id !== rootId && descendants.has(comment.id))
+  replies.sort(
+    (a, b) =>
+      (normalizeDate(a.createTime)?.getTime() ?? 0) - (normalizeDate(b.createTime)?.getTime() ?? 0) ||
+      a.id.localeCompare(b.id),
+  )
+  return {root, replies}
 }

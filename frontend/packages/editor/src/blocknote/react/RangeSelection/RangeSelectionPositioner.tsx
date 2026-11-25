@@ -171,7 +171,7 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
 
   return (
     <div style={bubbleStyle} onMouseDown={stopPropagation} onTouchStart={stopPropagationTouch}>
-      <div className="bg-popover flex items-center gap-1 rounded-md border p-1 shadow-md transition-all duration-150">
+      <div className="bg-popover flex items-center gap-1 rounded-md border p-1 shadow-md transition-colors duration-150">
         {onCopyFragmentLink && (
           <button
             type="button"

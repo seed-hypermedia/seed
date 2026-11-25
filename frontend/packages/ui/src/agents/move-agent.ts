@@ -5,14 +5,14 @@ import {
   type AgentToolInput,
   type AgentTriggerInput,
 } from './client'
-import {modelReasoningSupport} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport} from '@seed-hypermedia/apps-protocol'
 import {pickDefaultProviderModel} from './model-utils'
 import {randomUUID} from './random-id'
 
 /**
- * Client-orchestrated move of one agent between agent servers.
+ * Client-orchestrated move of one agent between app environments.
  *
- * Agent servers never talk to each other, but every signed action works against any server the
+ * App environments never talk to each other, but every signed action works against any server the
  * account can reach — so the desktop app itself is the mover: it reads the agent's portable state
  * from the source server, recreates it on the target server, and only after every copy succeeded
  * deletes the original. A failure while copying rolls back the partial copy on the target and

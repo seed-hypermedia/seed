@@ -3,7 +3,9 @@ import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {createTombstoneRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import {DiscoveryState, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {BIG_INT} from '@shm/shared/constants'
 import {createQueryResolver} from '@shm/shared/models/directory'
+import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
@@ -14,7 +16,8 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useMutation, UseMutationOptions} from '@tanstack/react-query'
-import {usePushResource} from './documents'
+import {resolveWriteCapabilityId, useMoveDocument, usePushResource} from './documents'
+import {moveChildrenAndDelete, type MoveChildrenAndDeleteInput} from './move-children-and-delete'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -126,6 +129,39 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
         })
       })
       opts?.onSuccess?.(result, input, context)
+    },
+  })
+}
+
+export type {MoveChildrenAndDeleteInput} from './move-children-and-delete'
+
+/** Mutation wiring `moveChildrenAndDelete` to the daemon document listing, move, and delete mutations. */
+export function useMoveChildrenAndDeleteDocument(opts?: UseMutationOptions<void, unknown, MoveChildrenAndDeleteInput>) {
+  const moveDocument = useMoveDocument()
+  const deleteEntities = useDeleteEntities({})
+  const universalClient = useUniversalClient()
+  return useMutation({
+    ...opts,
+    mutationFn: async ({parent, target, signingAccountId}: MoveChildrenAndDeleteInput) => {
+      await moveChildrenAndDelete({
+        parent,
+        target,
+        signingAccountId,
+        listDocuments: async () => {
+          const listedDocs = await grpcClient.documents.listDocuments({account: parent.uid, pageSize: BIG_INT})
+          return listedDocs.documents
+            .map((item) => prepareHMDocumentInfo(item))
+            .map((doc) => ({path: doc.path, isRedirect: !!doc.redirectInfo, metadata: doc.metadata}))
+        },
+        requestResource: (id) => universalClient.request('Resource', id),
+        move: async (move) => {
+          await moveDocument.mutateAsync({...move, signingAccountId})
+        },
+        deleteParent: async () => {
+          const capabilityId = await resolveWriteCapabilityId(signingAccountId, parent)
+          await deleteEntities.mutateAsync({ids: [parent], signingAccountUid: signingAccountId, capabilityId})
+        },
+      })
     },
   })
 }

@@ -260,7 +260,7 @@ export function DocumentListItem({
       variant="ghost"
       {...highlighter(id)}
       className={cn(
-        'group/item h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
+        'group/item h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm dark:bg-black',
         className,
       )}
     >

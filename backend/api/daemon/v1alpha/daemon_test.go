@@ -19,6 +19,8 @@ import (
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"seed/backend/storage/vault"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"sync"
 	"testing"
@@ -82,6 +84,61 @@ func TestGetInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, testProtocolID, resp.ProtocolId)
+}
+
+func TestAuthenticationDoesNotWaitForWriter(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	u := coretest.NewTester("bob")
+	peerID, err := peer.IDFromPrivateKey(u.Device.Libp2pKey())
+	require.NoError(t, err)
+	srv.p2p = &mockedP2PNode{addrInfo: peer.AddrInfo{ID: peerID}}
+
+	require.NoError(t, srv.store.DB().WithTx(t.Context(), func(conn *sqlite.Conn) error {
+		_, err := blob.DbPublicKeysInsert(conn, u.Account.Principal())
+		return err
+	}))
+	assertion := &blob.Capability{
+		BaseBlob: blob.BaseBlob{
+			Type:   blob.TypeCapability,
+			Signer: u.Account.Principal(),
+			Ts:     time.Now().Truncate(time.Millisecond),
+		},
+		Delegate: u.Account.Principal(),
+		Audience: u.Device.Principal(),
+	}
+	require.NoError(t, blob.Sign(u.Account, assertion, &assertion.Sig))
+	req := &daemon.AuthenticateRequest{
+		Account:   assertion.Signer,
+		Timestamp: assertion.Ts.UnixMilli(),
+		Signature: assertion.Sig,
+	}
+	initial, err := srv.Authenticate(t.Context(), req)
+	require.NoError(t, err)
+
+	conn, release, err := srv.store.DB().WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		for _, operation := range []string{"authenticate", "verify bearer"} {
+			t.Run(operation, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+				token := initial.BearerToken
+
+				if operation == "authenticate" {
+					response, err := srv.Authenticate(ctx, req)
+					require.NoError(t, err)
+					token = response.BearerToken
+				}
+
+				caller, err := srv.AuthenticateBearerToken(ctx, token)
+				require.NoError(t, err)
+				require.Equal(t, u.Account.Principal(), caller)
+			})
+		}
+
+		return nil
+	}))
 }
 
 func TestGetStatusDefaultsToLocal(t *testing.T) {
@@ -883,7 +940,9 @@ func writeEncryptedImportKeyFile(
 	}, filename)
 }
 
-type mockedP2PNode struct{}
+type mockedP2PNode struct {
+	addrInfo peer.AddrInfo
+}
 
 const testProtocolID = "/seed/testing/1.0.0"
 
@@ -896,5 +955,5 @@ func (m *mockedP2PNode) ProtocolVersion() string {
 }
 
 func (m *mockedP2PNode) AddrInfo() peer.AddrInfo {
-	return peer.AddrInfo{}
+	return m.addrInfo
 }

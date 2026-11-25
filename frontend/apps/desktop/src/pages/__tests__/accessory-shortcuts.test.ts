@@ -156,14 +156,12 @@ describe('accessory shortcut logic', () => {
         {key: 'comments' as PanelSelectionOptions, label: 'Discussions'}, // Cmd+2 → index 1
         {key: 'collaborators' as PanelSelectionOptions, label: 'Collaborators'}, // Cmd+3 → index 2
         {key: 'directory' as PanelSelectionOptions, label: 'Sub documents'}, // Cmd+4 → index 3
-        {key: 'options' as PanelSelectionOptions, label: 'Options'}, // Cmd+5 → index 4
       ]
 
       expect(accessoryOptions[0].key).toBe('activity')
       expect(accessoryOptions[1].key).toBe('comments')
       expect(accessoryOptions[2].key).toBe('collaborators')
       expect(accessoryOptions[3].key).toBe('directory')
-      expect(accessoryOptions[4].key).toBe('options')
     })
   })
 })

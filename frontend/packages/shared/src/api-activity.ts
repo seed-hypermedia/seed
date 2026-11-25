@@ -57,6 +57,9 @@ async function resolveEvent(
       case 'doc/embed':
       case 'doc/link':
       case 'doc/button':
+      // An account or document named by a document attribute (owner…). Without this case the event
+      // is dropped here and nobody reading the resolved feed (citations, agent mention triggers) sees it.
+      case 'metadata/link':
         resolvedEvent = await loadCitationEvent(grpcClient, event, currentAccount, cache)
         break
       case 'dagpb':

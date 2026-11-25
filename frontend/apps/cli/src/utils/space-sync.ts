@@ -33,6 +33,7 @@ import {
   createRedirectRef,
   createTombstoneRef,
   createVersionRef,
+  documentUpdateBlobs,
   flattenToOperations,
   markdownBlockNodesToHMBlockNodes,
   parseMarkdown,
@@ -47,13 +48,12 @@ import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {
   computeReplaceOps,
   createBlocksMap,
-  matchBlockIds,
   rebindTableIdentities,
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import * as dagCbor from '@ipld/dag-cbor'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
@@ -70,12 +70,39 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: num
       out[i] = await fn(items[i]!, i)
     }
   })
-  await Promise.all(workers)
+  // A failed worker must not leave other requests running into the next sync pass.
+  const settled = await Promise.allSettled(workers)
+  const failed = settled.find((result) => result.status === 'rejected')
+  if (failed?.status === 'rejected') throw failed.reason
   return out
 }
 
 /** How many documents are fetched or published at once. */
 const CONCURRENCY = 6
+
+/** Delays before each retry of a `Resource` read the server answered with `type: 'error'`. */
+const RESOURCE_RETRY_DELAYS_MS = [500, 2000, 5000]
+
+/**
+ * Wraps a client so a `Resource` read that comes back as `type: 'error'` is retried with backoff.
+ * A site reports any unexpected daemon failure (a timeout, an overloaded node) that way, and one
+ * such read used to abort a whole sync, even on a page that had not changed. Not-found, tombstone
+ * and redirect are real answers and pass straight through; the last error is returned as is.
+ */
+export function withResourceRetry(client: SeedClient, delaysMs: number[] = RESOURCE_RETRY_DELAYS_MS): SeedClient {
+  // One cast: TS cannot tie the retried output back to the generic request key.
+  const request = (async (key, input, options) => {
+    const read = () => client.request(key, input, options)
+    let output = await read()
+    for (const delay of delaysMs) {
+      if (key !== 'Resource' || (output as {type?: string}).type !== 'error') break
+      await new Promise((r) => setTimeout(r, delay))
+      output = await read()
+    }
+    return output
+  }) as SeedClient['request']
+  return {...client, request}
+}
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +125,12 @@ export type SpaceLayout = {
    * and metadata, and export writes it back, so the files never name a key.
    */
   selfAuthority?: string
+  /**
+   * The tree rule: every published page has a published parent page, up to the home document, and
+   * every parent carries a Card embed of each direct child. An import refuses to publish anything
+   * while the directory breaks the rule (see findTreeViolations).
+   */
+  requireChildCards?: boolean
 }
 
 /** Every `hm://<from>` URL in a value (a string, or strings nested in lists and maps) with its authority set to `to`. */
@@ -258,6 +291,12 @@ export type ExportOptions = {
   assets?: {
     localize(nodes: HMBlockNode[], mdFile: string, metadata?: Record<string, unknown>): Promise<HMBlockNode[]>
   }
+  /** Keep an existing Markdown file byte-for-byte when it already represents the exported document. */
+  preserveSource?: boolean
+  /** Recheck the checkout immediately before writing a file after asynchronous work. */
+  beforeWrite?: (file: string) => void
+  /** Called synchronously after each file write, before another network request can yield. */
+  onWrite?: (file: string) => void
   log?: (line: string) => void
 }
 
@@ -350,6 +389,37 @@ function reorderLike(value: unknown, template: unknown): unknown {
   return out
 }
 
+/** Retain explicit identities and match missing identities by position, including partially annotated files. */
+function matchMarkdownIdentities(oldNodes: ReturnType<typeof toAPIBlockNode>[], tree: BlockNode[], source: string) {
+  const explicit = new Set(explicitBlockIds(source, tree))
+  // Files often mix existing identity comments with newly written paragraphs without them.
+  // Match only the missing identities; an explicit replacement must remain a real change.
+  const match = (old: typeof oldNodes, nodes: BlockNode[]): BlockNode[] =>
+    nodes.map((node, i) => {
+      const previous = explicit.has(node.block.id) ? old.find((n) => n.block.id === node.block.id) : old[i]
+      const id =
+        !explicit.has(node.block.id) && previous?.block.type === node.block.type && !explicit.has(previous.block.id)
+          ? previous.block.id
+          : node.block.id
+      return {
+        block: {...node.block, id},
+        children: node.block.type === 'Table' ? node.children : match(previous?.children ?? [], node.children),
+      }
+    })
+  return rebindTableIdentities(oldNodes, match(oldNodes, tree))
+}
+
+/** Whether two Markdown sources describe the same content, metadata, and explicit block identities. */
+export function markdownEquivalent(source: string, exported: string): boolean {
+  if (source === exported) return true
+  const local = parseMarkdown(source)
+  const remote = parseMarkdown(exported)
+  if (!deepEqual(local.metadata, remote.metadata)) return false
+  const oldNodes = markdownBlockNodesToHMBlockNodes(remote.tree).map(toAPIBlockNode)
+  const matched = matchMarkdownIdentities(oldNodes, local.tree, source)
+  return computeReplaceOps(createBlocksMap(oldNodes), matched).length === 0
+}
+
 /** Write one document (and the schema it defines) into the directory. */
 export async function exportDocument(
   opts: Omit<ExportOptions, 'uid'>,
@@ -380,13 +450,20 @@ export async function exportDocument(
   const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
   const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata
   const md = blocksToMarkdown({...doc, metadata: ownMetadata, content}, {ipfsGateway: false})
-  const changed = writeIfChanged(resolve(opts.dir, file), md)
+  opts.beforeWrite?.(file)
+  const destination = resolve(opts.dir, file)
+  const preserved =
+    opts.preserveSource && existsSync(destination) && markdownEquivalent(readFileSync(destination, 'utf8'), md)
+  const changed = !preserved && writeIfChanged(destination, md)
+  if (changed) opts.onWrite?.(file)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
 
   if (schemaCid && schemaFile) {
     const blob = await opts.client.request('GetCID', {cid: schemaCid})
+    opts.beforeWrite?.(schemaFile)
     const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)
+    if (changedSchema) opts.onWrite?.(schemaFile)
     ;(changedSchema ? result.written : result.unchanged).push(schemaFile)
     log(`${changedSchema ? 'wrote  ' : 'same   '} ${schemaFile}`)
   }
@@ -776,6 +853,13 @@ function metadataLeaves(metadata: Record<string, unknown> | undefined, prefix: s
 /**
  * The SetAttributes op turning `oldMetadata` into `newMetadata`: changed and
  * added leaves are set, leaves missing from the new metadata are nulled.
+ *
+ * A map is rewritten entry by entry, never as "clear the key, then set its
+ * entries": the server leaves out the entries whose value is unchanged and
+ * keeps the clear, which removes the whole map. For the same reason a leaf
+ * that gave way to a map (`kind: plain` to `kind: {of: map}`) or a map that
+ * gave way to a leaf gets no null: a write at a key already removes what was
+ * stored above and below it, and a null there would remove the new value too.
  */
 export function metadataDiffOp(
   oldMetadata: Record<string, unknown> | undefined,
@@ -789,8 +873,12 @@ export function metadataDiffOp(
     seen.add(k)
     if (!oldLeaves.has(k) || oldLeaves.get(k) !== leaf.value) attrs.push(leaf)
   }
-  for (const [k] of oldLeaves) {
-    if (!seen.has(k)) attrs.push({key: k.split(' '), value: null})
+  const kept = metadataLeaves(newMetadata).map((leaf) => leaf.key)
+  const within = (a: string[], b: string[]) => a.length <= b.length && a.every((segment, i) => segment === b[i])
+  for (const leaf of metadataLeaves(oldMetadata)) {
+    if (seen.has(leaf.key.join(' '))) continue
+    if (kept.some((key) => within(key, leaf.key) || within(leaf.key, key))) continue
+    attrs.push({key: leaf.key, value: null})
   }
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
@@ -833,7 +921,87 @@ export function checkLinks(
   return broken
 }
 
+export type TreeViolation = {file: string; kind: 'no-parent' | 'no-child-card'; message: string}
+
+/** The paths a tree's Card embeds point at inside `account`: `<./child.md> <!-- type:Embed attrs:{"view":"Card"} -->`. */
+export function cardEmbedPaths(nodes: HMBlockNode[], account: string, out = new Set<string>()): Set<string> {
+  const own = new RegExp(`^hm://${account}(/[^#?]*)?([#?].*)?$`)
+  for (const node of nodes) {
+    const block = node.block as {type?: string; link?: string; attributes?: Record<string, unknown>}
+    if (block.type === 'Embed' && block.attributes?.view === 'Card' && typeof block.link === 'string') {
+      const m = own.exec(block.link)
+      if (m) out.add((m[1] || '').replace(/\/$/, ''))
+    }
+    if (node.children) cardEmbedPaths(node.children, account, out)
+  }
+  return out
+}
+
+/** The path one level up: '/a/b' is under '/a', '/a' under the home document (''), which has no parent. */
+export function parentPath(path: string): string | null {
+  if (path === '') return null
+  return path.slice(0, path.lastIndexOf('/'))
+}
+
+/**
+ * Where the directory breaks the tree rule (SpaceLayout.requireChildCards). `pages` maps every
+ * published path to its file and the paths its Card embeds name. A page with no page one level up
+ * is `no-parent` (reported once per missing parent); a parent that embeds no card of a direct child
+ * is `no-child-card`.
+ */
+export function findTreeViolations(
+  pages: Map<string, {file: string; cards: Set<string>}>,
+  fileForPath: (path: string) => string,
+): TreeViolation[] {
+  const violations: TreeViolation[] = []
+  const orphans = new Map<string, string[]>()
+  for (const [path, page] of pages) {
+    const parent = parentPath(path)
+    if (parent === null) continue
+    const parentPage = pages.get(parent)
+    if (!parentPage) {
+      orphans.set(parent, [...(orphans.get(parent) || []), page.file])
+    } else if (!parentPage.cards.has(path)) {
+      violations.push({
+        file: parentPage.file,
+        kind: 'no-child-card',
+        message: `no Card embed of its child ${page.file}`,
+      })
+    }
+  }
+  for (const [parent, children] of orphans) {
+    const shown = children.slice(0, 3).join(', ') + (children.length > 3 ? `, … (${children.length} pages)` : '')
+    violations.push({
+      file: fileForPath(parent),
+      kind: 'no-parent',
+      message: `missing: it is the parent page of ${shown}`,
+    })
+  }
+  return violations.sort((a, b) => a.file.localeCompare(b.file) || a.message.localeCompare(b.message))
+}
+
+/** The tree rule over the whole directory, whatever subset of files is being published. */
+export function checkTree(
+  opts: ImportOptions,
+  prepared: Map<string, ReturnType<typeof prepareFile>> = new Map(),
+): TreeViolation[] {
+  const layout = opts.layout || defaultLayout
+  const pages = new Map<string, {file: string; cards: Set<string>}>()
+  for (const file of listMarkdownFiles(opts.dir)) {
+    const path = layout.pathForFile(file)
+    if (path === null) continue
+    let prep = prepared.get(file)
+    if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
+    pages.set(path, {file, cards: cardEmbedPaths(prep.nodes, opts.account)})
+  }
+  return findTreeViolations(
+    pages,
+    (path) => layout.fileForLinkPath?.(path) ?? `${path.replace(/^\//, '') || 'index'}.md`,
+  )
+}
+
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
+  opts = {...opts, client: withResourceRetry(opts.client)}
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
   const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: [], moved: []}
@@ -852,6 +1020,18 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     throw new Error(
       `${broken.length} broken link${broken.length === 1 ? '' : 's'} in ${opts.dir}:\n${lines.join('\n')}`,
     )
+  }
+  // Nor while a page has no parent page, or a parent lacks the card of a child.
+  if (layout.requireChildCards) {
+    const violations = checkTree(opts, prepared)
+    if (violations.length) {
+      const lines = violations.slice(0, 50).map((v) => `  ${v.file}: ${v.message}`)
+      if (violations.length > 50) lines.push(`  … and ${violations.length - 50} more`)
+      throw new Error(
+        `${violations.length} tree problem${violations.length === 1 ? '' : 's'} in ${opts.dir} ` +
+          `(every page needs a parent page, and every parent a Card embed of each child):\n${lines.join('\n')}`,
+      )
+    }
   }
   // With --check, nothing is published while a document would violate its schema either.
   if (opts.check) {
@@ -890,6 +1070,9 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
 
     const existing = await opts.client.request('Resource', id)
     const label = path || '(home)'
+    if (existing.type === 'error') {
+      throw new Error(`Cannot read ${packHmId(id)} from the server: ${existing.message}`)
+    }
     // The directory is the truth about what lives at a path: a deleted document
     // (tombstone) or a redirect there is replaced by a fresh one. The new Ref's
     // generation is later than theirs, which is what takes the path over.
@@ -971,14 +1154,11 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const oldDoc = movedFrom === null && existing.type === 'document' ? existing.document : (await getBase()).document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)
-    // A hand-written file carries no block ids: match its blocks to the
-    // existing document by position, so edits update blocks in place instead
-    // of replacing the whole document every time. (A block's id is explicit
+    // Match blocks without ids by position, even when other blocks in the
+    // file have ids, so repeated imports do not replace those blocks. (An id is explicit
     // when its comment appears in the source; prose mentioning `<!-- id:X -->`
     // does not count.)
-    const hasIds = newTree.some((n) => raw.includes(`<!-- id:${n.block.id}`))
-    const matched = hasIds ? newTree : matchBlockIds(oldNodes, newTree)
-    const rebound = rebindTableIdentities(oldNodes, matched)
+    const rebound = matchMarkdownIdentities(oldNodes, newTree, raw)
     const ops: DocumentOperation[] = computeReplaceOps(oldMap, rebound)
     const metaOp = metadataDiffOp(oldDoc.metadata as Record<string, unknown>, metadata as Record<string, unknown>)
     if (metaOp) ops.unshift(metaOp)
@@ -992,33 +1172,38 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     result.updated.push(file)
     if (opts.dryRun) return
 
-    const state = (await getBase()).state
-    const {unsignedBytes, ts} = createChangeOps({
+    // The server computes the Change from the document's real state, so only what differs is
+    // stored; a request it refuses, does not answer or answers implausibly is built here instead
+    // (documentUpdateBlobs), so one file's refusal never stops the import. An update keeps the
+    // document's generation. A document that has just moved here already holds a Ref with a
+    // current-time generation at this path, so its update takes a generation of now instead.
+    const attached = [...schemaBlobs, ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid}))]
+    const update = await documentUpdateBlobs({
+      client: opts.client,
+      signer: opts.signer,
+      account: opts.account,
+      path,
+      state: (await getBase()).state,
       ops,
-      genesisCid: CID.parse(state.genesis),
-      deps: state.heads.map((h) => CID.parse(h)),
-      depth: state.headDepth + 1,
+      content: oldDoc.content ?? [],
+      // The diff was made against the document read first; the heads are read now.
+      documentVersion: oldDoc.version,
+      capability: opts.capability,
+      currentGeneration:
+        movedFrom !== null
+          ? Date.now()
+          : (oldDoc as {generationInfo?: {generation?: number | bigint | string}}).generationInfo?.generation,
     })
-    const changeBlock = await createChange(unsignedBytes, opts.signer)
-    const ref = await createVersionRef(
-      {
-        space: opts.account,
-        path,
-        genesis: state.genesis,
-        version: changeBlock.cid.toString(),
-        generation: Number(ts),
-        capability: opts.capability,
-      },
-      opts.signer,
-    )
-    await opts.client.publish({
-      blobs: [
-        {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-        ...ref.blobs,
-        ...schemaBlobs,
-        ...resolved.blobs.map((b) => ({data: b.data, cid: b.cid})),
-      ],
-    })
+    if (!update.changed) {
+      // The ops asked for nothing the document does not already hold: no new version.
+      log(`same    ${label}  (the server found nothing to change)`)
+      result.updated.splice(result.updated.lastIndexOf(file), 1)
+      result.unchanged.push(file)
+      if (attached.length) await opts.client.publish({blobs: attached})
+      return
+    }
+    if (update.builtBy === 'local') log(`        ${label}: change built locally because ${update.localReason}`)
+    await opts.client.publish({blobs: [...update.blobs, ...attached]})
   }
   await mapPool(files, CONCURRENCY, processFile)
   return result

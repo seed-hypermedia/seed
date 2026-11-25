@@ -1,6 +1,7 @@
 import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
-import {Node} from 'prosemirror-model'
-import {EditorState, NodeSelection} from 'prosemirror-state'
+import {Fragment, Node, Slice} from 'prosemirror-model'
+import {EditorState, NodeSelection, TextSelection, Transaction} from 'prosemirror-state'
+import {ReplaceAroundStep} from 'prosemirror-transform'
 import {BlockInfo, getBlockInfoFromResolvedPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 
 export const getParentBlockInfo = (doc: Node, beforePos: number) => {
@@ -56,6 +57,73 @@ export const getBottomNestedBlockInfo = (doc: Node, blockInfo: BlockInfo) => {
   return blockInfo
 }
 
+/**
+ * Removes the block at `blockPos` while re-homing its children under the
+ * nearest block above, instead of flattening them into siblings.
+ *
+ * The children group is placed by walking the last-child chain from the block
+ * at `prevSiblingPos` (the removed block's previous sibling): the first
+ * children group with the same `listType` adopts the removed group's items
+ * appended at its end; if no group matches, the bottom-most block of the chain
+ * adopts the removed children group as-is. When `mergeContent` is true, the
+ * removed block's inline content is appended to that bottom-most block's
+ * content.
+ *
+ * The whole change is a single `ReplaceAroundStep` so that moved children keep
+ * their mapped positions (and therefore their `revision` attribute); the slice
+ * copies the last-child path, open on the left down to the bottom block's
+ * content and closed on the right. Returns the junction position: the end of
+ * the bottom-most block's original content, which is where a merged cursor
+ * should land.
+ */
+export const removeBlockKeepingChildren = (
+  tr: Transaction,
+  prevSiblingPos: number,
+  blockPos: number,
+  mergeContent: boolean,
+): number => {
+  const doc = tr.doc
+  const block = doc.nodeAt(blockPos)!
+  const blockContent = block.firstChild!
+  const childrenGroup = block.lastChild!
+  const groupBefore = blockPos + 1 + blockContent.nodeSize
+  const groupAfter = groupBefore + childrenGroup.nodeSize
+
+  const path: {node: Node; pos: number}[] = []
+  let node = doc.nodeAt(prevSiblingPos)!
+  let pos = prevSiblingPos
+  let appendAt = -1
+  while (true) {
+    path.push({node, pos})
+    if (node.childCount < 2) break
+    const group = node.lastChild!
+    const groupPos = pos + 1 + node.firstChild!.nodeSize
+    path.push({node: group, pos: groupPos})
+    if (appendAt < 0 && group.attrs.listType === childrenGroup.attrs.listType) appendAt = path.length - 1
+    const last = group.lastChild!
+    node = last
+    pos = groupPos + group.nodeSize - 1 - last.nodeSize
+  }
+
+  const bottom = path[path.length - 1]!
+  const bottomContent = bottom.node.firstChild!
+  const mergedContent =
+    mergeContent && !bottomContent.isLeaf
+      ? bottomContent.copy(bottomContent.content.append(blockContent.content))
+      : bottomContent
+
+  let inner = Fragment.from(bottom.node.copy(Fragment.from(mergedContent)))
+  for (let i = path.length - 2; i >= 0; i--) inner = Fragment.from(path[i]!.node.copy(inner))
+  const depth = path.length
+  const slice = new Slice(inner, depth, 0)
+  const insert = appendAt < 0 ? mergedContent.nodeSize : mergedContent.nodeSize + (depth - 1 - appendAt)
+  const [gapFrom, gapTo] = appendAt < 0 ? [groupBefore, groupAfter] : [groupBefore + 1, groupAfter - 1]
+
+  tr.step(new ReplaceAroundStep(bottom.pos + 1, blockPos + block.nodeSize, gapFrom, gapTo, slice, insert, false))
+
+  return bottom.pos + 2 + (bottomContent.isLeaf ? 0 : bottomContent.content.size)
+}
+
 const canMerge = (prevBlockInfo: BlockInfo, nextBlockInfo: BlockInfo) => {
   return (
     prevBlockInfo.blockContent.node.type.spec.content === 'inline*' &&
@@ -69,19 +137,8 @@ const mergeBlocks = (
   dispatch: ((args?: any) => any) | undefined,
   prevBlockInfo: BlockInfo,
   nextBlockInfo: BlockInfo,
+  prevSiblingInfo: BlockInfo,
 ) => {
-  // Remove a level of nesting all children of the block.
-  if (nextBlockInfo.childContainer) {
-    const childBlocksStart = state.doc.resolve(nextBlockInfo.childContainer.beforePos + 1)
-    const childBlocksEnd = state.doc.resolve(nextBlockInfo.childContainer.afterPos - 1)
-    const childBlocksRange = childBlocksStart.blockRange(childBlocksEnd)
-
-    if (dispatch) {
-      const pos = state.doc.resolve(nextBlockInfo.block.beforePos)
-      state.tr.lift(childBlocksRange!, pos.depth)
-    }
-  }
-
   if (selectableNodeTypes.includes(nextBlockInfo.blockContentType)) {
     if (!prevBlockInfo.blockContent.node.textContent) {
       if (dispatch) {
@@ -92,6 +149,21 @@ const mergeBlocks = (
       }
       return true
     }
+  }
+
+  if (nextBlockInfo.childContainer) {
+    if (dispatch) {
+      const junction = removeBlockKeepingChildren(
+        state.tr,
+        prevSiblingInfo.block.beforePos,
+        nextBlockInfo.block.beforePos,
+        true,
+      )
+      state.tr.setSelection(TextSelection.near(state.tr.doc.resolve(junction)))
+      dispatch(state.tr)
+    }
+
+    return true
   }
 
   // Delete the boundary between the two blocks. Can be thought of as
@@ -122,5 +194,5 @@ export const mergeBlocksCommand =
       return false
     }
 
-    return mergeBlocks(state, dispatch, bottomNestedBlockInfo, nextBlockInfo)
+    return mergeBlocks(state, dispatch, bottomNestedBlockInfo, nextBlockInfo, prevBlockInfo)
   }

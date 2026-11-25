@@ -361,6 +361,15 @@ function FieldsTable({
                   {f.description && (
                     <div className="text-muted-foreground font-sans text-xs font-normal">{f.description}</div>
                   )}
+                  {f.default !== undefined && (
+                    <div
+                      className="text-muted-foreground font-sans text-xs font-normal"
+                      data-testid="schema-field-default"
+                    >
+                      default{' '}
+                      <code className="bg-muted rounded px-1 font-mono break-all">{JSON.stringify(f.default)}</code>
+                    </div>
+                  )}
                 </td>
                 <td className="py-1.5 pr-4 align-top">
                   <SchemaRef node={f.schema} nav={nav} />

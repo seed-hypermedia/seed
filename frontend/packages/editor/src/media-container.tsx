@@ -1,17 +1,16 @@
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
+import {IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection} from 'prosemirror-state'
-import type {ElementType} from 'react'
 import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
 import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {markBlockUploaded, MediaType} from './media-render'
@@ -123,10 +122,11 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
-  // Card/Link embeds render a self-contained card with its own border+shadow,
-  // so the MediaContainer chrome frame (border + muted bg) would double up.
+  // Populated embeds provide their own card or quote styling. Keep the media
+  // frame for the empty input, without adding another border around the embed.
   const embedView = isEmbed ? (block.props as {view?: string}).view : undefined
-  const isSelfFramedEmbed = embedView === 'Card' || embedView === 'Link'
+  const isSelfFramedEmbed =
+    embedView === 'Card' || embedView === 'Link' || (mediaType === 'embed' && !!(block.props as {url?: string}).url)
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {
@@ -257,17 +257,6 @@ export const MediaContainer = ({
     const view = editor._tiptapEditor?.view
     if (!view) return
 
-    // Resolve position once just to gate on grid-container membership. The
-    // dispatch below re-resolves the range AFTER beginEditIfNeeded, because
-    // entering edit mode can synchronously replace the whole doc (draft
-    // content differs from published), invalidating any pre-edit positions.
-    const preEditRange = findBlockRangeById(view.state.doc, block.id)
-    const preEditContentPos = preEditRange?.blockContentBeforePos ?? null
-
-    if (preEditContentPos == null) return
-
-    if (isInGridContainer(view.state, preEditContentPos)) return
-
     e.preventDefault()
     e.stopPropagation()
     beginEditIfNeeded()
@@ -311,26 +300,6 @@ export const MediaContainer = ({
     view.focus()
   }
 
-  const handleImageCaptionKeyDown = (event: React.KeyboardEvent<ElementType>) => {
-    if (event.key !== 'Enter' || event.shiftKey) return
-
-    event.preventDefault()
-    event.stopPropagation()
-
-    const cursorPosition = editor.getTextCursorPosition()
-    if (cursorPosition.block.id !== block.id) return
-
-    if (cursorPosition.nextBlock) {
-      editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
-    } else {
-      editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
-      const nextBlock = editor.getTextCursorPosition().nextBlock
-      if (nextBlock) editor.setTextCursorPosition(nextBlock, 'start')
-    }
-
-    editor.focus()
-  }
-
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
@@ -352,26 +321,6 @@ export const MediaContainer = ({
       //   'relative flex w-full flex-col gap-2 self-center',
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
-      draggable={canAuthor ? 'true' : 'false'}
-      onMouseDownCapture={(e) => {
-        // Disable dragging for gestures that begin in the caption.
-        const inCaption = !!(e.target as Element | null)?.closest?.('[data-media-container-ignore-select]')
-        e.currentTarget.setAttribute('draggable', canAuthor && !inCaption ? 'true' : 'false')
-      }}
-      onDragStart={(e: any) => {
-        // Uncomment to allow drag only if block is selected
-        // if (!selected) {
-        //   e.preventDefault()
-        //   return
-        // }
-        e.stopPropagation()
-        beginEditIfNeeded()
-        editor.sideMenu!.blockDragStart(e)
-      }}
-      onDragEnd={(e: any) => {
-        e.stopPropagation()
-        editor.sideMenu!.blockDragEnd()
-      }}
       onClick={
         onPress
           ? (e) => {
@@ -414,13 +363,26 @@ export const MediaContainer = ({
         style={{width}}
         {...mediaProps}
         contentEditable={false}
+        // Block dragging lives on the media surface, never on the wrapper: an
+        // image's caption is a sibling of this element and a draggable
+        // ancestor would turn caption text drags into native drags.
+        draggable={canAuthor ? 'true' : 'false'}
+        onDragStart={(e: any) => {
+          e.stopPropagation()
+          beginEditIfNeeded()
+          editor.sideMenu!.blockDragStart(e)
+        }}
+        onDragEnd={(e: any) => {
+          e.stopPropagation()
+          editor.sideMenu!.blockDragEnd()
+        }}
       >
         {mediaType !== 'embed' && editor.renderType !== 'viewer' && canEdit && (mediaType !== 'file' || isEditing) && (
           <>
             <input
               ref={fileInputRef}
               type="file"
-              accept={mediaType === 'file' ? undefined : `${mediaType}/*`}
+              accept={mediaType === 'image' ? IMAGE_FILE_ACCEPT : mediaType === 'file' ? undefined : `${mediaType}/*`}
               style={{display: 'none'}}
               onChange={(e) => {
                 const file = e.target.files?.[0]
@@ -463,7 +425,6 @@ export const MediaContainer = ({
           className="image-caption"
           contentEditable={editor.isEditable}
           data-media-container-ignore-select
-          onKeyDown={handleImageCaptionKeyDown}
         />
       )}
     </div>

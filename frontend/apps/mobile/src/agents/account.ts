@@ -3,7 +3,7 @@
  *
  * A thin re-export of the shared `useSelectedAccountId`, which reads through the platform seam to
  * mobile's vault adapter. Screens import this rather than reaching into the vault directly, so the
- * agents UI and the shared models can never disagree about who is acting — the agent server scopes
+ * agents UI and the shared models can never disagree about who is acting — the app environment scopes
  * every agent, session and provider by signing account.
  *
  * `undefined` means the vault is still opening; `null` means there is no identity yet.

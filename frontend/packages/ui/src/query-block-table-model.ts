@@ -1,5 +1,6 @@
 import {
   BUILTIN_METADATA_KEYS,
+  SCHEMA_BINDING_METADATA_KEYS,
   type HMAccountsMetadata,
   type HMDocumentInfo,
   type HMQueryBlockFilterOptions,
@@ -8,7 +9,7 @@ import {
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, normalizeDate, unpackHmId, type AnyTimestamp} from '@shm/shared'
-import {matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
+import {getQueryBlockRefKey, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
 
 /** Primitive presentation types inferred for custom Query table attributes. */
 export type QueryTableAttributeType = 'text' | 'number' | 'boolean' | 'date' | 'list'
@@ -43,8 +44,6 @@ export function getQueryTableAccountIds(value: unknown, context?: QueryTableValu
   })
 }
 
-const RESERVED_METADATA_KEYS = BUILTIN_METADATA_KEYS
-
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   const present = values.filter((value) => value !== null && value !== undefined && value !== '')
@@ -63,7 +62,11 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   return 'text'
 }
 
-/** Builds the stable core columns and discovered metadata columns for Query table rows. */
+/**
+ * Builds the stable core columns and discovered metadata columns for Query table rows.
+ * Metadata columns are every key saved on any result document, empty or not, plus the
+ * filter options' keys, except built-in and schema-binding keys.
+ */
 export function buildQueryTableColumns(
   items: HMDocumentInfo[] = [],
   filterOptions?: HMQueryBlockFilterOptions,
@@ -81,12 +84,14 @@ export function buildQueryTableColumns(
   ]
   const metadataKeys = Array.from(
     new Set([
-      ...items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key))),
+      ...items.flatMap((item) => Object.keys(item.metadata)),
       ...Object.keys(filterOptions ?? {})
         .filter((id) => id.startsWith('metadata:'))
         .map((id) => id.slice('metadata:'.length)),
     ]),
-  ).sort()
+  )
+    .filter((key) => !BUILTIN_METADATA_KEYS.has(key) && !SCHEMA_BINDING_METADATA_KEYS.has(key))
+    .sort()
 
   return coreColumns.concat(
     metadataKeys.map((key) => ({
@@ -212,11 +217,44 @@ export function queryTableItemMatchesSearch(
 ): boolean {
   const normalized = search.trim().toLocaleLowerCase()
   if (!normalized) return true
+  const searchRefKey = getQueryBlockRefKey(search, {allowWebUrls: true})
+  const refKeys: string[] = []
+  const refNames: string[] = []
+  for (const value of Object.values(item.metadata)) {
+    const {refKeys: keys, names} = queryTableValueRefs(value, context)
+    refKeys.push(...keys)
+    refNames.push(...names)
+  }
+  // An hm:// search is an exact ref match, not text: an account ref is a URL
+  // prefix of its documents' refs and would otherwise substring-match them.
+  if (searchRefKey) return refKeys.includes(searchRefKey)
   const text = descriptors
     .map((column) => queryTableValueToString(getQueryTableValue(item, column.id, context)).toLocaleLowerCase())
     .concat(queryTableValueToString(item.metadata).toLocaleLowerCase())
+    .concat(refNames.map((name) => name.toLocaleLowerCase()))
     .join('\n')
   return text.includes(normalized)
+}
+
+/** Returns the display name for a bare account ref key, when account metadata is available. */
+function queryTableRefLabel(refKey: string, context?: QueryTableValueContext): string | undefined {
+  const uid = refKey.slice('hm://'.length)
+  if (uid.includes('/')) return undefined
+  return context?.accountsMetadata?.[uid]?.metadata?.name
+}
+
+/** Returns ref keys and account display names for a raw table value. */
+function queryTableValueRefs(value: unknown, context?: QueryTableValueContext) {
+  const refKeys: string[] = []
+  const names: string[] = []
+  for (const candidate of Array.isArray(value) ? value : [value]) {
+    const key = getQueryBlockRefKey(candidate)
+    if (!key) continue
+    refKeys.push(key)
+    const name = queryTableRefLabel(key, context)
+    if (name) names.push(name)
+  }
+  return {refKeys, names}
 }
 
 export function getQueryTableColumnType(
@@ -276,7 +314,11 @@ export function filterQueryTableItems(
       const needle = filter.value.toLocaleLowerCase()
       if (filter.operator === 'contains') {
         const text = queryTableValueToString(value).toLocaleLowerCase()
-        return text.includes(needle)
+        if (text.includes(needle)) return true
+        const {refKeys, names} = queryTableValueRefs(value, context)
+        const needleRefKey = getQueryBlockRefKey(filter.value, {allowWebUrls: true})
+        if (needleRefKey && refKeys.includes(needleRefKey)) return true
+        return names.some((name) => name.toLocaleLowerCase().includes(needle))
       }
       const descriptor = descriptors?.find((d) => d.id === filter.columnId)
       const type = getQueryTableColumnType(filter.columnId, value, descriptor)

@@ -59,6 +59,21 @@ function buildDaemonArguments(embeddingEnabled: boolean, testnetName: string): s
     `-data-dir=${userDataPath}/daemon`,
   ]
 
+  const serverPort = (global as typeof globalThis & {localServerPort?: number}).localServerPort
+  const appURL = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL
+  const appOrigin = appURL ? new URL(appURL).origin : serverPort ? `http://localhost:${serverPort}` : undefined
+  if (appOrigin) {
+    // CLI flags take precedence over ff's environment values, so retain explicit origins.
+    const origins = new Set(
+      (process.env.SEED_API_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    )
+    origins.add(appOrigin)
+    args.push(`-api.allowed-origins=${Array.from(origins).join(',')}`)
+  }
+
   // Use file-based keystore in fixture mode.
   if (process.env.SEED_FIXTURE_DATA_DIR) {
     args.push(`-keystore-dir=${userDataPath}/daemon/keys`)

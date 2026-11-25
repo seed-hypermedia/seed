@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {mentionCandidateSubtitle, rankMentionCandidates} from './mention-ranking'
+import {mentionBreadcrumbSegments, mentionCandidateSubtitle, rankMentionCandidates} from './mention-ranking'
 import {hmId} from '../utils/entity-id-url'
 import type {HMMentionCandidate} from '@seed-hypermedia/client/hm-types'
 const now = Date.UTC(2026, 8, 11)
@@ -199,4 +199,35 @@ it('excludes the selected reply account and its aliases, but not another account
 it('does not exclude documents owned by the selected reply account', () => {
   const document = {...account('self', 'Home'), type: 'document' as const}
   expect(rankMentionCandidates([document], '', [], now, {selectedAccountUid: 'self'})).toHaveLength(1)
+})
+
+describe('mention breadcrumbs', () => {
+  const doc = (extra: Partial<HMMentionCandidate>): HMMentionCandidate => ({
+    ...account('site-uid', 'Note'),
+    type: 'document',
+    ...extra,
+  })
+  it('leads with the resolved space name and humanizes slug parents', () => {
+    expect(mentionBreadcrumbSegments(doc({parentNames: ['site-uid', 'design-notes']}), 'Seed Team Talks')).toEqual([
+      'Seed Team Talks',
+      'Design notes',
+    ])
+  })
+  it('shows the space alone for a home document', () => {
+    expect(mentionBreadcrumbSegments(doc({parentNames: ['site-uid']}), 'Seed Team Talks')).toEqual(['Seed Team Talks'])
+  })
+  it('collapses deep paths with an ellipsis in the middle', () => {
+    expect(mentionBreadcrumbSegments(doc({parentNames: ['site-uid', 'rfcs', '2026', 'drafts']}), 'Eng')).toEqual([
+      'Eng',
+      '…',
+      'Drafts',
+    ])
+  })
+  it('derives parents from the document path when parentNames are missing', () => {
+    const candidate = doc({id: hmId('site-uid', {path: ['ideas', 'my-note']})})
+    expect(mentionBreadcrumbSegments(candidate, 'Space')).toEqual(['Space', 'Ideas'])
+  })
+  it('keeps the raw account id until the space name resolves', () => {
+    expect(mentionBreadcrumbSegments(doc({parentNames: ['site-uid', 'ideas']}))).toEqual(['site-uid', 'Ideas'])
+  })
 })

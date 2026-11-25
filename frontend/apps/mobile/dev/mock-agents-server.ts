@@ -1,5 +1,5 @@
 /**
- * A mock agents server for developing and demoing the mobile agents UI without a model.
+ * A mock app environment for developing and demoing the mobile agents UI without a model.
  *
  * It speaks the real protocol — the same signed DAG-CBOR action API and WebSocket subscription
  * protocol the Bun service implements — so the app under test is entirely real: the real signed
@@ -12,13 +12,13 @@
  * is scripted and deterministic, so the same prompt produces the same demo every time.
  *
  * Deliberately NOT implemented: signature verification. This process accepts any well-formed
- * envelope and trusts the account it names. That is exactly what a real agents server must never
+ * envelope and trusts the account it names. That is exactly what a real app environment must never
  * do, which is why this lives under `dev/`, binds to loopback, and prints a warning on boot. Do not
  * deploy it, and do not copy its request handling into the service.
  *
  * Usage:
  *   bun frontend/apps/mobile/dev/mock-agents-server.ts        # serves :3052
- *   …then point the app's agent server at http://localhost:3052
+ *   …then point the app's app environment at http://localhost:3052
  */
 
 import * as cbor from '@shm/shared/cbor'
@@ -29,7 +29,7 @@ import type {
   SessionEvent,
   SessionEventPayload,
   SessionInfo,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 
 const PORT = Number(process.env.MOCK_AGENTS_PORT ?? 3052)
 const BOOT_TIME = Date.now()
@@ -464,7 +464,7 @@ const server = Bun.serve({
 
     if (request.method === 'OPTIONS') return new Response(null, {headers: CORS_HEADERS})
 
-    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws') {
+    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws' || url.pathname === '/hm/api/apps/ws') {
       if (server.upgrade(request)) return undefined
       return new Response('Expected a WebSocket upgrade', {status: 400})
     }
@@ -472,7 +472,8 @@ const server = Bun.serve({
     if (
       url.pathname === '/agents/api/health' ||
       url.pathname === '/api/health' ||
-      url.pathname === '/hm/api/agents/health'
+      url.pathname === '/hm/api/agents/health' ||
+      url.pathname === '/hm/api/apps/health'
     ) {
       return Response.json(
         {
@@ -490,7 +491,8 @@ const server = Bun.serve({
     if (
       url.pathname === '/api/message' ||
       url.pathname === '/agents/api/message' ||
-      url.pathname === '/hm/api/agents/message'
+      url.pathname === '/hm/api/agents/message' ||
+      url.pathname === '/hm/api/apps/message'
     ) {
       const envelope = cbor.decode<any>(new Uint8Array(await request.arrayBuffer()))
       const response = handleAction(envelope.action ?? {}, accountFromEnvelope(envelope))
@@ -546,7 +548,7 @@ const server = Bun.serve({
   },
 })
 
-console.log(`Mock agents server on http://localhost:${server.port}`)
+console.log(`Mock app environment on http://localhost:${server.port}`)
 console.log('  WARNING: signatures are NOT verified. Development only; never expose this port.')
 console.log('  Point the mobile app at this URL, then try:')
 console.log('    "what are the three nouns?"  → a streamed markdown reply')

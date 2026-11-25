@@ -1,14 +1,15 @@
 import downloadBg from '@/assets/download-bg.png'
-import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResourceWithContent, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSiteHeader, WebSidebarLayout} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {useLoaderData} from '@remix-run/react'
+import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
@@ -89,7 +90,7 @@ export const loader = async ({request}: {request: Request}) => {
   const stableRelease = await loadUpstreamRelease()
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, () =>
-    loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
+    loadSiteResourceWithContent(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
       stableRelease,
     }),
   )
@@ -98,7 +99,7 @@ export const loader = async ({request}: {request: Request}) => {
 export const meta = defaultPageMeta('Download Seed Hypermedia')
 
 export default function DownloadPage() {
-  const data = unwrap<SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
+  const data = unwrap<SiteDocumentPayload<HMDocument> & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
   const {stableRelease, originHomeId, siteHost, homeMetadata, id, document, origin} = data
   //   const os = getOS();
   const [platform, setPlatform] = useState<Awaited<ReturnType<typeof getPlatform>> | undefined>(undefined)
@@ -131,46 +132,48 @@ export default function DownloadPage() {
   }
   return (
     <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost}>
-      <div className="bg-cover bg-top" style={{backgroundImage: `url(${downloadBg})`}}>
-        <WebSiteHeader
-          homeMetadata={homeMetadata}
-          originHomeId={originHomeId}
-          siteHomeId={originHomeId}
-          docId={id}
-          document={document}
-          origin={origin}
-        />
-        <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
-          <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
-            <Container className="gap-4 px-6">
-              <h1 className="text-center text-4xl font-bold md:text-5xl">Download Seed Hypermedia Today!</h1>
-              <SizableText size="xl" className="text-center">
-                Start writing and collaborating with your peers.
-              </SizableText>
-              <div className="flex flex-col gap-4">{suggestedButtons.length > 0 && suggestedButtons}</div>
+      <WebSidebarLayout siteHomeId={originHomeId}>
+        <div className="bg-cover bg-top" style={{backgroundImage: `url(${downloadBg})`}}>
+          <WebSiteHeader
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            siteHomeId={originHomeId}
+            docId={id}
+            document={document}
+            origin={origin}
+          />
+          <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
+            <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
+              <Container className="gap-4 px-6">
+                <h1 className="text-center text-4xl font-bold md:text-5xl">Download Seed Hypermedia Today!</h1>
+                <SizableText size="xl" className="text-center">
+                  Start writing and collaborating with your peers.
+                </SizableText>
+                <div className="flex flex-col gap-4">{suggestedButtons.length > 0 && suggestedButtons}</div>
+              </Container>
+            </div>
+            <Container>
+              <div className="flex flex-col items-center justify-center gap-4">
+                <SizableText size="2xl" weight="bold">
+                  Download Seed Hypermedia {stableRelease.name}
+                </SizableText>
+              </div>
+              <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
+                {stableRelease.assets?.macos && (
+                  <PlatformItem label="MacOS" icon={Macos} assets={stableRelease.assets.macos} />
+                )}
+                {stableRelease.assets?.win32 && (
+                  <PlatformItem label="Windows" icon={Win32} assets={stableRelease.assets.win32} />
+                )}
+                {stableRelease.assets?.linux && (
+                  <PlatformItem label="Linux" icon={Linux} assets={stableRelease.assets.linux} />
+                )}
+              </div>
             </Container>
-          </div>
-          <Container>
-            <div className="flex flex-col items-center justify-center gap-4">
-              <SizableText size="2xl" weight="bold">
-                Download Seed Hypermedia {stableRelease.name}
-              </SizableText>
-            </div>
-            <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
-              {stableRelease.assets?.macos && (
-                <PlatformItem label="MacOS" icon={Macos} assets={stableRelease.assets.macos} />
-              )}
-              {stableRelease.assets?.win32 && (
-                <PlatformItem label="Windows" icon={Win32} assets={stableRelease.assets.win32} />
-              )}
-              {stableRelease.assets?.linux && (
-                <PlatformItem label="Linux" icon={Linux} assets={stableRelease.assets.linux} />
-              )}
-            </div>
-          </Container>
-        </NavigationLoadingContent>
-        <PageFooter />
-      </div>
+          </NavigationLoadingContent>
+          <PageFooter />
+        </div>
+      </WebSidebarLayout>
     </WebSiteProvider>
   )
 }

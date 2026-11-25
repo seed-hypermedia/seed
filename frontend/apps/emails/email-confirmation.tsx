@@ -1,16 +1,7 @@
-import {
-  Mjml,
-  MjmlBody,
-  MjmlButton,
-  MjmlColumn,
-  MjmlPreview,
-  MjmlSection,
-  MjmlText,
-  MjmlTitle,
-  MjmlWrapper,
-} from '@faire/mjml-react'
+import {Mjml, MjmlColumn, MjmlPreview, MjmlSection, MjmlText, MjmlTitle} from '@faire/mjml-react'
 import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
+import {EmailBody, EmailButton, emailTheme} from './components/EmailLayout'
 import {EmailHeadDefaults, renderReactToMjml} from './notifier'
 
 export type LoginConfirmationEmailProps = {
@@ -39,35 +30,24 @@ This link will expire in 15 minutes.`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>A new sign-in was detected on your Seed Hypermedia account</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0 0 16px">
               New sign-in to your account
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 16px">
               We detected a new sign-in to your Seed Hypermedia. This is your login link.
             </MjmlText>
-            <MjmlButton
-              href={loginUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-              padding="0 0 16px"
-            >
+            <EmailButton href={loginUrl} padding="0 0 16px">
               Log in to Hyper.media
-            </MjmlButton>
-            <MjmlText fontSize="13px" color="#6b7280" lineHeight="1.5" padding="0 0 24px">
+            </EmailButton>
+            <MjmlText fontSize="13px" color={emailTheme.muted} lineHeight="1.5" padding="0 0 24px">
               If you don't recognise this activity, please change your password immediately. This link will expire in 15
               minutes.
             </MjmlText>
@@ -75,8 +55,7 @@ This link will expire in 15 minutes.`
         </MjmlSection>
 
         <EmailFooter />
-        </MjmlWrapper>
-      </MjmlBody>
+      </EmailBody>
     </Mjml>,
   )
 

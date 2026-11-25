@@ -16,10 +16,17 @@
  * re-derived from (row id, column id) against the old document, and
  * attributes markdown cannot express (column width, header column) are
  * carried over from the old blocks.
+ *
+ * A body written as markdown gets one more pass first (markdownUpdateTree):
+ * a block whose markdown is what the stored block reads as is the stored
+ * block, so nothing the dialect spells differently is stored again, and a
+ * block that lost its id comment gets its id back.
  */
 
+import {blocksToMarkdown} from './blocks-to-markdown'
 import type {DocumentOperation} from './change'
-import type {HMBlockNode} from './hm-types'
+import type {HMBlockNode, HMDocument} from './hm-types'
+import {parseMarkdown} from './markdown-to-blocks'
 import type {BlockNode, SeedBlock} from './markdown-to-blocks'
 
 // ── Types matching the API response shape ────────────────────────────────────
@@ -323,12 +330,22 @@ function rebindTable(oldTable: APIBlockNode | undefined, newTable: BlockNode): B
 // ── Compute minimal operations from matched tree ─────────────────────────────
 
 /**
- * Compare the new block tree against the old blocks map and produce
- * the minimal set of DocumentOperations:
+ * Compare the new block tree against the old blocks map and produce the
+ * DocumentOperations that turn one into the other:
  *
- * - ReplaceBlock for new or content-changed blocks
- * - MoveBlocks for positioning (new blocks or position changes)
+ * - ReplaceBlock for new or content-changed blocks (an unchanged block gets none)
+ * - MoveBlocks for a level whose order changed (an unchanged level gets none)
  * - DeleteBlocks for blocks removed from the document
+ *
+ * The replaces are minimal; the moves are not. A native MoveBlocks carries no
+ * anchor: it places its blocks at the start of the parent's children, in the
+ * order listed. So a level whose order changed in any way (a block added,
+ * removed or moved) is listed whole, the blocks already in place included.
+ * An update sent through `PrepareDocumentChange` (documentUpdateBlobs)
+ * drops the moves that change nothing, so the stored Change is minimal there;
+ * a Change built from these ops directly (createChangeOps) stores them all.
+ * Skipping unchanged blocks here still matters on the daemon path: it writes
+ * a block with a whole-number attribute again even when it is equal.
  *
  * The delete pass is global: every old block whose id does not appear
  * anywhere in the new tree is deleted, including descendants of deleted
@@ -421,6 +438,8 @@ function computeReplaceOpsInner(
   // Emit a single MoveBlocks for all blocks at this level, positioning them
   // under the parent in order — unless the level already reads exactly like
   // this in the old document, so an untouched document yields no ops at all.
+  // A level whose order did change lists every block of it, the ones already
+  // in place included (see computeReplaceOps).
   const oldOrder = oldSiblingOrder(oldMap, parentId)
   const sameOrder = oldOrder.length === blockIdsAtLevel.length && blockIdsAtLevel.every((id, i) => oldOrder[i] === id)
   if (blockIdsAtLevel.length > 0 && !sameOrder) {
@@ -574,4 +593,213 @@ export function hmBlockNodeToBlockNode(node: HMBlockNode): BlockNode {
     block,
     children: (node.children || []).map(hmBlockNodeToBlockNode),
   }
+}
+
+// ── Markdown updates: unchanged markdown is the same block ───────────────────
+
+const TABLE_PARTS = new Set(['Table', 'TableColumn', 'TableRow'])
+
+/** JSON with every map's keys in order, so equal values give equal text. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']'
+  if (value && typeof value === 'object') {
+    const map = value as Record<string, unknown>
+    const keys = Object.keys(map)
+      .filter((key) => map[key] !== undefined)
+      .sort()
+    return '{' + keys.map((key) => JSON.stringify(key) + ':' + stableJson(map[key])).join(',') + '}'
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+/** The markdown writer prints an `ipfs://` media link as this gateway address unless told not to. */
+function nativeIpfsLink(link: string): string {
+  const gateway = 'https://ipfs.io/ipfs/'
+  return link.startsWith(gateway) ? 'ipfs://' + link.slice(gateway.length) : link
+}
+
+/**
+ * What a block says, without its id, in one spelling: two blocks with the same key read the same.
+ * `own` leaves out how the block's children are arranged, which is not something the block says
+ * about itself.
+ */
+function blockKey(block: SeedBlock, own = false): string {
+  const annotations = (block.annotations || [])
+    .map(canonicalAnnotation)
+    .filter(hasRange)
+    .map((annotation) => stableJson(annotation))
+    .sort()
+  return stableJson([
+    block.type,
+    block.text || '',
+    nativeIpfsLink(block.link || ''),
+    annotations,
+    own ? '' : block.childrenType || '',
+    block.language || '',
+    block.attributes || {},
+  ])
+}
+
+function eachBlock(nodes: BlockNode[], visit: (block: SeedBlock) => void): void {
+  for (const node of nodes) {
+    visit(node.block)
+    eachBlock(node.children, visit)
+  }
+}
+
+/**
+ * The tree to diff against a stored document when its new body was written as markdown.
+ *
+ * Markdown spells some things in one way only: an annotation over several ranges comes back as one
+ * per range, a block with children gets an explicit `Group`, a mention gets its kind. A diff of
+ * the parsed blocks against the stored ones would store every such block again although its author
+ * changed nothing. So the stored document is written to markdown and parsed here, which says what
+ * each stored block reads as, and then:
+ *
+ *  - a written block that reads the same as the stored block with its id is that block, as stored;
+ *  - a written block with no stored id that reads the same as a stored block the body does not
+ *    otherwise hold is that block: it gets the id back (the earliest such block in the document,
+ *    when several read alike). Only blocks with text or a link are matched this way, and how
+ *    their children are arranged does not count: markdown without id comments nests a list under
+ *    the paragraph before it.
+ *
+ * Tables are rebound first (rebindTableIdentities). The result goes to computeReplaceOps. A body
+ * that is the document's own markdown, with or without its id comments, yields no operations.
+ */
+export function markdownUpdateTree(oldContent: HMBlockNode[], written: BlockNode[]): BlockNode[] {
+  const oldNodes = oldContent.map(toAPIBlockNode)
+  const tree = rebindTableIdentities(oldNodes, written)
+
+  const stored = new Map<string, SeedBlock>()
+  eachBlock(oldContent.map(hmBlockNodeToBlockNode), (block) => {
+    if (block.id && !stored.has(block.id)) stored.set(block.id, block)
+  })
+  // A mention has two spellings, `<hm://…>` and `[@Name](hm://…)`, which the parser reads slightly
+  // differently, so a stored block may read as either.
+  const readsAs = new Map<string, Set<string>>()
+  const readsAsOwn = new Map<string, Set<string>>()
+  for (const mentionLabel of [() => '', undefined]) {
+    try {
+      const markdown = blocksToMarkdown({metadata: {}, content: oldContent} as unknown as HMDocument, {
+        ipfsGateway: false,
+        mentionLabel,
+      })
+      eachBlock(rebindTableIdentities(oldNodes, parseMarkdown(markdown).tree), (block) => {
+        if (!stored.has(block.id)) return
+        readsAs.set(block.id, (readsAs.get(block.id) || new Set<string>()).add(blockKey(block)))
+        readsAsOwn.set(block.id, (readsAsOwn.get(block.id) || new Set<string>()).add(blockKey(block, true)))
+      })
+    } catch {
+      // A document the writer cannot express: the blocks are compared as parsed.
+    }
+  }
+
+  const present = new Set<string>()
+  eachBlock(tree, (block) => present.add(block.id))
+  const matchable = (block: SeedBlock) => !TABLE_PARTS.has(block.type) && !!(block.text || block.link)
+  const unclaimed = new Map<string, string[]>()
+  for (const [id, block] of Array.from(stored)) {
+    if (present.has(id) || !matchable(block)) continue
+    for (const key of Array.from(readsAsOwn.get(id) || [])) {
+      const ids = unclaimed.get(key)
+      if (ids) ids.push(id)
+      else unclaimed.set(key, [id])
+    }
+  }
+  const claim = (key: string): string | undefined => {
+    const ids = unclaimed.get(key) || []
+    while (ids.length) {
+      const id = ids.shift()!
+      if (!present.has(id)) {
+        present.add(id)
+        return id
+      }
+    }
+    return undefined
+  }
+
+  const walk = (nodes: BlockNode[]): BlockNode[] =>
+    nodes.map((node) => {
+      const key = blockKey(node.block)
+      let id = node.block.id
+      if (!stored.has(id) && matchable(node.block)) id = claim(blockKey(node.block, true)) ?? id
+      const block = readsAs.get(id)?.has(key)
+        ? stored.get(id)!
+        : id === node.block.id
+          ? node.block
+          : {...node.block, id}
+      return {block, children: walk(node.children)}
+    })
+  return walk(tree)
+}
+
+/** What a content update does to a document, counted in blocks. */
+export type ContentChange = {
+  /** Blocks the document holds now. */
+  blocks: number
+  added: number
+  rewritten: number
+  /** Blocks that keep their id and end up under another parent or in another order. */
+  moved: number
+  deleted: number
+}
+
+/** The length of the longest run of `ids` that is already in the order `rank` gives. */
+function longestOrdered(ids: string[], rank: Map<string, number>): number {
+  const tails: number[] = []
+  for (const id of ids) {
+    const value = rank.get(id)!
+    let low = 0
+    let high = tails.length
+    while (low < high) {
+      const mid = (low + high) >> 1
+      if (tails[mid]! < value) low = mid + 1
+      else high = mid
+    }
+    tails[low] = value
+  }
+  return tails.length
+}
+
+/** Counts what `ops` (from computeReplaceOps over `newTree`) change in the stored document. */
+export function describeContentChange(
+  oldNodes: APIBlockNode[],
+  newTree: BlockNode[],
+  ops: DocumentOperation[],
+): ContentChange {
+  type Placement = {parent: string; index: number}
+  const place = <T extends {block: {id: string}; children?: T[]}>(nodes: T[]) => {
+    const placed = new Map<string, Placement>()
+    const walk = (list: T[], parent: string) =>
+      list.forEach((node, index) => {
+        if (!node.block?.id || placed.has(node.block.id)) return
+        placed.set(node.block.id, {parent, index})
+        walk(node.children || [], node.block.id)
+      })
+    walk(nodes, '')
+    return placed
+  }
+  const before = place(oldNodes)
+  const after = place(newTree)
+
+  let added = 0
+  let moved = 0
+  const kept = new Map<string, string[]>()
+  for (const [id, now] of Array.from(after)) {
+    const was = before.get(id)
+    if (!was) added++
+    else if (was.parent !== now.parent) moved++
+    else kept.set(now.parent, [...(kept.get(now.parent) || []), id])
+  }
+  for (const ids of Array.from(kept.values())) {
+    const rank = new Map<string, number>(ids.map((id): [string, number] => [id, before.get(id)!.index]))
+    moved += ids.length - longestOrdered(ids, rank)
+  }
+  let deleted = 0
+  for (const id of Array.from(before.keys())) if (!after.has(id)) deleted++
+  let rewritten = 0
+  for (const op of ops) {
+    if (op.type === 'ReplaceBlock' && before.has(String((op.block as {id?: unknown}).id))) rewritten++
+  }
+  return {blocks: before.size, added, rewritten, moved, deleted}
 }

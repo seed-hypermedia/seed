@@ -1,6 +1,7 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {createOSProtocolUrl} from '@shm/shared'
+import {createOSProtocolUrl, routeToHmUrl} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
+import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -11,6 +12,11 @@ import {ClientOnly} from './client-lazy'
 
 export function PageFooter({id, className}: {id?: UnpackedHypermediaId | null; className?: string}) {
   const tx = useTx()
+  const route = useNavRouteOrNull()
+  // Open the desktop app on the same screen the web page is showing: the
+  // route carries the view term, open panel, reply target and pinned version
+  // that a bare document id drops.
+  const openAppUrl = (route && routeToHmUrl(route)) || (id ? createOSProtocolUrl(id) : null)
   return (
     <div data-page-footer="true" className={cn('border-border border-t px-3 py-2 sm:px-4 sm:py-2', className)}>
       <div className="flex flex-wrap items-center gap-4">
@@ -35,9 +41,9 @@ export function PageFooter({id, className}: {id?: UnpackedHypermediaId | null; c
               },
             )}
           </SizableText>
-          {id ? (
+          {openAppUrl ? (
             <Button className="hidden sm:flex" size="sm" variant="default" asChild>
-              <a href={createOSProtocolUrl(id)}>
+              <a href={openAppUrl}>
                 <ExternalLink className="size-3" />
                 {tx('Open App')}
               </a>

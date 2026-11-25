@@ -1,8 +1,12 @@
 import {hasBlockContent} from '@shm/shared/content'
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {useEffect, useRef, useState} from 'react'
+import type {CommentComposerContent} from '@shm/shared/models/comment-composer-machine'
 
 interface CommentDraft {
+  docId?: string
+  replyCommentId?: string | null
+  quotingBlockId?: string
+  quotingRange?: QuotingRange
   blocks: HMBlockNode[]
   mediaRefs?: Record<string, string> // blockId to serialized mediaRef JSON map
   timestamp: number
@@ -11,8 +15,8 @@ interface CommentDraft {
 /** Range of a quoted fragment within a block, in codepoint offsets. */
 export type QuotingRange = {start: number; end: number}
 
-// Generate a unique key for storing drafts
-function getDraftKey(
+/** Storage key for one draft target. */
+export function getDraftKey(
   docId: string,
   replyCommentId?: string | null,
   quotingBlockId?: string,
@@ -56,104 +60,122 @@ function cleanupOldDrafts() {
   keysToRemove.forEach((key) => localStorage.removeItem(key))
 }
 
-export function useCommentDraftPersistence(
-  docId: string,
-  replyCommentId?: string | null,
-  quotingBlockId?: string,
-  quotingRange?: QuotingRange,
-) {
-  const draftKey = getDraftKey(docId, replyCommentId, quotingBlockId, quotingRange)
-  const [draft, setDraftState] = useState<CommentDraft | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
+/** Re-inject serialized mediaRefs into block attributes so the editor can rehydrate media. */
+export function injectMediaRefs(content: CommentComposerContent): HMBlockNode[] {
+  const mediaRefs = content.mediaRefs
+  if (!mediaRefs) return content.blocks
+  return content.blocks.map((node) => {
+    const block = node.block as any
+    const blockId = block?.id
+    if (!blockId || !mediaRefs[blockId]) return node
+    return {
+      ...node,
+      block: {
+        ...block,
+        attributes: {
+          ...block.attributes,
+          mediaRef: JSON.parse(mediaRefs[blockId]),
+        },
+      },
+    }
+  }) as HMBlockNode[]
+}
 
-  // Load draft on mount
-  useEffect(() => {
+/** Load a stored draft, re-injecting serialized mediaRefs into block attributes. */
+export function loadWebCommentDraft(key: string): CommentComposerContent | null {
+  cleanupOldDrafts()
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const draft = JSON.parse(raw) as CommentDraft
+    if (!Array.isArray(draft.blocks)) return null
+    const mediaRefs = draft.mediaRefs
+    return {blocks: injectMediaRefs({blocks: draft.blocks, mediaRefs}), ...(mediaRefs ? {mediaRefs} : {})}
+  } catch {
+    return null
+  }
+}
+
+/** Persist a composer draft under `key`, dropping it when the content is empty. */
+export function saveWebCommentDraft(
+  key: string,
+  target: {
+    docId: string
+    replyCommentId?: string | null
+    quotingBlockId?: string
+    quotingRange?: QuotingRange
+  },
+  content: CommentComposerContent,
+): void {
+  if (!content.blocks.some(hasBlockContent)) {
+    if (localStorage.getItem(key)) localStorage.removeItem(key)
+    return
+  }
+  const draft: CommentDraft = {
+    blocks: content.blocks,
+    docId: target.docId,
+    replyCommentId: target.replyCommentId ?? undefined,
+    quotingBlockId: target.quotingBlockId,
+    quotingRange: target.quotingRange,
+    timestamp: Date.now(),
+    ...(content.mediaRefs && Object.keys(content.mediaRefs).length ? {mediaRefs: content.mediaRefs} : {}),
+  }
+  localStorage.setItem(key, JSON.stringify(draft))
+}
+
+/** Remove a stored composer draft. */
+export function removeWebCommentDraft(key: string): void {
+  localStorage.removeItem(key)
+}
+
+/** A local comment draft and its exact storage key, used to resume or discard it. */
+export interface ListedWebCommentDraft extends CommentDraft {
+  storageKey: string
+  docId: string
+  ambiguousTarget?: boolean
+}
+
+/** List nonempty comment drafts across all local targets without deleting stored data. */
+export function listWebCommentDrafts(): ListedWebCommentDraft[] {
+  if (typeof localStorage === 'undefined') return []
+  const drafts: ListedWebCommentDraft[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const storageKey = localStorage.key(i)
+    if (!storageKey?.startsWith('comment-draft-')) continue
+    const raw = localStorage.getItem(storageKey)
     try {
-      const savedDraft = localStorage.getItem(draftKey)
-      if (savedDraft) {
-        const parsed = JSON.parse(savedDraft) as CommentDraft
-        setDraftState(parsed)
-      } else {
-        setDraftState(null)
-      }
-    } catch (error) {
-      console.error('Failed to load comment draft:', error)
-    } finally {
-      setIsLoading(false)
-    }
-
-    // Clean up old drafts periodically
-    cleanupOldDrafts()
-  }, [draftKey])
-
-  const saveDraft = (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => {
-    // Clear any pending save
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // Check if content is empty
-    const hasContent = blocks.some(hasBlockContent)
-
-    if (!hasContent) {
-      // If content is empty and there's an existing draft, remove it
-      const existingDraft = localStorage.getItem(draftKey)
-      if (existingDraft) {
-        localStorage.removeItem(draftKey)
-        setDraftState(null)
-      }
-      return
-    }
-
-    // Debounce the save
-    saveTimeoutRef.current = setTimeout(() => {
-      try {
-        const draft: CommentDraft = {
-          blocks,
-          timestamp: Date.now(),
-        }
-        // Save mediaRefs in a map because they get stripped by Zod schema
-        if (mediaRefs && Object.keys(mediaRefs).length > 0) {
-          draft.mediaRefs = mediaRefs
-        }
-        localStorage.setItem(draftKey, JSON.stringify(draft))
-        // Updating state here caused unnecessary rerenders that caused cursor jumping
-        // The draft state is only needed for initial load so no need to update it
-        // setDraftState(draft)
-      } catch (error) {
-        console.error('Failed to save comment draft:', error)
-      }
-    }, 500)
-  }
-
-  const removeDraft = () => {
-    try {
-      localStorage.removeItem(draftKey)
-      setDraftState(null)
-      // Clear any pending save
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    } catch (error) {
-      console.error('Failed to remove comment draft:', error)
+      const draft = JSON.parse(raw || '{}') as CommentDraft
+      if (!Array.isArray(draft.blocks) || !draft.blocks.some(hasBlockContent) || !Number.isFinite(draft.timestamp))
+        continue
+      // Older records stored the target only in the key. New records keep the
+      // fields explicitly so paths containing separator words remain unambiguous.
+      const legacy = storageKey
+        .slice('comment-draft-'.length)
+        .match(/^(.*?)(?:-reply-(.*?))?(?:-quote-(.*?))?(?:-range-(\d+)-(\d+))?$/)
+      const docId = draft.docId || legacy?.[1]
+      if (!docId) continue
+      drafts.push({
+        ...draft,
+        storageKey,
+        docId,
+        ambiguousTarget: !draft.docId && /-(?:reply|quote|range)-/.test(storageKey.slice('comment-draft-'.length)),
+        replyCommentId: draft.docId ? draft.replyCommentId : legacy?.[2],
+        quotingBlockId: draft.docId ? draft.quotingBlockId : legacy?.[3],
+        quotingRange: draft.docId
+          ? draft.quotingRange
+          : legacy?.[4] && legacy?.[5]
+            ? {start: Number(legacy[4]), end: Number(legacy[5])}
+            : undefined,
+      })
+    } catch {
+      // Leave unreadable records intact; one corrupt record must not hide other drafts.
     }
   }
+  return drafts.sort((a, b) => b.timestamp - a.timestamp)
+}
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  return {
-    draft: draft?.blocks || null,
-    draftMediaRefs: draft?.mediaRefs || null,
-    isLoading,
-    saveDraft,
-    removeDraft,
-  }
+/** Discard only the selected comment draft, including legacy keys. */
+export function deleteWebCommentDraft(storageKey: string): void {
+  if (!storageKey.startsWith('comment-draft-')) throw new Error('Invalid comment draft key')
+  localStorage.removeItem(storageKey)
 }

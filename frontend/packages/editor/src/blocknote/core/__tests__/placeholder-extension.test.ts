@@ -141,3 +141,35 @@ describe('first-block placeholder behavior', () => {
     editor._tiptapEditor.destroy()
   })
 })
+
+describe('empty grid cell placeholder', () => {
+  function hasGridCellPlaceholder(editor: BlockNoteEditor<any>, blockId: string) {
+    return getBlockContentElement(editor, blockId).classList.contains(blockStyles.isEmptyGridCell)
+  }
+
+  it('marks empty grid cells, but not filled cells or empty blocks outside the grid', () => {
+    const editor = createEditor([
+      {
+        id: 'grid',
+        type: 'paragraph',
+        content: 'Grid',
+        props: {childrenType: 'Grid', columnCount: '3'},
+        children: [
+          {id: 'filled', type: 'paragraph', content: 'Text'},
+          {id: 'empty', type: 'paragraph'},
+        ],
+      },
+      {id: 'outside', type: 'paragraph'},
+    ])
+
+    expect(hasGridCellPlaceholder(editor, 'empty')).toBe(true)
+    expect(hasGridCellPlaceholder(editor, 'filled')).toBe(false)
+    expect(hasGridCellPlaceholder(editor, 'outside')).toBe(false)
+
+    placeCursorInBlock(editor, 'empty')
+    insertText(editor, 'x')
+    expect(hasGridCellPlaceholder(editor, 'empty')).toBe(false)
+
+    editor._tiptapEditor.destroy()
+  })
+})

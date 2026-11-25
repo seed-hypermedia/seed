@@ -1,6 +1,7 @@
-import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import {createContext, useContext} from 'react'
+import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
+import {createContext, useCallback, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
@@ -9,16 +10,17 @@ import type {UniversalClient} from './universal-client'
 import {
   activityFilterToSlug,
   getRoutePanelParam,
-  hmIdToURL,
+  getRouteReplyCommentId,
   hypermediaUrlToRoute,
-  idToUrl,
   isViewTermPath,
   routeToHmUrl,
   routeToUrl,
   serializeBlockRange,
   unpackHmId,
+  mountedAgentRoute,
 } from './utils'
 import type {StateStream} from './utils/stream'
+import {resolveDomainHmUrl} from './utils/resolve-domain-hm-url'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -28,6 +30,7 @@ export const appExperimentsSchema = z
   .object({
     hosting: z.boolean().optional(),
     webImporting: z.boolean().optional(),
+    webBrowser: z.boolean().optional(),
     nostr: z.boolean().optional(),
     developerTools: z.boolean().optional(),
     /** Dev tools sub-toggle: the block-hover prediction cone overlay in editors. */
@@ -54,6 +57,8 @@ type UniversalAppContextValue = {
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
+  /** Whether the current web hostname serves a gateway rather than a single site. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId | undefined
 
   // the web URL in the current context. If null, the hm URL should be used.
@@ -129,6 +134,8 @@ export type AppEvent =
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode
+  /** Whether the current web hostname is a gateway. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId
   origin?: string | null
   ipfsFileUrl?: string
@@ -151,14 +158,32 @@ export function UniversalAppProvider(props: {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   domainResolver?: DomainResolverFn
 }) {
+  const {openUrl: hostOpenUrl, domainResolver, universalClient} = props
+  // A link to `hm://<domain>/...` is resolved to its account before the host opens it; on a
+  // failed resolution the host still gets the link as written and shows its own error.
+  const openUrl = useCallback(
+    (url: string, newWindow?: boolean) => {
+      const resolving = resolveDomainHmUrl(url, {domainResolver, universalClient})
+      if (!resolving) return hostOpenUrl(url, newWindow)
+      resolving.then(
+        (resolved) => hostOpenUrl(resolved, newWindow),
+        (error) => {
+          console.error('Could not resolve the domain in', url, error)
+          hostOpenUrl(url, newWindow)
+        },
+      )
+    },
+    [hostOpenUrl, domainResolver, universalClient],
+  )
   return (
     <UniversalAppContext.Provider
       value={{
+        isGateway: props.isGateway,
         originHomeId: props.originHomeId,
         origin: props.origin,
         ipfsFileUrl: props.ipfsFileUrl,
         getOptimizedImageUrl: props.getOptimizedImageUrl,
-        openUrl: props.openUrl,
+        openUrl,
         openRoute: props.openRoute,
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
@@ -211,6 +236,7 @@ type UseRouteLinkOpts = {
   onClick?: React.MouseEventHandler<HTMLElement>
   origin?: string | null
   originHomeId?: UnpackedHypermediaId
+  newWindow?: boolean
 }
 
 export function routeToHref(
@@ -221,6 +247,7 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
   if (typeof route !== 'string' && route.key === 'site-profile') {
     const docId = route.id
     const siteBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
@@ -234,15 +261,8 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
-  if (typeof route !== 'string' && route.key === 'notifications') {
-    const viewParam = route.view ? `?view=${route.view}` : ''
-    return `/hm/notifications${viewParam}`
-  }
-  if (typeof route !== 'string' && route.key === 'agents') {
-    return '/hm/agents'
-  }
-  if (typeof route !== 'string' && route.key === 'agent-server') {
-    return `/hm/agents/server?url=${encodeURIComponent(route.serverUrl)}`
+  if (typeof route !== 'string' && route.key === 'drafts') {
+    return '/hm/drafts'
   }
   if (typeof route !== 'string' && route.key === 'agent') {
     const query: string[] = []
@@ -389,6 +409,7 @@ export function routeToHref(
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTerm += `/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTerm += '/to-you'
     // Append openComment to view term path for comments
     if (route.key === 'comments' && route.openComment) {
       viewTerm += `/${route.openComment}`
@@ -404,6 +425,18 @@ export function routeToHref(
       const separator = href.includes('?') ? '&' : '?'
       href += `${separator}panel=${panelParam}`
     }
+    const replyCommentId = getRouteReplyCommentId(route)
+    if (replyCommentId) {
+      href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
+    }
+    if (route.key === 'comments' && route.targetBlockId) {
+      href += `${href.includes('?') ? '&' : '?'}quote=${encodeURIComponent(route.targetBlockId)}`
+      if (route.blockRange && 'start' in route.blockRange && 'end' in route.blockRange) {
+        href += `&quoteRange=${route.blockRange.start}:${route.blockRange.end}`
+      }
+    }
+    const pageInput = pageParamsQuery(route.id.pageParams)
+    if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -417,19 +450,12 @@ export function routeToHref(
   if (typeof route == 'string') {
     href = route
   } else if (docRoute && docId) {
-    const panelParam = getRoutePanelParam(docRoute)
     href = options?.hmUrlHref
-      ? hmIdToURL(docId)
-      : idToUrl(
-          {
-            ...docId,
-            hostname: options?.origin || null,
-          },
-          {
-            originHomeId: options?.originHomeId,
-            panel: panelParam,
-          },
-        )
+      ? routeToHmUrl(docRoute) ?? undefined
+      : routeToUrl(docRoute, {
+          hostname: options?.origin || null,
+          originHomeId: options?.originHomeId,
+        }) ?? undefined
   }
   return href
 }
@@ -445,6 +471,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     }
   if (!context) throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
 
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
+
   const href = routeToHref(route, {
     hmUrlHref: context.hmUrlHref,
     originHomeId: opts?.originHomeId || context.originHomeId,
@@ -454,8 +482,9 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
   const onClick = context.openRoute
     ? (e: React.MouseEvent<HTMLElement>) => {
         e?.stopPropagation()
-        const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey
+        const openInNewWindow = opts?.newWindow || e.metaKey || e.ctrlKey || e.shiftKey
         if (openInNewWindow) {
+          if (opts?.newWindow) opts.onClick?.(e)
           if (context.openRouteNewWindow) {
             e.preventDefault()
             if (typeof route === 'string') {
@@ -471,7 +500,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {
-          context.openRoute(route, opts?.replace)
+          // A click is a new navigation even when its URL and route object are unchanged.
+          context.openRoute({...route}, opts?.replace)
         } else {
           console.error('No openRoute function in UniversalAppContext. Cannot open route', route)
         }
@@ -484,5 +514,6 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     onClick,
     // Panels multiply every document and account into many URLs; keep crawlers on the documents.
     ...(href && isViewTermPath(href) ? {rel: 'nofollow'} : {}),
+    ...(opts?.newWindow ? {target: '_blank', rel: 'noopener noreferrer'} : {}),
   }
 }

@@ -1,4 +1,4 @@
-import {API_HTTP_URL, DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {AGENTS_LOCAL_SERVER_SETTING_KEY, API_HTTP_URL, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as fs from 'node:fs'
@@ -6,41 +6,75 @@ import * as net from 'node:net'
 import * as readline from 'node:readline'
 import path from 'path'
 import {userDataPath} from './app-paths'
+import {getStoredSetting, writeStoredSetting} from './app-settings-store'
 import {getAgentsServerBinaryPath, getAgentsServerWorkingDirectory} from './agents-server-path'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
 
 /**
- * Lifecycle for the local agents server, which runs the same artifact as the hosted deployment.
+ * Lifecycle for the local app environment, which runs the same artifact as the hosted deployment.
  *
- * The rule is **dev attaches, packaged spawns**: `./dev up` already runs `cd agents && bun run dev`
+ * The rule is **dev attaches, packaged spawns**: `./dev up` already runs `cd apps && bun run dev`
  * with hot reload, so spawning a second server there would fight it for the port and silently
  * shadow the developer's edits. Rather than make that a flag people forget to set, startup probes
- * the default port first and attaches to whatever healthy agents server answers.
+ * the default port first and attaches to whatever healthy app environment answers.
  */
 
 /**
- * Mirrors the agents server's own port default (agents/src/config.ts). Dev redefines it via
- * SEED_AGENTS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
+ * Mirrors the app environment's own port default (apps/src/config.ts). Dev redefines it via
+ * SEED_APPS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
  * server and the dev hot-reload server never share a port. Read at call time, not module load,
  * so tests control it per-case.
  */
 function defaultAgentsPort(): number {
-  return Number(process.env.SEED_AGENTS_HTTP_PORT) || 3050
+  return Number(process.env.SEED_APPS_HTTP_PORT ?? process.env.SEED_AGENTS_HTTP_PORT) || 3050
 }
-/** Ports scanned when the default is occupied by something that is not a healthy agents server. */
+/** Ports scanned when the default is occupied by something that is not a healthy app environment. */
 const MAX_PORT_PROBES = 20
 const HEALTH_TIMEOUT_MS = 1_500
 const SPAWN_READY_TIMEOUT_MS = 30_000
+/** How long a stop waits for the child to exit before giving up on the close event. */
+const STOP_TIMEOUT_MS = 5_000
 
 export type AgentsServerState =
-  | {t: 'disabled'}
+  | {t: 'disabled'; reason?: 'env' | 'setting'}
   | {t: 'attached'; url: string}
   | {t: 'spawned'; url: string}
   | {t: 'error'; message: string}
 
 let state: AgentsServerState = {t: 'disabled'}
 let attachRetryTimer: ReturnType<typeof setInterval> | undefined
+
+/** The user's choice about the bundled server; `unset` on a build that never asked. */
+export type LocalAgentsServerPolicy = 'on' | 'off' | 'unset'
+
+export function readLocalAgentsServerPolicy(): LocalAgentsServerPolicy {
+  const value = getStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY)
+  return value === 'on' || value === 'off' ? value : 'unset'
+}
+
+/** Where the spawned server keeps its database; its presence means an earlier build ran one. */
+export function localAgentsDbPath(): string {
+  return path.join(userDataPath, 'agents', 'agents.sqlite')
+}
+
+/**
+ * Whether a packaged build should spawn its bundled server.
+ *
+ * The local agent system is off unless the user turned it on, with one exception: a build that
+ * always spawned the server (before this setting existed) may have left agents behind. When the
+ * setting is unset and that database exists, the server runs one more time so the app can look
+ * for agents in it and settle the setting (see `useLocalAgentsServerMigration` in the renderer).
+ * A fresh install has no database and starts off without spawning anything.
+ */
+export function resolveLocalAgentsServerSpawn(
+  policy: LocalAgentsServerPolicy,
+  dataExists: boolean,
+): {spawn: boolean; settle?: 'off'} {
+  if (policy === 'on') return {spawn: true}
+  if (policy === 'off') return {spawn: false}
+  return dataExists ? {spawn: true} : {spawn: false, settle: 'off'}
+}
 
 /**
  * A failed startup must not blind the app forever: a dev server that was mid-restart during the
@@ -54,13 +88,13 @@ function beginAttachRetry(url: string): void {
   if (attachRetryTimer) return
   attachRetryTimer = setInterval(() => {
     void (async () => {
-      if (state.t === 'attached' || state.t === 'spawned' || state.t === 'disabled') {
+      if (state.t === 'attached' || state.t === 'spawned') {
         clearInterval(attachRetryTimer)
         attachRetryTimer = undefined
         return
       }
       if (await isAgentsServerHealthy(url)) {
-        log.info('Attached to agents server after retry', {url})
+        log.info('Attached to app environment after retry', {url})
         state = {t: 'attached', url}
         clearInterval(attachRetryTimer)
         attachRetryTimer = undefined
@@ -72,21 +106,22 @@ function beginAttachRetry(url: string): void {
 let serverProcess: ChildProcess | null = null
 let expectingClose = false
 
-/** Current local agents server state. */
+/** Current local app environment state. */
 export function getAgentsServerState(): AgentsServerState {
   return state
 }
 
-/** Resolved base URL of the local agents server, or null when it is not running. */
+/** Resolved base URL of the local app environment, or null when it is not running. */
 export function getLocalAgentsServerUrl(): string | null {
   return state.t === 'attached' || state.t === 'spawned' ? state.url : null
 }
 
-/** Returns true when a healthy agents server answers at `url`. */
+/** Returns true when a healthy app environment answers at `url`. */
 async function isAgentsServerHealthy(url: string): Promise<boolean> {
   try {
-    // A canonical base (`…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
-    const healthUrl = url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
+    // A canonical base (`…/hm/api/apps` or `…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
+    const healthUrl =
+      url.endsWith('/hm/api/apps') || url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
     const response = await fetch(healthUrl, {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
@@ -114,38 +149,39 @@ async function findFreePort(startPort: number): Promise<number> {
     const port = startPort + offset
     if (await isPortFree(port)) return port
   }
-  throw new Error(`No free port for the agents server in ${startPort}..${startPort + MAX_PORT_PROBES - 1}`)
+  throw new Error(`No free port for the app environment in ${startPort}..${startPort + MAX_PORT_PROBES - 1}`)
 }
 
 /**
- * Starts or attaches to the local agents server and returns its base URL.
+ * Starts or attaches to the local app environment and returns its base URL.
  *
  * Resolution order:
- * 1. `SEED_NO_AGENTS_SPAWN` — skip entirely (the desktop then only talks to configured remote servers).
- * 2. `SEED_AGENTS_SERVER_URL` — attach to an explicitly configured server, failing loudly if unhealthy.
- * 3. A healthy agents server already on the default port — attach (this is the `./dev up` path).
- * 4. Otherwise spawn the bundled binary on the first free port.
+ * 1. `SEED_NO_APPS_SPAWN` (or the older `SEED_NO_AGENTS_SPAWN`) — skip entirely (the desktop then only talks to configured remote servers).
+ * 2. `SEED_APPS_SERVER_URL` (or `SEED_AGENTS_SERVER_URL`) — attach to an explicitly configured server, failing loudly if unhealthy.
+ * 3. A healthy app environment already on the default port — attach (this is the `./dev up` path).
+ * 4. Otherwise spawn the bundled binary on the first free port, if the user's setting allows it
+ *    (see {@link resolveLocalAgentsServerSpawn}); `force` skips that check for an explicit turn-on.
  */
-export async function startLocalAgentsServer(): Promise<string | null> {
+export async function startLocalAgentsServer(options?: {force?: boolean}): Promise<string | null> {
   // A fresh startup supersedes any attach-retry loop left over from a previous attempt.
   if (attachRetryTimer) {
     clearInterval(attachRetryTimer)
     attachRetryTimer = undefined
   }
-  if (process.env.SEED_NO_AGENTS_SPAWN) {
-    log.debug('Local agents server disabled by SEED_NO_AGENTS_SPAWN')
-    state = {t: 'disabled'}
+  if (process.env.SEED_NO_APPS_SPAWN ?? process.env.SEED_NO_AGENTS_SPAWN) {
+    log.debug('Local app environment disabled by SEED_NO_APPS_SPAWN')
+    state = {t: 'disabled', reason: 'env'}
     return null
   }
 
-  const configuredUrl = process.env.SEED_AGENTS_SERVER_URL?.replace(/\/+$/, '')
+  const configuredUrl = (process.env.SEED_APPS_SERVER_URL ?? process.env.SEED_AGENTS_SERVER_URL)?.replace(/\/+$/, '')
   if (configuredUrl) {
     if (await isAgentsServerHealthy(configuredUrl)) {
-      log.info('Attached to configured agents server', {url: configuredUrl})
+      log.info('Attached to configured app environment', {url: configuredUrl})
       state = {t: 'attached', url: configuredUrl}
       return configuredUrl
     }
-    const message = `SEED_AGENTS_SERVER_URL is set to ${configuredUrl} but no healthy agents server answered there`
+    const message = `SEED_APPS_SERVER_URL is set to ${configuredUrl} but no healthy app environment answered there`
     log.error(message)
     state = {t: 'error', message}
     beginAttachRetry(configuredUrl)
@@ -155,9 +191,24 @@ export async function startLocalAgentsServer(): Promise<string | null> {
   const defaultUrl = `http://localhost:${defaultAgentsPort()}`
   if (await isAgentsServerHealthy(defaultUrl)) {
     // Almost always the `./dev up` mprocs pane. Attaching keeps its hot reload authoritative.
-    log.info('Attached to already-running agents server', {url: defaultUrl})
+    log.info('Attached to already-running app environment', {url: defaultUrl})
     state = {t: 'attached', url: defaultUrl}
     return defaultUrl
+  }
+
+  if (!options?.force) {
+    const policy = readLocalAgentsServerPolicy()
+    const decision = resolveLocalAgentsServerSpawn(policy, fs.existsSync(localAgentsDbPath()))
+    if (!decision.spawn) {
+      if (decision.settle) writeStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, decision.settle)
+      log.info('Local app environment not started', {policy})
+      state = {t: 'disabled', reason: 'setting'}
+      // Not spawning is not the same as not listening: a dev server that was mid-restart during
+      // the probe (dev user data has no agents database, so the policy lands here) still gets
+      // attached the moment it answers.
+      beginAttachRetry(defaultUrl)
+      return null
+    }
   }
 
   try {
@@ -166,7 +217,7 @@ export async function startLocalAgentsServer(): Promise<string | null> {
     return url
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    log.error('Failed to start local agents server', {error: message})
+    log.error('Failed to start local app environment', {error: message})
     state = {t: 'error', message}
     // The usual dev cause: the mprocs server was mid-restart during the probe and there is no
     // staged binary to spawn. Keep probing the default URL and attach when it returns.
@@ -179,7 +230,7 @@ export async function startLocalAgentsServer(): Promise<string | null> {
 async function spawnAgentsServer(): Promise<string> {
   const binaryPath = getAgentsServerBinaryPath()
   if (!fs.existsSync(binaryPath)) {
-    throw new Error(`Agents server binary not found at ${binaryPath}`)
+    throw new Error(`App environment binary not found at ${binaryPath}`)
   }
 
   const port = await findFreePort(defaultAgentsPort())
@@ -189,7 +240,7 @@ async function spawnAgentsServer(): Promise<string> {
   const args = [
     `--server-hostname=127.0.0.1`,
     `--server-port=${port}`,
-    `--db-path=${path.join(dataDir, 'agents.sqlite')}`,
+    `--db-path=${localAgentsDbPath()}`,
     `--data-dir=${dataDir}`,
     // The desktop bridge serves the typed `/api/*` transport; direct `/ipfs/*` gateway reads live
     // on the daemon. Hosted servers normally expose both surfaces on one origin, but local desktop
@@ -201,7 +252,7 @@ async function spawnAgentsServer(): Promise<string> {
     `--subscription-auth=true`,
   ]
 
-  log.info('Starting local agents server', {binaryPath, port, args})
+  log.info('Starting local app environment', {binaryPath, port, args})
 
   const child = spawn(binaryPath, args, {
     // Run from the binary's own directory, beside the files it ships with; see agents-server-path.ts.
@@ -222,41 +273,76 @@ async function spawnAgentsServer(): Promise<string> {
   })
 
   child.on('error', (error) => {
-    log.error('Agents server spawn error', {error})
+    log.error('App environment spawn error', {error})
   })
   child.on('close', (code, signal) => {
     if (!expectingClose && child === serverProcess) {
-      state = {t: 'error', message: `Agents server exited: ${lastStderr || `code ${code}`}`}
-      log.error('Agents server closed', {code, signal, lastStderr})
+      state = {t: 'error', message: `App environment exited: ${lastStderr || `code ${code}`}`}
+      log.error('App environment closed', {code, signal, lastStderr})
     }
   })
 
-  app.addListener('will-quit', () => stopLocalAgentsServer())
+  if (!quitHookInstalled) {
+    quitHookInstalled = true
+    app.addListener('will-quit', () => stopLocalAgentsServer())
+  }
 
   const url = `http://localhost:${port}`
   const deadline = Date.now() + SPAWN_READY_TIMEOUT_MS
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`Agents server exited during startup: ${lastStderr || `code ${child.exitCode}`}`)
+      throw new Error(`App environment exited during startup: ${lastStderr || `code ${child.exitCode}`}`)
     }
     if (await isAgentsServerHealthy(url)) {
-      log.info('Local agents server ready', {url})
+      log.info('Local app environment ready', {url})
       return url
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`Agents server did not become healthy within ${SPAWN_READY_TIMEOUT_MS}ms`)
+  throw new Error(`App environment did not become healthy within ${SPAWN_READY_TIMEOUT_MS}ms`)
 }
 
-/** Stops a spawned agents server. Attached servers are left alone — we do not own them. */
-export function stopLocalAgentsServer(): void {
+/**
+ * Turns the bundled server on or off for good: persists the choice, then starts or stops it now.
+ * A server the app merely attached to (the dev one) is not ours to stop and stays as it is.
+ */
+export async function setLocalAgentsServerEnabled(enabled: boolean): Promise<string | null> {
+  writeStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, enabled ? 'on' : 'off')
+  if (enabled) {
+    if (state.t === 'attached' || state.t === 'spawned') return state.url
+    return startLocalAgentsServer({force: true})
+  }
+  if (state.t === 'attached') return state.url
+  // Wait for the exit: an immediate re-enable probes the default port first and would otherwise
+  // attach to the server that is still shutting down, then be left on a dead URL.
+  await stopLocalAgentsServer()
+  state = {t: 'disabled', reason: 'setting'}
+  return null
+}
+
+let quitHookInstalled = false
+
+/**
+ * Stops a spawned app environment; resolves once it has exited (or after a short timeout). Attached
+ * servers are left alone — we do not own them.
+ */
+export function stopLocalAgentsServer(): Promise<void> {
   const child = serverProcess
-  if (!child || child.killed) return
+  if (!child || child.killed) return Promise.resolve()
   expectingClose = true
+  const closed = new Promise<void>((resolve) => {
+    if (child.exitCode !== null) return resolve()
+    const timer = setTimeout(resolve, STOP_TIMEOUT_MS)
+    child.once('close', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
   if (process.platform === 'win32') {
     forceKillChildProcess(child)
   } else {
     child.kill()
   }
   serverProcess = null
+  return closed
 }

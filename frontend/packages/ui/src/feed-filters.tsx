@@ -1,6 +1,10 @@
+import {activitySlugToFilter} from '@shm/shared/utils/entity-id-url'
 import isEqual from 'lodash/isEqual'
 import {Button, ButtonProps} from './button'
 import {cn} from './utils'
+
+// The citation link types, shared with the citations panel route so the toggle recognises it.
+const CITATION_FILTER = activitySlugToFilter('citations')
 
 export function FeedFilters({filterEventType, onFilterChange}: {onFilterChange: any; filterEventType?: Array<string>}) {
   return (
@@ -34,14 +38,10 @@ export function FeedFilters({filterEventType, onFilterChange}: {onFilterChange: 
       </PredefinedFilter>
       <PredefinedFilter
         className={cn(
-          isEqual(filterEventType, ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']) &&
+          isEqual(filterEventType, CITATION_FILTER) &&
             'border-black/15 bg-black/10 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
-        onClick={() =>
-          onFilterChange({
-            filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
-          })
-        }
+        onClick={() => onFilterChange({filterEventType: CITATION_FILTER})}
       >
         Citation
       </PredefinedFilter>

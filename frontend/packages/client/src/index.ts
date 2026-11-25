@@ -61,13 +61,20 @@ export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 export {toHMSigner, toPrincipalSigner} from './signer'
 export type {AnySigner, PrincipalSigner} from './signer'
 
-export {resolveHypermediaUrl, resolveId} from './hm-resolver'
+export {resolveHypermediaUrl, resolveId, hmDomainUrlToWebUrl, extractCommentIdFromUrl} from './hm-resolver'
 export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'
 export {resolveIdWithClient} from './resource-read'
 export type {ResolveIdWithClientOptions, ResolvedIdWithClient} from './resource-read'
 
-export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
-export type {CollectedBlob} from './file-to-ipfs'
+export {
+  fileToIpfsBlobs,
+  filesToIpfsBlobs,
+  directoryToIpfsBlobs,
+  normalizeDirectoryFilePath,
+  resolveFileLinksInBlocks,
+  hasFileLinks,
+} from './file-to-ipfs'
+export type {CollectedBlob, IpfsDirectoryFile} from './file-to-ipfs'
 
 export {
   parseMarkdown,
@@ -77,6 +84,8 @@ export {
   markdownBlockNodesToHMBlockNodes,
   hmAccountMentionUid,
   MarkdownFrontmatterError,
+  MarkdownResolvedRangeError,
+  stripResolvedRanges,
 } from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation, ParseMarkdownOptions} from './markdown-to-blocks'
 export {
@@ -106,8 +115,12 @@ export {
   hmBlockNodeToBlockNode,
   rebindTableIdentities,
   toAPIBlockNode,
+  markdownUpdateTree,
+  describeContentChange,
 } from './block-diff'
-export type {APIBlockNode, APIBlock} from './block-diff'
+export type {APIBlockNode, APIBlock, ContentChange} from './block-diff'
+export {applyBlockEdits, BlockEditError} from './block-edits'
+export type {BlockEditResult} from './block-edits'
 
 export {
   autoLinkChildToParent,
@@ -118,11 +131,38 @@ export {
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
+  clientBuiltDocumentUpdateBlobs,
+  DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+  DEFAULT_PREPARE_TIMEOUT_MS,
+  documentOperationsToChanges,
+  documentUpdateBlobs,
+  implausiblePreparedChange,
+  isEmptyPreparedChange,
+  nativeBlockToProtoBlock,
+  preparableDocumentChanges,
+  prepareDocumentUpdateBlobs,
+  UnpreparableDocumentUpdateError,
+} from './prepare-change'
+export type {
+  ClientBuiltDocumentUpdateInput,
+  DocumentContent,
+  DocumentChangeInput,
+  DocumentChanges,
+  DocumentUpdateBlobsInput,
+  DocumentUpdateBlobsResult,
+  PrepareDocumentUpdateInput,
+  PrepareDocumentUpdateResult,
+  ProtoAnnotationJson,
+  ProtoBlockJson,
+} from './prepare-change'
+export {
   describeRedirect,
   followRedirects,
   followToDocument,
+  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
+  sameDocumentVersion,
 } from './document-state'
 export type {
   DocumentState,

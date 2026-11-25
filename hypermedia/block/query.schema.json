@@ -21,6 +21,12 @@
             },
             "description": "Number of card columns in the `Card` style (default 3)."
           },
+          "textAlignment": {
+            "value": {
+              "type": "hm://hyper.media/block/text-alignment"
+            },
+            "description": "Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`."
+          },
           "style": {
             "value": {
               "type": "hm://hyper.media/query/style"

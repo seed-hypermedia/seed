@@ -1,0 +1,5 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {},
+  "description": "The empty input contract for a custom HTML page that accepts no URL parameters."
+}

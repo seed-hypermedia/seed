@@ -3,6 +3,7 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/componen
 import {X} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {BlockNoteEditor} from './blocknote/core'
+import {isSlashMenuItemAvailable} from './blocknote/core/extensions/SlashMenu/BaseSlashMenuItem'
 import {HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 
@@ -10,15 +11,22 @@ interface MobileSlashDialogProps {
   isOpen: boolean
   onClose: () => void
   editor: BlockNoteEditor<HMBlockSchema>
+  /** Host commands listed ahead of the block types. */
+  extraItems?: {name: string; group: string; icon: JSX.Element; hint?: string; execute: () => void}[]
 }
 
-export function MobileSlashDialog({isOpen, onClose, editor}: MobileSlashDialogProps) {
-  const slashMenuItems = getSlashMenuItems()
+export function MobileSlashDialog({isOpen, onClose, editor, extraItems = []}: MobileSlashDialogProps) {
+  const slashMenuItems = [
+    ...extraItems,
+    ...getSlashMenuItems().filter((item) => isSlashMenuItemAvailable(item, editor)),
+  ]
 
   const handleSelectBlockType = (item: any) => {
     item.execute(editor)
     onClose()
 
+    // A host command may open its own UI that should keep focus.
+    if (extraItems.includes(item)) return
     setTimeout(() => {
       editor._tiptapEditor.commands.focus()
     }, 100)

@@ -35,6 +35,7 @@ import (
 	"seed/backend/util/pprofx"
 	"seed/backend/util/syncperf"
 
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/boxo/exchange"
@@ -109,6 +110,11 @@ func WithGRPCServerOption(opt grpc.ServerOption) Option {
 //
 // To shut down the app gracefully cancel the provided context and call Wait().
 func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option) (a *App, err error) {
+	access, err := newAPIAccess(cfg.Base)
+	if err != nil {
+		return nil, err
+	}
+
 	// Anchor the sync-performance session here rather than at process start:
 	// this is the point before which no syncing can happen, and it defines both
 	// the wall-throughput denominator and the cutoff below which arriving blobs
@@ -119,6 +125,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if cfg.P2P.Isolated {
 		cfg.Lndhub.Disabled = true
 	}
+
+	// Process-wide, so it belongs with the daemon config rather than with the
+	// store, which main opens before Load and which knows nothing about flags.
+	// Zero clears any earlier limit, so the flag is authoritative.
+	sqlite.SetSoftHeapLimit(cfg.Storage.SQLiteSoftHeapLimit)
 
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
@@ -150,6 +161,10 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			})
 		}
 	}(a)
+
+	// Detached from a.g like the backfill below: it has nothing to report and
+	// stops with the errgroup's context either way.
+	go runMallocTrim(ctx)
 
 	tp := trace.NewTracerProvider(
 		trace.WithSampler(trace.AlwaysSample()),
@@ -235,7 +250,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		lightEmbedder = embedder
 	}
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, access, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub, opts.grpc, a.taskMgr, lightEmbedder)
 	if err != nil {
 		return nil, err
@@ -252,7 +267,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e, a.Index)
 	}
 
-	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g,
+	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, access, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g,
 		fm, a.Net, a.RPC.Daemon, a.RPC.Telemetry)
 	if err != nil {
 		return nil, err
@@ -391,6 +406,7 @@ func initSyncing(
 
 func initGRPC(
 	cfg config.Base,
+	access *apiAccess,
 	port int,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
@@ -408,6 +424,10 @@ func initGRPC(
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		return
+	}
+
+	if !access.server {
+		lis = &apiListener{Listener: lis, access: access}
 	}
 
 	grpcLog := logging.New("seed/grpc", LogLevel)

@@ -50,18 +50,34 @@ export type AgentsRichEditorProps = {
   focusOnMount?: boolean
   hideAvatar?: boolean
   hideSubmitToolbar?: boolean
+  /** The compact panel-footer field, with its submit button beside it. */
+  compact?: boolean
   disableTrailingNode?: boolean
   submitOnEnter?: boolean
   submitHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   handleFileAttachment?: (file: File) => Promise<AgentsRichEditorAttachment>
+  /** Commands listed ahead of the block types in the editor's `/` menu, read on every query. */
+  getExtraSlashMenuItems?: () => AgentsSlashMenuItem[]
+  /** Text on the collapsed field before it is first focused. */
+  collapsedLabel?: string
+}
+
+/** A host command in the rich editor's `/` menu; the typed `/query` is removed before `onSelect`. */
+export type AgentsSlashMenuItem = {
+  name: string
+  aliases?: string[]
+  group: string
+  icon: React.ReactElement
+  hint?: string
+  onSelect: () => void
 }
 
 /**
  * Sign-in affordance for the case where no account can sign agent actions.
  *
- * Agent servers only accept signed requests, so the agents UI is unusable without an account. How
+ * App environments only accept signed requests, so the agents UI is unusable without an account. How
  * the user gets one is app-specific (desktop opens its auth dialog; web has its own login), so the
  * shared no-account page renders this instead of owning it.
  */
@@ -78,7 +94,7 @@ export type AgentsSignInPrompt = {
  * Loopback listener that catches a provider OAuth redirect.
  *
  * Provider OAuth clients redirect to a fixed `localhost` port on the user's machine — not to the
- * (possibly remote) agent server — so an app that can open a local socket catches the redirect and
+ * (possibly remote) app environment — so an app that can open a local socket catches the redirect and
  * hands it back to the agents UI. Apps that cannot (the browser) omit this, and subscription
  * sign-in is then not offered at all — see `isSubscriptionSignInAvailable` in provider-oauth.
  */
@@ -108,15 +124,33 @@ export type AgentsSignerDelegation = {
   capabilityBlob?: Uint8Array
 }
 
+/** Lifecycle of the desktop's bundled app environment, as the main process reports it. */
+export type AgentsLocalServerState =
+  | {t: 'disabled'; reason?: 'env' | 'setting'}
+  | {t: 'attached'; url: string}
+  | {t: 'spawned'; url: string}
+  | {t: 'error'; message: string}
+
 export type AgentsPlatform = {
-  /** Built-in default agent server URL for this runtime, or null when there is none. */
+  /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
+  /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
+  BrowserTools?: React.ComponentType<{
+    serverUrl: string
+    sessionId: string
+    accountUid: string
+    toolEnabled: boolean
+    agentName?: string
+    isOwner: boolean
+    isPublic: boolean
+  }>
+  /** Built-in default app environment URL for this runtime, or null when there is none. */
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */
   getSigner: (accountUid: string) => Promise<blobs.Signer>
   /**
    * The delegation by which {@link getSigner}'s key acts for `accountUid` when it is not that
    * account's own key (web: the vault account delegated to the local device key). It rides inside
-   * every signed envelope so any agent server can verify it without prior registration. Omitted
+   * every signed envelope so any app environment can verify it without prior registration. Omitted
    * on platforms whose signing key is the account itself (desktop's daemon signing); returning
    * null means the key holds no delegation for that account.
    */
@@ -125,8 +159,15 @@ export type AgentsPlatform = {
   getSetting: (key: string) => Promise<unknown>
   /** Persists one agents setting (JSON-compatible value) by key. */
   setSetting: (key: string, value: unknown) => Promise<void>
-  /** URL of an app-managed local agents server, when the platform runs one (desktop only). */
+  /** URL of an app-managed local app environment, when the platform runs one (desktop only). */
   getLocalServerUrl?: () => Promise<string | null>
+  /** Lifecycle state of the app-managed local app environment (desktop only). */
+  getLocalServerState?: () => Promise<AgentsLocalServerState>
+  /**
+   * Turns the app-managed local app environment on or off, persistently and immediately; resolves
+   * to its URL while it runs (desktop only). Absent on platforms that run no local server.
+   */
+  setLocalServerEnabled?: (enabled: boolean) => Promise<string | null>
   /** Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only). */
   discoverEntity?: (id: string) => Promise<{state?: string; version?: string}>
   /**
@@ -141,10 +182,16 @@ export type AgentsPlatform = {
     params: {id: UnpackedHypermediaId; recursive: boolean},
     handlers: {onError: (error: unknown) => void},
   ) => {unsubscribe: () => void}
-  /** Peers the platform's local HM node with the agent server's HM node (desktop only). */
+  /** Peers the platform's local HM node with the app environment's HM node (desktop only). */
   connectToHmServer?: (hmServerUrl: string) => Promise<{peerId: string; addrs: string[]} | null>
   /** Catches provider OAuth browser redirects on a loopback port (see {@link AgentsOAuthRedirectCatcher}). */
   oauthRedirectCatcher?: AgentsOAuthRedirectCatcher
+  /**
+   * The assistant panel offers only the agents mounted in the space on screen, found through
+   * their documents, and contacts no app environment a document did not name (the web app). Absent,
+   * the panel also lists the account's own agents on every configured server (desktop).
+   */
+  mountedAgentsOnly?: boolean
   /** Hook returning the account UID that signs agent actions for the current user. */
   useAccountUid: () => string | null | undefined
   /** Hook returning a navigate function for NavRoutes; `spawn` opens a new window where supported. */
@@ -155,11 +202,6 @@ export type AgentsPlatform = {
   useGatewayUrl?: () => string | undefined
   /** Hook returning the app's sign-in affordance (see {@link AgentsSignInPrompt}). */
   useSignInPrompt?: () => AgentsSignInPrompt
-  /**
-   * Hook returning a navigator to the app's own agent-servers settings surface (desktop's Settings
-   * window). Omitted when the app has none; the agents list then manages servers in a dialog.
-   */
-  useOpenServerSettings?: () => () => void
   /** Rich block editor used for prompts and chat composition (see {@link AgentsRichEditorProps}). */
   CommentEditor: React.ComponentType<AgentsRichEditorProps>
   /**

@@ -58,6 +58,7 @@ import type {UniversalClient} from '@shm/shared/universal-client'
 import {
   compareBlocksWithMap,
   createBlocksMap,
+  documentChangesToPlain,
   expandObjectRemovals,
   extractDeletes,
   getDocAttributeChanges,
@@ -433,7 +434,11 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
       account: deps.docId.uid,
       path,
       baseVersion: effectiveBaseVersion,
-      changes: allChanges as any,
+      // The block diff carries protobuf Block instances. The client CBOR-encodes
+      // its input by walking own properties, so a Struct instance would travel in
+      // its in-memory shape ({fields: {x: {kind: {case, value}}}}) and the daemon
+      // would store that verbatim as the block's attributes.
+      changes: documentChangesToPlain(allChanges),
       capability: capabilityCid,
       visibility,
     } as any,

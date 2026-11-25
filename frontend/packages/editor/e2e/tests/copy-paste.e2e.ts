@@ -541,11 +541,19 @@ test.describe('Copy and Paste', () => {
       await page.waitForTimeout(100)
 
       const blocks = await editorHelpers.getBlocks()
-      // Should have: heading, paragraph, code-block, paragraph
-      const types = blocks.map((b: any) => b.type)
+      // Pasted headings keep their hierarchy: the paragraphs and the code block after the heading
+      // become its children, so look through nested blocks too.
+      const all: any[] = []
+      const walk = (list: any[]) =>
+        list.forEach((b: any) => {
+          all.push(b)
+          walk(b.children ?? [])
+        })
+      walk(blocks)
+      const types = all.map((b: any) => b.type)
       expect(types).toContain('code-block')
 
-      const codeBlock = blocks.find((b: any) => b.type === 'code-block')
+      const codeBlock = all.find((b: any) => b.type === 'code-block')
       expect(codeBlock).toBeDefined()
 
       // Code block content should have line breaks preserved

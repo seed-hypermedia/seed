@@ -17,7 +17,7 @@ import type {RootStackParamList} from '../../navigation/types'
 import {useAgentsAccount} from '../account'
 import {CreateAgentSheet} from '../components/CreateAgentSheet'
 import {ProvidersSheet} from '../components/ProvidersSheet'
-import {Badge, Button, Card, ErrorNote, Field, Label, Section, Sheet, StatePanel, StatusDot} from '../ui/primitives'
+import {Badge, Button, Card, ErrorNote, Field, Label, Section, Sheet, StatePanel} from '../ui/primitives'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Agents'>
@@ -45,7 +45,7 @@ export function AgentsScreen({navigation}: Props) {
     return (
       <StatePanel
         title="No identity yet"
-        detail="Agent servers only accept signed requests, so agents need an identity to act as."
+        detail="App environments only accept signed requests, so agents need an identity to act as."
         action={
           <Button variant="primary" onPress={() => navigation.navigate('CreateIdentity')}>
             Create an identity
@@ -55,7 +55,6 @@ export function AgentsScreen({navigation}: Props) {
     )
   }
 
-  const healthTone = health.isLoading ? 'idle' : health.data ? 'active' : 'error'
   const healthText = health.isLoading ? 'Checking…' : health.data ? 'Online' : 'Offline'
 
   return (
@@ -75,7 +74,7 @@ export function AgentsScreen({navigation}: Props) {
         }
       >
         <Section
-          title="Agent server"
+          title="App environment"
           action={
             <Button size="sm" variant="ghost" onPress={() => setShowServerSheet(true)}>
               Change
@@ -88,7 +87,6 @@ export function AgentsScreen({navigation}: Props) {
                 {serverUrl ?? 'Not configured'}
               </Label>
               <View style={styles.statusRow}>
-                <StatusDot tone={healthTone} />
                 <Label size="xs" tone="muted">
                   {healthText}
                 </Label>
@@ -205,7 +203,7 @@ function ServerSheet({visible, onClose, currentUrl}: {visible: boolean; onClose:
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Agent server"
+      title="App environment"
       footer={
         <Button variant="primary" onPress={save} busy={setServerUrl.isLoading}>
           Save
@@ -216,7 +214,7 @@ function ServerSheet({visible, onClose, currentUrl}: {visible: boolean; onClose:
         label="Server URL"
         value={draft}
         onChangeText={setDraft}
-        placeholder="https://agentic.seed.hyper.media"
+        placeholder="https://hyper.media/hm/api/apps"
         keyboardType="url"
         hint="The agents runtime this device talks to. Your identity signs every request it sends."
         testID="agents-server-url-input"

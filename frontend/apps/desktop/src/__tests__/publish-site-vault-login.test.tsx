@@ -10,38 +10,42 @@ const mockState = vi.hoisted(() => ({
   startEmailCode: vi.fn(),
   verifyEmailCode: vi.fn(),
   createSite: vi.fn(),
+  onAuthenticated: undefined as undefined | (() => void),
 }))
 
 vi.mock('@/models/host', () => ({
-  useHostSession: () => ({
-    loggedIn: mockState.loggedIn,
-    isSessionLoaded: true,
-    email: mockState.loggedIn ? 'alice@example.com' : null,
-    loginWithVault: mockState.loginWithVault,
-    startEmailCode: {mutateAsync: mockState.startEmailCode, isLoading: false, error: null, reset: vi.fn()},
-    verifyEmailCode: {mutate: mockState.verifyEmailCode, isLoading: false, error: null, reset: vi.fn()},
-    logout: vi.fn(),
-    createSite: {mutateAsync: mockState.createSite, isLoading: false, error: null},
-    hostInfo: {
-      isLoading: false,
-      error: null,
-      data: {
-        hostDomain: 'hyper.media',
-        pricing: {
-          free: {gbStorage: 1, gbBandwidth: 50, siteCount: 1},
-          premium: {
-            gbStorage: 20,
-            gbBandwidth: 200,
-            siteCount: 5,
-            gbStorageOverageUSDCents: 10,
-            gbBandwidthOverageUSDCents: 2,
-            siteCountOverageUSDCents: 100,
-            monthlyPriceUSDCents: 500,
+  useHostSession: (options: {onAuthenticated?: () => void} = {}) => {
+    if (options.onAuthenticated) mockState.onAuthenticated = options.onAuthenticated
+    return {
+      loggedIn: mockState.loggedIn,
+      isSessionLoaded: true,
+      email: mockState.loggedIn ? 'alice@example.com' : null,
+      loginWithVault: mockState.loginWithVault,
+      startEmailCode: {mutateAsync: mockState.startEmailCode, isLoading: false, error: null, reset: vi.fn()},
+      verifyEmailCode: {mutate: mockState.verifyEmailCode, isLoading: false, error: null, reset: vi.fn()},
+      logout: vi.fn(),
+      createSite: {mutateAsync: mockState.createSite, isLoading: false, error: null},
+      hostInfo: {
+        isLoading: false,
+        error: null,
+        data: {
+          hostDomain: 'hyper.media',
+          pricing: {
+            free: {gbStorage: 1, gbBandwidth: 50, siteCount: 1},
+            premium: {
+              gbStorage: 20,
+              gbBandwidth: 200,
+              siteCount: 5,
+              gbStorageOverageUSDCents: 10,
+              gbBandwidthOverageUSDCents: 2,
+              siteCountOverageUSDCents: 100,
+              monthlyPriceUSDCents: 500,
+            },
           },
         },
       },
-    },
-  }),
+    }
+  },
 }))
 
 // The steps render inside the app dialog, which is not part of these tests.
@@ -157,6 +161,7 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
     mockState.startEmailCode.mockReset()
     mockState.verifyEmailCode.mockReset()
     mockState.createSite.mockReset().mockImplementation(() => new Promise(() => {}))
+    mockState.onAuthenticated = undefined
   })
 
   afterEach(() => {
@@ -269,5 +274,28 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
 
     expect(mockState.loginWithVault).not.toHaveBeenCalled()
     expect(container.textContent).toContain('Choose Your Subdomain')
+  })
+
+  it('offers sign-in after session rejection and preserves the subdomain for retry', async () => {
+    mockState.loggedIn = true
+    mockState.createSite.mockRejectedValue(Object.assign(new Error('Invalid authorization'), {status: 401}))
+    render()
+    await act(async () => {
+      fireInput(container.querySelector('input')!, 'my-retry-space')
+      container.querySelector('form')!.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))
+    })
+    await vi.waitFor(() => expect(mockState.createSite).toHaveBeenCalledWith({subdomain: 'my-retry-space'}))
+    mockState.loggedIn = false
+    rerender()
+    expect(container.textContent).toContain('Your hosting session is no longer valid')
+    expect(container.textContent).toContain('Log in to Seed Hosting')
+    expect(container.textContent).not.toContain('Logged in to')
+    expect(mockState.loginWithVault).not.toHaveBeenCalled()
+
+    mockState.loggedIn = true
+    act(() => mockState.onAuthenticated!())
+    rerender()
+    expect(container.textContent).toContain('Choose Your Subdomain')
+    expect(container.querySelector('input')!.value).toBe('my-retry-space')
   })
 })

@@ -1,8 +1,15 @@
-import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
+import {extractCommentIdFromUrl, resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDocumentTitle} from '@shm/shared/content'
 import type {UniversalClient} from '@shm/shared/universal-client'
-import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {
+  commentIdToHmId,
+  hmId,
+  isHypermediaScheme,
+  isPublicGatewayLink,
+  packHmId,
+  unpackHmId,
+} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
 import {Fragment, Mark, MarkType, Slice} from '@tiptap/pm/model'
@@ -26,6 +33,23 @@ type PasteHandlerOptions = {
    * version filled in when needed) so the host editor can insert an Embed
    * block instead of falling back to a link mark. */
   onPasteHypermediaBlockFragment?: (resolvedHmUrl: string) => void | boolean
+}
+
+/** Builds the hmId for a pasted comment URL, carrying the site origin as `hostname` so the
+ * comment can be discovered from the site it was copied from. Gateway `/hm/…` URLs carry no
+ * site identity, so their hostname stays null. */
+function pastedCommentHmId(commentId: string, text: string): UnpackedHypermediaId {
+  const commentHmId = commentIdToHmId(commentId)
+  let hostname: string | null = null
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    try {
+      const url = new URL(text)
+      if (!url.pathname.startsWith('/hm/')) hostname = url.origin
+    } catch {
+      // ignore parse errors; hostname stays null
+    }
+  }
+  return {...commentHmId, hostname}
 }
 
 export function pasteHandler(options: PasteHandlerOptions): Plugin {
@@ -190,8 +214,14 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           : null
 
         const isSingleUrlText = !/\s/.test(textContent)
-        const unpackedHmId =
-          isSingleUrlText && (isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl))
+        // A comment URL names the comment, not the document it sits on, so pasting one links and
+        // embeds the comment — the selected reply when the URL has one. A fragment means the URL
+        // points at a block of the document itself, which stays the subject of the paste.
+        const pastedCommentId =
+          isSingleUrlText && !textContent.includes('#') ? extractCommentIdFromUrl(textContent) : null
+        const unpackedHmId = pastedCommentId
+          ? pastedCommentHmId(pastedCommentId, textContent)
+          : isSingleUrlText && (isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl))
             ? unpackHmId(textContent)
             : null
 

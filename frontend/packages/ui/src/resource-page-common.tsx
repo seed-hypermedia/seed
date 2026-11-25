@@ -1,4 +1,21 @@
+import {ErrorBoundary} from 'react-error-boundary'
+import {ActivityPanelPortal} from './activity-panel-layout'
+import {AppDocumentView} from './apps/app-view'
+import {appResourceKind, agentResourceTabs, appResourceTabs} from './apps/tabs'
+import {parentDocumentId} from '@seed-hypermedia/client/apps'
+import {AgentHomeComposer} from './agents/home-composer'
+import {AgentHomeIntro, AgentPromptMigration} from './agents/prompt-migration'
+import {ToolCallView} from './apps/tool-call-view'
+import {ToolDocumentView} from './apps/tool-view'
+import {TriggerDocumentView} from './apps/trigger-view'
+import {ConnectionsPanel} from './connections-panel'
+import {PanelHeader} from './panel-header'
+import {groupDocumentConnections} from '@shm/shared/connections'
+import {useQueryClient} from '@tanstack/react-query'
+import {commentThreadSelection, getCommentThread} from '@shm/shared/comments'
+import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
+import {AgentDocumentView} from './agent-document-view'
 import {
   BlockRange,
   countCustomMetadataFields,
@@ -7,8 +24,10 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
-  HMQueryTableConfig,
+  HMListedDraft,
+  HMMetadata,
   HMQueryBlockInput,
+  HMQueryTableConfig,
   HMRawCitation,
   HMResource,
   normalizeQuerySort,
@@ -27,6 +46,7 @@ import {
   hmId,
   NavRoute,
   ProfileTab,
+  packHmId,
   replaceRouteDocumentId,
   routeToHref,
   unpackHmId,
@@ -34,11 +54,14 @@ import {
 } from '@shm/shared'
 import {
   CommentsProvider,
+  CommentDraftReferenceProvider,
+  useCommentDraftReferences,
   isRouteEqualToCommentTarget,
   useCommentsServiceContext,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {blockToPlainText} from '@shm/shared/content-to-text'
 import type {
   BlockRangeSelectOptions,
   CitationFragmentClick,
@@ -49,6 +72,7 @@ import type {
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
   useAccount,
@@ -59,15 +83,13 @@ import {
   useIsLatest,
   useResource,
   useResources,
-  useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useMentionNames} from '@shm/shared/models/inline-mentions'
-import {blockToPlainText} from '@shm/shared/content-to-text'
 import {useExploreResults} from '@shm/shared/models/explore'
+import {useMentionNames} from '@shm/shared/models/inline-mentions'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
-import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
-import {useDebounce} from '@shm/shared/utils/use-debounce'
+import {sortTermToDocumentSort} from '@shm/shared/models/query-block-sort'
+import {ATTRIBUTE_BINDING_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -97,12 +119,16 @@ import {
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {getRoutePanel} from '@shm/shared/routes'
+import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
+import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
+import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-settings'
+import {DocumentPageView, documentPageCid} from './document-page'
+import {DraftHiddenActions, usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
-  activitySlugToFilter,
   activityFilterToSlug,
+  activitySlugToFilter,
   getCommentTargetId,
   getVersionHeads,
   hmIdToURL,
@@ -113,27 +139,35 @@ import {
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
+  ChevronDown,
   Braces,
-  FilePen,
   FileText,
   Grid3X3,
+  Info,
+  MessagesSquare,
+  Minimize2,
+  ShieldCheck,
+  SlidersHorizontal,
+  Users,
   LayoutGrid,
   List as ListIcon,
-  MoreHorizontal,
   Pencil,
   Plus,
   Quote,
   Search,
+  Settings,
   Table as TableIcon,
   Trash,
 } from 'lucide-react'
-import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactNode, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
+import {ActivityContent, ActivityHeader} from './activity-panel'
 import {AllDocumentsPage} from './all-documents-page'
 import {Button} from './button'
 import {ChildDeletionPublishDialog} from './child-deletion-publish-dialog'
@@ -148,11 +182,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
-import {Tabs, TabsList, TabsTrigger} from './components/tabs'
+import {Input} from './components/input'
+import {Label} from './components/label'
+import {Switch} from './components/switch'
 import {DirectoryPageContent} from './directory-page'
-import {DiscussionsPageContent} from './discussions-page'
+import {CommentsFooterContext, DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {
@@ -161,12 +198,41 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
-import {RequiredAttributesEditor} from './required-attributes-editor'
-import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
+import {DocumentTools} from './document-tools'
+import {DocumentTopBar} from './document-top-bar'
+import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
+import {ExplorePage} from './explore-page'
+import {Feed, type DraftVersionEntry} from './feed'
+import {FeedFilters} from './feed-filters'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
+import {HMIcon} from './hm-icon'
+import {
+  AVATAR_IMAGE_POLICY,
+  CONTENT_IMAGE_POLICY,
+  COVER_IMAGE_POLICY,
+  processImage,
+  processImageIfSupported,
+} from './image-processing'
+import {useDocumentLayout} from './layout'
+import {MergedBadge} from './merged-badge'
+import {MobilePanelSheet} from './mobile-panel-sheet'
+import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {PageLayout} from './page-layout'
+import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
+import {PageNotFoundOrCreateSpace} from './create-space-context'
+import {PanelLayout} from './panel-layout'
+import {PrivateBadge} from './private-badge'
+import {QueryBlockContent} from './query-block-content'
+import {buildSlotItems} from './query-block-draft-items'
+import {RequiredAttributesEditor} from './required-attributes-editor'
+import {HM_SCHEMAS, missingPropertyDefaults, nameForCid, nameToUrl} from './schema/engine'
+import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
+import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
+import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
-import {SizableText} from './text'
-import {SchemaBrowserPage} from './schema/schema-browser'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
 import {
   classifyRef,
   useConformanceSchema,
@@ -174,44 +240,60 @@ import {
   useParentDraftChildAttributesSchema,
   useResolvedSchema,
 } from './schema/schema-resolve'
-import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
-import {DocumentTools} from './document-tools'
-import {nameForCid, nameToUrl, HM_SCHEMAS} from './schema/engine'
-import {libraryPageUrl} from './schema/schema-browser'
-import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
-import {useSchemaRegistry} from './schema/schema-registry-cid'
-import {DocumentTopBar} from './document-top-bar'
-import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
-import {ExplorePage} from './explore-page'
-import {Feed, type DraftVersionEntry} from './feed'
-import {FeedFilters} from './feed-filters'
-import {SelectField, SwitchField, TextField} from './form-fields'
-import {HMIcon} from './hm-icon'
-import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
-import {MergedBadge} from './merged-badge'
-import {MobilePanelSheet} from './mobile-panel-sheet'
-import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {OptionsPanel} from './options-panel'
-import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
-import {PanelLayout} from './panel-layout'
-import {PrivateBadge} from './private-badge'
-import {QueryBlockContent} from './query-block-content'
-import {buildSlotItems} from './query-block-draft-items'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
-import {SiteHeader} from './site-header'
+import {EditNavPanePlacementContext, SiteHeader} from './site-header'
+import {useSpaceHome, useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
-import {Tooltip} from './tooltip'
+import {SizableText, Text} from './text'
 import {toast} from './toast'
+import {Tooltip} from './tooltip'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+
+/** Checks a block reference against published content or an editor draft snapshot. */
+export function hasRenderableBlock(content: HMBlockNode[] | EditorBlock[], blockRef: string): boolean {
+  return content.some((node) => {
+    const id = 'block' in node ? node.block.id : node.id
+    return id === blockRef || hasRenderableBlock(node.children ?? [], blockRef)
+  })
+}
+
+/** Build a draft breadcrumb while preserving published metadata omitted by partial draft edits. */
+export function getDraftBreadcrumbEntry({
+  id,
+  draft,
+  publishedMetadata,
+  currentMetadata,
+  isUnpublishedDraft,
+  isLoading,
+}: {
+  id: UnpackedHypermediaId
+  draft: HMListedDraft
+  publishedMetadata?: HMMetadata
+  currentMetadata?: HMMetadata
+  isUnpublishedDraft: boolean
+  isLoading: boolean
+}): BreadcrumbEntry {
+  const metadata = {...publishedMetadata, ...draft.metadata, ...currentMetadata}
+  return {
+    id,
+    metadata,
+    draftId: draft.id,
+    fallbackName: isUnpublishedDraft
+      ? draft.visibility === 'PRIVATE'
+        ? 'New Private Document'
+        : 'New Document'
+      : 'Untitled Document',
+    isLoading: !metadata.name && isLoading,
+    isTombstone: false,
+    isNotFound: false,
+    isError: false,
+    isUnpublishedDraft,
+  }
+}
 
 /** Creates a right-panel route showing citations to one block. */
 export function getBlockCitationsPanelRoute(
@@ -268,7 +350,7 @@ function normalizeCitationFragmentHighlights(citations: HMRawCitation[] | undefi
           kind === 'document' && sourceId
             ? {
                 ...sourceId,
-                version: citation.sourceBlob?.cid || sourceId.version || null,
+                version: sourceId.version,
                 blockRef: sourceBlockId,
                 blockRange: sourceBlockId ? {expanded: true} : null,
               }
@@ -419,10 +501,38 @@ function CitationFragmentPopover({
   )
 }
 
-/** Extract panel route from a view route, stripping top-level-only fields */
-function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
-  const {panel, width, ...params} = route as any
-  return params as DocumentPanelRoute
+/** Document tabs remain available as panels while the page owns the main view. */
+export function getDocumentPagePanelMenuItems(
+  id: UnpackedHypermediaId,
+  openPanel: (panel: DocumentPanelRoute) => void,
+): MenuItemType[] {
+  const target = {...id, blockRef: null, blockRange: null}
+  return [
+    {
+      key: 'app-people',
+      label: 'People',
+      icon: <Users className="size-4" />,
+      onClick: () => openPanel({key: 'collaborators', id: target}),
+    },
+    {
+      key: 'app-comments',
+      label: 'Comments',
+      icon: <MessagesSquare className="size-4" />,
+      onClick: () => openPanel({key: 'comments', id: target}),
+    },
+    {
+      key: 'app-citations',
+      label: 'Citations',
+      icon: <Quote className="size-4" />,
+      onClick: () => openPanel({key: 'activity', id: target, filterEventType: activitySlugToFilter('citations')}),
+    },
+    {
+      key: 'app-attributes',
+      label: 'Attributes',
+      icon: <Info className="size-4" />,
+      onClick: () => openPanel({key: 'metadata', id: target}),
+    },
+  ]
 }
 
 /** Removes redundant document destinations and orders the remaining menu actions by intent. */
@@ -430,9 +540,16 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const hiddenKeys = new Set(['metadata', 'directory', 'all-documents'])
   const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
   const itemOrder = [
+    'page-parameters',
+    'page-permissions',
+    'app-people',
+    'app-comments',
+    'app-citations',
+    'app-attributes',
+    'app-revoke',
     'new',
     'add-raw-field',
-    'options',
+    'space-settings',
     'versions',
     'convert-to-collection',
     'convert-to-document',
@@ -774,6 +891,40 @@ export function getCitationsTargetId({
   return {...docId, blockRef: null, blockRange: null}
 }
 
+/** Appends a pinned block reference to the active draft without moving the document. */
+export function getBlockCommentDraftReference({
+  route,
+  sourceId,
+  resolvedThreadRootId,
+  version,
+  blockId,
+  blockRange,
+}: {
+  route: Extract<NavRoute, {key: 'document' | 'feed'}>
+  sourceId?: UnpackedHypermediaId
+  resolvedThreadRootId?: string
+  version: string
+  blockId: string
+  blockRange?: BlockRange
+}) {
+  const commentsPanel = route.panel?.key === 'comments' ? route.panel : undefined
+  return {
+    reference: {
+      documentId: (commentsPanel?.id ?? route.id).id,
+      commentId: resolvedThreadRootId || commentsPanel?.openComment,
+      link: packHmId({
+        ...(sourceId ?? route.id),
+        version,
+        latest: null,
+        blockRef: blockId,
+        blockRange: blockRange && 'start' in blockRange && 'end' in blockRange ? blockRange : null,
+      }),
+    },
+    route: commentsPanel ? route : {...route, panel: {key: 'comments' as const, id: route.id}},
+  }
+}
+
+/** Opens the root thread and retains the selected reply for display. */
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -798,7 +949,7 @@ export function getCommentReplyPanelRoute({
   return {
     key: 'comments',
     id: targetRoute || docId,
-    openComment: comment.id,
+    ...commentThreadSelection(comment),
     ...replyVersionData,
   }
 }
@@ -829,6 +980,10 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Use a compact field with a separate send button in the panel footer. */
+  compact?: boolean
+  /** Called after the comment is published successfully. */
+  onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
@@ -948,23 +1103,31 @@ export interface ResourcePageProps {
 function getPanelTitle(panelKey: string | null): string {
   switch (panelKey) {
     case 'activity':
+    case 'feed':
       return 'Activity'
     case 'comments':
-      return 'Discussions'
+      return 'Comments'
     case 'directory':
       return 'Sub documents'
     case 'collaborators':
       return 'Collaborators'
     case 'all-documents':
       return 'All Documents'
-    case 'options':
-      return 'Document Options'
     default:
       return 'Panel'
   }
 }
 
-export function ResourcePage({
+/** Renders a resource with a document-scoped queue for comment references. */
+export function ResourcePage(props: ResourcePageProps) {
+  return (
+    <CommentDraftReferenceProvider key={props.docId.id}>
+      <ResourcePageContent {...props} />
+    </CommentDraftReferenceProvider>
+  )
+}
+
+function ResourcePageContent({
   docId,
   resourceId,
   CommentEditor,
@@ -1026,7 +1189,9 @@ export function ResourcePage({
   const isSiteProfile = route.key === 'site-profile'
   const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
+  const [editNavMenuPortalElement, setEditNavMenuPortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
@@ -1216,7 +1381,7 @@ export function ResourcePage({
         onPrefetchDocument={onPrefetchDocument}
         fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
-        <PageNotFound />
+        <PageNotFoundOrCreateSpace docId={docId} />
         {pageFooter}
       </PageWrapper>
     )
@@ -1394,7 +1559,7 @@ export function ResourcePage({
         onPrefetchDocument={onPrefetchDocument}
         fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
-        <PageNotFound />
+        <PageNotFoundOrCreateSpace docId={docId} />
         {pageFooter}
       </PageWrapper>
     )
@@ -1423,9 +1588,11 @@ export function ResourcePage({
       fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
       fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
       editNavPanePortalRef={setEditNavPanePortalElement}
+      editNavMenuPortalRef={setEditNavMenuPortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
+      {publishError.content}
       <DocumentMachineProvider
         // Recreate the machine only when the identity it's bound to changes: the
         // resolved doc id (path change on first publish) or the ROUTE's pinned
@@ -1447,9 +1614,16 @@ export function ResourcePage({
         }}
         machine={machine}
         inspect={inspect}
+        onPublishError={publishError.showError}
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
+        {editNavPane && editNavMenuPortalElement
+          ? createPortal(
+              <EditNavPanePlacementContext.Provider value="menu">{editNavPane}</EditNavPanePlacementContext.Provider>,
+              editNavMenuPortalElement,
+            )
+          : null}
         <AttributeAutocompleteProvider value={attributeAutocomplete}>
           <DocumentBody
             routeDocId={docId}
@@ -1604,10 +1778,10 @@ export interface PageShellProps {
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from an active document machine. */
@@ -1626,10 +1800,10 @@ export function PageShell({
   headerData,
   document,
   children,
-  isMainFeedVisible = false,
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1647,53 +1821,58 @@ export function PageShell({
   const itemsForHeader = liveNavigationItems ?? headerData.items
 
   return (
-    <div
-      // The SSR fallback for the measured --site-header-live-h. The values
-      // live in a stylesheet (web app styles.css) rather than an inline
-      // style because the header height is responsive; only the pre-hydration
-      // web paint ever reads them.
-      data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
-      className={cn(
-        'dark:bg-background flex max-h-full flex-col bg-white',
-        // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
-        // On mobile: natural height for document scrolling
-        isMobile ? 'min-h-dvh' : 'h-dvh',
-      )}
+    <SiteFileBrowserLayout
+      siteId={hmId(siteHomeId.uid)}
+      activeDocumentId={docId}
+      siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
+      mobileOpen={isFileBrowserOpen}
+      onMobileOpenChange={setIsFileBrowserOpen}
+      onPrefetch={onPrefetchDocument}
+      createMenuItem={fileBrowserCreateMenuItem}
+      onIncludeDocument={fileBrowserOnIncludeDocument}
+      getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+      showDocumentBrowser={
+        headerData.siteHomeDocument
+          ? readSpaceSettings(headerData.siteHomeDocument.metadata).showDocumentBrowser
+          : undefined
+      }
+      onNavigate={(id) => {
+        setIsFileBrowserOpen(false)
+        navigate({key: 'document', id})
+      }}
     >
-      <SiteHeader
-        siteHomeId={siteHomeId}
-        docId={docId}
-        items={itemsForHeader}
-        homeNavigationItems={headerData.homeNavigationItems}
-        directoryItems={headerData.directoryItems}
-        isCenterLayout={headerData.isCenterLayout}
-        document={document}
-        siteHomeDocument={headerData.siteHomeDocument}
-        isMainFeedVisible={isMainFeedVisible}
-        notifyServiceHost={NOTIFY_SERVICE_HOST}
-        rightActions={rightActions}
-        editNavPane={editNavPanePortalRef ? undefined : editNavPane}
-        editNavPanePortalRef={editNavPanePortalRef}
-      />
-      <TransientResourceBanner error={transientResourceError ?? null} />
-      <SiteFileBrowserLayout
-        siteId={hmId(siteHomeId.uid)}
-        activeDocumentId={docId}
-        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
-        mobileOpen={isFileBrowserOpen}
-        onMobileOpenChange={setIsFileBrowserOpen}
-        onPrefetch={onPrefetchDocument}
-        createMenuItem={fileBrowserCreateMenuItem}
-        onIncludeDocument={fileBrowserOnIncludeDocument}
-        getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-        onNavigate={(id) => {
-          setIsFileBrowserOpen(false)
-          navigate({key: 'document', id})
-        }}
+      <div
+        // The SSR fallback for the measured --site-header-live-h. The values
+        // live in a stylesheet (web app styles.css) rather than an inline
+        // style because the header height is responsive; only the pre-hydration
+        // web paint ever reads them.
+        data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
+        className={cn(
+          'dark:bg-background flex max-h-full flex-col bg-white',
+          // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
+          // On mobile: natural height for document scrolling
+          isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
+        )}
       >
-        {children}
-      </SiteFileBrowserLayout>
-    </div>
+        <SiteHeader
+          siteHomeId={siteHomeId}
+          docId={docId}
+          items={itemsForHeader}
+          homeNavigationItems={headerData.homeNavigationItems}
+          directoryItems={headerData.directoryItems}
+          isCenterLayout={headerData.isCenterLayout}
+          document={document}
+          siteHomeDocument={headerData.siteHomeDocument}
+          notifyServiceHost={NOTIFY_SERVICE_HOST}
+          rightActions={rightActions}
+          editNavPane={editNavPanePortalRef ? undefined : editNavPane}
+          editNavPanePortalRef={editNavPanePortalRef}
+          editNavMenuPortalRef={editNavMenuPortalRef}
+        />
+        <TransientResourceBanner error={transientResourceError ?? null} />
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      </div>
+    </SiteFileBrowserLayout>
   )
 }
 
@@ -1704,10 +1883,10 @@ export function PageWrapper({
   headerData,
   document,
   children,
-  isMainFeedVisible = false,
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1720,10 +1899,10 @@ export function PageWrapper({
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from a document machine mounted inside this wrapper. */
@@ -1735,7 +1914,7 @@ export function PageWrapper({
   fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
-  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // navigation changes held in a home draft show immediately in
   // the visible site header. Mirrors the legacy draft route at
   // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
   // outside DocumentMachineProvider (loading/error/discovery branches), in
@@ -1751,10 +1930,10 @@ export function PageWrapper({
       docId={docId}
       headerData={headerData}
       document={document}
-      isMainFeedVisible={isMainFeedVisible}
       rightActions={rightActions}
       editNavPane={editNavPane}
       editNavPanePortalRef={editNavPanePortalRef}
+      editNavMenuPortalRef={editNavMenuPortalRef}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveItems}
       onPrefetchDocument={onPrefetchDocument}
@@ -1792,6 +1971,23 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
   )
 }
 
+/**
+ * The metadata to render for the current route: draft overrides apply only
+ * while the draft overlay is allowed — a hidden draft previews the published
+ * metadata untouched.
+ */
+function useRenderedMetadata(document: HMDocument | null | undefined): HMMetadata {
+  const ctx = useDocumentSelector(selectContext)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  return useMemo(
+    () =>
+      draftOverlayAllowed
+        ? {...(ctx.document?.metadata || document?.metadata || {}), ...ctx.metadata}
+        : ctx.document?.metadata || document?.metadata || {},
+    [draftOverlayAllowed, ctx.document?.metadata, ctx.metadata, document?.metadata],
+  )
+}
+
 /** Distance the document must scroll before its back-to-top control appears. */
 export const BACK_TO_TOP_SCROLL_OFFSET = 200
 
@@ -1809,7 +2005,7 @@ function DocumentBody({
   isLatest = true,
   latestVersion,
   siteUrl,
-  CommentEditor,
+  CommentEditor: CommentEditorProp,
   optionsMenuItems,
   extraMenuItems,
   existingDraft,
@@ -1983,10 +2179,17 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  useNewDocumentSchemaDefaults(docId, document)
+  const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
+  const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
+  const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
+  const [managePagePermissions, setManagePagePermissions] = useState<(() => void) | null>(null)
+  const onPageAccessChange = useCallback((revoke: (() => void) | null) => setManagePagePermissions(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const isCollection = useDocumentSelector(selectIsCollection)
+  const [mainCommentsFooter, setMainCommentsFooter] = useState<HTMLDivElement | null>(null)
   const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'collection' | 'document' | null>(null)
   const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
@@ -2024,7 +2227,7 @@ function DocumentBody({
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
-      const cid = await fileUpload(file)
+      const cid = await fileUpload(await processImage(file, COVER_IMAGE_POLICY))
       beginEditIfNeeded()
       send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
     },
@@ -2099,12 +2302,19 @@ function DocumentBody({
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
   const commentsPanelTarget = getCommentsPanelTarget(docId, panelRoute)
+  const expandedPanel = getExpandedDocumentPanel(route)
+  const fullWidthHeader = isCollection && !expandedPanel
+  const [inlineCollapseButton, setInlineCollapseButton] = useState<HTMLButtonElement | null>(null)
+  const collapseExpandedPanel = () => {
+    if (expandedPanel) navigate({key: 'document', id: docId, panel: expandedPanel.panel})
+  }
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
     route.key === 'comments'
       ? {
           openComment: route.openComment,
+          replyCommentId: route.replyCommentId,
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
@@ -2123,16 +2333,56 @@ function DocumentBody({
     panelRoute,
   })
 
-  // Respect the showActivity metadata toggle to hide the document tools bar.
-  const showActivity = metadata?.showActivity !== false
-
   // Explore searches the whole space rather than presenting a document,
   // so it drops the document's chrome.
   const showDocumentChrome = activeView !== 'explore'
+  // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
+  // its tabs, which are the whole page.
+  const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
+  // Apps and tools are typed resources with their own tabs in place of the document body, like agents.
+  const appKind = appResourceKind(document.metadata.type)
+  // A tool or trigger stays inside its host, with the host's tabs: an app's, or an agent's.
+  // An app's page opened on its own keeps the app's tabs too, with Pages selected.
+  const isPage = document.metadata.type === 'hm://hyper.media/page'
+  const hostId = appKind === 'tool' || appKind === 'trigger' || isPage ? parentDocumentId(docId) : null
+  const hostResource = useResource(hostId)
+  const hostType = hostResource.data?.type === 'document' ? hostResource.data.document.metadata.type : undefined
+  const hostIsAgent = hostType === 'hm://hyper.media/agent'
+  const appTabs = useMemo(
+    () =>
+      route.key !== 'document'
+        ? undefined
+        : isPage
+          ? hostId && hostType === 'hm://hyper.media/app'
+            ? appResourceTabs(hostId, 'pages')
+            : undefined
+          : !appKind
+            ? undefined
+            : appKind === 'app'
+              ? appResourceTabs(docId, route.appView, panelRoute)
+              : hostIsAgent && hostId
+                ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
+                : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
+    [appKind, route, docId, panelRoute, hostIsAgent, hostId, isPage, hostType],
+  )
+  // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
+  // the page around it stops scrolling and hands it the remaining height, as a document page does.
+  // An agent document's base URL is its Home: its document (its instructions), laid out like any
+  // document; its sessions and settings are agent views.
+  const isAgentView = route.key === 'document' && (!!route.agentView || !!appKind)
+  const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
-  const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
-  const {scrollToBlock} = useBlockScroll(routeBlockRef)
+  const routeBlockRef = route.key === 'document' ? route.id.blockRef : null
+  const sourceBlocks = shouldUseDraftOverlay ? effectiveContent : document.content
+  const blockExists = useMemo(
+    () =>
+      routeBlockRef && !documentIsPlaceholderData && (!shouldUseDraftOverlay || draftResolution !== undefined)
+        ? hasRenderableBlock(sourceBlocks ?? [], routeBlockRef)
+        : undefined,
+    [routeBlockRef, documentIsPlaceholderData, shouldUseDraftOverlay, draftResolution, sourceBlocks],
+  )
+  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: route, blockExists})
 
   // On mount, sync URL hash (#blockId) into route if not already present
   useEffect(() => {
@@ -2172,32 +2422,42 @@ function DocumentBody({
 
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+  // Space Settings is the owner's to change, so only the owner is offered it.
+  const {isSiteOwner} = useIsSiteOwner(isHomeDoc ? docId.uid : undefined)
+  const spaceHomeMetadata = useSpaceHome(docId.uid)?.metadata
+  const display = resolveDocumentDisplay(metadata, spaceHomeMetadata)
+  const showActivity = display.showActivity
+  const CommentEditor = readSpaceSettings(spaceHomeMetadata).showConversations ? CommentEditorProp : undefined
   const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const versionHeadCount = getVersionHeads(document.version).length
-  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
-  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
+  const commentsPanelSummary = useInteractionSummary(
+    !isLocalOnlyDoc && panelKey === 'comments' ? commentsPanelTarget.docId : null,
+  )
   const collaborators = useDocumentCollaborators(isLocalOnlyDoc ? null : docId)
   const peopleCount = useMemo(
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
-  const showMembersFacepile =
-    isHomeDoc &&
-    showDocumentChrome &&
-    activeView !== 'all-documents' &&
-    !siteMembers.isInitialLoading &&
-    siteMembers.members.length > 0
   const citationsTargetId = useMemo(
     () => getCitationsTargetId({docId, documentVersion: document.version}),
     [docId, document.version],
   )
   const citations = useCitations(citationsTargetId)
+  const connectionCount = useMemo(
+    () => groupDocumentConnections(docId, citations.data?.citations).length,
+    [docId, citations.data],
+  )
+  const isConnectionsPanel =
+    panelRoute?.key === 'activity' &&
+    !isDocumentVersionsPanelRoute(panelRoute) &&
+    (!!panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+  const panelCitations = useCitations(isConnectionsPanel ? panelRoute.id ?? citationsTargetId : null)
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
@@ -2210,10 +2470,7 @@ function DocumentBody({
   // current web), so the daemon-fetch path stays unchanged there.
   const accountDrafts = useDraftsForAccountSafe(docId.uid)
 
-  // Resolve each breadcrumb segment to a local draft when possible. A draft
-  // match short-circuits the daemon fetch and the discovery subscription —
-  // we pass `null` at draft positions to `useResources` (see below) which
-  // honours `enabled: !!id` and skips both.
+  // Resolve draft overlays without losing the published metadata they inherit.
   const draftsForBreadcrumbs = useMemo(
     () => breadcrumbIds.map((id) => findDraftForPath(accountDrafts.data, id.uid, id.path ?? [])),
     [breadcrumbIds, accountDrafts.data],
@@ -2237,13 +2494,16 @@ function DocumentBody({
     [breadcrumbIds, accountDrafts.isLoading, reservedDraftBreadcrumbNames],
   )
 
-  // Mask draft positions so `useResources` skips the daemon `Resource`
-  // request and the discovery subscription for them. Array length is
-  // preserved so downstream index-based access stays aligned.
+  // Only unpublished placeholders lack a server resource. Existing documents
+  // still supply the title when their draft contains only body edits.
   const resourceFetchIds = useMemo(
     () =>
       breadcrumbIds.map((id, i) =>
-        draftsForBreadcrumbs[i] || pendingDraftLookup[i] || reservedDraftBreadcrumbNames[i] ? null : id,
+        isDraftPlaceholderPath(id.path, draftsForBreadcrumbs[i]?.id) ||
+        pendingDraftLookup[i] ||
+        reservedDraftBreadcrumbNames[i]
+          ? null
+          : id,
       ),
     [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup, reservedDraftBreadcrumbNames],
   )
@@ -2269,23 +2529,23 @@ function DocumentBody({
           ? ctx.metadata?.name || (existingDraft ? existingDraft.metadata?.name : undefined)
           : undefined
       const reservedDraftBreadcrumbName = reservedDraftBreadcrumbNames[i]
-      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || id.path?.at(-1) || id.uid.slice(0, 8)
+      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || 'Untitled Document'
 
       if (draft) {
         const draftIsUnpublished = isDraftPlaceholderPath(id.path, draft.id) || (isCurrent && isUnpublishedDraft)
-        const draftMetadata = draft.metadata ?? {}
-        const draftName = currentDraftName || draftMetadata.name
-        return {
+        const result = breadcrumbResults[i]
+        return getDraftBreadcrumbEntry({
           id,
-          metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
-          draftId: draft.id,
-          fallbackName: draftName || fallbackName,
-          isLoading: false,
-          isTombstone: false,
-          isNotFound: false,
-          isError: false,
+          draft,
+          publishedMetadata: isCurrent
+            ? ctx.document?.metadata ?? document.metadata
+            : result?.data?.type === 'document'
+              ? result.data.document.metadata
+              : undefined,
+          currentMetadata: isCurrent && draftOverlayAllowed ? ctx.metadata : undefined,
           isUnpublishedDraft: draftIsUnpublished,
-        }
+          isLoading: !isCurrent && !draftIsUnpublished && (!result || result.isLoading || result.isDiscovering),
+        })
       }
 
       if (reservedDraftBreadcrumbName) {
@@ -2350,7 +2610,12 @@ function DocumentBody({
       metadata: 'Attributes',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
-      items.push({label: panelLabels[activeView]})
+      items.push({
+        label:
+          route.key === 'activity' && activityFilterToSlug(route.filterEventType) === 'citations'
+            ? 'Connections'
+            : panelLabels[activeView],
+      })
     }
 
     // Append block text when a block is focused
@@ -2377,7 +2642,10 @@ function DocumentBody({
     metadata,
     isUnpublishedDraft,
     existingDraft,
-    ctx.metadata?.name,
+    ctx.metadata,
+    ctx.document?.metadata,
+    document.metadata,
+    draftOverlayAllowed,
     activeView,
     focusedBlock,
     focusedBlockMentionNames,
@@ -2389,8 +2657,8 @@ function DocumentBody({
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
-      contentWidth: metadata?.contentWidth,
-      showSidebars: !isHomeDoc && metadata?.showOutline !== false && activeView === 'content',
+      contentWidth: display.contentWidth,
+      showSidebars: !isHomeDoc && display.showOutline && activeView === 'content',
     })
 
   // Fetch author metadata for document header and subscribe for discovery
@@ -2523,30 +2791,50 @@ function DocumentBody({
     [route, navigate, scrollToBlock],
   )
 
+  const commentDraftReferences = useCommentDraftReferences()
+  const commentQueryClient = useQueryClient()
+  const commentClient = useUniversalClient()
   const handleBlockCommentClick = useCallback(
-    (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
+    async (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
       if (route.key !== 'document' && route.key !== 'feed') return
       if (!blockId) return
-      // Validate blockRange has proper structure
-      const blockRange =
-        blockRangeInput && 'start' in blockRangeInput && 'end' in blockRangeInput ? blockRangeInput : null
-      navigate({
-        ...route,
-        id: {
-          ...route.id,
-          blockRef: blockId,
-          blockRange,
-        },
-        panel: {
-          key: 'comments',
-          id: route.id,
-          targetBlockId: blockId,
-          blockRange,
-          autoFocus: true,
-        },
-      })
+      try {
+        let resolvedThreadRootId: string | undefined
+        if (route.panel?.key === 'comments' && route.panel.openComment) {
+          const comments = await commentQueryClient.ensureQueryData(
+            queryDocumentComments(commentClient, commentsPanelTarget.docId),
+          )
+          const thread = getCommentThread(comments.comments, route.panel.openComment)
+          if (!thread || thread.root.replyParent) {
+            toast.error('The comment thread could not be loaded.')
+            return
+          }
+          resolvedThreadRootId = thread.root.id
+        }
+        const request = getBlockCommentDraftReference({
+          route,
+          sourceId: docId,
+          resolvedThreadRootId,
+          version: document.version,
+          blockId,
+          blockRange: blockRangeInput,
+        })
+        commentDraftReferences?.appendReference(request.reference)
+        if (request.route !== route) navigate(request.route)
+      } catch {
+        toast.error('The comment thread could not be loaded.')
+      }
     },
-    [route, navigate],
+    [
+      route,
+      navigate,
+      docId,
+      document.version,
+      commentDraftReferences?.appendReference,
+      commentQueryClient,
+      commentClient,
+      commentsPanelTarget.docId,
+    ],
   )
 
   // Block select handler (copy block link + navigate to update URL)
@@ -2648,18 +2936,17 @@ function DocumentBody({
       },
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
-  const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!canEditCurrentRoute) return null
+  // Space Settings available on the home document to the owner of the space, and only on desktop.
+  // An agent has its own Settings tab, so it isn't offered there.
+  const spaceSettingsMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!IS_DESKTOP || !isHomeDoc || !isSiteOwner || isAgentDocument) return null
     return {
-      key: 'options',
-      label: 'Document Settings',
-      icon: <FilePen className="size-4" />,
-      onClick: () => {
-        const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
-        replaceRoute({...route, panel: newPanel} as any)
-      },
+      key: 'space-settings',
+      label: 'Space settings',
+      icon: <Settings className="size-4" />,
+      onClick: () => navigate({key: 'site-settings', id: hmId(docId.uid), tab: 'general'}),
     }
-  }, [canEditCurrentRoute, panelKey, route, replaceRoute])
+  }, [isHomeDoc, isSiteOwner, isAgentDocument, navigate, docId.uid])
   // On the Attributes page, a field outside the attributes schema is added from the options menu.
   const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
     if (!canEditCurrentRoute || route.key !== 'metadata') return null
@@ -2694,14 +2981,15 @@ function DocumentBody({
   }, [canEditCurrentRoute, isCollection])
 
   const convertToCollectionMenuItem = useMemo<MenuItemType | null>(() => {
-    if (isCollection || !canEditCurrentRoute) return null
+    // An agent's document is the agent, never a collection.
+    if (isCollection || !canEditCurrentRoute || isAgentDocument || appKind) return null
     return {
       key: 'convert-to-collection',
       label: 'Convert to Collection',
       icon: <Grid3X3 className="size-4" />,
       onClick: () => setPendingDocumentConversion('collection'),
     }
-  }, [canEditCurrentRoute, isCollection])
+  }, [appKind, canEditCurrentRoute, isAgentDocument, isCollection])
 
   // The schema actions (New Document / New Collection / Extend / New Raw Value) ride in the
   // regular options menu; the list is empty unless the document defines a schema.
@@ -2713,9 +3001,40 @@ function DocumentBody({
   })
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
-    unorderedItems.push(citationFragmentToggleMenuItem)
+    if (documentPage) {
+      unorderedItems.push(
+        ...getDocumentPagePanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
+      )
+    } else unorderedItems.push(citationFragmentToggleMenuItem)
+    // A running page (this document's, or an app's home page) hands its controls to this menu.
+    if (editPageParameters)
+      unorderedItems.push({
+        key: 'page-parameters',
+        label: 'Page parameters',
+        icon: <SlidersHorizontal className="size-4" />,
+        onClick: editPageParameters,
+      })
+    if (managePagePermissions)
+      unorderedItems.push({
+        key: 'page-permissions',
+        label: 'Page permissions',
+        icon: <ShieldCheck className="size-4" />,
+        onClick: managePagePermissions,
+      })
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
-    if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    if (spaceSettingsMenuItem) unorderedItems.push(spaceSettingsMenuItem)
+    // An agent's tab bar has no Attributes tab; the options menu opens that panel instead.
+    if (isAgentDocument && !documentPage)
+      unorderedItems.push({
+        key: 'app-attributes',
+        label: 'Attributes',
+        icon: <Info className="size-4" />,
+        onClick: () =>
+          replaceRoute({
+            ...route,
+            panel: {key: 'metadata', id: {...docId, blockRef: null, blockRange: null}},
+          } as NavRoute),
+      })
     if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
@@ -2728,11 +3047,18 @@ function DocumentBody({
     }
     return orderDocumentMenuItems(unorderedItems)
   }, [
+    documentPage,
+    docId,
+    route,
+    replaceRoute,
+    managePagePermissions,
+    editPageParameters,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
     inspectMenuItem,
-    documentOptionsMenuItem,
+    spaceSettingsMenuItem,
+    isAgentDocument,
     addRawFieldMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
@@ -2783,7 +3109,7 @@ function DocumentBody({
       </AlertDialogContent>
     </AlertDialog>
   )
-  const documentContentAction = getDocumentContentAction({
+  const baseDocumentContentAction = getDocumentContentAction({
     activeView,
     isEditing,
     hasDraft: draftOverlayAllowed && ctx.draftId !== null,
@@ -2792,11 +3118,24 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // While the draft is hidden the draft chrome is suppressed, so the action slot falls back
+  // to the plain options menu; pair it with the "Show changes" restore controls then.
+  const documentContentAction =
+    baseDocumentContentAction === actionButtons ? (
+      <>
+        <DraftHiddenActions />
+        {actionButtons}
+      </>
+    ) : (
+      baseDocumentContentAction
+    )
   // A document that DEFINES a type (carries a `schemaDefinition`) gets header
   // actions: New Document / New Collection typed by it (or Create, for a signed type).
   // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
-  // (same source the Attributes tab reads).
-  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // (same source the Attributes tab reads); a hidden draft previews published metadata.
+  const headerMetadata = draftOverlayAllowed
+    ? {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+    : ctx.document?.metadata || document.metadata || {}
   const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
     <SchemaDocumentHeaderActions
       metadata={headerMetadata}
@@ -2812,7 +3151,8 @@ function DocumentBody({
         {documentContentAction}
       </>
     ) : null
-  const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+  const floatingButtonsAction =
+    activeView === 'content' && !documentPage && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
   const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
@@ -2831,25 +3171,60 @@ function DocumentBody({
       }
       actions={topBarActions}
       isMobile={isMobile}
+      collapseAction={
+        expandedPanel
+          ? {inlineButton: inlineCollapseButton, title: expandedPanel.title, onCollapse: collapseExpandedPanel}
+          : undefined
+      }
     />
   )
 
   // Main page content (used in both mobile and desktop layouts)
-  const mainPageContent = (
+  const mainPageContent = documentPage ? (
+    <div data-document-page-main className="flex min-h-0 flex-1 flex-col">
+      {documentConversionDialog}
+      {isPage && appTabs ? (
+        <div className="shrink-0 px-5 py-1">
+          <DocumentTools id={docId} resourceTabs={appTabs} currentRoute={route} />
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <DocumentPageView
+          docId={docId}
+          document={document}
+          cid={documentPage}
+          inputParams={route.key === 'document' ? route.id.pageParams : undefined}
+          onInputNavigate={(pageParams, mode) => {
+            const next = {...route, id: {...docId, pageParams}} as NavRoute
+            if (mode === 'replace') replaceRoute(next)
+            else navigate(next)
+          }}
+          perspectiveAccountUid={perspectiveAccountUid}
+          onAccountAccessChange={onPageAccessChange}
+          onParametersChange={onPageParametersChange}
+          fill
+        />
+      </div>
+    </div>
+  ) : (
     <div
       className={cn(
         'flex flex-col',
-        pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-        !pageFooter && 'min-h-full',
+        isAgentView
+          ? 'h-full min-h-0'
+          : pageFooter
+            ? 'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]'
+            : 'min-h-full',
       )}
     >
       {documentConversionDialog}
-      <DocumentCover
-        cover={metadata?.cover}
-        onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
-        onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
-      />
+      {!isAgentDocument && !appKind && (
+        <DocumentCover
+          cover={metadata?.cover}
+          onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
+          onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
+        />
+      )}
       {isHomeDoc && canEditCurrentRoute && activeView === 'content' ? (
         <HomeDocumentMetadataControls metadata={metadata as any} fileUpload={fileUpload} />
       ) : null}
@@ -2861,22 +3236,19 @@ function DocumentBody({
             wrapperProps.className,
             'flex-none',
             !showSidebars && 'justify-center',
-            isCollection && '!block w-full',
+            fullWidthHeader && '!block w-full',
           )}
-          style={isCollection ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
+          style={fullWidthHeader ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
         >
           {showSidebars && !isCollection && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div
             {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
-            style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
+            className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
+            style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {showMembersFacepile && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
             {!isHomeDoc &&
+              !isAgentDocument &&
+              !appKind &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
                   docId={docId}
@@ -2904,15 +3276,12 @@ function DocumentBody({
         </div>
       ) : (
         <div
-          className={cn('mx-auto flex w-full flex-col px-4')}
-          style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
+          className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
+          style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
-          {showMembersFacepile && (
-            <div className="pt-4">
-              <MembersFacepile members={siteMembers.members} siteId={siteId} />
-            </div>
-          )}
           {!isHomeDoc &&
+            !isAgentDocument &&
+            !appKind &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
                 docId={docId}
@@ -2937,116 +3306,173 @@ function DocumentBody({
             ))}
         </div>
       )}
-
-      {/* DocumentTools - scrolls with the page; the border separates document
-          identity above from document body below. Hidden when showActivity is false. */}
-      {showActivity && showDocumentChrome && (
-        <div className="px-5 py-1">
-          <DocumentTools
-            id={docId}
-            activeTab={
-              activeView === 'activity' &&
-              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
-                ? 'citations'
-                : activeView === 'activity' ||
-                    activeView === 'directory' ||
-                    activeView === 'site-profile' ||
-                    activeView === 'all-documents'
-                  ? undefined
-                  : activeView
-            }
-            currentPanel={panelRoute}
-            existingDraft={isEditing || !shouldUseDraftOverlay ? undefined : existingDraft}
-            commentsCount={interactionSummary.data?.comments || 0}
-            citationsCount={interactionSummary.data?.citations || 0}
-            collabsCount={peopleCount}
-            metadataCount={countCustomMetadataFields(metadata)}
-            schemaCid={schemaDefinitionCid(metadata)}
-            layoutProps={
-              isMobile || isCollection
-                ? undefined
-                : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
-                  }
-            }
-            activeTabAction={
-              activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'schema' ? (
-                <OpenInPanelButton
-                  id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {
-                          key: activeView as Exclude<
-                            ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore' | 'schema'
-                          >,
-                          id: docId,
-                        }
-                  }
-                />
-              ) : null
-            }
-          />
+      {/* Document tools scroll with the page and are hidden when showActivity is false,
+          except on a mounted agent document, whose views live behind these tabs. */}
+      {expandedPanel ? (
+        <div className="pt-4 pb-2">
+          <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+            <div className="border-border flex items-center justify-between gap-2 border-b pb-4">
+              <Text weight="semibold" size="lg">
+                {expandedPanel.title}
+              </Text>
+              <Tooltip content="Collapse">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Collapse ${expandedPanel.title}`}
+                  ref={setInlineCollapseButton}
+                  onClick={collapseExpandedPanel}
+                >
+                  <Minimize2 className="size-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          </PageLayout>
         </div>
+      ) : (
+        showDocumentChrome && (
+          <AgentDocumentView document={document} route={{key: 'document', id: docId}}>
+            {(hasAgent) =>
+              (showActivity || hasAgent || !!appTabs) && (
+                <div className="px-5 py-1">
+                  <DocumentTools
+                    id={docId}
+                    resourceTabs={appTabs}
+                    hasAgent={hasAgent}
+                    agentHome={isAgentDocument}
+                    activeAgentView={route.key === 'document' ? route.agentView : undefined}
+                    activeTab={
+                      activeView === 'activity' &&
+                      activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                        ? 'citations'
+                        : activeView === 'activity' ||
+                            activeView === 'directory' ||
+                            activeView === 'site-profile' ||
+                            activeView === 'all-documents'
+                          ? undefined
+                          : activeView
+                    }
+                    currentPanel={panelRoute}
+                    currentRoute={route}
+                    commentsCount={interactionSummary.data?.comments || 0}
+                    citationsCount={connectionCount}
+                    collabsCount={peopleCount}
+                    collaborators={collaborators.data}
+                    metadataCount={countCustomMetadataFields(metadata)}
+                    schemaCid={schemaDefinitionCid(metadata)}
+                    layoutProps={
+                      isMobile || isCollection
+                        ? undefined
+                        : {
+                            wrapperProps,
+                            sidebarProps,
+                            mainContentProps,
+                            showSidebars,
+                          }
+                    }
+                  />
+                </div>
+              )
+            }
+          </AgentDocumentView>
+        )
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
-        <DocumentViewContent
-          activeView={activeView}
-          collection={
-            isCollection ? (
-              <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-            ) : undefined
-          }
-        >
-          <MainContent
+      <div
+        className={cn(
+          'flex-1',
+          isAgentView && 'flex min-h-0 flex-col',
+          activeView !== 'content' && activeView !== 'comments' && 'pb-60',
+          isMobile && !expandedPanel && 'px-4',
+        )}
+      >
+        {route.key === 'document' && appKind === 'app' ? (
+          <AppDocumentView
             docId={docId}
-            resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
             document={document}
-            activeView={activeView}
-            contentMaxWidth={contentMaxWidth}
-            wrapperProps={wrapperProps}
-            sidebarProps={sidebarProps}
-            mainContentProps={mainContentProps}
-            showSidebars={showSidebars}
-            showCollapsed={showCollapsed}
-            discussionsParams={discussionsParams}
-            suppressCommentEditor={suppressMainCommentEditor}
-            activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-            onActivityFilterChange={handleMainActivityFilterChange}
-            blockCitations={blockCitations}
-            citationFragmentHighlights={citationFragmentHighlights}
-            onCitationFragmentClick={handleCitationFragmentClick}
-            onBlockCitationClick={handleBlockCitationClick}
-            onBlockCommentClick={handleBlockCommentClick}
-            onBlockSelect={handleBlockSelect}
-            onTextSelection={handleTextSelection}
-            isUnpublishedDraft={isUnpublishedDraft}
-            isBlockInPublishedVersion={isBlockInPublishedVersion}
-            CommentEditor={CommentEditor}
-            directory={directory.data}
-            siteUrl={siteUrl}
-            inlineCards={inlineCards}
-            inlineInsert={inlineInsert}
-            DocumentContentComponent={DocumentContentComponent}
-            onEditorReady={handleEditorReadyWrapped}
-            existingDraftContent={effectiveContent}
-            existingDraftCursorPosition={existingDraftCursorPosition}
-            ssrContentHTML={ssrContentHTML}
-            perspectiveAccountUid={perspectiveAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            fileUpload={fileUpload}
-            draftVersionEntry={draftVersionEntry}
+            appView={route.appView}
+            canEdit={!!canEditCurrentRoute}
+            onPageAccessChange={onPageAccessChange}
+            onPageParametersChange={onPageParametersChange}
           />
-        </DocumentViewContent>
+        ) : route.key === 'document' && appKind === 'tool' && route.toolCallId ? (
+          <ResourceViewBoundary resetKey={docId.id}>
+            <ToolCallView toolId={docId} document={document} callId={route.toolCallId} />
+          </ResourceViewBoundary>
+        ) : route.key === 'document' && appKind === 'tool' ? (
+          <ResourceViewBoundary resetKey={docId.id}>
+            <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          </ResourceViewBoundary>
+        ) : route.key === 'document' && appKind === 'trigger' ? (
+          <ResourceViewBoundary resetKey={docId.id}>
+            <TriggerDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+          </ResourceViewBoundary>
+        ) : route.key === 'document' && route.agentView ? (
+          <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
+        ) : (
+          <>
+            {isAgentDocument && activeView === 'content' ? (
+              <>
+                <AgentHomeIntro document={document} canEdit={!!canEditCurrentRoute} />
+                <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+              </>
+            ) : null}
+            <DocumentViewContent
+              activeView={activeView}
+              collection={
+                isCollection ? (
+                  <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+                ) : undefined
+              }
+            >
+              <CommentsFooterContext.Provider value={mainCommentsFooter}>
+                <MainContent
+                  docId={docId}
+                  resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+                  document={document}
+                  activeView={activeView}
+                  contentMaxWidth={contentMaxWidth}
+                  wrapperProps={wrapperProps}
+                  sidebarProps={sidebarProps}
+                  mainContentProps={mainContentProps}
+                  showSidebars={showSidebars}
+                  showCollapsed={showCollapsed}
+                  discussionsParams={discussionsParams}
+                  suppressCommentEditor={suppressMainCommentEditor}
+                  activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+                  onActivityFilterChange={handleMainActivityFilterChange}
+                  blockCitations={blockCitations}
+                  citationFragmentHighlights={citationFragmentHighlights}
+                  onCitationFragmentClick={handleCitationFragmentClick}
+                  onBlockCitationClick={handleBlockCitationClick}
+                  onBlockCommentClick={handleBlockCommentClick}
+                  onBlockSelect={handleBlockSelect}
+                  onTextSelection={handleTextSelection}
+                  isUnpublishedDraft={isUnpublishedDraft}
+                  isBlockInPublishedVersion={isBlockInPublishedVersion}
+                  CommentEditor={CommentEditor}
+                  directory={directory.data}
+                  siteUrl={siteUrl}
+                  inlineCards={inlineCards}
+                  inlineInsert={inlineInsert}
+                  DocumentContentComponent={DocumentContentComponent}
+                  onEditorReady={handleEditorReadyWrapped}
+                  existingDraftContent={effectiveContent}
+                  existingDraftCursorPosition={existingDraftCursorPosition}
+                  ssrContentHTML={ssrContentHTML}
+                  perspectiveAccountUid={perspectiveAccountUid}
+                  linkExtensionOptions={linkExtensionOptions}
+                  fileUpload={fileUpload}
+                  draftVersionEntry={draftVersionEntry}
+                />
+              </CommentsFooterContext.Provider>
+            </DocumentViewContent>
+            {isAgentDocument && activeView === 'content' ? (
+              <AgentHomeComposer docId={docId} document={document} />
+            ) : null}
+          </>
+        )}
         {citationFragmentClick ? (
           <CitationFragmentPopover
             click={citationFragmentClick}
@@ -3066,6 +3492,11 @@ function DocumentBody({
     }
   }
 
+  const handleCommentsExpand = () => {
+    if (panelRoute?.key !== 'comments') return
+    navigate({...panelRoute, id: commentsPanelTarget.docId, panel: null})
+  }
+
   // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
     if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
@@ -3076,111 +3507,149 @@ function DocumentBody({
     }
   }
 
+  // The space Activity panel brings its own header. Switching tabs replaces the history entry.
+  const activityPanelHeader =
+    panelRoute?.key === 'feed' ? (
+      <ActivityHeader
+        tab={panelRoute.tab}
+        onTabChange={(tab) => replaceRoute({...route, panel: {...panelRoute, tab}} as NavRoute)}
+        onExpand={
+          isMobile
+            ? undefined
+            : () => navigate({key: 'feed', id: hmId(panelRoute.id?.uid ?? docId.uid), tab: panelRoute.tab})
+        }
+        onClose={handlePanelClose}
+      />
+    ) : undefined
+
+  const documentPanelHeader = isConnectionsPanel ? (
+    <PanelHeader
+      title="Connections"
+      count={
+        groupDocumentConnections(panelRoute.id ?? docId, panelCitations.data?.citations, panelRoute.targetBlockId)
+          .length
+      }
+      onClose={handlePanelClose}
+      onExpand={
+        isMobile
+          ? undefined
+          : () =>
+              navigate({
+                key: 'activity',
+                id: {...(panelRoute.id ?? docId), blockRef: panelRoute.targetBlockId || null},
+                filterEventType: activitySlugToFilter('citations'),
+              })
+      }
+    />
+  ) : panelRoute?.key === 'metadata' || panelRoute?.key === 'collaborators' ? (
+    <PanelHeader
+      title={panelRoute.key === 'metadata' ? 'Attributes' : 'People'}
+      onClose={handlePanelClose}
+      onExpand={isMobile ? undefined : () => navigate({key: panelRoute.key, id: panelRoute.id ?? docId})}
+    />
+  ) : undefined
+
+  // Both layouts use the same panel content and reply navigation.
+  const panelContent = panelRoute ? (
+    <PanelContentRenderer
+      panelRoute={panelRoute}
+      docId={docId}
+      document={document}
+      contentMaxWidth={contentMaxWidth}
+      CommentEditor={CommentEditor}
+      siteUrl={siteUrl}
+      fileUpload={fileUpload}
+      draftVersionEntry={draftVersionEntry}
+      autoFocusComments={!isMobile}
+    />
+  ) : null
+
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
       <>
-        <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+        <div
+          className={cn('relative flex flex-1 flex-col', fixedHeightMain ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          ref={elementRef}
+        >
           {documentTopBar}
           {mainPageContent}
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="sticky bottom-20 z-10 shrink-0" />}
           {floatingButtonsAction}
         </div>
 
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
+            title={isConnectionsPanel ? 'Connections' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
+            header={documentPanelHeader ?? activityPanelHeader}
+            resizable
+            scrollContent={panelKey !== 'comments'}
+            onBack={
+              panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
+                ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
+                : undefined
+            }
+            count={panelKey === 'comments' ? commentsPanelSummary.data?.comments : undefined}
           >
-            <DiscussionsPageContent
-              docId={commentsPanelTarget.docId}
-              showTitle={false}
-              showOpenInPanel={false}
-              contentMaxWidth={contentMaxWidth}
-              targetDomain={siteUrl}
-              openComment={commentsPanelTarget.openComment}
-              targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-              blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
-              blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor
-                    key={
-                      panelRoute?.key === 'comments'
-                        ? getCommentEditorRouteKey({
-                            openComment: panelRoute.openComment,
-                            targetBlockId: panelRoute.targetBlockId,
-                            blockRange: panelRoute.blockRange,
-                          })
-                        : undefined
-                    }
-                    docId={commentsPanelTarget.docId}
-                    quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                    quotingRange={
-                      panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
-                    }
-                    commentId={commentsPanelTarget.openComment}
-                    isReplying={
-                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
-                    }
-                    replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                    rootReplyCommentVersion={
-                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
-                    }
-                    // On mobile, opening the keyboard during the sheet entrance
-                    // causes visible viewport jumps. Let the drawer settle and
-                    // let users tap the composer when they are ready to type.
-                    focusOnMount={false}
-                  />
-                ) : undefined
-              }
-            />
+            {panelContent}
           </MobilePanelSheet>
         )}
       </>
     )
   }
 
-  // Desktop: use PanelLayout with scrollable main content + optional panel
-  const panelContent = panelKey ? (
-    <ScrollArea className="flex-1">
-      <PanelContentRenderer
-        panelRoute={panelRoute!}
-        docId={docId}
-        document={document}
-        contentMaxWidth={contentMaxWidth}
-        CommentEditor={CommentEditor}
-        siteUrl={siteUrl}
-        fileUpload={fileUpload}
-        draftVersionEntry={draftVersionEntry}
-      />
-    </ScrollArea>
-  ) : null
-
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      <ActivityPanelPortal active={panelKey === 'feed'}>
+        {activityPanelHeader}
+        <ScrollArea className="min-h-0 flex-1">{panelContent}</ScrollArea>
+      </ActivityPanelPortal>
       <PanelLayout
-        panelKey={panelKey}
-        panelContent={panelContent}
+        panelKey={panelKey === 'feed' ? null : panelKey}
+        panelContent={
+          panelKey === 'feed' ? null : panelKey === 'comments' ? (
+            panelContent
+          ) : (
+            <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+          )
+        }
         onPanelClose={handlePanelClose}
+        commentsCount={commentsPanelSummary.data?.comments}
+        onCommentsExpand={handleCommentsExpand}
+        onCommentsBack={
+          panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
+            ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
+            : undefined
+        }
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
-        isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
+        isCitationsPanel={
+          panelRoute?.key === 'activity' &&
+          (!!panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+        }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
+        header={documentPanelHeader ?? activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          <ScrollArea
-            ref={documentScrollAreaRef}
-            id="scroll-page-wrapper"
-            className="min-h-0 flex-1"
-            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-            fillViewportContent
-          >
-            <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
-            {mainPageContent}
-          </ScrollArea>
-          {activeView === 'content' ? (
+          {fixedHeightMain ? (
+            mainPageContent
+          ) : (
+            <ScrollArea
+              ref={documentScrollAreaRef}
+              id="scroll-page-wrapper"
+              className="min-h-0 flex-1"
+              viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+              fillViewportContent
+            >
+              <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
+              {mainPageContent}
+            </ScrollArea>
+          )}
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="shrink-0" />}
+          {activeView === 'content' && !fixedHeightMain ? (
             <Button
               ref={backToTopButtonRef}
               type="button"
@@ -3279,7 +3748,7 @@ function EditableDocumentHeader({
       onChangeIcon={
         fileUpload
           ? async (file) => {
-              const cid = await fileUpload(file)
+              const cid = await fileUpload(await processImage(file, AVATAR_IMAGE_POLICY))
               if (!isEditing) send({type: 'edit.start'})
               send({type: 'change', metadata: {icon: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
             }
@@ -3323,6 +3792,7 @@ function PanelContentRenderer({
   siteUrl,
   fileUpload,
   draftVersionEntry,
+  autoFocusComments = true,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
@@ -3332,10 +3802,9 @@ function PanelContentRenderer({
   siteUrl?: string
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
+  autoFocusComments?: boolean
 }) {
   switch (panelRoute.key) {
-    case 'options':
-      return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'metadata':
       return (
         <div className="px-4">
@@ -3347,6 +3816,9 @@ function PanelContentRenderer({
         return (
           <DocumentVersionsPanel size="sm" docId={docId} targetDomain={siteUrl} draftVersionEntry={draftVersionEntry} />
         )
+      }
+      if (panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations') {
+        return <ConnectionsPanel docId={panelRoute.id ?? docId} targetBlockId={panelRoute.targetBlockId} />
       }
       return (
         <Feed
@@ -3368,6 +3840,7 @@ function PanelContentRenderer({
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           CommentEditor={CommentEditor}
+          autoFocus={autoFocusComments}
         />
       )
     case 'directory':
@@ -3375,8 +3848,12 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <CollaboratorsPage docId={docId} />
+          <CollaboratorsPage docId={panelRoute.id ?? docId} />
         </div>
+      )
+    case 'feed':
+      return (
+        <ActivityContent spaceId={hmId(panelRoute.id?.uid ?? docId.uid)} tab={panelRoute.tab} targetDomain={siteUrl} />
       )
 
     default:
@@ -3391,6 +3868,7 @@ function CommentsPanelContent({
   contentMaxWidth,
   targetDomain,
   CommentEditor,
+  autoFocus = true,
 }: {
   docId: UnpackedHypermediaId
   openComment?: string
@@ -3398,15 +3876,18 @@ function CommentsPanelContent({
   contentMaxWidth: number
   targetDomain?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  autoFocus?: boolean
 }) {
   const commentsContext = useCommentsServiceContext()
   const route = useNavRoute()
+  const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
 
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3415,13 +3896,14 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   const onReplyCountClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3429,18 +3911,19 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   return (
     <CommentsProvider {...commentsContext} onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
       <DiscussionsPageContent
+        isPanel
         docId={docId}
         showTitle={false}
-        showOpenInPanel={false}
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
+        replyCommentId={panelRoute.replyCommentId}
         targetBlockId={panelRoute.targetBlockId}
         blockId={panelRoute.blockId}
         blockRange={panelRoute.blockRange}
@@ -3459,45 +3942,12 @@ function CommentsPanelContent({
               isReplying={panelRoute.isReplying ?? !!openComment}
               replyCommentVersion={panelRoute.replyCommentVersion}
               rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
-              focusOnMount
+              focusOnMount={autoFocus && !!panelRoute.isReplying}
             />
           ) : undefined
         }
       />
     </CommentsProvider>
-  )
-}
-
-function DocumentOptionsPanel({
-  docId,
-  fileUpload,
-}: {
-  docId: UnpackedHypermediaId
-  fileUpload?: (file: File) => Promise<string>
-}) {
-  const ctx = useDocumentSelector(selectContext)
-  const send = useDocumentSend()
-  const {beginEditIfNeeded} = useEditorGate()
-  const homeDraftOverride = useIsHomeDraftOverride()
-  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
-
-  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
-  // draftId may not exist yet when the panel is opened in read mode. Fall back
-  // to docId.id so form field HTML ids remain stable and unique.
-  const formId = ctx.draftId ?? docId.id
-
-  return (
-    <OptionsPanel
-      draftId={formId}
-      metadata={metadata as any}
-      isHomeDoc={isHomeDoc}
-      fileUpload={fileUpload}
-      onMetadata={(newMetadata) => {
-        if (!newMetadata) return
-        beginEditIfNeeded()
-        send({type: 'change', metadata: newMetadata})
-      }}
-    />
   )
 }
 
@@ -3534,8 +3984,9 @@ function HomeDocumentMetadataControls({
  */
 function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
   const ctx = useDocumentSelector(selectContext)
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const hasDraft = !!ctx.schemaDraft && canEdit
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const metadata = useRenderedMetadata(document)
+  const hasDraft = draftOverlayAllowed && !!ctx.schemaDraft && canEdit
   if (!hasDraft && !schemaDefinitionCid(metadata)) return null
   return (
     <section className="border-border/60 bg-muted/20 mb-6 rounded-lg border p-4" data-testid="document-schema-section">
@@ -3572,11 +4023,12 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const navigate = useNavigate()
   const openUrl = useOpenUrl()
   // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const draftSchema = ctx.schemaDraft
+  const metadata = useRenderedMetadata(document)
+  const draftSchema = draftOverlayAllowed ? ctx.schemaDraft : null
   const cid = schemaDefinitionCid(metadata)
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   // Write access to the document is write access to its schema: the published schema seeds the
@@ -3656,6 +4108,43 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
 }
 
 /**
+ * A NEW document starts from its schema's property defaults. While the document has never been
+ * published, every attribute its effective schema gives a default and the draft has never held is
+ * written into the draft once, as ordinary data the author can then edit or remove. A removed
+ * attribute stays a `null` tombstone in the draft, so it is not brought back. A published
+ * document is never touched: a schema that gains a default changes no existing value.
+ */
+function useNewDocumentSchemaDefaults(docId: UnpackedHypermediaId, document: HMDocument) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const isNew = useDocumentSelector(selectIsUnpublishedDraft)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const canEdit = useDocumentSelector(selectCanEditCurrentRoute)
+  const active = isNew && isEditing && !!canEdit
+  const metadata = useMemo(
+    () => ({...(document.metadata || {}), ...ctx.metadata}) as Record<string, unknown>,
+    [document.metadata, ctx.metadata],
+  )
+  // An attributes schema being authored on this very draft is still changing under the author's
+  // hands; its defaults are for the documents that will follow it, not a moving target for this one.
+  const authoringOwnSchema = !!ctx.bindingSchemaDrafts?.attributesSchema
+  const {schema, registry, isLoading} = useConformanceSchema(
+    active && !authoringOwnSchema ? docId : null,
+    metadata,
+    null,
+  )
+  const defaults = useMemo(
+    () =>
+      active && !authoringOwnSchema && schema && !isLoading ? missingPropertyDefaults(schema, metadata, registry) : {},
+    [active, authoringOwnSchema, schema, isLoading, metadata, registry],
+  )
+  const pending = Object.keys(defaults).length ? JSON.stringify(defaults) : ''
+  useEffect(() => {
+    if (pending) send({type: 'change', metadata: JSON.parse(pending)})
+  }, [pending, send])
+}
+
+/**
  * One of the two attributes-schema bindings, below the attribute rows on the Attributes tab — this
  * document's own (`attributesSchema`: the fields it carries) or its children's
  * (`childAttributesSchema`: the fields every document created inside it carries). Nothing bound:
@@ -3679,12 +4168,13 @@ function BindingSchemaSection({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const route = useNavRoute()
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const raw = (metadata as Record<string, unknown>)[bindingKey]
   const ref = typeof raw === 'string' && raw ? raw : null
-  const draft = ctx.bindingSchemaDrafts?.[bindingKey] ?? null
+  const draft = draftOverlayAllowed ? ctx.bindingSchemaDrafts?.[bindingKey] ?? null : null
   const cls = classifyRef(ref)
   const owned = cls.kind === 'cid'
   const {schema: published, isLoading} = useResolvedSchema(draft ? null : ref)
@@ -3889,10 +4379,11 @@ function SchemaDefinitionSection({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const cid = schemaDefinitionCid(metadata)
-  const draft = ctx.schemaDraft ?? null
+  const draft = draftOverlayAllowed ? ctx.schemaDraft ?? null : null
   const {schema: published, isLoading} = useResolvedSchema(draft || !cid ? null : `ipfs://${cid}`)
   const edit = useCallback(
     (next: Record<string, any>) => {
@@ -3988,10 +4479,11 @@ function DocumentMetadataPage({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   // The schema this document conforms to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives required-field rows + advisory validation. While the
   // document's own attributes schema is being drafted below, the draft is the schema: every edit
@@ -4000,7 +4492,7 @@ function DocumentMetadataPage({
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     docId,
     metadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4015,7 +4507,7 @@ function DocumentMetadataPage({
   // for a field the draft has already changed — the draft would win on publish.
   const navigate = useNavigate()
   const isPublished = !!(ctx.document?.version || document.version)
-  const draftPatch = ctx.metadata || {}
+  const draftPatch = draftOverlayAllowed ? ctx.metadata || {} : {}
   const directEdit = useMemo(
     () =>
       isPublished && canEditCurrentRoute
@@ -4053,7 +4545,7 @@ function DocumentMetadataPage({
           }
         }}
       />
-      {BINDING_SCHEMA_KEYS.map((bindingKey) => (
+      {ATTRIBUTE_BINDING_KEYS.map((bindingKey) => (
         <BindingSchemaSection key={bindingKey} docId={docId} document={document} bindingKey={bindingKey} />
       ))}
       <SchemaDefinitionSection document={document} />
@@ -4082,7 +4574,8 @@ export function DocumentViewContent({
   )
 }
 
-function DocumentCollection({
+/** Renders a collection with saved settings and temporary reader controls. */
+export function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
@@ -4093,6 +4586,7 @@ function DocumentCollection({
 }) {
   const {DraftSlot} = useQueryBlockDrafts()
   const client = useUniversalClient()
+  const showCollectionControls = useSpaceSettings(docId.uid).showCollectionControls || canEdit
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const props = queryBlock?.type === 'query' ? queryBlock.props : undefined
@@ -4107,13 +4601,23 @@ function DocumentCollection({
       return []
     }
   }, [docId.path, docId.uid, props?.queryIncludes])
-  const querySort = useMemo(() => {
+  const savedQuerySort = useMemo(() => {
     try {
       return normalizeQuerySort(JSON.parse(props?.querySort || '[]'))
     } catch {
       return []
     }
   }, [props?.querySort])
+  const [viewerSort, setViewerSort] = useState<{
+    documentId: string
+    sort: typeof savedQuerySort | null
+  }>({documentId: docId.id, sort: null})
+  if (viewerSort.documentId !== docId.id) {
+    setViewerSort({documentId: docId.id, sort: null})
+  }
+  const querySort = !canEdit && viewerSort.documentId === docId.id ? viewerSort.sort ?? savedQuerySort : savedQuerySort
+  const serverQuerySort =
+    !canEdit && querySort.some(({term, reverse}) => !sortTermToDocumentSort(term, reverse)) ? savedQuerySort : querySort
   const queryLimit = Number.parseInt(props?.queryLimit || '', 10) || undefined
   const style = (props?.style as 'Card' | 'List' | 'Table') || 'Table'
   const columnCount = props?.columnCount || '3'
@@ -4127,7 +4631,7 @@ function DocumentCollection({
     if (!includes.length) return null
     const filters = viewerFilters.filter((filter) => filter.value.trim())
     return {
-      query: {includes, sort: querySort, limit: queryLimit},
+      query: {includes, sort: serverQuerySort, limit: queryLimit},
       ...((debouncedViewerSearch || filters.length) && {
         viewer: {
           ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
@@ -4135,7 +4639,7 @@ function DocumentCollection({
         },
       }),
     }
-  }, [debouncedViewerSearch, includes, queryLimit, querySort, viewerFilters])
+  }, [debouncedViewerSearch, includes, queryLimit, serverQuerySort, viewerFilters])
   const query = useQuery(queryQueryBlock(client, queryInput))
   const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
     try {
@@ -4165,56 +4669,35 @@ function DocumentCollection({
 
   const handleTableSortingChange = useCallback(
     (sorting: import('@tanstack/react-table').SortingState) => {
-      if (!canEdit) return
+      const sort = sorting.map(({id, desc}) => ({term: id, reverse: desc}))
+      if (!canEdit) {
+        setViewerSort({documentId: docId.id, sort})
+        return
+      }
       beginEditIfNeeded()
       send({
         type: 'collection.query.change',
         props: {
-          querySort: JSON.stringify(sorting.map(({id, desc}) => ({term: id, reverse: desc}))),
+          querySort: JSON.stringify(sort),
         },
       })
     },
-    [canEdit, beginEditIfNeeded, send],
+    [canEdit, docId.id, beginEditIfNeeded, send],
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner)
     return (
       <QueryBlockContent
+        showControls={showCollectionControls}
         toolbarActions={
-          <div className="flex items-center gap-2">
-            <Tabs
-              value={style}
-              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
-            >
-              <TabsList>
-                <TabsTrigger value="Table">
-                  <TableIcon />
-                  Table
-                </TabsTrigger>
-                <TabsTrigger value="List">
-                  <ListIcon />
-                  List
-                </TabsTrigger>
-                <TabsTrigger value="Card">
-                  <LayoutGrid />
-                  Cards
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover>
-              <Tooltip content="Query settings">
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Query settings">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-              </Tooltip>
-              <PopoverContent align="end" className="w-80">
-                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
-              </PopoverContent>
-            </Popover>
-          </div>
+          <CollectionViewControls
+            key={docId.id}
+            style={style}
+            props={props}
+            canEdit={canEdit}
+            onChange={updateQueryProps}
+          />
         }
         items={query.data?.results ?? []}
         style={style}
@@ -4253,11 +4736,85 @@ function DocumentCollection({
   )
 }
 
-function CollectionQuerySettings({
+function CollectionViewControls({
+  style,
   props,
+  canEdit,
   onChange,
 }: {
+  style: 'Card' | 'List' | 'Table'
   props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
+  onChange: (changes: Partial<EditorQueryBlock['props']>) => void
+}) {
+  const [settingsView, setSettingsView] = useState<string | null>(null)
+  const id = useId()
+
+  return (
+    <div role="group" aria-label="Collection views" className="bg-muted flex items-center rounded-lg p-[3px]">
+      {(
+        [
+          {value: 'Table', label: 'Table', Icon: TableIcon},
+          {value: 'List', label: 'List', Icon: ListIcon},
+          {value: 'Card', label: 'Cards', Icon: LayoutGrid},
+        ] as const
+      ).map(({value, label, Icon}) => {
+        const active = style === value
+        return (
+          <Popover
+            key={value}
+            open={active && settingsView === value}
+            onOpenChange={(open) => {
+              if (open && !active) {
+                setSettingsView(null)
+                onChange({style: value})
+              } else {
+                setSettingsView(open ? value : null)
+              }
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                disabled={!active && !canEdit}
+                aria-pressed={active}
+                aria-label={active ? `${label} view settings` : `${label} view`}
+                className={cn(active && 'bg-background shadow-sm')}
+              >
+                <Icon />
+                {label}
+                {active ? (
+                  <ChevronDown className="size-3 transition-transform motion-reduce:transition-none [[data-state=open]>&]:rotate-180" />
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] p-0" aria-labelledby={`${id}-title`}>
+              <h3 id={`${id}-title`} className="px-4 pt-4 pb-3 text-sm font-medium">
+                {label} view
+              </h3>
+              <CollectionQuerySettings id={id} style={style} props={props} canEdit={canEdit} onChange={onChange} />
+              <p className="bg-muted/50 text-muted-foreground border-t px-4 py-3 text-xs">
+                {canEdit ? 'Applies to this collection.' : 'Only editors can change these settings.'}
+              </p>
+            </PopoverContent>
+          </Popover>
+        )
+      })}
+    </div>
+  )
+}
+
+function CollectionQuerySettings({
+  id,
+  style,
+  props,
+  canEdit,
+  onChange,
+}: {
+  id: string
+  style: 'Card' | 'List' | 'Table'
+  props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
   onChange: (changes: Partial<EditorQueryBlock['props']>) => void
 }) {
   const limit = props?.queryLimit || ''
@@ -4265,34 +4822,54 @@ function CollectionQuerySettings({
   const banner = props?.banner === 'true'
 
   return (
-    <div className="flex flex-col gap-3 p-1">
-      <SelectField
-        id="query-column-count"
-        label="Columns"
-        options={[
-          {value: '1', label: '1 column'},
-          {value: '2', label: '2 columns'},
-          {value: '3', label: '3 columns'},
-        ]}
-        value={columnCount}
-        onValue={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
-      />
-      <TextField
-        id="query-limit"
-        label="Limit"
-        type="number"
-        value={limit}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-          onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})
-        }
-      />
-      <SwitchField
-        id="query-banner"
-        label="Show banner"
-        checked={banner}
-        onCheckedChange={(checked: boolean) => onChange({banner: checked ? 'true' : 'false'})}
-      />
-    </div>
+    <>
+      {style === 'Card' ? (
+        <div className="space-y-3 px-4 pb-4">
+          <p className="text-muted-foreground text-xs">Layout</p>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-columns`}>Columns</Label>
+            <Select
+              value={columnCount}
+              disabled={!canEdit}
+              onValueChange={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
+            >
+              <SelectTrigger id={`${id}-columns`} className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 column</SelectItem>
+                <SelectItem value="2">2 columns</SelectItem>
+                <SelectItem value="3">3 columns</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-banner`}>Show banner</Label>
+            <Switch
+              id={`${id}-banner`}
+              disabled={!canEdit}
+              checked={banner}
+              onCheckedChange={(checked) => onChange({banner: checked ? 'true' : 'false'})}
+            />
+          </div>
+        </div>
+      ) : null}
+      <div className={cn('space-y-3 px-4 pb-4', style === 'Card' && 'border-t pt-3')}>
+        <p className="text-muted-foreground text-xs">Results</p>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={`${id}-limit`}>Document limit</Label>
+          <Input
+            id={`${id}-limit`}
+            className="w-28"
+            type="number"
+            placeholder="No limit"
+            disabled={!canEdit}
+            value={limit}
+            onChange={(e) => onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})}
+          />
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -4346,6 +4923,7 @@ function MainContent({
   showCollapsed: boolean
   discussionsParams?: {
     openComment?: string
+    replyCommentId?: string
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
@@ -4468,18 +5046,15 @@ function MainContent({
 
     case 'collaborators':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
           <CollaboratorsPage docId={docId} />
         </PageLayout>
       )
 
     case 'metadata':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
-          {/* Extra left padding in the main view; the panel render keeps its own. */}
-          <div className="pl-4">
-            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
-          </div>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </PageLayout>
       )
 
@@ -4505,11 +5080,16 @@ function MainContent({
           </PageLayout>
         )
       }
+      if (activityFilterToSlug(activityFilterEventType) === 'citations') {
+        return (
+          <PageLayout contentMaxWidth={contentMaxWidth}>
+            <ConnectionsPanel docId={docId} targetBlockId={docId.blockRef || undefined} />
+          </PageLayout>
+        )
+      }
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          {activityFilterToSlug(activityFilterEventType) !== 'citations' && (
-            <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
-          )}
+          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
           <Feed
             size="md"
             filterResource={docId.id}
@@ -4525,10 +5105,10 @@ function MainContent({
         <DiscussionsPageContent
           docId={docId}
           showTitle={false}
-          showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}
+          replyCommentId={discussionsParams?.replyCommentId}
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}
@@ -4652,23 +5232,22 @@ function ContentViewWithOutline({
   fileUpload?: (file: File) => Promise<string>
 }) {
   const ctx = useDocumentSelector(selectContext)
-  const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const rootChildrenType =
+    ((draftOverlayAllowed ? ctx.metadata?.childrenType : undefined) ?? document.metadata?.childrenType) || 'Group'
   // Required custom attributes (from the doc's schema) render above the body.
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
-  const requiredAttrMetadata = useMemo(
-    () => ({...document.metadata, ...ctx.metadata}),
-    [document.metadata, ctx.metadata],
-  )
+  const requiredAttrMetadata = useRenderedMetadata(document)
   // The schema this document must conform to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives the always-visible required attributes. A drafted own
   // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     resourceId,
     requiredAttrMetadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
@@ -4691,10 +5270,13 @@ function ContentViewWithOutline({
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {
-      const cid = await fileUpload(file)
+      const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+      const cid = await fileUpload(attachment)
       return {
         url: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`,
         displaySrc: '',
+        mime: attachment.type,
+        name: attachment.name,
       }
     }
   }, [fileUpload])
@@ -4911,5 +5493,46 @@ function SiteProfileContent({
       <PageNotFound entityType="profile" />
       {pageFooter}
     </>
+  )
+}
+
+/**
+ * Keeps a tool's or trigger's page from stranding its reader: if it cannot render, they can try
+ * again, or drop their unpublished changes (the usual cause) and see the published version.
+ */
+function ResourceViewBoundary({resetKey, children}: {resetKey: string; children: ReactNode}) {
+  const send = useDocumentSend()
+  return (
+    <ErrorBoundary
+      resetKeys={[resetKey]}
+      fallbackRender={({error, resetErrorBoundary}) => (
+        <div className="border-border mx-auto my-10 flex w-full max-w-lg flex-col gap-3 rounded-lg border p-4">
+          <SizableText weight="bold">This page could not be shown</SizableText>
+          <SizableText size="sm" color="muted">
+            {error instanceof Error ? error.message : String(error)}
+          </SizableText>
+          <SizableText size="sm" color="muted">
+            If you were editing it, discarding your unpublished changes usually fixes this.
+          </SizableText>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={resetErrorBoundary}>
+              Try again
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                send({type: 'edit.discard'})
+                resetErrorBoundary()
+              }}
+            >
+              Discard changes
+            </Button>
+          </div>
+        </div>
+      )}
+    >
+      {children}
+    </ErrorBoundary>
   )
 }

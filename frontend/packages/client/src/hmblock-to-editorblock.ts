@@ -165,6 +165,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
   }
 
+  const textAlignment = attributes.textAlignment
+  // Ensure we only assign valid values to textAlignment; anything else falls back to the editor default (`left`).
+  if (textAlignment === 'center' || textAlignment === 'right' || textAlignment === 'justify') {
+    ;(out.props as EditorBlockProps).textAlignment = textAlignment
+  }
+
   // if (block.attributes?.start) {
   //   out.props.start =
   //     typeof block.attributes.start == 'number'
@@ -183,7 +189,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
     if ((block as any).attributes) {
       Object.entries((block as any).attributes).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (value !== undefined && key !== 'textAlignment') {
           if (key == 'width' || key == 'size') {
             if (typeof value == 'number') {
               ;(out.props as any)[key] =

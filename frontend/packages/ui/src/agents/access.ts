@@ -1,4 +1,4 @@
-import type {AgentAccessRole} from '@seed-hypermedia/agents-protocol'
+import type {AgentAccessRole} from '@seed-hypermedia/apps-protocol'
 
 /**
  * What an access role lets the UI offer. `chatter` (a public reader on an agent with public chat on)

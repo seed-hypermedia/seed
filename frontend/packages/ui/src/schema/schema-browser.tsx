@@ -9,7 +9,7 @@
 // Bundled API-method schemas also get their live call panel here.
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {NavRoute} from '@shm/shared/routes'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {FileCode2, Layers, Plus, SearchCode} from 'lucide-react'
 import {Button} from '../button'
 import {Container} from '../container'
@@ -55,8 +55,10 @@ export function SchemaBrowserPage({
   const {byCid} = useSchemaRegistry(bundled || !cid ? [] : [cid])
   const schema = !cid ? undefined : bundled ? HM_SCHEMAS[bundled] : byCid[cid]
   const typeName = bundled || 'this schema'
+  // Starting a blob needs an account to publish it with (none when logged out on web).
+  const canAuthor = !!useSelectedAccountId()
   // A union has no single seed shape, so it can't start a blob.
-  const canCreate = !!schema && !schema.anyOf && !schema.$type
+  const canCreate = canAuthor && !!schema && !schema.anyOf && !schema.$type
 
   const goToCid = (c: string) => navigate({key: 'schema', cid: c})
   // A linked type's home is its published DOCUMENT, not the schema CID page: a
@@ -113,12 +115,14 @@ export function SchemaBrowserPage({
                         onClick: () => navigate(newInstanceRoute(cid)),
                       }
                     : null,
-                  {
-                    key: 'new-schema',
-                    label: 'New Schema',
-                    icon: <FileCode2 className="size-4" />,
-                    onClick: () => navigate(newInstanceRoute(META_SCHEMA_CID)),
-                  },
+                  canAuthor
+                    ? {
+                        key: 'new-schema',
+                        label: 'New Schema',
+                        icon: <FileCode2 className="size-4" />,
+                        onClick: () => navigate(newInstanceRoute(META_SCHEMA_CID)),
+                      }
+                    : null,
                   canCreate
                     ? {
                         key: 'extend-schema',

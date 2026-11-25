@@ -28,7 +28,7 @@ export const action: ActionFunction = async ({request}) => {
     const data = await request.json()
     console.log('Registration request received', {hostname})
     const input = registerSchema.parse(data)
-    const config = await getConfig(hostname)
+    const config = await getConfig(hostname, {fresh: true})
     if (!config) throw new Error(`No config defined for ${hostname}`)
     if (!config.availableRegistrationSecret) {
       throw {message: 'Registration is not available'}

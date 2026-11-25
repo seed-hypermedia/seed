@@ -470,7 +470,15 @@ func (n *Node) Start(ctx context.Context) (err error) {
 	// Start Hyper Media protocol listener over libp2p.
 	{
 		g.Go(func() error {
-			return n.grpc.Serve(lis)
+			// grpc-go reports ErrServerStopped when the shutdown goroutine below
+			// wins the scheduling race and GracefulStop runs before Serve enters
+			// its accept loop. That is a benign teardown-ordering artifact, not a
+			// serving failure — any real error is recorded by the errgroup first.
+			if err := n.grpc.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+				return err
+			}
+
+			return nil
 		})
 
 		g.Go(func() error {

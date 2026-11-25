@@ -1,5 +1,6 @@
 import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import Tippy from '@tippyjs/react'
+import type {Instance as TippyInstance} from 'tippy.js'
 import {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BaseUiElementState,
@@ -35,6 +36,8 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
   const [toolbarProps, setToolbarProps] = useState<HyperlinkToolbarState['props']>()
 
   const referencePos = useRef<DOMRect>()
+  const tippyInstance = useRef<TippyInstance>()
+  const buttonBlockId = useRef<string>()
 
   useEffect(() => {
     return props.editor.hyperlinkToolbar!.on('update', (hyperlinkToolbarState) => {
@@ -46,14 +49,26 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
       setToolbarProps(hyperlinkToolbarState.props)
 
       referencePos.current = hyperlinkToolbarState.referencePos
+      buttonBlockId.current = hyperlinkToolbarState.type === 'button' ? hyperlinkToolbarState.id : undefined
     })
   }, [props.editor])
 
   useHideOnDocumentScroll(() => setShow(false))
 
   const getReferenceClientRect = useCallback(() => {
-    return referencePos.current ?? new DOMRect()
-  }, [])
+    // Measure the button position live to rerender the menu in a correct position immediatelly.
+    const liveButton = buttonBlockId.current ? findButtonFace(props.editor.domElement, buttonBlockId.current) : null
+    return liveButton?.getBoundingClientRect() ?? referencePos.current ?? new DOMRect()
+  }, [props.editor])
+
+  // Follow the button while the toolbar is open. The whole editor is
+  // watched because updating a block can replace its DOM element.
+  useEffect(() => {
+    if (!show || type !== 'button') return
+    const observer = new MutationObserver(() => tippyInstance.current?.popperInstance?.update())
+    observer.observe(props.editor.domElement, {attributes: true, childList: true, subtree: true})
+    return () => observer.disconnect()
+  }, [show, type, props.editor])
 
   const estimatedFormHeight = 400
   const isTop = useMemo(() => {
@@ -97,6 +112,9 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
 
   return (
     <Tippy
+      onCreate={(instance) => {
+        tippyInstance.current = instance
+      }}
       appendTo={props.editor.domElement.parentElement ?? document.body}
       // onHidden={() => setIsEditing(false)}
       content={hyperlinkToolbarElement}
@@ -135,4 +153,8 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
       }}
     />
   )
+}
+
+function findButtonFace(editorElement: HTMLElement, blockId: string): HTMLElement | null {
+  return editorElement.querySelector<HTMLElement>(`[id="${CSS.escape(blockId)}"] [data-content-type="button"] button`)
 }

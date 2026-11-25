@@ -1,41 +1,16 @@
-import React from 'react'
-import {EditNavPopover} from '@/components/edit-navigation-popover'
-import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useUpdateHomeDocument} from '@/models/site'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
-import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {useDocumentNavigationOptional, useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {HeaderAddLink} from '@shm/ui/space-settings-navigation'
 
+/** The top bar's Add or edit links button, offered to the space's owner, who publishes the home document. */
 export function EditNavHeaderPane({homeId}: {homeId: UnpackedHypermediaId}) {
-  const {canEdit, beginEditIfNeeded} = useEditorGate()
-  const send = useDocumentSend()
-  const machineNavigation = useDocumentNavigationOptional()
+  const {isSiteOwner} = useIsSiteOwner(homeId.uid)
   const homeResource = useResource(homeId, {subscribed: true})
+  const updateHome = useUpdateHomeDocument(homeId.uid)
   const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
 
-  if (!canEdit) return null
-
-  const publishedNav: HMNavigationItem[] =
-    homeDocument?.detachedBlocks?.navigation?.children
-      ?.map((child) => {
-        const linkBlock = child.block.type === 'Link' ? child.block : null
-        if (!linkBlock) return null
-        return {
-          id: linkBlock.id,
-          type: 'Link',
-          text: linkBlock.text || '',
-          link: linkBlock.link ?? '',
-        } satisfies HMNavigationItem
-      })
-      .filter((item): item is HMNavigationItem => item !== null) ?? []
-
-  // Top navigation is manual-only for now. When there is no explicit nav block,
-  // the editor starts empty instead of inferring items from home subdocuments.
-  const docNav = machineNavigation ?? publishedNav
-
-  const editDocNav = (navigation: HMNavigationItem[]) => {
-    beginEditIfNeeded()
-    send({type: 'change.navigation', navigation})
-  }
-
-  return <EditNavPopover docNav={docNav} editDocNav={editDocNav} homeId={homeId} />
+  if (!isSiteOwner || !homeDocument) return null
+  return <HeaderAddLink siteId={homeId} document={homeDocument} updateHome={updateHome} />
 }

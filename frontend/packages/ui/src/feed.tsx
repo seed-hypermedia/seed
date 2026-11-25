@@ -4,7 +4,12 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
-import {useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {
+  selectDraftHidden,
+  selectPublishedVersion,
+  useDocumentSelector,
+  useDocumentSend,
+} from '@shm/shared/models/use-document-machine'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
@@ -20,9 +25,10 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
-import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
-import {Fragment, useEffect, useMemo, useRef, useState} from 'react'
+import {CircleAlert, Eye, EyeOff, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
+import {type ComponentType, Fragment, useEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
+import {AccountAvatar} from './account-avatar'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
 import {
@@ -35,7 +41,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
-import {AccountAvatar} from './account-avatar'
 import {ReplyArrow} from './icons'
 import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
@@ -140,6 +145,14 @@ export function getEventNavigationRoute(
   return eventType === 'citation' ? targetRoute : merge({}, currentRoute, targetRoute)
 }
 
+/**
+ * Route for an event tapped in the space Activity view. Comments open the document with Discussions in
+ * right panel, so the document stays in view. Other events go to their target.
+ */
+export function getActivityEventRoute(event: LoadedEvent): NavRoute | null {
+  return getEventRoute(event)
+}
+
 export function Feed({
   filterResource,
   filterAuthors,
@@ -148,6 +161,8 @@ export function Feed({
   size = 'md',
   draftVersionEntry,
   targetBlockId,
+  routeForEvent,
+  EventCard,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -156,6 +171,8 @@ export function Feed({
   targetDomain?: string
   draftVersionEntry?: DraftVersionEntry
   targetBlockId?: string
+  routeForEvent?: (event: LoadedEvent) => NavRoute | null
+  EventCard?: ComponentType<{event: LoadedEvent; route: NavRoute | null}>
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -276,9 +293,11 @@ export function Feed({
 
   return (
     <SelectionContent>
-      <div>
+      <div className={EventCard ? 'flex flex-col gap-2 p-3' : undefined}>
         {allEvents.map((e, index) => {
-          const route = getEventRoute(e)
+          const route = routeForEvent ? routeForEvent(e) : getEventRoute(e)
+
+          if (EventCard) return <EventCard key={`row-${e.type}-${e.id}-${e.time}`} event={e} route={route} />
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
@@ -311,6 +330,7 @@ export function Feed({
                   isSingleResource={isSingleResource}
                   event={e}
                   route={route}
+                  keepCurrentRoute={!routeForEvent}
                   targetDomain={targetDomain}
                   size={size}
                   latestDocUpdateVersion={latestDocUpdateVersion}
@@ -333,7 +353,8 @@ export function Feed({
   )
 }
 
-function DraftVersionItem({
+/** The "Unpublished Changes" row in a single-resource versions feed. Exported for testing. */
+export function DraftVersionItem({
   draft,
   hasNewerPublishedVersion,
 }: {
@@ -342,24 +363,38 @@ function DraftVersionItem({
 }) {
   const currentRoute = useNavRoute()
   const send = useDocumentSend()
+  const draftHidden = useDocumentSelector(selectDraftHidden)
+  const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const draftRoute = {
     key: 'document' as const,
     id: hmId(draft.docId.uid, {
       path: draft.docId.path,
     }),
   }
-  const draftLinkProps = useRouteLink(merge({}, currentRoute, draftRoute))
+  const draftLinkProps = useRouteLink(merge({}, currentRoute, draftRoute), {
+    onClick: () => {
+      // Selecting the draft row always means "show my draft".
+      if (draftHidden) send({type: 'draftHidden.set', hidden: false})
+    },
+  })
   const isCurrentDraftRoute =
     currentRoute.key === 'document' &&
     currentRoute.id.uid === draft.docId.uid &&
     currentRoute.id.version === null &&
     JSON.stringify(currentRoute.id.path ?? []) === JSON.stringify(draft.docId.path ?? [])
+  // The preview toggle only applies while the draft overlay is what the
+  // current route would render (the latest/unversioned view).
+  const canToggleDraftPreview = isCurrentDraftRoute && !!publishedVersion
 
   return (
     <div
       className={cn(
-        'bg-accent hover:bg-accent group dark:hover:bg-accent flex items-start gap-2 px-4 py-4 transition-colors',
-        isCurrentDraftRoute && 'ring-border ring-1 ring-inset',
+        'group flex items-start gap-2 px-4 py-4 transition-colors',
+        // bg-accent marks the row whose content is being viewed; while the
+        // draft is hidden the published version is on screen, so the draft row
+        // renders like any other unselected row.
+        draftHidden ? 'hover:bg-background dark:hover:bg-black/10' : 'bg-accent hover:bg-accent dark:hover:bg-accent',
+        isCurrentDraftRoute && !draftHidden && 'ring-border ring-1 ring-inset',
       )}
       {...draftLinkProps}
     >
@@ -376,6 +411,23 @@ function DraftVersionItem({
           ) : null}
         </div>
       </div>
+      {canToggleDraftPreview ? (
+        <Tooltip content={draftHidden ? 'Show draft changes' : 'Preview published version'}>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={draftHidden ? 'Show draft changes' : 'Preview published version'}
+            className="text-muted-foreground -m-1 size-7 shrink-0 opacity-70 hover:opacity-100"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              send({type: 'draftHidden.set', hidden: !draftHidden})
+            }}
+          >
+            {draftHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+          </Button>
+        </Tooltip>
+      ) : null}
       <Tooltip content="Discard changes">
         <Button
           size="icon"
@@ -703,7 +755,8 @@ function EventHeaderContent({
   if (event.type == 'citation') {
     return (
       <InlineDescriptor>
-        <AuthorNameLink author={event.author} /> <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
+        <AuthorNameLink author={event.author} />{' '}
+        <span>{event.citationType === 'c' ? 'mentioned' : event.metadataKey ? 'named' : 'cited'}</span>{' '}
         {!isSingleResource ? (
           <>
             <DocumentNameLink metadata={event.target?.metadata} id={event.target?.id} fallback="this document" />{' '}
@@ -713,7 +766,9 @@ function EventHeaderContent({
             <span>this document</span>{' '}
           </>
         )}
-        <span>{event.citationType === 'c' ? 'in a comment on' : 'in'}</span>{' '}
+        <span>
+          {event.citationType === 'c' ? 'in a comment on' : event.metadataKey ? `as ${event.metadataKey} of` : 'in'}
+        </span>{' '}
         <DocumentNameLink metadata={event.source?.metadata} id={event.source?.id} fallback="a document" />{' '}
         <Timestamp time={event.time} route={route} />
       </InlineDescriptor>
@@ -980,15 +1035,16 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
 }
 
+/** Opens comment events in their document panel and other events at their source. */
 export function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
-    // Navigate to the full comments page with the comment focused in the main panel
+    // Keep the containing document visible while focusing the comment thread.
     if (!event.target?.id || !event.comment) return null
 
     return {
-      key: 'comments' as const,
+      key: 'document',
       id: event.target.id,
-      openComment: event.comment.id,
+      panel: {key: 'comments', id: event.target.id, openComment: event.comment.id},
     }
   }
 
@@ -1037,12 +1093,12 @@ export function getEventRoute(event: LoadedEvent): NavRoute | null {
     // Navigate to the target document (the document being cited)
     if (!event.source?.id) return null
 
-    // For comment citations, open the comment in the full comments page
+    // For comment citations, open the source document with its comment panel.
     if (event.citationType === 'c' && event.comment) {
       return {
-        key: 'comments' as const,
+        key: 'document',
         id: event.source.id,
-        openComment: event.comment.id,
+        panel: {key: 'comments', id: event.source.id, openComment: event.comment.id},
       }
     }
 
@@ -1065,6 +1121,7 @@ export function getEventRoute(event: LoadedEvent): NavRoute | null {
 function EventItem({
   event,
   route,
+  keepCurrentRoute,
   targetDomain,
   isSingleResource,
   size,
@@ -1072,13 +1129,16 @@ function EventItem({
 }: {
   event: LoadedEvent
   route: NavRoute | null
+  keepCurrentRoute: boolean
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
   latestDocUpdateVersion?: string | null
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(route ? getEventNavigationRoute(currentRoute, route, event.type) : currentRoute)
+  const linkProps = useRouteLink(
+    route ? (keepCurrentRoute ? getEventNavigationRoute(currentRoute, route, event.type) : route) : currentRoute,
+  )
   const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
   const latestResource = useResource(latestDocId)
   const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null

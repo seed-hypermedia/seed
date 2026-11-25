@@ -1,7 +1,6 @@
 import {useSelectedAccountId} from './account'
 import {describeAgentServer, useAgentLists, useAgentServerUrls, useLocalAgentServerUrl} from './models'
 import {useNavigate} from './navigation'
-import {getAgentStatusIndicator} from './agent-row'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {SizableText} from '@shm/ui/text'
-import {Bot, Check, ChevronDown, LayoutList, Pencil} from 'lucide-react'
+import {Bot, Check, ChevronDown, Pencil} from 'lucide-react'
 import {useMemo} from 'react'
 
 /**
@@ -43,7 +42,6 @@ export function AgentTitleMenu({
           serverUrl,
           id: agent.id,
           name: agent.definition.name,
-          status: agent.status,
         })),
       ),
     [agentQueries, serverUrls],
@@ -79,20 +77,13 @@ export function AgentTitleMenu({
         <DropdownMenuLabel className="text-muted-foreground text-xs font-medium">Agents</DropdownMenuLabel>
         {agents.map((agent) => {
           const isCurrent = !!current && current.serverUrl === agent.serverUrl && current.agentId === agent.id
-          const indicator = getAgentStatusIndicator(agent.status)
           return (
             <DropdownMenuItem
               key={`${agent.serverUrl}:${agent.id}`}
               onClick={() => navigate({key: 'agent', agentId: agent.id, serverUrl: agent.serverUrl})}
               aria-current={isCurrent ? 'page' : undefined}
             >
-              <span className="relative flex size-4 flex-none items-center justify-center">
-                <Bot />
-                <span
-                  aria-label={indicator.label}
-                  className={`absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full ${indicator.className}`}
-                />
-              </span>
+              <Bot />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{agent.name || 'Agent'}</span>
                 {showServer ? (
@@ -107,15 +98,6 @@ export function AgentTitleMenu({
         })}
         {!agents.length ? (
           <DropdownMenuItem disabled>{isLoading ? 'Loading agents…' : 'No agents yet.'}</DropdownMenuItem>
-        ) : null}
-        {current ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-              <LayoutList />
-              All agents
-            </DropdownMenuItem>
-          </>
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>

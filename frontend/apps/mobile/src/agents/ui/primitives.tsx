@@ -222,15 +222,6 @@ const STATUS_COLOR: Record<StatusTone, string> = {
   done: '#4ade80',
 }
 
-export function StatusDot({tone, size = 8}: {tone: StatusTone; size?: number}) {
-  return (
-    <View
-      style={{width: size, height: size, borderRadius: size / 2, backgroundColor: STATUS_COLOR[tone]}}
-      accessibilityLabel={`status: ${tone}`}
-    />
-  )
-}
-
 export function Badge({children, tone = 'idle'}: {children: ReactNode; tone?: StatusTone}) {
   return (
     <View style={[styles.badge, {borderColor: STATUS_COLOR[tone]}]}>

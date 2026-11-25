@@ -1,0 +1,452 @@
+import {z} from 'zod'
+import * as hm from '@seed-hypermedia/client'
+import {signBlob} from '@seed-hypermedia/client/signed-blob'
+import {
+  HMBlockNodeSchema,
+  HMPrepareDocumentChangeInputSchema,
+  HMPublishBlobsInputSchema,
+  HMRequestSchema,
+  type HMDocument,
+  type HMQueryResult,
+  type HMQueryDocumentsOutput,
+  type HMSigner,
+  type HMRequest,
+} from '@seed-hypermedia/client/hm-types'
+import {createWebUniversalClient} from './create-web-universal-client'
+import type {DocumentPageContext} from './document-page'
+import type {UniversalClient} from './universal-client'
+
+import {decode, encode} from '@ipld/dag-cbor'
+import {
+  createDocumentPageAccess,
+  pageReadRequest,
+  pageSignatureRequest,
+  pageBytesDigest,
+} from './document-page-permissions'
+export {createDocumentPageAccess} from './document-page-permissions'
+
+/** Signing helpers delegate to the existing HM SDK with a host-held, revocable signer. */
+export const DOCUMENT_PAGE_SIGNING_HELPERS = {
+  createComment: (input: hm.CreateCommentInput, signer: HMSigner) => hm.createComment(input, signer),
+  updateComment: (input: hm.UpdateCommentInput, signer: HMSigner) => hm.updateComment(input, signer),
+  deleteComment: (input: hm.DeleteCommentInput, signer: HMSigner) => hm.deleteComment(input, signer),
+  createDocumentBlobs: (input: hm.CreateDocumentBlobsInput, signer: HMSigner) => hm.createDocumentBlobs(signer, input),
+  createVersionRef: (input: hm.CreateVersionRefInput, signer: HMSigner) => hm.createVersionRef(input, signer),
+  createRedirectRef: (input: hm.CreateRedirectRefInput, signer: HMSigner) => hm.createRedirectRef(input, signer),
+  createTombstoneRef: (input: hm.CreateTombstoneRefInput, signer: HMSigner) => hm.createTombstoneRef(input, signer),
+  createCapability: (input: hm.CreateCapabilityInput, signer: HMSigner) => hm.createCapability(input, signer),
+  createContact: (input: hm.CreateContactInput, signer: HMSigner) => hm.createContact(input, signer),
+  updateContact: (input: hm.UpdateContactInput, signer: HMSigner) => hm.updateContact(input, signer),
+  deleteContact: (input: hm.DeleteContactInput, signer: HMSigner) => hm.deleteContact(input, signer),
+  signDocumentChange: async (input: hm.SignDocumentChangeInput, signer: HMSigner) => {
+    const {changeCid, ...result} = await hm.signDocumentChange(input, signer)
+    return {...result, changeCid: changeCid.toString()}
+  },
+  signBlob: (input: Record<string, unknown>, signer: HMSigner) => signBlob(signer, input),
+}
+
+/**
+ * `seed.publishDocument(url, {name, metadata, content, visibility})`: the raw change input for
+ * creating the record at `url`, or editing it on top of its current version when it exists.
+ */
+/**
+ * A record's fields as typed attribute changes: text, whole numbers and booleans keep their type,
+ * null clears, and a nested object becomes nested fields. Attributes cannot hold a list: a list is
+ * refused with how to store it instead.
+ */
+function attributeChanges(fields: Record<string, unknown>, path: string[]): unknown[] {
+  return Object.entries(fields).flatMap(([key, value]): unknown[] => {
+    const keyPath = [...path, key]
+    const set = (attribute: unknown) => [
+      {op: {case: 'setAttribute', value: {blockId: '', key: keyPath, value: attribute}}},
+    ]
+    if (value === undefined) return []
+    if (value === null) return set({case: 'nullValue', value: {}})
+    if (typeof value === 'string') return set({case: 'stringValue', value})
+    if (typeof value === 'boolean') return set({case: 'boolValue', value})
+    if (typeof value === 'number' && Number.isInteger(value)) return set({case: 'intValue', value: BigInt(value)})
+    if (typeof value === 'number') return set({case: 'stringValue', value: String(value)})
+    if (Array.isArray(value))
+      throw new Error(
+        `The field "${keyPath.join(
+          '.',
+        )}" is a list, and record fields cannot hold lists: store a set as a map ({"dinner": true, "quick": true}), and anything ordered in the record's body or as child records.`,
+      )
+    if (typeof value === 'object') return attributeChanges(value as Record<string, unknown>, keyPath)
+    return set({case: 'stringValue', value: String(value)})
+  })
+}
+
+/**
+ * Changes that make a record's body the markdown `text`: its blocks (headings, paragraphs, lists,
+ * code, links and inline marks) replace whatever body the record had. Block attributes are left
+ * out, so a list reads as indented lines rather than bullets.
+ */
+function bodyChanges(text: string, doc: HMDocument | null): unknown[] {
+  const tree = hm.markdownBlockNodesToHMBlockNodes(
+    hm.parseMarkdown(text, {strictFrontmatter: false, strictResolvedRanges: false}).tree,
+  )
+  // Every old block goes, children included, so none is left without its parent.
+  const changes: unknown[] = []
+  const remove = (nodes: NonNullable<HMDocument['content']>) => {
+    for (const node of nodes) {
+      if (node.children?.length) remove(node.children)
+      changes.push({op: {case: 'deleteBlock', value: node.block.id}})
+    }
+  }
+  remove(doc?.content ?? [])
+  const freshId = () => Math.random().toString(36).slice(2, 10)
+  const add = (nodes: typeof tree, parent: string) => {
+    let leftSibling = ''
+    for (const node of nodes) {
+      const block = node.block as {type: string; text?: string; link?: string; annotations?: unknown[]}
+      const id = freshId()
+      changes.push({op: {case: 'moveBlock', value: {blockId: id, parent, leftSibling}}})
+      changes.push({
+        op: {
+          case: 'replaceBlock',
+          value: {
+            id,
+            type: block.type,
+            text: block.text ?? '',
+            ...(block.link ? {link: block.link} : {}),
+            annotations: (block.annotations ?? []).map((raw) => {
+              const annotation = raw as {type: string; starts: number[]; ends: number[]; link?: string}
+              return {
+                type: annotation.type,
+                starts: annotation.starts,
+                ends: annotation.ends,
+                ...(annotation.link ? {link: annotation.link} : {}),
+              }
+            }),
+          },
+        },
+      })
+      if (node.children?.length) add(node.children, id)
+      leftSibling = id
+    }
+  }
+  add(tree, '')
+  return changes
+}
+
+export async function simplePublishInput(
+  request: Pick<UniversalClient, 'request'>['request'],
+  url: string,
+  rawFields: unknown,
+): Promise<Record<string, unknown>> {
+  const id = hm.unpackHmId(url)
+  if (!id?.path?.length)
+    throw new Error(
+      'publishDocument(url, fields) takes the hm:// address of a record, such as hm://SPACE/collection/record',
+    )
+  const fields = z
+    .object({
+      name: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+      // The record's body as markdown. Other shapes (an editor's JSON) are not body text: they are
+      // left out rather than failing the save, since a record's data is its metadata.
+      content: z.unknown().optional(),
+      visibility: z.enum(['public', 'private']).optional(),
+    })
+    .strict()
+    .parse(rawFields ?? {})
+  const existing = await request('Resource', {...id, version: null, latest: true}).catch(() => null)
+  const doc = existing?.type === 'document' ? existing.document : null
+  const metadata = {...(fields.metadata ?? {}), ...(fields.name !== undefined ? {name: fields.name} : {})}
+  const changes: unknown[] = attributeChanges(metadata, [])
+  // The body is markdown; on an existing record it replaces the old body, so it never goes stale.
+  if (typeof fields.content === 'string' && fields.content.trim()) changes.push(...bodyChanges(fields.content, doc))
+  if (!changes.length) throw new Error('publishDocument(url, fields) needs a name, metadata or content to write')
+  return {
+    account: id.uid,
+    path: '/' + id.path.join('/'),
+    changes,
+    ...(doc
+      ? {
+          baseVersion: doc.version,
+          genesis: doc.genesis,
+          ...(doc.generationInfo ? {generation: Number(doc.generationInfo.generation)} : {}),
+        }
+      : fields.visibility === 'private'
+        ? {visibility: 2}
+        : {}),
+  }
+}
+
+/** Dispatch SDK calls through the selected viewer's client; never return a key or privileged client. */
+export async function documentPageContent({
+  method,
+  params,
+  context,
+  visibility,
+  client,
+  access,
+  signal,
+}: {
+  method: string
+  params: unknown
+  context: DocumentPageContext
+  visibility: HMDocument['visibility']
+  client: Pick<UniversalClient, 'getSigner' | 'publish' | 'request'>
+  access: ReturnType<typeof createDocumentPageAccess>
+  signal: AbortSignal
+}): Promise<unknown> {
+  signal.throwIfAborted()
+  params = structuredClone(params)
+  if (method === 'hm.parseMarkdown') {
+    const {markdown} = z.object({markdown: z.string()}).strict().parse(params)
+    return hm.markdownBlockNodesToHMBlockNodes(hm.parseMarkdown(markdown).tree)
+  }
+  if (method === 'hm.validateContent')
+    return z
+      .object({content: z.array(HMBlockNodeSchema)})
+      .strict()
+      .parse(params).content
+  if (method === 'hm.unpackHmId') return hm.unpackHmId(z.object({url: z.string()}).strict().parse(params).url)
+  if (method === 'permissions.revoke') {
+    access.revoke()
+    return null
+  }
+  const {account} = context
+  const authorized = access.signal(signal)
+  const signer: HMSigner = {
+    getPublicKey: async () => {
+      authorized.throwIfAborted()
+      if (!account || !client.getSigner) throw new Error('Sign in to sign with this page.')
+      const result = await client.getSigner(account).getPublicKey()
+      authorized.throwIfAborted()
+      return result
+    },
+    sign: async (data) => {
+      const bytes = new Uint8Array(data)
+      const principal = await signer.getPublicKey()
+      const request = pageSignatureRequest(bytes, principal)
+      request.details = {payload: request.details, sha256: await pageBytesDigest(bytes)}
+      await access.authorize(request, authorized)
+      authorized.throwIfAborted()
+      const result = new Uint8Array(await client.getSigner!(account!).sign(bytes))
+      authorized.throwIfAborted()
+      // Only exact envelopes signed through this bridge can be published without a second prompt.
+      if (request.type !== 'raw') {
+        const body = decode(bytes) as Record<string, unknown>
+        await access.allowPublication(encode({...body, sig: result}), authorized)
+      }
+      authorized.throwIfAborted()
+      return result
+    },
+  }
+  const publish: UniversalClient['publish'] = async (input) => {
+    authorized.throwIfAborted()
+    const payload = structuredClone(input)
+    const unknown = []
+    for (const blob of payload.blobs) {
+      if (!(await access.canPublish(blob.data)))
+        unknown.push({bytes: blob.data.byteLength, sha256: await pageBytesDigest(blob.data)})
+    }
+    if (unknown.length)
+      await access.authorize(
+        {
+          kind: 'publish',
+          type: 'Publication',
+          title: 'Publish data',
+          details: unknown,
+          warning:
+            'These bytes were not signed and approved in this page session. Publishing can disclose data permanently.',
+        },
+        authorized,
+      )
+    authorized.throwIfAborted()
+    const result = await client.publish(payload)
+    authorized.throwIfAborted()
+    return result
+  }
+  const pageSpace = hm.unpackHmId(context.document)?.uid
+  const authorizeRead = async (key: HMRequest['key'], input: unknown) => {
+    const permission = pageReadRequest(key, input)
+    if (!pageSpace || permission.site !== pageSpace) await access.authorize(permission, authorized)
+    authorized.throwIfAborted()
+  }
+  const request = (async (key: HMRequest['key'], input: HMRequest['input']) => {
+    if (key === 'PublishBlobs') return publish(HMPublishBlobsInputSchema.parse(input))
+    await authorizeRead(key, input)
+    authorized.throwIfAborted()
+    const result = await client.request<HMRequest['key']>(key, input, {signal: authorized})
+    authorized.throwIfAborted()
+    // Check the resolved resource as well: a redirect must not widen a resource or site grant.
+    if ((key === 'Resource' || key === 'ResourceMetadata') && result && typeof result === 'object') {
+      const resolved = result as {id?: {uid?: string; path?: string[]}; document?: {account?: string; path?: string}}
+      const uid = resolved.document?.account || resolved.id?.uid
+      const path = resolved.document?.path?.split('/').filter(Boolean) ?? resolved.id?.path ?? []
+      const requested = input as {uid: string; path?: string[]}
+      if (uid && hm.packBaseId(uid, path) !== hm.packBaseId(requested.uid, requested.path || [])) {
+        await authorizeRead(key, {uid, path})
+      }
+    }
+    const querySite = pageReadRequest(key, input).site
+    if (key === 'Query' && querySite && result) {
+      for (const item of (result as HMQueryResult).results) {
+        if (item.id.uid !== querySite) await authorizeRead('ResourceMetadata', item.id)
+      }
+    }
+    if (key === 'QueryDocuments' && querySite && result) {
+      for (const item of (result as HMQueryDocumentsOutput).documents || []) {
+        if (item.account !== querySite)
+          await authorizeRead('ResourceMetadata', {uid: item.account, path: item.path?.split('/').filter(Boolean)})
+      }
+    }
+    authorized.throwIfAborted()
+    return result
+  }) as UniversalClient['request']
+  const object = z.record(z.string(), z.unknown()).parse(params)
+  if (method === 'permissions.request') return {grants: access.snapshot()}
+  if (method === 'context' || method === 'profile' || method === 'signer.getPublicKey') {
+    if (account)
+      await access.authorize(
+        {
+          kind: 'read',
+          type: 'Account',
+          title: 'Identify your account',
+          resource: `hm://${account}/:profile`,
+          details: {account},
+          warning: 'This links your selected identity to the page.',
+        },
+        authorized,
+      )
+    if (method === 'context') return context
+    if (method === 'signer.getPublicKey') return signer.getPublicKey()
+    if (!account) return null
+    const profile = await client.request('Account', account, {signal: authorized})
+    authorized.throwIfAborted()
+    return {id: account, name: profile?.type === 'account' ? profile.metadata?.name || null : null}
+  }
+  if (method === 'signer.sign') return signer.sign(z.instanceof(Uint8Array).parse(object.data))
+  if (method === 'request') {
+    const key = z.string().parse(object.key)
+    const schema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
+    if (!schema) throw new Error('Unknown Hypermedia request.')
+    const input = schema.shape.input.parse(object.input)
+    return request(key as HMRequest['key'], input)
+  }
+  if (method === 'publish') return publish(HMPublishBlobsInputSchema.parse(object.input))
+  if (method === 'publishDocument') {
+    if (!account) throw new Error('Sign in to publish a document.')
+    const raw =
+      typeof object.url === 'string' ? await simplePublishInput(request, object.url, object.fields) : object.input
+    const input = HMPrepareDocumentChangeInputSchema.extend({
+      genesis: z.string().optional(),
+      generation: z.union([z.number(), z.bigint()]).optional(),
+    })
+      .strict()
+      .parse(raw)
+    const id = hm.unpackHmId(hm.packBaseId(input.account, input.path?.split('/').filter(Boolean) || []))!
+    const capability = await hm.resolveCapability({request}, input.account, account, input.path, input.capability)
+    if (input.account !== account && !capability) {
+      throw new Error(
+        'Your selected account cannot write to this collection. Choose a space you can edit; page permission approval does not grant space write access.',
+      )
+    }
+    if (input.capability && input.capability !== capability) {
+      throw new Error('The supplied capability does not match your selected account’s write access.')
+    }
+    // Saving one document is one permission: what it writes and where. Preparing, signing and
+    // publishing its change are steps of that save, not separate requests to the viewer.
+    const title = input.changes.find(
+      (change) => change.op.case === 'setMetadata' && (change.op.value as {key?: string}).key === 'name',
+    )?.op.value as {value?: string} | undefined
+    await access.authorize(
+      {
+        kind: 'sign',
+        type: 'Change',
+        site: input.account,
+        resource: id.id,
+        title: `Save ${title?.value ? `“${title.value}”` : 'a document'}`,
+        details: {document: id.id, changes: input.changes},
+      },
+      authorized,
+    )
+    authorized.throwIfAborted()
+    let publishedVersion: string | undefined
+    const publishingClient = createWebUniversalClient({
+      request: ((key: HMRequest['key'], requestInput: HMRequest['input']) =>
+        client.request<HMRequest['key']>(key, requestInput, {signal: authorized})) as typeof request,
+      publish: async (payload) => {
+        const result = await client.publish(payload)
+        for (const blob of payload.blobs) {
+          const body = decode(blob.data) as {type?: string; heads?: unknown[]}
+          if (body.type === 'Ref' && body.heads) publishedVersion = body.heads.map(String).join('.')
+        }
+        return result
+      },
+      getSigner: () => client.getSigner!(account),
+    })
+    await publishingClient.publishDocument!({...input, capability, signerAccountUid: account})
+    const saved = await request('Resource', id)
+    if (saved.type !== 'document' || !publishedVersion || saved.document.version !== publishedVersion) {
+      throw new Error(
+        `Document publication was submitted but could not be confirmed at ${id.id}. Read this address before retrying; do not report it as saved.`,
+      )
+    }
+    return {document: id.id}
+  }
+  if (method === 'resource') {
+    const id = hm.unpackHmId(z.string().parse(object.url))
+    if (!id) throw new Error('Expected an hm:// URL')
+    if (id.path?.length === 1 && id.path[0] === ':profile') {
+      const profile = await request('Account', id.uid)
+      return {id: id.uid, name: profile?.type === 'account' ? profile.metadata?.name || null : null}
+    }
+    if (!id.version && hm.packBaseId(id.uid, id.path || []) === context.document) id.version = context.version
+    return request('Resource', id)
+  }
+  if (method === 'directory') {
+    const id = hm.unpackHmId(z.string().parse(object.url))
+    if (!id) throw new Error('Expected an hm:// URL')
+    const result = await request('Query', {
+      includes: [
+        {space: id.uid, path: hm.hmIdPathToEntityQueryPath(id.path), mode: object.all ? 'AllDescendants' : 'Children'},
+      ],
+    })
+    return result?.results || []
+  }
+  if (method === 'comments.create') {
+    const input = z
+      .object({
+        content: z.array(HMBlockNodeSchema).min(1),
+        target: z.string().optional(),
+        version: z.string().optional(),
+      })
+      .strict()
+      .parse(params)
+    const docId = hm.unpackHmId(input.target || context.document)
+    const version = input.version || (input.target ? docId?.version : context.version)
+    if (!docId || !version) throw new Error('A comment target needs a document and version.')
+    const content = hm.trimTrailingEmptyBlocks(input.content)
+    if (!content.length) throw new Error('Write a comment before submitting.')
+    const targetDocument = input.target ? await request('Resource', docId) : null
+    const targetVisibility = input.target
+      ? targetDocument?.type === 'document'
+        ? targetDocument.document.visibility
+        : undefined
+      : visibility
+    if (input.target && targetDocument?.type !== 'document') throw new Error('Comment target is not a document.')
+    const payload = await hm.createComment(
+      {docId, docVersion: version, content, visibility: targetVisibility === 'PRIVATE' ? 'Private' : ''},
+      signer,
+    )
+    const commentId = await hm.commentRecordIdFromBlob(payload.blobs[0]!.data)
+    const result = await publish(payload)
+    if (!result.cids[0]) throw new Error('The comment could not be published.')
+    return {commentId, version: result.cids[0]}
+  }
+  if (method.startsWith('hm.')) {
+    const name = method.slice(3)
+    if (Object.hasOwn(DOCUMENT_PAGE_SIGNING_HELPERS, name)) {
+      const helper = DOCUMENT_PAGE_SIGNING_HELPERS[name as keyof typeof DOCUMENT_PAGE_SIGNING_HELPERS]
+      const result = await helper(object.input as never, signer)
+      authorized.throwIfAborted()
+      return result
+    }
+  }
+  throw new Error('Unknown page operation.')
+}

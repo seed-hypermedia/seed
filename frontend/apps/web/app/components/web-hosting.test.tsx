@@ -2,9 +2,12 @@
 import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {registerQueryClient} from '@shm/shared/models/query-client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const state = vi.hoisted(() => ({
+  realHost: false,
   host: {} as any,
   permission: {} as any,
   identity: {} as any,
@@ -16,12 +19,17 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   redirectToVault: vi.fn(),
 }))
-vi.mock('@/models/host', () => ({
-  useHostSession: (options?: any) => {
-    state.host.onAuthenticated = options?.onAuthenticated
-    return state.host
-  },
-}))
+vi.mock('@/models/host', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/models/host')>()
+  return {
+    ...actual,
+    useHostSession: (options?: any) => {
+      if (state.realHost) return actual.useHostSession(options)
+      state.host.onAuthenticated = options?.onAuthenticated
+      return state.host
+    },
+  }
+})
 vi.mock('@/models/site', () => ({
   useSiteRegistration: () => ({mutateAsync: state.register}),
   useRemoveSite: () => ({mutateAsync: state.remove}),
@@ -31,6 +39,7 @@ vi.mock('@/auth', () => ({
   redirectToVaultSignIn: (...args: unknown[]) => state.redirectToVault(...args),
   useLocalKeyPair: () => state.identity,
   useLocalKeyPairLoaded: () => state.identityLoaded,
+  keyPairStore: {get: () => state.identity},
 }))
 vi.mock('@/document-edit/use-web-can-edit', () => ({useWebCanEdit: () => state.permission}))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => state.navigate}))
@@ -109,6 +118,7 @@ async function submit() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  state.realHost = false
   state.identityLoaded = true
   // Reproduce a delegated owner viewing their space through another site's origin.
   state.permission = {canEdit: false, signingAccountId: 'space', capabilitiesLoading: false}
@@ -141,7 +151,7 @@ beforeEach(() => {
     verifyEmailCode: mutation(),
     canLoginWithVault: false,
     vaultEmail: undefined,
-    loginWithVault: vi.fn(),
+    loginWithVaultAsync: vi.fn(() => new Promise(() => {})),
     createSite: mutation(),
     createDomain: mutation(),
     resumeDomain: mutation(),
@@ -492,18 +502,107 @@ describe('hosting navigation and polling errors', () => {
 })
 
 it('tries vault prevalidation before showing the hosting email form', async () => {
+  let rejectVaultLogin!: (error: Error) => void
+  state.host.loginWithVaultAsync.mockReturnValue(new Promise((_resolve, reject) => (rejectVaultLogin = reject)))
   state.host.loggedIn = false
   state.host.canLoginWithVault = true
   state.host.vaultEmail = 'verified@example.com'
   render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
-  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+  expect(state.host.loginWithVaultAsync).toHaveBeenCalledTimes(1)
   expect(container.textContent).toContain('Signing in…')
   expect(container.querySelector('input[type="email"]')).toBeNull()
   // An existing account or untrusted vault falls back to the normal code flow.
-  await act(async () => state.host.loginWithVault.mock.calls[0][1].onSettled())
+  await act(async () => rejectVaultLogin(new Error('Email validation required.')))
   expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('verified@example.com')
   expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
-  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+  expect(state.host.loginWithVaultAsync).toHaveBeenCalledTimes(1)
+})
+
+describe('automatic hosting login with the real session hook', () => {
+  let client: QueryClient
+  let finishVaultLogin: (response: Response) => void
+
+  beforeEach(() => {
+    state.realHost = true
+    localStorage.clear()
+    state.identity.emailPrevalidation = {
+      email: 'verified@example.com',
+      signer: 'vault-signer',
+      host: 'https://vault.example.com',
+      sig: 'vault-signature',
+    }
+    client = new QueryClient({
+      defaultOptions: {queries: {retry: false}, mutations: {retry: false}},
+      logger: {log() {}, warn() {}, error() {}},
+    })
+    registerQueryClient(client)
+    const vaultResponse = new Promise<Response>((resolve) => (finishVaultLogin = resolve))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, options?: RequestInit) => {
+        if (url.endsWith('/auth/vault')) return vaultResponse
+        if (url.endsWith('/info')) return Response.json({hostDomain: 'seed.host'})
+        if (url.endsWith('/sites')) return Response.json([])
+        if (url.endsWith('/auth/code/start'))
+          return Response.json({
+            status: 'code-sent',
+            email: JSON.parse(String(options?.body)).email,
+            binding: 'email-binding',
+            expireTime: Date.now() + 60_000,
+            resendAllowedTime: Date.now(),
+          })
+        if (url.endsWith('/auth/code/verify'))
+          return Response.json({
+            status: 'success',
+            email: 'verified@example.com',
+            sessionToken: 'email-token',
+            userId: 'test-user',
+          })
+        throw new Error(`Unexpected hosting request: ${url}`)
+      }),
+    )
+    render(
+      <React.StrictMode>
+        <QueryClientProvider client={client}>
+          <WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />
+        </QueryClientProvider>
+      </React.StrictMode>,
+    )
+  })
+
+  afterEach(() => {
+    client.clear()
+    vi.unstubAllGlobals()
+  })
+
+  it('falls back after vault rejection under StrictMode and completes email sign-in', async () => {
+    expect(container.textContent).toContain('Signing in…')
+    await act(async () => finishVaultLogin(Response.json({status: 'error', message: 'Email validation required.'})))
+    await vi.waitFor(() => expect(container.textContent).toContain('Log in to Seed Hosting'))
+    expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('verified@example.com')
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/auth/vault'))).toHaveLength(1)
+    await submit()
+    expect(container.textContent).toContain('Check Your Inbox')
+    await input('Login code', '0123')
+    await vi.waitFor(() => expect(container.textContent).toContain('Choose Your Subdomain'))
+    expect(container.textContent).toContain('verified@example.com')
+  })
+
+  it('continues directly when vault login succeeds under StrictMode', async () => {
+    await act(async () =>
+      finishVaultLogin(
+        Response.json({
+          status: 'success',
+          email: 'verified@example.com',
+          sessionToken: 'vault-token',
+          userId: 'test-user',
+        }),
+      ),
+    )
+    await vi.waitFor(() => expect(container.textContent).toContain('Choose Your Subdomain'))
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/auth/vault'))).toHaveLength(1)
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/auth/code/'))).toBe(false)
+  })
 })
 
 it('opens the subdomain form directly for a signed-in hosting account', () => {
@@ -522,7 +621,7 @@ it('continues from automatic Vault login to the subdomain form without an extra 
   state.host.canLoginWithVault = true
   state.host.vaultEmail = 'verified@example.com'
   render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
-  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+  expect(state.host.loginWithVaultAsync).toHaveBeenCalledTimes(1)
   state.host.loggedIn = true
   state.host.email = 'verified@example.com'
   render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
@@ -545,7 +644,7 @@ it.each(['seed-host-subdomain', 'seed-host-custom-domain'] as const)(
     render(<WebHostingDialog input={{id, step}} onClose={vi.fn()} />)
     expect(container.textContent).toContain('Log in to Seed Hosting')
     expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('')
-    expect(state.host.loginWithVault).not.toHaveBeenCalled()
+    expect(state.host.loginWithVaultAsync).not.toHaveBeenCalled()
     expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
     expect(state.redirectToVault).not.toHaveBeenCalled()
     state.host.loggedIn = true

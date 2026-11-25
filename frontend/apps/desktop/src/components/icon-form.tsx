@@ -3,6 +3,7 @@ import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
 
@@ -34,7 +35,7 @@ export function IconForm({
     const file = fileList?.[0]
     if (!file) return
     if (!onIconUpload) return
-    fileUpload(file)
+    fileUpload(file, AVATAR_IMAGE_POLICY)
       .then((data) => {
         onIconUpload(data)
       })
@@ -62,6 +63,7 @@ export function IconForm({
       >
         <input
           type="file"
+          accept={IMAGE_FILE_ACCEPT}
           onChange={handleFileChange}
           style={{
             opacity: 0,

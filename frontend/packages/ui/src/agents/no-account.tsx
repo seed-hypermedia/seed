@@ -11,7 +11,7 @@ const useSignInPromptHook: () => AgentsSignInPrompt = () => {
 }
 
 /**
- * Agent servers only accept authenticated requests, so without an active account the page cannot
+ * App environments only accept authenticated requests, so without an active account the page cannot
  * talk to any of them — including the local one. Instead of rendering server rows whose requests
  * would all fail, explain the blocker and offer the fix.
  */
@@ -34,8 +34,8 @@ export function AgentsNoAccountPage() {
           <SizableText weight="bold">Sign in to use agents</SizableText>
           <SizableText color="muted">
             {hasAccounts
-              ? 'Agent servers require an authenticated account. Select an account from the account menu in the top-right corner to continue.'
-              : 'Agent servers require an authenticated account. Sign in or create an account to get started.'}
+              ? 'App environments require an authenticated account. Select an account from the account menu in the top-right corner to continue.'
+              : 'App environments require an authenticated account. Sign in or create an account to get started.'}
           </SizableText>
           {!hasAccounts && signIn ? (
             <Button onClick={() => signIn()}>

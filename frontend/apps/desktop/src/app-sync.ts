@@ -15,7 +15,9 @@ import {
   DiscoveryState,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {Event, FeedOrder} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
+import {createActivityCursor, extractResource} from '@shm/shared/activity-changes'
+import {resourceChangeQueryKeys} from '@shm/shared/change-signal'
+import type {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
@@ -118,9 +120,6 @@ function getDiscoveryPollInterval(): number {
 // Debounce window for batching invalidations
 const INVALIDATION_DEBOUNCE_MS = 100
 
-// Page size for fetching activity events
-const ACTIVITY_PAGE_SIZE = 30
-
 // Max entries for lastKnownVersions to prevent unbounded memory growth
 const MAX_KNOWN_VERSIONS = 500
 
@@ -137,8 +136,7 @@ type SubscriptionState = {
 }
 
 type SyncState = {
-  // Activity polling state. lastBlobId is null until the first poll sets the watermark.
-  lastBlobId: bigint | null
+  // Activity polling state
   isPolling: boolean
   pendingInvalidations: Set<string>
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -163,7 +161,6 @@ type SyncState = {
 }
 
 const state: SyncState = {
-  lastBlobId: null,
   isPolling: false,
   pendingInvalidations: new Set(),
   debounceTimer: null,
@@ -251,23 +248,8 @@ function updateAggregatedDiscoveryState() {
 // ============ Invalidation ============
 
 function invalidateResource(resource: string) {
-  const id = unpackHmId(resource)
-  if (!id) return
-
   // Broadcast invalidations to all windows
-  appInvalidateQueries([queryKeys.ENTITY, id.id])
-  appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-  appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-  appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
-
-  getParentPaths(id.path).forEach((parentPath) => {
-    const parentId = hmId(id.uid, {path: parentPath})
-    appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-  })
-
-  const rootId = hmId(id.uid)
-  appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
-  appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id])
+  resourceChangeQueryKeys(resource).forEach((queryKey) => appInvalidateQueries(queryKey))
 }
 
 function flushInvalidations() {
@@ -298,14 +280,8 @@ function scheduleInvalidation(resource: string) {
 
 // ============ Activity Feed Polling ============
 
-/** Extracts the resource IRI from a newBlob activity event (exported for testing). */
-export function extractResource(event: Event): string | null {
-  if (event.data.case === 'newBlob') {
-    const resource = event.data.value.resource
-    return resource.split('?')[0] || null
-  }
-  return null
-}
+// Re-exported for testing.
+export {extractResource}
 
 function isResourceSubscribed(resource: string): boolean {
   const id = unpackHmId(resource)
@@ -469,6 +445,7 @@ function processEventsInner(events: Event[]) {
   // Comment changes: keep object-shaped comment view keys broad, but target
   // string-keyed comment indexes when the activity event carries enough data.
   if (seenBlobTypes.has('comment')) {
+    appInvalidateQueries([queryKeys.QUERY_BLOCK])
     appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
     appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
     appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
@@ -597,60 +574,9 @@ function processEventsInner(events: Event[]) {
   }
 }
 
-/** Blob-only event types — excludes mentions (link types like comment/target, doc/embed). */
-const ACTIVITY_BLOB_TYPES = ['Capability', 'Ref', 'Comment', 'DagPB', 'Profile', 'Contact']
-
-/** Extract blobId from a newBlob event. Returns 0 for non-blob events. */
-function getBlobId(event: Event): bigint {
-  if (event.data.case === 'newBlob') return event.data.value.blobId
-  return BigInt(0)
-}
-
-async function fetchNewEvents(): Promise<Event[]> {
-  if (state.lastBlobId === null) {
-    // First poll: set watermark so existing feed events are not replayed.
-    // An empty feed (fresh database) gets watermark 0 so the first events that arrive are processed.
-    const response = await grpcClient.activityFeed.listEvents({
-      pageSize: 1,
-      filterEventType: ACTIVITY_BLOB_TYPES,
-      order: FeedOrder.OBSERVED_TIME,
-    })
-    const firstEvent = response.events[0]
-    state.lastBlobId = firstEvent ? getBlobId(firstEvent) : BigInt(0)
-    // console.log('[Sync] Activity monitor watermark initialized', {
-    //   watermarkBlobId: state.lastBlobId.toString(),
-    // })
-    return []
-  }
-
-  const eventsToProcess: Event[] = []
-  let currentPageToken: string | undefined
-
-  while (true) {
-    const response = await grpcClient.activityFeed.listEvents({
-      pageToken: currentPageToken,
-      pageSize: ACTIVITY_PAGE_SIZE,
-      filterEventType: ACTIVITY_BLOB_TYPES,
-      order: FeedOrder.OBSERVED_TIME,
-    })
-
-    let reachedWatermark = false
-    for (const event of response.events) {
-      const blobId = getBlobId(event)
-      if (blobId <= state.lastBlobId) {
-        reachedWatermark = true
-        break
-      }
-      eventsToProcess.push(event)
-    }
-
-    if (reachedWatermark) break
-    if (!response.nextPageToken) break
-    currentPageToken = response.nextPageToken
-  }
-
-  return eventsToProcess
-}
+// Follows the feed for the life of the process: the watermark survives the monitor stopping and
+// starting, so changes that arrive while no resource is subscribed are still seen afterwards.
+const activityCursor = createActivityCursor((request) => grpcClient.activityFeed.listEvents(request))
 
 const startTime = Date.now()
 async function pollActivity() {
@@ -659,19 +585,12 @@ async function pollActivity() {
 
   try {
     await timeAsync('pollActivity', async () => {
-      const newEvents = await fetchNewEvents()
+      const {events: newEvents} = await activityCursor.poll()
       if (newEvents.length > 0) {
-        const highestBlobId = getBlobId(newEvents[0]!)
-        // console.log('[Sync] Activity poll found new events', {
-        //   eventCount: newEvents.length,
-        //   previousWatermarkBlobId: state.lastBlobId.toString(),
-        //   nextWatermarkBlobId: highestBlobId.toString(),
-        // })
         if (PROFILE_ENABLED) {
           profileLog(`pollActivity: ${newEvents.length} new events`)
         }
         processEvents(newEvents)
-        state.lastBlobId = highestBlobId
       }
     })
   } catch (error) {

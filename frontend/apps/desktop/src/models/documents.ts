@@ -1,4 +1,8 @@
-import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
+import {
+  canUseDocumentDestination,
+  getChildMoveDestinationPath,
+  getChildMoveRoots,
+} from '@shm/shared/utils/document-actions'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {toast} from '@shm/ui/toast'
 import {desktopUniversalClient} from '@/desktop-universal-client'
@@ -443,8 +447,7 @@ export function usePublishResource(
             account: resolvedDestinationId.uid,
             baseVersion,
             path: docPath,
-            // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
-            changes: allChanges as any,
+            changes: allChanges,
             capability: capabilityId,
             visibility,
             genesis: baseVersion ? editDocument?.genesis : undefined,
@@ -554,10 +557,7 @@ export function usePublishResource(
       } catch (error) {
         const connectErr = ConnectError.from(error)
         const msg = connectErr.rawMessage.toLowerCase()
-        const isDuplicatePath =
-          (connectErr.code === Code.FailedPrecondition && msg.includes('path already exists')) ||
-          msg.includes('preparedocumentchange')
-        if (isDuplicatePath) {
+        if (msg.includes('path already exists')) {
           throw new Error(
             'A document already exists at this path. Please choose a different path name before publishing.',
           )
@@ -1378,7 +1378,7 @@ async function createDocumentMoveRefs({
   }
 }
 
-async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHypermediaId) {
+export async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHypermediaId) {
   if (signingAccountId === id.uid) return ''
   const capabilities = await grpcClient.accessControl.listCapabilities({
     account: id.uid,

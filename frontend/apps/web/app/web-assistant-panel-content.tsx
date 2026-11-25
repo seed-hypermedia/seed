@@ -11,9 +11,11 @@ registerWebAgentsPlatform()
 /** Client-only body of the assistant panel. */
 export default function WebAssistantPanelContent({
   showClose = false,
+  visible = true,
 }: {
   /** Render a close button in the panel header (the side panel has no other way to dismiss it). */
   showClose?: boolean
+  visible?: boolean
 }) {
   const panel = useAssistantPanel()
   const onClose = showClose ? panel.close : undefined
@@ -26,6 +28,7 @@ export default function WebAssistantPanelContent({
       initialSessionId={panel.sessionId}
       initialAgentId={panel.agentId}
       newChatRequest={panel.newChatRequest}
+      visible={visible}
       onSessionChange={panel.setSessionId}
       onAgentChange={panel.setAgentId}
       onClose={onClose}

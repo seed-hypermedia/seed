@@ -103,7 +103,7 @@ describe('trigger transcript row', () => {
 
   it('shows errors and leaves activity without a destination as plain text', () => {
     render({...context, source: {type: 'webhook'}, activity: {}, status: 'failed', error: 'Tool call failed'})
-    expect(container.textContent).toContain('Status: failed')
+    expect(container.textContent).toContain('Failed')
     expect(container.textContent).toContain('Tool call failed')
     expect(
       Array.from(container.querySelectorAll('button')).some((node) => node.textContent === context.activitySummary),

@@ -1,11 +1,11 @@
 import {Extension} from '@tiptap/core'
+import {keydownHandler} from '@tiptap/pm/keymap'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
 import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
-import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
@@ -92,11 +92,12 @@ export const BlockManipulationExtension = Extension.create<{
         const {state} = this.editor
         const {selection} = state
         if (selection instanceof NodeSelection) {
-          const $pos = state.doc.resolve(selection.from + 1)
+          const {blockContent} = getBlockInfoFromPos(state, selection.from)
+          const newBlockPos = blockContent.afterPos + 1
           this.editor
             .chain()
-            .BNCreateBlock($pos.end() + 2)
-            .setTextSelection($pos.end() + 3)
+            .BNCreateBlock(newBlockPos)
+            .setTextSelection(newBlockPos + 2)
             .run()
           return true
         }
@@ -137,6 +138,54 @@ export const BlockManipulationExtension = Extension.create<{
         },
       }),
       new Plugin({
+        key: new PluginKey('MediaCaptionSelectionSync'),
+        view: (view) => {
+          const document = view.dom.ownerDocument
+          const syncCaptionCaret = () => {
+            const caption = document.activeElement
+            if (!view.editable || !(caption instanceof HTMLElement) || caption === view.dom) return
+            if (!view.dom.contains(caption) || !caption.matches('[data-media-container-ignore-select]')) return
+            const domSelection = document.getSelection()
+            const {anchorNode, focusNode} = domSelection ?? {}
+            if (!domSelection || !anchorNode || !focusNode) return
+            if (!caption.contains(anchorNode) || !caption.contains(focusNode)) return
+            const anchor = view.posAtDOM(anchorNode, domSelection.anchorOffset)
+            const head = view.posAtDOM(focusNode, domSelection.focusOffset)
+            const {selection} = view.state
+            if (selection.anchor === anchor && selection.head === head) return
+            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)))
+          }
+          const runHistoryKey = keydownHandler({
+            'Mod-z': () => (this.editor.commands.undo(), true),
+            'Shift-Mod-z': () => (this.editor.commands.redo(), true),
+            'Mod-y': () => (this.editor.commands.redo(), true),
+          })
+          const handleCaptionHistoryKey = (event: KeyboardEvent) => {
+            const caption = event.target
+            if (!view.editable || !(caption instanceof HTMLElement)) return
+            if (!caption.matches('[data-media-container-ignore-select]')) return
+            if (!runHistoryKey(view, event)) return
+            event.preventDefault()
+            const {anchor, head} = view.state.selection
+            const anchorDOM = view.domAtPos(anchor)
+            const headDOM = view.domAtPos(head)
+            if (caption.contains(anchorDOM.node) && caption.contains(headDOM.node)) {
+              document.getSelection()?.setBaseAndExtent(anchorDOM.node, anchorDOM.offset, headDOM.node, headDOM.offset)
+            } else {
+              view.focus()
+            }
+          }
+          document.addEventListener('selectionchange', syncCaptionCaret)
+          view.dom.addEventListener('keydown', handleCaptionHistoryKey)
+          return {
+            destroy: () => {
+              document.removeEventListener('selectionchange', syncCaptionCaret)
+              view.dom.removeEventListener('keydown', handleCaptionHistoryKey)
+            },
+          }
+        },
+      }),
+      new Plugin({
         key: new PluginKey('CursorSelectPlugin'),
         props: {
           handleDoubleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
@@ -164,10 +213,6 @@ export const BlockManipulationExtension = Extension.create<{
               if (shouldOpen && openUrl && clickedEmbed) {
                 openUrl(clickedEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
                 return true
-              }
-
-              if (isInGridContainer(view.state, nodePos)) {
-                return false
               }
 
               let tr = view.state.tr

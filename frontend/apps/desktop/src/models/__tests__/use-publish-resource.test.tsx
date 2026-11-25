@@ -237,6 +237,85 @@ describe('usePublishResource path resolution', () => {
     }
   })
 
+  it.each([
+    [
+      'HTTP 500 from PrepareDocumentChange: Internal Server Error: [permission_denied] permission denied',
+      'permission denied',
+    ],
+    [
+      'HTTP 500 from PrepareDocumentChange: Internal Server Error: [invalid_argument] no changes to apply',
+      'no changes to apply',
+    ],
+    [
+      'HTTP 500 from PrepareDocumentChange: Internal Server Error: [failed_precondition] path already exists',
+      'A document already exists',
+    ],
+  ])('reports the actual publication failure: %s', async (message, expected) => {
+    const editId = hmId('acct-1', {path: ['parent', 'empty-doc']})
+    getDocumentMock.mockResolvedValue({version: 'published-empty', content: []})
+    publishDocumentMock.mockRejectedValue(new Error(message))
+    const {call, cleanup} = await renderHarness(editId)
+    try {
+      await act(async () => {
+        await expect(
+          call.mutateAsync({draft: makeDraft(), destinationId: editId, accountId: 'acct-1'}),
+        ).rejects.toThrow(expected)
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('adds text to an existing empty document using its published version and generation', async () => {
+    const editId = hmId('acct-1', {path: ['parent', 'empty-doc']})
+    const published = {
+      account: 'acct-1',
+      path: '/parent/empty-doc',
+      version: 'published-empty',
+      genesis: 'existing-genesis',
+      generationInfo: {generation: BigInt(0)},
+      content: [],
+      metadata: {name: 'Empty doc'},
+    }
+    useResourceMock.mockReturnValue({data: {type: 'document', document: published}})
+    getDocumentMock.mockResolvedValue(published)
+    const draft = {
+      ...makeDraft(),
+      deps: [published.version],
+      metadata: published.metadata,
+      content: [
+        {
+          id: 'new-text',
+          type: 'paragraph',
+          props: {},
+          content: [{type: 'text', text: 'Added text', styles: {}}],
+          children: [],
+        },
+      ],
+    } as HMDraft
+    const {call, cleanup} = await renderHarness(editId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft, destinationId: editId, accountId: 'acct-1'})
+      })
+      expect(publishDocumentMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: '/parent/empty-doc',
+          baseVersion: published.version,
+          genesis: published.genesis,
+          generation: BigInt(0),
+          changes: expect.arrayContaining([
+            expect.objectContaining({
+              op: {case: 'replaceBlock', value: expect.objectContaining({id: 'new-text', text: 'Added text'})},
+            }),
+          ]),
+        }),
+      )
+    } finally {
+      cleanup()
+    }
+  })
+
   it('does not inherit metadata retained from the previously viewed parent on first publish', async () => {
     useResourceMock.mockReturnValue({
       isPreviousData: true,

@@ -1,6 +1,6 @@
 import {blocksToMarkdown, trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
-import type {AgentPromptBlock} from '@seed-hypermedia/agents-protocol'
+import type {AgentPromptBlock} from '@seed-hypermedia/apps-protocol'
 import {getAgentsPlatform} from './platform'
 
 /** Converts rich prompt blocks to display/draft markdown (embeds stay as links). */

@@ -33,12 +33,6 @@ BASIC STYLES
  * lets em-based margins on h1/p/pre/etc. scale with their own
  * font-size instead of being overridden by a wrapper-level rule. */
 
-.blockContent::before {
-  /* content: ""; */
-  transition: all 0.2s;
-  /*margin: 0px;*/
-}
-
 .blockContent[data-content-type='slot'] {
   display: none;
 }
@@ -114,7 +108,7 @@ NESTED BLOCKS
   position: absolute;
   left: -20px;
   height: 100%;
-  transition: all 0.2s 0.1s;
+  transition: height 0.2s 0.1s;
 }
 
 .blockChildren[data-list-type='Blockquote'] {
@@ -500,6 +494,16 @@ NESTED BLOCKS
   font-family: var(--font-sans, sans-serif);
   /* A host can say what the editor is for: an agent composer names who the chat is with. */
   content: var(--hm-editor-placeholder, "Enter text or type '/' for commands");
+}
+
+/* Label empty grid cells with a placeholder. */
+.blockContent.isEmptyGridCell:not(.isFilter):before {
+  content: 'Empty cell';
+  font-size: 0.9em;
+  font-family: var(--font-sans, sans-serif);
+  pointer-events: none;
+  position: absolute;
+  opacity: 0.5;
 }
 
 .blockContent.isFilter.hasAnchor:before {

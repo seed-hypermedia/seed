@@ -11,12 +11,16 @@ import type {
 } from '@shm/shared/explore'
 import {
   BROWSABLE_KINDS,
+  clearExploreConditions,
   exploreDateTokens,
   exploreQueryChips,
+  joinExploreSearchBox,
+  moveTypedExploreFilters,
   parseExploreQuery,
   removeExploreQueryChip,
   replaceExploreChips,
   serializeExploreQuery,
+  splitExploreSearchBox,
   toggleExplorePredicate,
 } from '@shm/shared/explore'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
@@ -39,11 +43,11 @@ import {
   ActiveFilterChip,
   ActiveFilterChipRow,
   ExploreAuthorMenu,
-  FilterChipButton,
   ExploreDateMenu,
   ExploreFilterMenu,
   ExploreScopeMenu,
   ExploreTypeMenu,
+  FilterChipButton,
   typeOptions,
 } from './explore-filters'
 import {ExploreBrowse, ExploreJumpTo, ExploreLanding, ExploreYourSpaces} from './explore-landing'
@@ -129,13 +133,21 @@ export function ExplorePage(props: ExplorePageProps) {
   const [tabPicked, setTabPicked] = useState(false)
   const [menu, setMenu] = useState<'scope' | 'type' | 'in' | 'attributes' | 'author' | 'date' | 'sort' | null>(null)
   const [sortBy, setSortBy] = useState<ExploreSortOption>('relevance')
-  const [draft, setDraft] = useState(props.query)
+  // `typed` marks the user's own edits, the only ones sent back as a query.
+  const [searchBox, setSearchBox] = useState(() => ({...splitExploreSearchBox(props.parsed), typed: false}))
+  const sentQueryRef = useRef(props.query)
   const inputRef = useRef<HTMLInputElement>(null)
   useFocusExploreSearchListener(inputRef)
   const debounceRef = useRef<number | null>(null)
   const onQueryChangeRef = useRef(props.onQueryChange)
   onQueryChangeRef.current = props.onQueryChange
-  useEffect(() => setDraft(props.query), [props.query])
+  // A query this page didn't send, such as back and forward, refills the box. The page's own query leaves it alone,
+  // so the box is never rewritten while the reader types.
+  useEffect(() => {
+    if (props.query === sentQueryRef.current) return
+    sentQueryRef.current = props.query
+    setSearchBox({...splitExploreSearchBox(props.parsed), typed: false})
+  }, [props.query, props.parsed])
   // view, cols, and sort are in the same query string as the search, so compare the
   // search alone. Switching the view must not throw the reader back to the default tab.
   const searchKey = useMemo(() => serializeExploreQuery(props.parsed.ast), [props.parsed.ast])
@@ -172,17 +184,22 @@ export function ExplorePage(props: ExplorePageProps) {
     }
   }, [menu])
   useEffect(() => {
+    if (!searchBox.typed) return
+    const next = joinExploreSearchBox(searchBox)
     const timer = window.setTimeout(() => {
-      if (draft !== props.query) onQueryChangeRef.current(draft)
+      if (next === props.query) return
+      sentQueryRef.current = next
+      onQueryChangeRef.current(next)
     }, 260)
     debounceRef.current = timer
     return () => {
       window.clearTimeout(timer)
       if (debounceRef.current === timer) debounceRef.current = null
     }
-  }, [draft, props.query])
+  }, [searchBox, props.query])
 
   const chips = useMemo(() => exploreQueryChips(props.parsed), [props.parsed])
+  const filterChips = chips.filter((chip) => chip.kind !== 'text')
   const accounts = useExploreAccounts(true)
   const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
@@ -323,9 +340,16 @@ export function ExplorePage(props: ExplorePageProps) {
       window.clearTimeout(debounceRef.current)
       debounceRef.current = null
     }
-    setDraft(next)
+    sentQueryRef.current = next
+    setSearchBox({...splitExploreSearchBox(parseExploreQuery(next)), typed: false})
     onQueryChangeRef.current(next)
   }
+  // Enter and leaving the box finish a typed filter, the way a space does.
+  const moveTypedFilters = () =>
+    setSearchBox((box) => {
+      const moved = moveTypedExploreFilters(box)
+      return moved.hidden === box.hidden ? box : {...moved, typed: true}
+    })
   const updatePresentation = (presentation: ExplorePresentation) =>
     updateQuery(withPresentation(props.parsed.ast, presentation))
 
@@ -339,8 +363,20 @@ export function ExplorePage(props: ExplorePageProps) {
             <Input
               ref={inputRef}
               autoFocus
-              value={draft}
-              onChangeText={setDraft}
+              value={searchBox.text}
+              onChangeText={(text) =>
+                setSearchBox((box) => {
+                  // A filter typed in the box becomes a chip once it's finished with a space.
+                  if (!/\s$/.test(text)) return {...box, text, typed: true}
+                  const moved = moveTypedExploreFilters({text, hidden: box.hidden})
+                  if (moved.hidden === box.hidden) return {...box, text, typed: true}
+                  return {text: moved.text ? `${moved.text} ` : '', hidden: moved.hidden, typed: true}
+                })
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') moveTypedFilters()
+              }}
+              onBlur={moveTypedFilters}
               placeholder={scopeUid ? `Search in ${scopeLabel}` : 'Search across all your spaces...'}
               aria-label="Search"
               className="bg-background h-11 pl-9 text-sm"
@@ -444,9 +480,14 @@ export function ExplorePage(props: ExplorePageProps) {
             ) : null}
           </div>
         </div>
-        {chips.length ? (
-          <ActiveFilterChipRow onClear={() => updateQuery('')}>
-            {chips.map((chip) => (
+        {filterChips.length ? (
+          // Clearing removes the filters and keeps the search words.
+          <ActiveFilterChipRow
+            onClear={() =>
+              updateQuery(serializeExploreQuery(clearExploreConditions(props.parsed.ast), props.parsed.presentation))
+            }
+          >
+            {filterChips.map((chip) => (
               <ActiveFilterChip
                 key={chip.id}
                 onRemove={() => updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, chip.id)))}

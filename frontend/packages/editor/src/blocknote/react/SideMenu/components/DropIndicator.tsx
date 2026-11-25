@@ -34,6 +34,10 @@ function IndicatorLine({instruction}: {instruction: DropInstruction}) {
   const style = computeIndicatorStyle(instruction, rect, contentRect)
   if (!style) return null
 
+  // Position via transform so the 60ms glide stays composite-only; width and
+  // height snap instantly since animating them would force layout every frame.
+  const {top, left, ...size} = style
+
   return (
     <div
       style={{
@@ -42,8 +46,11 @@ function IndicatorLine({instruction}: {instruction: DropInstruction}) {
         zIndex: 9999,
         backgroundColor: INDICATOR_COLOR,
         borderRadius: 1,
-        transition: 'all 60ms ease',
-        ...style,
+        transition: 'transform 60ms var(--ease-out-smooth)',
+        top: 0,
+        left: 0,
+        transform: `translate(${left}px, ${top}px)`,
+        ...size,
       }}
     >
       {/* Circle at the leading edge */}

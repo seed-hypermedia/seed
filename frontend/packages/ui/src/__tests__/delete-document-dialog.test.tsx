@@ -104,6 +104,64 @@ describe('DeleteDocumentDialog', () => {
     expect(container.querySelector('[data-testid="delete-document-child-list"]')).toBeNull()
   })
 
+  it('offers Move children… only for documents with children and calls close then move', () => {
+    const onClose = vi.fn()
+    const onMoveChildren = vi.fn()
+    act(() => {
+      root.render(
+        <DeleteDocumentDialog
+          document={{key: 'parent', title: 'Parent', path: ['parent']}}
+          childDocuments={[{key: 'child', title: 'Child', path: ['parent', 'child']}]}
+          onConfirm={vi.fn()}
+          onClose={onClose}
+          onMoveChildren={onMoveChildren}
+        />,
+      )
+    })
+
+    const moveButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Move children…',
+    ) as HTMLButtonElement
+    expect(moveButton).toBeTruthy()
+    act(() => {
+      moveButton.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onMoveChildren).toHaveBeenCalledTimes(1)
+    expect(onClose.mock.invocationCallOrder[0]!).toBeLessThan(onMoveChildren.mock.invocationCallOrder[0]!)
+  })
+
+  it('hides Move children… without children, without the callback, or for agents', () => {
+    const render = (props: Partial<React.ComponentProps<typeof DeleteDocumentDialog>>) => {
+      act(() => {
+        root.render(
+          <DeleteDocumentDialog
+            document={{key: 'parent', title: 'Parent', path: ['parent']}}
+            onConfirm={vi.fn()}
+            {...props}
+          />,
+        )
+      })
+      const present = Array.from(container.querySelectorAll('button')).some(
+        (button) => button.textContent?.trim() === 'Move children…',
+      )
+      act(() => {
+        root.unmount()
+      })
+      container.remove()
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      return present
+    }
+    const childDocuments = [{key: 'child', title: 'Child', path: ['parent', 'child']}]
+
+    expect(render({childDocuments})).toBe(false)
+    expect(render({onMoveChildren: vi.fn()})).toBe(false)
+    expect(render({childDocuments, onMoveChildren: vi.fn(), subject: 'agent'})).toBe(false)
+    expect(render({childDocuments, onMoveChildren: vi.fn(), subject: 'document'})).toBe(true)
+  })
+
   it('calls the injected confirm function before success and close callbacks', async () => {
     const events: string[] = []
     const onConfirm = vi.fn(async () => {

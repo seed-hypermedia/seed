@@ -6,13 +6,14 @@
   "scripts": {
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
-    "build": "NODE_ENV=development remix vite:build",
+    "build": "NODE_ENV=development remix vite:build && cp ../../packages/ui/THIRD_PARTY_NOTICES.md build/client/THIRD_PARTY_NOTICES.md",
     "dev": "DAEMON_HTTP_PORT=58001 DAEMON_FILE_URL=\"http://localhost:58001/ipfs\" remix vite:dev",
     "start": "NODE_OPTIONS='--import ./instrumentation.server.mjs' DAEMON_HTTP_PORT=58001 DAEMON_FILE_URL=\"http://localhost:58001/ipfs\" LIGHTNING_API_URL='https://ln.testnet.seed.hyper.media' remix-serve ./build/server/index.js",
     "start:prod": "NODE_OPTIONS='--import ./instrumentation.server.mjs' remix-serve ./build/server/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
-    "test:w": "vitest"
+    "test:w": "vitest",
+    "test:pages": "node --test scripts/document-page-browser.e2e.mjs"
   },
   "dependencies": {
     "@bufbuild/protobuf": "1.10.0",
@@ -21,7 +22,7 @@
     "@emotion/react": "^11.14.0",
     "@faire/mjml-react": "^3.5.0",
     "@ipld/dag-cbor": "^9.2.2",
-    "@libp2p/peer-id": "^5.1.2",
+    "@libp2p/peer-id": "^6.0.18",
     "@mantine/core": "6.0.22",
     "@mantine/hooks": "6.0.22",
     "@manuscripts/prosemirror-recreate-steps": "0.1.4",
@@ -69,14 +70,14 @@
     "lucide-react": "^0.511.0",
     "mjml": "5.3.0",
     "multiformats": "^13.3.2",
-    "nodemailer": "^6.10.0",
+    "nodemailer": "^10.0.10",
     "prosemirror-state": "1.4.4",
     "react": "18.2.0 || 19.0.1",
     "react-dom": "18.2.0 || 19.0.1",
     "react-error-boundary": "^6.0.0",
     "react-icons": "4.9.0",
     "react-qr-code": "2.0.15",
-    "react-resizable-panels": "^2.1.9",
+    "react-resizable-panels": "4.15.0",
     "sharp": "^0.35.0",
     "superjson": "2.2.1",
     "tailwind-merge": "^3.3.0",
@@ -86,7 +87,7 @@
     "y-prosemirror": "1.2.1",
     "y-protocols": "1.0.5",
     "yjs": "13.6.4",
-    "zod": "3.25.76"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@remix-run/dev": "2.17.5",

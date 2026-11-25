@@ -119,6 +119,12 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
   }
 
+  // `left` is the default and is never written, so documents that don't use alignment keep identical blocks.
+  const textAlignment = editorBlock.props.textAlignment
+  if (textAlignment && textAlignment !== 'left') {
+    block.attributes.textAlignment = textAlignment
+  }
+
   // if (parentBlock && editorBlock.props.start) {
   //   parentBlock.attributes.start = editorBlock.props.start.toString()
   // }

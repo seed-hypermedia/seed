@@ -360,7 +360,7 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
     '/bin/sh',
     [
       '-c',
-      `cd "${webPath}" && DATA_DIR="${webDataDir}" DAEMON_HTTP_URL="http://localhost:${httpPort}" DAEMON_HTTP_PORT="${httpPort}" DAEMON_FILE_URL="http://localhost:${httpPort}/ipfs" "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
+      `cd "${webPath}" && DATA_DIR="${webDataDir}" DAEMON_HTTP_URL="http://localhost:${httpPort}" DAEMON_HTTP_PORT="${httpPort}" DAEMON_FILE_URL="http://localhost:${httpPort}/ipfs" "${pnpmBinary}" remix vite:dev --host 127.0.0.1 --port ${webServerPort}`,
     ],
     {
       env: {

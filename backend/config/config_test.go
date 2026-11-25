@@ -5,8 +5,24 @@ import (
 	"io"
 	"testing"
 
+	"github.com/peterbourgon/ff/v4"
 	"github.com/stretchr/testify/require"
 )
+
+func TestServerModeConfiguration(t *testing.T) {
+	cfg := Base{}.Default()
+	require.False(t, cfg.ServerMode)
+	fs := flag.NewFlagSet(t.Name(), flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	cfg.BindFlags(fs)
+	t.Setenv("SEED_SERVER_MODE", "true")
+	t.Setenv("SEED_API_ALLOWED_ORIGINS", "https://app.example")
+	require.NoError(t, ff.Parse(fs, nil, ff.WithEnvVarPrefix("SEED")))
+	require.True(t, cfg.ServerMode)
+	require.Equal(t, "https://app.example", cfg.APIAllowedOrigins)
+	require.NoError(t, ff.Parse(fs, []string{"-server-mode=false"}, ff.WithEnvVarPrefix("SEED")))
+	require.False(t, cfg.ServerMode, "an explicit flag overrides the Docker environment")
+}
 
 func TestBootstrapPeersFlag(t *testing.T) {
 	const (

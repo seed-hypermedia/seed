@@ -545,7 +545,7 @@ function ImportURLForm({onSubmit, defaultUrl}: {onSubmit: (url: string) => void;
     setFocus,
     formState: {errors},
   } = useForm<ImportURLFields>({
-    resolver: zodResolver(ImportURLSchema),
+    resolver: zodResolver(ImportURLSchema as any),
     defaultValues: {
       url: defaultUrl,
     },

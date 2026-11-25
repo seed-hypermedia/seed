@@ -1,28 +1,40 @@
 ---
 name: Publish a folder
-summary: How a directory of markdown files in a git repository and a Hypermedia space mirror each other without losing anything, how to edit either side, and how this documentation publishes itself.
+summary: This guide shows how a folder of markdown files in a git repository and a Hypermedia space stay the same without losing anything, and how to edit on either side.
 ---
-A Hypermedia [document](../protocol/documents.md) is a tree of typed [blocks](../protocol/blocks.md) with [annotations](../protocol/blocks.md) and [metadata](../metadata.md). Markdown has syntax for most of that and none for the rest. Repo HM sync keeps a directory of markdown files in a git repository and a Hypermedia [space](../protocol/identity.md) in step. It uses a markdown dialect that carries everything a document can hold. A document exported to a file and imported again is the same document, and a file exported from a document and re-exported is the same text. <!-- id:8v9H35RZ -->
+Folder sync keeps two things the same: a folder of markdown files in a git repository, and a Hypermedia [space](../protocol/spaces.md). Each file is one [document](../protocol/documents.md). You can publish the folder into the space, and you can write the space back into the folder. <!-- id:8v9H35RZ -->
 
-The result is a [site](../protocol/sites.md) you can edit in two places: in git, with a pull request, and in the [Seed app](../apps/desktop.md), with the editor. Either side can be the source of truth for a while, and the other side follows. <!-- id:FUrMW8hZ -->
+Nothing is lost on the way. A document is a tree of typed [blocks](../protocol/blocks.md) with [annotations](../protocol/blocks.md) and [metadata](../metadata.md). Plain markdown can say most of that, but not all. So the files use the [markdown dialect](./markdown-dialect.md), which can hold everything a document holds. A document written to a file and read back is the same document.
 
-# The dialect <!-- id:ypR-0GOe -->
+The result is a [site](../protocol/sites.md) you can edit in two places: in git, with a pull request, and in the [Seed app](../software/desktop.md), with the editor. You can work on either side for a while, and the other side follows. <!-- id:FUrMW8hZ -->
 
-Where markdown has syntax, the dialect uses it: headings, paragraphs, lists, block quotes, fenced code, math, images, links, tables, bold, italic, strikethrough and inline code all look like ordinary markdown and render fine on GitHub. <!-- id:maCi3cFf -->
+# The files <!-- id:ypR-0GOe -->
 
-Every block ends with an HTML comment carrying its identity, `<!-- id:X -->`. Identity is what makes an edit an update of an existing block instead of a replacement. Two optional keys ride in the same comment when markdown has no syntax for something: `type:` names a block type such as Video, File, Button, [Embed](../protocol/blocks.md) or [Query](../protocol/blocks.md), and `attrs:` holds a JSON object of attributes such as an image width or a query definition. A block with nothing special looks like plain markdown plus its id. <!-- id:1DcIkwWG -->
+Each file is one document in the [markdown dialect](./markdown-dialect.md). It looks like normal markdown and shows well on GitHub. Three things are special:
 
-Nesting is indentation. A block's children sit two spaces deeper, or at the content column of a list marker. A heading's children follow it at the same indentation, and `<!-- end:X -->` closes a heading when a non-heading sibling follows. Frontmatter carries every metadata key of the document, including keys the client does not know about. <!-- id:2R3PHmZM -->
+- **Block ids.** Every block ends with an HTML marker that holds its id, `<!-- id:X -->`. The id tells the import that you edited an existing block. Without it, the import would see a new block that replaces the old one.
+- **Frontmatter.** The lines between `---` at the top hold the document's metadata.
+- **Links.** A link from one file to another is a relative file link, such as `[Keys](./keys.md)`. When you publish, it becomes an `hm://` link to the matching document.
 
-Text is escaped so that markdown syntax characters survive. Newlines inside a block are written as `<br>`. Style annotations that markdown lacks, such as underline, highlight and colors, are written as inline HTML tags. <!-- id:MqsUZbaE -->
-
-A hand-written file needs none of the comments. A new file with no ids is matched to an existing document by position, so editing a paragraph in place updates that paragraph and does not replace the page. The ids appear the next time the document is exported. Links between files of the directory are relative file links (`[Keys](./keys.md)`), which render on GitHub and become `hm://` links to the corresponding documents when published. The dialect is implemented once, in the [SDK](./sdk.md). <!-- id:q0ZEm1qw -->
+A file you write by hand needs no markers. The import matches its blocks to the existing document by position. So if you edit a paragraph in place, the import updates that paragraph and does not replace the page. The ids appear in the file the next time you export the document.
 
 # Export and import <!-- id:Qw6tZURQ -->
 
-`space export` writes every document of a space into a directory: the home document as `index.md` and a document at `/a/b` as `a/b.md`. It only touches files whose content changed. Links between documents of the space become relative file links, so they work on GitHub too. <!-- id:FAMAD-7t -->
+Two commands move content between the space and the folder.
 
-`space import` publishes a directory into a space. For each file it fetches the current document, diffs the blocks by id, and publishes a [change](../change.md) on the document's existing history. Unchanged documents produce no change at all, so running it repeatedly never spams [versions](../protocol/documents.md). A hand-written file with no ids is matched to the existing document by position, so editing a paragraph in place updates that paragraph and does not replace the page. Relative links to other files in the directory become links to the corresponding documents. <!-- id:Sgjo6URB -->
+**`space export` writes a space into a folder.** <!-- id:FAMAD-7t -->
+
+- The home document becomes `index.md`. A document at `/a/b` becomes `a/b.md`.
+- It only writes files whose content changed.
+- Links between documents of the space become relative file links, so they work on GitHub too.
+
+**`space import` publishes a folder into a space.** For each file it does three things: <!-- id:Sgjo6URB -->
+
+1. It fetches the current document.
+2. It compares the blocks by id.
+3. It publishes a [change](../change.md) on top of the document's history.
+
+A document that did not change gets no new change. So you can run the import again and again without making new [versions](../protocol/documents.md).
 
 ```sh <!-- id:v2HrI1rl -->
 seed-cli space export hm://<uid> --dir ./site
@@ -31,73 +43,68 @@ seed-cli space import self --dir ./site
 seed-cli space import self --dir ./site --check   # publish nothing while a file would violate its schema
 ```
 
-`--check`, and the `--no-watch` and `--keep-stale` flags of `space dev` below, are newer than the npm release of mid-September 2026 (0.2.9). See [Seed CLI](./cli.md). <!-- id:3FDgTtPD -->
+`self` means the space of the signing key. The CLI finds the signing [key](./keys.md) in one of two places: <!-- id:zcB4OI7D -->
 
-`self` means the signing key's own space. The signing [key](./keys.md) comes from the vault or keyring, or from the environment, which is how CI signs: `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app, or `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. <!-- id:zcB4OI7D -->
+- the Seed app's local key store or the keyring of your operating system;
+- the environment, which is how a CI job signs. `SEED_CLI_KEYFILE` holds the contents of an unencrypted `.hmkey.json` exported from the app. `SEED_CLI_MNEMONIC` holds a BIP-39 phrase. Set only one.
 
-A file renamed in git (`git mv`) keeps its block ids, so the import publishes a [move](../protocol/documents.md): a version [Ref](../ref.md) at the new path and a [redirect](../protocol/documents.md) at the old one. Nothing is imported while a relative link in the directory would break. A document that carries a [schema definition](../schema/typed-documents.md) travels with it. On export the schema [blob](../protocol/blobs.md) is written beside the page as `a/b.schema.json`, and `schemaDefinition` is left out of the page's frontmatter. On import the file is encoded back to [DAG-CBOR](../schema/encoding.md), published, and bound as the document's `schemaDefinition`. The schema file is the only source for it, so don't write `schemaDefinition` in frontmatter. Two limits apply as of September 2026. The signing key must own the space, and importing with a [delegated](../protocol/permissions.md) key is refused. Removing a file does not by itself unpublish the document (see the retire step below). <!-- id:xU_ABl-L -->
+The import also handles these cases: <!-- id:xU_ABl-L -->
+
+- **A renamed file.** A file renamed in git (`git mv`) keeps its block ids. So the import publishes a [move](../protocol/documents.md): a version [Ref](../ref.md) at the new path and a [redirect](../protocol/documents.md) at the old path.
+- **A broken link.** The import publishes nothing while a relative link in the folder points at a file that does not exist.
+- **A schema.** A document that carries a [schema definition](../schema/typed-documents.md) keeps it. On export, the CLI writes the schema [blob](../protocol/blobs.md) beside the page as `a/b.schema.json` and leaves `schemaDefinition` out of the page's frontmatter. On import, it encodes the file back to [DAG-CBOR](../schema/dag-cbor.md), publishes it, and sets it as the document's `schemaDefinition`. The schema file is the only source, so do not write `schemaDefinition` in frontmatter.
+
+Two limits apply:
+
+- The signing key must own the space. The import refuses a [delegated](../protocol/permissions.md) key.
+- Removing a file does not remove its document from the space.
 
 # Editing in the app <!-- id:j-kcO6jR -->
 
-`space dev` turns the desktop dev app into the editor for a directory. It creates a throwaway key under `.dev/` in the directory, registers it in the app's own [daemon](../apps/daemon.md), publishes the directory there, and then watches the daemon. Every document you publish in the app is written straight back as a file, so `git diff` shows the edit within seconds. Only the dev app is watched. The production Seed app registers the same `hm://` scheme, so do not open the site from a link. The loop warns that an edit made there never reaches the directory. <!-- id:sRBhq3FC -->
-
-While the loop runs, the app is the writer and git is where you commit. <!-- id:2YxRmFf1 -->
+`space dev` lets you edit a folder in the Seed app. It works with a development build of the desktop app, not the production app. <!-- id:sRBhq3FC -->
 
 ```sh <!-- id:cOirXqpn -->
 seed-cli space dev --dir ./site
 ```
 
-The loop talks to the dev app's API on `http://localhost:58004` and to its daemon on `http://localhost:58001` (both configurable with `--api` and `--daemon`), polls every two seconds, and also pushes files you change on disk while it runs (`--no-watch` to stop that, `--no-push` to skip the initial publish). The key lives in `<dir>/.dev/dev-key.mnemonic`, ignored by git, and is registered in the daemon under the name `hm-sync-<dirname>-<account tail>`. The accounts the directory has used are recorded in `<dir>/.dev/accounts.json` so that a regenerated key's stale dev site can be retired next time (`--keep-stale` leaves it). The dev daemon is a [peer](../protocol/network.md) like any other, so the dev site propagates to whatever network it is on. Use a development build of the app. <!-- id:zrY2vBSi -->
+The command does four things:
 
-# How this documentation is published <!-- id:S9sJBMK0 -->
+1. It creates a throwaway key under `.dev/` in the folder.
+2. It registers that key in the dev app's own [daemon](../software/daemon.md).
+3. It publishes the folder there.
+4. It watches the daemon. Every document you publish in the app is written back as a file, so `git diff` shows the edit within seconds.
 
-The folder `hypermedia/` in the Seed repository is this site. A small script in the CLI package, `sync-hypermedia.ts`, wraps `space import`, `space export` and `space dev` with the folder's layout: `index.md` is the home document, `README.md` stays on GitHub, every other `<x>.md` publishes at `/<x>`, and a `*.schema.json` beside a page is the schema that page defines. Before anything is published the script encodes every schema file and checks its [CID](../protocol/blobs.md) against `schemas.lock.json`, then publishes the schema blobs first. <!-- id:PtSuOMus -->
+While the loop runs, the app is where you write and git is where you commit. <!-- id:2YxRmFf1 -->
 
-```sh <!-- id:MTYNMnUm -->
-pnpm hypermedia:check                # offline consistency checks (schemas, lockfile, generated files, page names and summaries)
-pnpm hypermedia:push -- --dry-run    # what would change in the main key's space: created, moved, updated, unchanged, retired
-pnpm hypermedia:push                 # publish, signing with the `main` key
-pnpm hypermedia:pull                 # bring edits made in the Seed app back into git
-./dev hm-sync                        # the local editing loop; `./dev up` runs it as the hm-sync pane
-```
+Only the dev app is watched. The production Seed app opens the same `hm://` links, so do not open the dev site from a link. An edit you make in the production app never reaches the folder, and the loop warns you about this.
 
-From `frontend/apps/cli` the same commands are `bun run src/sync-hypermedia.ts push [--dry-run] [--server <url>] [--key <name>] [--keep-stale]`, `pull [--server <url>] [--space <uid>]` and `dev [--api <url>] [--daemon <url>] [--interval <ms>] [--no-push] [--no-watch] [--keep-stale]`. <!-- id:YT7XXn6B -->
+The details: <!-- id:zrY2vBSi -->
 
-**Naming.** The folder never names the space it publishes to. Pages link to each other with relative links. Absolute references to the docs space, such as schema bindings in frontmatter and links in examples, use `hm://hyper.media/…`. The layout sets `selfAuthority` to `hyper.media`: `push` swaps it for the signing key's account in page links and in every `hm://` string in frontmatter, and `pull` swaps the key back. So in git an `attributesSchema` says `hm://hyper.media/example/person`, and on the published site it says `hm://<key>/example/person`. Schema blobs keep `hm://hyper.media` unchanged, so their CIDs match the lockfile. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet, and support is planned. The space is the signing key's own: `main` by default, `--key <name>` to choose, or the key in the environment in CI. A dry run without a key needs `--space <uid>`. `pull` takes `--space <uid>`, or else uses the space of the `main` key. <!-- id:MCPA2cIg -->
+- The loop talks to the dev app's API on `http://localhost:58004` and to its daemon on `http://localhost:58001`. Change them with `--api` and `--daemon`.
+- It checks for changes every two seconds (`--interval <ms>`).
+- It also publishes files you change on disk while it runs. `--no-watch` stops that. `--no-push` skips the first publish.
+- The key is in `<dir>/.dev/dev-key.mnemonic`, which git ignores. The daemon holds it under the name `hm-sync-<dirname>-<account tail>`.
+- The [accounts](../protocol/identity.md) the folder has used are listed in `<dir>/.dev/accounts.json`. If the key is made again, the loop uses this list to retire the old dev site. `--keep-stale` leaves it.
+- The dev daemon is a [peer](../protocol/network.md) like any other. So the dev site spreads to whatever network that daemon is on.
 
-**Retiring pages.** The folder is the truth about what the site publishes, so `push` also retires every document of the site whose file is gone. The document is [tombstoned](../protocol/documents.md). The dry run lists these as `retire`. Redirects left by moves are kept, and the home document is never retired. `--keep-stale` skips the step. Rename a page with `git mv` and the push publishes a move. <!-- id:VveGReog -->
+# A folder with a layout
 
-**Pull.** `pull` exports every document of the site back into the folder, schema files included, and regenerates the lockfile and the bundled schema registry when a schema changed. When the dev loop starts it also compares the folder with the `main` key's site on hyper.media and warns when that site is behind. <!-- id:oXXFJMx7 -->
+A script can wrap these three commands and add rules of its own: which file is the home document, which files stay out, what to check before publishing, and whether a document is retired when its file is gone. The Seed repository does this for the folder that is this site. [Editing these docs](../contribute/editing-these-docs.md) describes that layout and when it publishes.
 
-**CI.** A push to `main` that touches `hypermedia/` runs the consistency checks and then the publish, signing with a repository secret that holds the contents of an exported `.hmkey.json` in `SEED_CLI_KEYFILE`. The site is that key's own space, and no key is written in the repository. <!-- id:6ZSmetkQ -->
+# Who edits where
 
-# Working with it <!-- id:jkjEbVp5 -->
+**A person.** Run the dev loop and edit in the app. Then commit the files it writes back. Documents that were published in the app but are not in the folder come in with the next export. <!-- id:PW7O3ScJ -->
 
-## In the Seed app <!-- id:SQhS12ol -->
+**An agent.** An agent that maintains a site should work in the git checkout and let the import publish. Then every change is reviewed as a diff. An agent can also edit the site directly, for example a [Seed Agents](../agent.md) agent that uses [`write`](../agent/write.md) on an `hm://` address. The next export brings that edit back into git. Both ways keep block ids, so neither loses the other's work. <!-- id:QVJJckLz -->
 
-Run the dev loop and edit in the app. Commit the files it writes back. Documents published in the app that are not in the folder are pulled in on the next export. <!-- id:PW7O3ScJ -->
-
-## CLI <!-- id:VnNTczJ2 -->
-
-Use `space export`, `space import` and `space dev`, plus `key export` for the CI key. [Seed CLI](./cli.md) lists every flag. <!-- id:jSB7Akp1 -->
-
-## SDK <!-- id:fLZdm6QX -->
-
-`blocksToMarkdown`, `parseMarkdown`, `flattenToOperations` and the block-diff helpers are the dialect and the diff. The CLI's `space-sync.ts` composes them. See [SDK](./sdk.md). <!-- id:zaB8S2em -->
-
-## Web API <!-- id:q0SOQufN -->
-
-The import is ordinary `PublishBlobs` requests. Nothing here needs more than the [Seed API](./web-api.md). <!-- id:H9mlTot0 -->
-
-## Agents <!-- id:2zRDnAm1 -->
-
-An agent that maintains a documentation site should work in the git checkout and let the push publish, so every change is reviewed as a diff. If an agent edits the site directly (a [Seed Agents](../agent.md) [`write`](../agent/write.md) to `hm://…`), the next `pull` brings the edit back into git. Both keep block ids, so neither loses the other's work. <!-- id:QVJJckLz -->
+The import sends ordinary `PublishBlobs` requests, so it needs nothing more than the [Seed API](./web-api.md). In the CLI, `space-sync.ts` puts the SDK's dialect functions and block-compare helpers together. <!-- id:H9mlTot0 -->
 
 # See also <!-- id:tp-mbUCj -->
 
-- [Seed CLI](./cli.md) <!-- id:96NwUR-F -->
-- [Keys](./keys.md) <!-- id:usory21u -->
-- [Contributing](./contributing.md) <!-- id:l-NfNt5v -->
+- [Seed CLI](./cli.md), for the flags of `space export`, `space import` and `space dev`. <!-- id:96NwUR-F -->
+- [Markdown dialect](./markdown-dialect.md), for the syntax of the files.
+- [Keys](./keys.md), for `key export` and the variables CI signs with. <!-- id:usory21u -->
+- [Editing these docs](../contribute/editing-these-docs.md), for how the Seed repository publishes this site with these commands. <!-- id:l-NfNt5v -->
 - [Documents](../protocol/documents.md) for what a change, a version and a redirect are <!-- id:OdJU2HjS -->
 - [Hypermedia Schemas](../schema.md) for schema files beside pages <!-- id:5RnHi4tV -->
 - [SDK](./sdk.md) <!-- id:4G3c4uc9 -->

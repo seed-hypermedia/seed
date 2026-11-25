@@ -1,19 +1,48 @@
 import appError from '@/errors'
+import {getPageWebContents, setupWebBrowser} from './app-web-browser'
+import {createBrowserArchiveDraft, getListedDraft} from './app-drafts'
+import {isWebBrowserEnabled} from './app-experiments'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
+import {API_HTTP_URL, DAEMON_FILE_URL, DAEMON_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
-import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
+import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen} from 'electron'
+import isEqual from 'lodash/isEqual'
 import path from 'node:path'
 import {z} from 'zod'
 import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
 import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
+import type {AppWindowPolicy} from './app-window-policy'
+import {installWindowGuards} from './app-window-security'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 import {logWindowClose, logWindowOpen} from './memory-profiler-window'
-import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
+import {
+  getNewWindowRoute,
+  mergeWindowNavState,
+  resolveSelectedIdentityForWindow,
+  type WindowNavState,
+} from './utils/account-selection'
+import {getRouteWindowResourceKeys} from './utils/route-window-identity'
+
+/** Resolve the app's exact origin after its local server has started. */
+export function getAppWindowPolicy(): AppWindowPolicy {
+  const serverPort = (global as typeof globalThis & {localServerPort?: number}).localServerPort
+  const appURL = MAIN_WINDOW_VITE_DEV_SERVER_URL || (serverPort ? `http://localhost:${serverPort}` : null)
+  return {
+    appOrigin: appURL ? new URL(appURL).origin : null,
+    daemonOrigin: new URL(DAEMON_HTTP_URL).origin,
+    fileOrigin: new URL(DAEMON_FILE_URL).origin,
+    connectOrigins: [API_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL].map((url) => new URL(url).origin),
+    development: !!MAIN_WINDOW_VITE_DEV_SERVER_URL,
+  }
+}
+
+/** Reusable guards; implementation is separate to avoid booting the app in fixtures. */
+export {installWindowGuards} from './app-window-security'
 
 const quietNodeLogs = isQuietNodeLogsEnabled()
 
@@ -71,24 +100,24 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
   return BrowserWindow.getFocusedWindow()
 }
 
-// Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'agents', 'api-inspector'])
-
-// Check if a route key should prevent duplicate windows
-function shouldPreventDuplicateWindow(routeKey: string): boolean {
-  return SINGLE_INSTANCE_ROUTES.has(routeKey)
-}
-
-// Find an existing window that has the specified route as its currently active route
-function findWindowWithActiveRoute(routeKey: string): BrowserWindow | null {
+// Find an existing window (other than `excludeWindowId`) whose active route
+// already shows the requested route's resource.
+function findWindowForRoute(
+  route: NavRoute,
+  excludeWindowId?: string,
+): {windowId: string; window: BrowserWindow} | null {
+  const keys = getRouteWindowResourceKeys(route, getListedDraft)
+  if (!keys) return null
   const windowEntries = Array.from(allWindows.entries())
   for (const [windowId, browserWindow] of windowEntries) {
+    if (windowId === excludeWindowId) continue
     const navState = windowNavState[windowId]
 
     if (navState && navState.routes.length > 0) {
       const activeRoute = navState.routes[navState.routeIndex]
-      if (activeRoute && activeRoute.key === routeKey) {
-        return browserWindow
+      const activeKeys = activeRoute && getRouteWindowResourceKeys(activeRoute, getListedDraft)
+      if (activeKeys && Array.from(keys).some((key) => activeKeys.has(key))) {
+        return {windowId, window: browserWindow}
       }
     }
   }
@@ -104,10 +133,29 @@ function focusExistingWindow(browserWindow: BrowserWindow): void {
   browserWindow.show()
 }
 
-// Focus an existing single-instance window and route it to the requested location.
-function openRouteInExistingWindow(browserWindow: BrowserWindow, route: NavRoute): void {
+// Focus an existing window and route it to the requested location. When the
+// window already shows the exact route it is only focused, so reopening a
+// document does not pile duplicate entries onto its history.
+function openRouteInExistingWindow(windowId: string, browserWindow: BrowserWindow, route: NavRoute): void {
   focusExistingWindow(browserWindow)
-  browserWindow.webContents.send('open_route', route)
+  const navState = windowNavState[windowId]
+  const activeRoute = navState?.routes?.[navState.routeIndex]
+  if (!activeRoute || !isEqual(activeRoute, route)) {
+    browserWindow.webContents.send('open_route', route)
+  }
+}
+
+/**
+ * Focus the window already showing `route`'s resource and navigate it to the
+ * requested route. Used when a window tries to open a document another window
+ * has open, so the document stays in one window. Returns false when no window
+ * shows the resource and the caller should navigate normally.
+ */
+export function focusWindowForRoute(route: NavRoute, excludeWindowId?: string): boolean {
+  const found = findWindowForRoute(route, excludeWindowId)
+  if (!found) return false
+  openRouteInExistingWindow(found.windowId, found.window, route)
+  return true
 }
 
 export function closeAppWindow(windowId: string) {
@@ -120,7 +168,7 @@ export function closeAppWindow(windowId: string) {
       routes: [defaultRoute],
       routeIndex: 0,
       sidebarLocked: true,
-      sidebarWidth: 15,
+      sidebarWidth: 22,
       accessoryWidth: 20,
     })
   }
@@ -326,6 +374,20 @@ export function getLastFocusedWindow(): BrowserWindow | null {
   return anyWindow || null
 }
 
+/**
+ * Route for a user-requested new window: the focused window's sidebar space
+ * home, or the welcome page. Falls back to the welcome page when a window is
+ * already showing that space home, since one document is kept in one window.
+ */
+export function getFocusedWindowNewWindowRoute(): NavRoute {
+  const focusedWindow = getLastFocusedWindow()
+  const focusedWindowId = Array.from(allWindows.entries()).find(([, window]) => window === focusedWindow)?.[0]
+  const route = getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+  // A window already showing the space home would absorb the request (one
+  // document per window), so open the welcome page instead.
+  return findWindowForRoute(route) ? defaultRoute : route
+}
+
 let isExpectingQuit = false
 app.addListener('before-quit', () => {
   isExpectingQuit = true
@@ -392,11 +454,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const initRouteIndex = input?.routeIndex || 0
   const targetRoute = initRoutes[initRouteIndex]
 
-  if (targetRoute && shouldPreventDuplicateWindow(targetRoute.key)) {
-    const existingWindow = findWindowWithActiveRoute(targetRoute.key)
+  if (targetRoute) {
+    const existingWindow = findWindowForRoute(targetRoute)
     if (existingWindow) {
-      openRouteInExistingWindow(existingWindow, targetRoute)
-      return existingWindow
+      openRouteInExistingWindow(existingWindow.windowId, existingWindow.window, targetRoute)
+      return existingWindow.window
     }
   }
 
@@ -490,6 +552,10 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
+      // Electron's defaults, stated so the static scan and readers see them.
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,
@@ -503,78 +569,22 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   })
 
   debug('Window created', {windowId})
+  setupWebBrowser(browserWindow, isWebBrowserEnabled, createBrowserArchiveDraft)
 
   if (!quietNodeLogs) {
     const windowLogger = childLogger(`seed/${windowId}`)
     browserWindow.webContents.on('console-message', (event) => logRendererConsoleMessage(windowLogger, event))
   }
 
-  // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
-  browserWindow.webContents.setWindowOpenHandler(({url, frameName, features}) => {
-    // Log for debugging
-    debug('Window open request', {url, frameName, features})
-
-    // Open all external URLs in the default browser
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url)
-    }
-
-    // Deny the window creation - we've handled it by opening in default browser
-    return {action: 'deny'}
-  })
-
-  // Handle navigation attempts within the main frame
-  browserWindow.webContents.on('will-navigate', (event, url) => {
-    // Allow navigation for the main app (localhost in dev, file:// in production)
-    if (url.includes('localhost') || url.startsWith('file://')) {
-      return
-    }
-
-    // Prevent navigation and open in external browser instead
-    event.preventDefault()
-    shell.openExternal(url)
-  })
-
-  // Handle navigation in frames (for iframe content like YouTube embeds)
-  browserWindow.webContents.on('will-frame-navigate', (event) => {
-    const {url, isMainFrame} = event
-
-    // Only handle iframe navigations, not main frame
-    if (!isMainFrame) {
-      // Allow embed domains to load their content
-      const allowedEmbedDomains = [
-        'youtube.com',
-        'youtube-nocookie.com',
-        'twitter.com',
-        'x.com',
-        'platform.twitter.com',
-        'instagram.com',
-        'cdninstagram.com',
-      ]
-
-      const isAllowedEmbed = allowedEmbedDomains.some((domain) => url.includes(domain))
-
-      if (!isAllowedEmbed) {
-        // If it's not an allowed embed domain, open in external browser
-        event.preventDefault()
-        shell.openExternal(url)
-      }
-      // Otherwise allow the embed to load normally
-    }
-  })
-
-  // Additional handler for any child windows that might slip through
-  browserWindow.webContents.on('did-create-window', (childWindow, details) => {
-    // Log for debugging
-    debug('Child window created', {url: details.url})
-
-    // Get the URL and open it externally
-    if (details.url) {
-      shell.openExternal(details.url)
-    }
-
-    // Close the child window immediately
-    childWindow.close()
+  installWindowGuards(browserWindow, {
+    ...getAppWindowPolicy(),
+    // With the experimental web pane on, website links from the app open inside Seed instead of
+    // the OS browser; the guard still requires a real click first.
+    openInApp: (url, contents) => {
+      if (!isWebBrowserEnabled() || !/^https?:\/\//.test(url)) return false
+      contents.send('appWindowEvent', {type: 'open_web_url', url})
+      return true
+    },
   })
 
   const focusedSelectedIdentity = sourceState?.selectedIdentity
@@ -589,7 +599,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     routes: initRoutes,
     routeIndex: initRouteIndex,
     sidebarLocked: input.sidebarLocked ?? sourceState?.sidebarLocked ?? true,
-    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 15,
+    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 22,
     accessoryWidth: input.accessoryWidth ?? sourceState?.accessoryWidth ?? 20,
     selectedIdentity,
     assistantOpen: input.assistantOpen || false,
@@ -661,7 +671,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       routes,
       routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-      sidebarWidth: sidebarWidth || 15,
+      sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     })
@@ -671,7 +681,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       routes,
       routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-      sidebarWidth: sidebarWidth || 15,
+      sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     }))
@@ -694,9 +704,18 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     }))
   }
 
+  // IPC handler for the sidebar's resolved space, used to route new windows. In-memory
+  // only: it is not persisted to windowsState because the renderer re-reports on mount.
+  const windowSidebarSpaceHandler = (info: any, {spaceUid}: {spaceUid: string | null}) => {
+    windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
+      sidebarSpaceUid: spaceUid ?? null,
+    })
+  }
+
   // Note: The initWindow data is sent via the synchronous IPC handler above
   browserWindow.webContents.ipc.addListener('windowNavState', windowNavStateHandler)
   browserWindow.webContents.ipc.addListener('windowAssistantState', windowAssistantStateHandler)
+  browserWindow.webContents.ipc.addListener('windowSidebarSpace', windowSidebarSpaceHandler)
 
   // First render trick: https://getlotus.app/21-making-electron-apps-feel-native-on-mac
   browserWindow.on('ready-to-show', () => {
@@ -727,6 +746,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     // Remove IPC listeners to prevent memory leak
     browserWindow.webContents.ipc.removeListener('windowNavState', windowNavStateHandler)
     browserWindow.webContents.ipc.removeListener('windowAssistantState', windowAssistantStateHandler)
+    browserWindow.webContents.ipc.removeListener('windowSidebarSpace', windowSidebarSpaceHandler)
 
     // Clean up window state
     allWindows.delete(windowId)
@@ -809,9 +829,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (serverPort) {
       browserWindow.loadURL(`http://localhost:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
     } else {
-      // Fallback to file:// if server not available (embeds won't work)
-      browserWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
-      warn('[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work')
+      // The app CSP and origin checks require the local HTTP server.
+      browserWindow.close()
+      throw new Error('Cannot load the app without its local renderer server')
     }
   }
 
@@ -925,11 +945,11 @@ export function hideFindView(win: BrowserWindow) {
     win.contentView.removeChildView(view)
   }
   if (!win.webContents.isDestroyed()) {
-    win.webContents.stopFindInPage('clearSelection')
+    getPageWebContents(win).stopFindInPage('clearSelection')
   }
   // Return focus to the host page so typing doesn't fall into a detached view.
   if (!win.webContents.isDestroyed()) {
-    win.webContents.focus()
+    getPageWebContents(win).focus()
   }
 }
 
@@ -961,8 +981,8 @@ export function createLoadingWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay()
   const {width: screenWidth, height: screenHeight} = primaryDisplay.workAreaSize
 
-  // Keep the loading window compact, but give it standard window controls so
-  // a long-running migration does not block the rest of the desktop.
+  // Keep the loading window compact and frameless; its content provides the
+  // drag region so users can move it during a long-running migration.
   const windowWidth = 400
   const windowHeight = 480
 
@@ -973,7 +993,7 @@ export function createLoadingWindow(): BrowserWindow {
     y: Math.floor((screenHeight - windowHeight) / 2),
     title: 'Seed — Loading',
     show: true, // Show immediately for testing
-    frame: true,
+    frame: false,
     transparent: false,
     resizable: false,
     movable: true,

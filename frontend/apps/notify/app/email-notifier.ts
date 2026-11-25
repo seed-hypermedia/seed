@@ -39,6 +39,7 @@ import {
 import {CID} from 'multiformats'
 import {
   getAllEmails,
+  claimBatchCommentNotifications,
   getAllNotificationConfigs,
   getBatchNotifierLastProcessedEventId,
   getBatchNotifierLastSendTime,
@@ -608,13 +609,6 @@ async function collectNotificationsForEvents({
     })
   }
 
-  const mentionSourceBlobCids = new Set<string>()
-  for (const event of events) {
-    if (event.data.case !== 'newMention') continue
-    const sourceBlobCid = normalizeCidString(event.data.value?.sourceBlob?.cid)
-    if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
-  }
-
   logNotifDebug('notification evaluation start', {
     eventCount: events.length,
     deliveryKind,
@@ -646,7 +640,7 @@ async function collectNotificationsForEvents({
     }
     const notificationCountBefore = Object.values(notificationsToSend).reduce((count, items) => count + items.length, 0)
     try {
-      await evaluateEventForNotifications(event, subscriptions, appendNotification, {mentionSourceBlobCids})
+      await evaluateEventForNotifications(event, subscriptions, appendNotification)
     } catch (error: any) {
       reportError('Error evaluating event for notifications: ' + error.message)
     }
@@ -755,6 +749,7 @@ async function buildImmediateNotificationEmail(
       authorName,
       subjectName,
       documentName,
+      source: notif.source,
       commentBlocks: notif.comment?.content || [],
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
@@ -868,7 +863,7 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
   }
 }
 
-async function processImmediateNotifications(events: PlainMessage<Event>[]) {
+export async function processImmediateNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
   domainVerifier.clear()
   const allEmails = getAllEmails()
@@ -896,7 +891,14 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
       },
     ]
   })
-  const persistedCount = persistNotificationsForInboxAccounts(inboxItems)
+  const accepted = persistNotificationsForInboxAccounts(inboxItems)
+  const persistedCount = accepted.filter(Boolean).length
+  const allowedNotifications = new Set(inboxItems.filter((_, index) => accepted[index]).map((entry) => entry.notif))
+  const acceptedEmails: NotificationsByEmail = {}
+  for (const [email, notifications] of Object.entries(notificationCollection.notificationsByEmail)) {
+    const eligible = notifications.filter((notification) => allowedNotifications.has(notification.notif))
+    if (eligible.length) acceptedEmails[email] = eligible
+  }
   logNotifVerbose('notification inbox persistence complete', {
     sourceEventCount: events.length,
     queuedNotifications: notificationCollection.queuedNotifications.length,
@@ -907,10 +909,10 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
     inboxItems: inboxItems.length,
     persistedCount,
   })
-  await sendImmediateNotificationEmails(notificationCollection.notificationsByEmail)
+  await sendImmediateNotificationEmails(acceptedEmails)
 }
 
-async function processBatchNotifications(events: PlainMessage<Event>[]) {
+export async function processBatchNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
   domainVerifier.clear()
   const allEmails = getAllEmails()
@@ -921,9 +923,24 @@ async function processBatchNotifications(events: PlainMessage<Event>[]) {
     subscriptions,
     deliveryKind: 'batch',
   })
-  await sendBatchNotificationEmails(notificationCollection.notificationsByEmail)
-  // Note: inbox persistence already handled in processImmediateNotifications.
-  // Batch events were already persisted when they were first processed as immediate.
+  const acceptedEmails: NotificationsByEmail = {}
+  for (const [email, notifications] of Object.entries(notificationCollection.notificationsByEmail)) {
+    const candidates = notifications.filter(
+      (item) => item.notif.reason === 'site-new-discussion' && 'comment' in item.notif && !!item.notif.comment?.id,
+    )
+    const accepted = claimBatchCommentNotifications(
+      candidates.map((item) => ({
+        accountId: item.accountId,
+        email,
+        commentId: 'comment' in item.notif ? item.notif.comment!.id : '',
+      })),
+    )
+    const allowed = new Set(candidates.filter((_, index) => accepted[index]))
+    const eligible = notifications.filter((item) => item.notif.reason !== 'site-new-discussion' || allowed.has(item))
+    if (eligible.length) acceptedEmails[email] = eligible
+  }
+  await sendBatchNotificationEmails(acceptedEmails)
+  // Batch site-discussion claims are separate from immediate inbox claims.
 }
 
 /** Returns the stable notifier cursor ID for activity events with valid identity fields. */
@@ -1083,7 +1100,6 @@ async function evaluateEventForNotifications(
   event: PlainMessage<Event>,
   allSubscriptions: NotificationSubscription[],
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
-  options: {mentionSourceBlobCids: Set<string>},
 ) {
   const eventTime = normalizeDate(event.eventTime)
   const observeTime = normalizeDate(event.observeTime)
@@ -1178,8 +1194,7 @@ async function evaluateEventForNotifications(
     }
     const rawComment = toPlainMessage(serverComment)
     const comment = HMCommentSchema.parse(rawComment)
-    const blobCid = normalizeCidString(blob.cid)
-    const includeMentionsFromBody = !blobCid || !options.mentionSourceBlobCids.has(blobCid)
+    // Comment bodies are authoritative even when mention feed events arrive on another page.
     logNotifVerbose('comment blob loaded', {
       eventId: eventMeta.eventId,
       eventAtMs: eventMeta.eventAtMs,
@@ -1190,11 +1205,8 @@ async function evaluateEventForNotifications(
       targetPath: comment.targetPath ?? null,
       replyParent: comment.replyParent ?? null,
       threadRoot: comment.threadRoot ?? null,
-      includeMentionsFromBody,
     })
-    await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
-      includeMentionsFromBody,
-    })
+    await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta)
   }
 }
 
@@ -1359,6 +1371,8 @@ async function buildVerifiedResourceUrl(
     siteOwnerUid: string
     path?: string[] | null
     viewTerm?: string | null
+    panel?: string | null
+    reply?: string | null
     blockRef?: string | null
   },
 ): Promise<string> {
@@ -1371,6 +1385,8 @@ async function buildVerifiedResourceUrl(
           hostname: opts.siteUrl,
           path: opts.path,
           viewTerm: opts.viewTerm,
+          panel: opts.panel,
+          reply: opts.reply,
           blockRef: opts.blockRef,
           originHomeId: hmId(opts.siteOwnerUid),
         })
@@ -1382,6 +1398,8 @@ async function buildVerifiedResourceUrl(
     hostname: fallbackSiteBaseUrl,
     path: opts.path,
     viewTerm: opts.viewTerm,
+    panel: opts.panel,
+    reply: opts.reply,
     blockRef: opts.blockRef,
   })
 }
@@ -1471,11 +1489,6 @@ async function evaluateMentionEventForNotifications(
     if (!sourceCommentId || !commentPath) {
       return
     }
-    mentionUrl = await buildVerifiedResourceUrl(sourceCommentId.uid, {
-      siteUrl,
-      siteOwnerUid: sourceDocId.uid,
-      path: [commentPath],
-    })
     try {
       const sourceBlobCid = mentionEvent.sourceBlob?.cid
       if (sourceBlobCid) {
@@ -1490,6 +1503,16 @@ async function evaluateMentionEventForNotifications(
     } catch (error: any) {
       reportError(`Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`)
     }
+    // Never send/claim an unresolvable comment mention as a null-comment row.
+    // A later retry or the comment blob event can still deliver it.
+    if (!mentionComment?.id) return
+    mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
+      siteUrl,
+      siteOwnerUid: sourceDocId.uid,
+      path: sourceDocId.path,
+      panel: `comments/${mentionComment.threadRoot || mentionComment.id}`,
+      reply: mentionComment.threadRoot ? mentionComment.id : undefined,
+    })
   } else {
     const sourceDocument = await getDocument(
       hmId(sourceId.uid, {
@@ -1550,7 +1573,6 @@ async function evaluateNewCommentForNotifications(
   allSubscriptions: NotificationSubscription[],
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
   eventMeta: NotificationEventMeta,
-  options: {includeMentionsFromBody: boolean},
 ) {
   logNotifDebug('evaluate comment notification', {
     eventId: eventMeta.eventId,
@@ -1558,7 +1580,6 @@ async function evaluateNewCommentForNotifications(
     commentAuthor: comment.author,
     targetAccount: comment.targetAccount,
     hasReplyParent: Boolean(comment.replyParent),
-    includeMentionsFromBody: options.includeMentionsFromBody,
   })
   const parentStartTime = Date.now()
   const parentComments = await getParentComments(comment)
@@ -1628,16 +1649,16 @@ async function evaluateNewCommentForNotifications(
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
   const commentSiteUrl = targetDocumentSiteUrl || targetAccountSiteUrl
-  const commentUrl = await buildVerifiedResourceUrl(comment.author, {
+  const commentUrl = await buildVerifiedResourceUrl(targetDocId.uid, {
     siteUrl: commentSiteUrl,
     siteOwnerUid: comment.targetAccount,
-    path: [commentTSID],
+    path: targetDocId.path,
+    panel: `comments/${comment.threadRoot || comment.id}`,
+    reply: comment.threadRoot ? comment.id : undefined,
   })
 
   // Get all mentioned users in this comment
-  const mentionedUsers = options.includeMentionsFromBody
-    ? extractMentionedAccountUidsFromComment(comment)
-    : new Set<string>()
+  const mentionedUsers = extractMentionedAccountUidsFromComment(comment)
   const resolvedNames = await resolveContentReferenceNames(comment.content)
 
   // Get the parent comment author for reply notifications
@@ -1670,7 +1691,10 @@ async function evaluateNewCommentForNotifications(
     candidateSubscriptions: allSubscriptions.length,
   })
 
+  const noMentionRecipients = new Set<string>()
   for (const sub of allSubscriptions) {
+    // Subscriptions without mention delivery still qualify for their discussion
+    // (including the legacy site-discussion batch fallback).
     const commentReason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: sub.id,
       commentAuthorUid: commentAuthorUid,
@@ -1678,7 +1702,7 @@ async function evaluateNewCommentForNotifications(
       targetAuthorUids,
       isTopLevelComment: !comment.threadRoot,
       parentCommentAuthorUid: parentCommentAuthor,
-      mentionedAccountUids: mentionedUsers,
+      mentionedAccountUids: sub.notifyAllMentions ? mentionedUsers : noMentionRecipients,
     })
 
     logNotifVerbose('comment notification candidate evaluated', {

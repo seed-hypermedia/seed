@@ -26,6 +26,7 @@ type ExploreSort = (typeof EXPLORE_SORTS)[number]
  * Converts a directly parseable Hypermedia app URL into an application route.
  */
 export function hypermediaUrlToRoute(url: string): NavRoute | null {
+  if (/^(?:https?:\/\/[^/]+)?\/hm\/drafts\/?(?:[?#].*)?$/.test(url)) return {key: 'drafts'}
   // A link to the web agents UI (what "Copy trigger link" and friends produce) is an app route.
   const agentsRoute = agentsRouteFromAbsoluteUrl(url)
   if (agentsRoute) return agentsRoute
@@ -45,14 +46,35 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     isInspect,
     viewTerm,
     activityFilter,
+    feedTab,
     commentId,
     accountUid,
     settingsTab,
     settingsDomain,
+    agentView,
+    appView,
+    toolCallId,
+    agentSessionId,
+    agentTriggerId,
   } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
   let id = unpackHmId(cleanUrl)
   if (!id) return null
+  if (appView)
+    return {key: 'document', id: {...id, version: null, latest: true, blockRef: null, blockRange: null}, appView}
+  if (toolCallId)
+    return {key: 'document', id: {...id, version: null, latest: true, blockRef: null, blockRange: null}, toolCallId}
+  if (agentView || (viewTerm === ':settings' && id.path?.length && !settingsTab)) {
+    const params = new URLSearchParams(url.split('?')[1]?.split('#')[0])
+    return {
+      key: 'document',
+      id: {...id, version: null, latest: true, blockRef: null, blockRange: null},
+      agentView: agentView || 'settings',
+      ...(agentSessionId ? {agentSessionId} : {}),
+      ...(agentTriggerId || params.get('trigger') ? {agentTriggerId: agentTriggerId || params.get('trigger')!} : {}),
+      ...(params.get('file') ? {agentMemoryPath: params.get('file')!} : {}),
+    }
+  }
 
   // On comment permalink URLs (/:comments/UID/TSID?v=CID), ?v is the comment
   // version, not the target document version — keep it off the document id.
@@ -75,7 +97,11 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
   const panelParam = query?.panel || null
   const effectivePanelParam =
-    !panelParam && routeKey === 'activity' && activityFilter ? `activity/${activityFilter}` : panelParam
+    !panelParam && routeKey === 'activity' && activityFilter
+      ? `activity/${activityFilter}`
+      : !panelParam && routeKey === 'feed' && feedTab
+        ? `feed/${feedTab}`
+        : panelParam
   const inspectTabParam = query?.tab
   const inspectTab =
     isInspect && inspectTabParam && (INSPECT_TABS as readonly string[]).includes(inspectTabParam)
@@ -87,7 +113,34 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
 
   if (routeKey || panelParam || commentId || accountUid) {
-    const route = createDocumentNavRoute(id, routeKey, effectivePanelParam, commentId, accountUid, commentVersion)
+    const route = createDocumentNavRoute(
+      id,
+      routeKey,
+      effectivePanelParam,
+      commentId,
+      accountUid,
+      commentVersion,
+      query?.reply,
+    )
+    if (route.key === 'comments' && query?.quote) {
+      const range = query.quoteRange?.match(/^(\d+):(\d+)$/)
+      const start = range ? Number(range[1]) : undefined
+      const end = range ? Number(range[2]) : undefined
+      return {
+        ...route,
+        targetBlockId: query.quote,
+        blockId: query.quote,
+        ...(start !== undefined &&
+        end !== undefined &&
+        Number.isSafeInteger(start) &&
+        Number.isSafeInteger(end) &&
+        end >= start
+          ? {blockRange: {start, end}}
+          : {}),
+        isReplying: true,
+        autoFocus: true,
+      }
+    }
     if (route.key === 'activity' && activityFilter) {
       return {
         ...route,

@@ -12,6 +12,8 @@ const syncUnsubscribeMock = vi.fn()
 const getAgentServerHealthMock = vi.fn()
 const getAgentWebSocketUrlMock = vi.fn()
 const signAgentActionMock = vi.fn()
+const sendAgentActionMock = vi.fn()
+const getQueryClientMock = vi.fn()
 
 const storeData: Record<string, any> = {}
 
@@ -33,11 +35,12 @@ vi.mock('@shm/ui/agents/client', () => ({
   getAgentWebSocketUrl: getAgentWebSocketUrlMock,
   isSafeAgentServerSecretTarget: vi.fn(),
   normalizeAgentServerUrl: vi.fn((input: string) => new URL(input).toString().replace(/\/$/, '')),
-  sendAgentAction: vi.fn(),
+  sendAgentAction: sendAgentActionMock,
   signAgentAction: signAgentActionMock,
 }))
 
 vi.mock('@shm/shared/models/query-client', () => ({
+  getQueryClient: getQueryClientMock,
   invalidateQueries: invalidateQueriesMock,
   queryClient: {
     removeQueries: vi.fn(),
@@ -129,7 +132,7 @@ async function waitForCondition(predicate: () => boolean) {
   }
 }
 
-describe('agent server models', () => {
+describe('app environment models', () => {
   const originalNodeEnv = process.env.NODE_ENV
 
   beforeEach(() => {
@@ -156,13 +159,50 @@ describe('agent server models', () => {
     vi.unstubAllGlobals()
   })
 
-  it('seeds the configured server list with the built-in default in development', async () => {
+  it('refreshes a provider catalog in every picker sharing its cached list', async () => {
+    const oldModels = [{id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'}]
+    const freshModels = [{id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol'}]
+    sendAgentActionMock.mockResolvedValueOnce({_: 'ListProviderModelsResponse', models: oldModels})
+    sendAgentActionMock.mockResolvedValueOnce({_: 'ListProviderModelsResponse', models: freshModels})
+
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() => ({
+      firstPicker: mod.useProviderModels('http://agents.test', 'alice', 'ChatGPT'),
+      secondPicker: mod.useProviderModels('http://agents.test', 'alice', 'ChatGPT'),
+      refresh: mod.useRefreshProviderModels('http://agents.test', 'alice'),
+    }))
+    getQueryClientMock.mockReturnValue(rendered.queryClient)
+
+    try {
+      await waitForCondition(() => rendered.result().firstPicker.data !== undefined)
+      expect(rendered.result().firstPicker.data).toEqual(oldModels)
+      expect(rendered.result().secondPicker.data).toEqual(oldModels)
+
+      await act(async () => {
+        await rendered.result().refresh.mutateAsync('ChatGPT')
+      })
+      await waitForCondition(() => rendered.result().firstPicker.data?.[0]?.id === 'gpt-6.1-sol')
+
+      expect(sendAgentActionMock).toHaveBeenLastCalledWith({
+        serverUrl: 'http://agents.test',
+        accountUid: 'alice',
+        action: {_: 'ListProviderModels', provider: 'ChatGPT', refresh: true},
+      })
+      expect(rendered.result().firstPicker.data).toEqual(freshModels)
+      expect(rendered.result().secondPicker.data).toEqual(freshModels)
+    } finally {
+      cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    }
+  })
+
+  it('knows the built-in default in development before any server is remembered', async () => {
     process.env.NODE_ENV = 'development'
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -171,13 +211,13 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('seeds the configured server list with the hosted default in production', async () => {
+  it('knows the hosted default in production before any server is remembered', async () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -186,13 +226,13 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('does not re-seed the built-in default after the list is emptied in production', async () => {
+  it('does not bring the built-in default back after the last server is forgotten in production', async () => {
     process.env.NODE_ENV = 'production'
     storeData['agent-server-urls'] = []
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
-    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
+    const rendered = renderHook(() => mod.useKnownAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
@@ -201,16 +241,39 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('clears the stored default when the configured server list becomes empty', async () => {
+  it('remembers a server an agent was put on, keeping the ones already known', async () => {
+    process.env.NODE_ENV = 'production'
+
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
+    const rendered = renderHook(() => mod.useRememberAgentServer())
+
+    await act(async () => {
+      await rendered.result().mutateAsync('https://agents.example.com/')
+    })
+
+    // The built-in default was only implied until now; remembering another must not drop it.
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-urls', [
+      DEFAULT_AGENT_SERVER_URL,
+      'https://agents.example.com',
+    ])
+    // It is also the server offered first the next time one is chosen.
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-url', 'https://agents.example.com')
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+  })
+
+  it('forgets a server and the default that pointed at it', async () => {
     storeData['agent-server-url'] = 'http://localhost:3050'
     storeData['agent-server-urls'] = ['http://localhost:3050']
 
     vi.resetModules()
     const mod = await import('@shm/ui/agents/models')
-    const rendered = renderHook(() => mod.useSetAgentServerUrls())
+    const rendered = renderHook(() => mod.useForgetAgentServer())
 
     await act(async () => {
-      await rendered.result().mutateAsync([])
+      await rendered.result().mutateAsync('http://localhost:3050')
     })
 
     expect(setSettingMock).toHaveBeenCalledWith('agent-server-urls', [])
@@ -221,13 +284,13 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('uses the production default agent server in production builds', async () => {
+  it('uses the production default app environment in production builds', async () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()
     const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
 
-    expect(DEFAULT_AGENT_SERVER_URL).toBe('https://agentic.seed.hyper.media')
+    expect(DEFAULT_AGENT_SERVER_URL).toBe('https://hyper.media/hm/api/apps')
   })
 
   it('syncs references only for the mounted session and unsubscribes when it closes', async () => {

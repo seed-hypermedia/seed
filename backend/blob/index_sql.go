@@ -212,7 +212,7 @@ type blobsGetSizeResult struct {
 	BlobsSize int64
 }
 
-func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (blobsGetSizeResult, error) {
+func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, serverMode bool) (blobsGetSizeResult, error) {
 	var out blobsGetSizeResult
 
 	before := func(stmt *sqlite.Stmt) {
@@ -229,7 +229,7 @@ func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (
 		return nil
 	}
 
-	if publicOnly {
+	if serverMode {
 		err := sqlitegen.ExecStmt(conn, qBlobsGetSizePublic(), before, onStep)
 		if err != nil {
 			err = fmt.Errorf("failed query: BlobsGetSizePublic: %w", err)

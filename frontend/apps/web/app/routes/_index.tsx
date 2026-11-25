@@ -8,8 +8,9 @@ import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
-import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
+import {clientLoader as clientLoaderFn, DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+import {DocumentLoadErrorBoundary} from '@/document-load'
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {
   return await loaderFn({
@@ -17,6 +18,10 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     request,
   })
 }
+
+export const clientLoader = clientLoaderFn
+
+export const ErrorBoundary = DocumentLoadErrorBoundary
 
 export function shouldRevalidate({
   currentUrl,
@@ -33,6 +38,7 @@ export function shouldRevalidate({
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  replyCommentId?: string | null
   openComment?: string | null
 }
 
@@ -61,7 +67,15 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+        data.openComment,
+        undefined,
+        undefined,
+        data.replyCommentId,
+      )}
     >
       <InnerResourcePage docId={data.id} ssrContentHTML={data.ssrContentHTML} />
     </WebSiteProvider>

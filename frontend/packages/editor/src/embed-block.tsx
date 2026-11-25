@@ -1,12 +1,13 @@
-import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
+import {type DomainResolverFn, extractCommentIdFromUrl, resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {hmDomainUrlToWebUrl} from '@seed-hypermedia/client/hm-resolver'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {useResource} from '@shm/shared/models/entity'
+import {useResolvedHmId, useResource} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {commentIdToHmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
@@ -29,9 +30,9 @@ import {
   BetweenHorizontalStart,
   CreditCard,
   ExternalLink as ExternalLinkIcon,
+  Forward,
   Link2,
   Pencil,
-  Forward,
   SquareMinus,
   SquarePen,
   Trash2,
@@ -43,7 +44,6 @@ import {
   type SyntheticEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -53,7 +53,6 @@ import {selectBlockNodeById} from './block-utils'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
-import {EmbedEditorView} from './embed-editor'
 import {transformEmbedNode} from './hm-link-preview'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
@@ -320,7 +319,11 @@ export async function resolveEmbedUrl(
     domainResolver?: DomainResolverFn
   } = {},
 ): Promise<EmbedResolveResult> {
-  const directHmId = unpackHmId(url)
+  // A comment URL embeds the comment it names (the selected reply when there is one), not
+  // the document it sits on.
+  const commentId = url.includes('#') ? null : extractCommentIdFromUrl(url)
+  if (commentId) return {kind: 'direct', url: packHmId(commentIdToHmId(commentId))}
+  const directHmId = hmDomainUrlToWebUrl(url) ? null : unpackHmId(url)
   if (directHmId) {
     return {kind: 'direct', url: packHmId(directHmId)}
   }
@@ -407,7 +410,11 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 }
 
 const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
-  const {canEdit, isEditing} = useEditorGate()
+  const gate = useEditorGate()
+  // Read-only comments and embeds can live inside an actively edited document.
+  const readOnly = editor.renderType === 'viewer' || editor.renderType === 'embed'
+  const canEdit = !readOnly && gate.canEdit
+  const isEditing = !readOnly && gate.isEditing
   const isSelected = useIsBlockSelected(editor, block)
   const isCardView = block.props.view === 'Card'
   const isLinkView = block.props.view === 'Link'
@@ -437,7 +444,9 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
           }}
         />
       )}
-      {showActions ? <SelectedEmbedActions editor={editor} block={block} isSelected={isSelected} /> : null}
+      {showActions ? (
+        <SelectedEmbedActions editor={editor} block={block} isSelected={isSelected} inline={isLinkView} />
+      ) : null}
     </MediaContainer>
   )
   return content
@@ -555,19 +564,20 @@ function SubdocumentMenu({
   )
 }
 
-/** Floating action bar on the bottom right
- * of a Card and Link embeds in edit mode. */
+/** Floating action bar for Card and Link embeds. */
 function SelectedEmbedActions({
   editor,
   block,
   isSelected,
+  inline,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   isSelected: boolean
+  inline: boolean
 }) {
   const url = block.props.url as string
-  const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
+  const {id: docId} = useResolvedHmId(url)
 
   // External URLs have no embed-specific action bar.
   if (!docId) return null
@@ -580,8 +590,10 @@ function SelectedEmbedActions({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       className={cn(
-        'absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md',
-        'border-border bg-background border px-1 py-0.5 shadow-sm',
+        'absolute z-10 flex items-center gap-1 rounded-md',
+        inline
+          ? 'bg-background top-1/2 right-1 -translate-y-1/2'
+          : 'border-border bg-background right-2 bottom-2 border px-1 py-0.5 shadow-sm',
         'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
         isSelected && 'opacity-100',
       )}
@@ -620,22 +632,7 @@ function EditorEmbedContent({
     return <BlockEmbedLink block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 
   // if (block.attributes.view === 'Content') // content is the default
-  return (
-    <BlockEmbedContent
-      block={block}
-      parentBlockId={parentBlockId}
-      openOnClick={openOnClick}
-      renderDocumentContent={({embedBlocks, id, blockRef, blockRange, rootChildrenType}) => (
-        <EmbedEditorView
-          blocks={embedBlocks}
-          id={id}
-          focusBlockId={blockRef ?? undefined}
-          blockRange={blockRange ?? undefined}
-          rootChildrenType={rootChildrenType}
-        />
-      )}
-    />
-  )
+  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 }
 
 export const EmbedLauncherInput = ({

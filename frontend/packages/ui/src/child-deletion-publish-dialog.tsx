@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from './components/alert-dialog'
 import {DocumentDeletionReferences} from './document-deletion-references'
+import {XIcon} from 'lucide-react'
 import {DeletionDocumentList} from './delete-document-dialog'
 
 /** Confirms the exact destructive scope before publishing a parent's last-reference removals. */
@@ -40,14 +41,17 @@ export function ChildDeletionPublishDialog() {
           }
         }}
       >
+        <AlertDialogCancel variant="ghost" size="icon" aria-label="Back to editing" className="absolute top-4 right-4">
+          <XIcon />
+        </AlertDialogCancel>
         <AlertDialogHeader>
-          <AlertDialogTitle>
+          <AlertDialogTitle className="pr-8">
             {failed ? 'Unable to review child deletions' : 'Publishing will delete child documents'}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {failed
-              ? `Your draft is safe and has not been published. ${error}`
-              : 'The last reference to these direct children was removed from their parent. These documents and their listed descendants will be deleted after publishing. Cancel to restore a reference or review your changes.'}
+              ? `Your draft is safe and has not been published. ${error} You can still publish without deleting any child documents.`
+              : 'The last reference to these direct children was removed from their parent. Publish and delete removes these documents and their listed descendants. Publish without deleting keeps them as child documents.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {!failed && (
@@ -64,10 +68,16 @@ export function ChildDeletionPublishDialog() {
           />
         )}
         {confirming && !failed && <DocumentDeletionReferences documentIds={documents.map((document) => document.id)} />}
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => send({type: 'publish.cancelChildDeletion'})}>
-            Back to editing
-          </AlertDialogCancel>
+        <AlertDialogFooter className="sm:flex-wrap">
+          <AlertDialogAction
+            variant="outline"
+            onClick={(event) => {
+              event.preventDefault()
+              send({type: 'publish.skipChildDeletion'})
+            }}
+          >
+            Publish without deleting
+          </AlertDialogAction>
           {!failed && (
             <AlertDialogAction
               variant="destructive"

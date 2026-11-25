@@ -48,14 +48,22 @@ func (o TSID) Parse() (ts time.Time, hash [4]byte, err error) {
 }
 
 // Bytes returns the byte representation of the TSID.
+// TSIDs are always base58btc multibase strings of 10 bytes (see [NewTSIDWithHash]),
+// so any other encoding or length is rejected. This matters because arbitrary strings
+// like document paths are probed with this method to tell TSIDs apart from paths:
+// e.g. "user-story-maps" happens to be a valid 10-byte base64url ('u' prefix) multibase string.
 func (o TSID) Bytes() (out [10]byte, err error) {
-	_, b, err := multibase.Decode(string(o))
+	enc, b, err := multibase.Decode(string(o))
 	if err != nil {
 		return out, err
 	}
 
+	if enc != multibase.Base58BTC {
+		return out, fmt.Errorf("TSID must be base58btc encoded: got multibase encoding %q", multibase.EncodingToStr[enc])
+	}
+
 	if len(b) != 10 {
-		return out, fmt.Errorf("BUG: TSID byte representation must be 10 bytes long")
+		return out, fmt.Errorf("TSID byte representation must be 10 bytes long: got %d", len(b))
 	}
 
 	copy(out[:], b)

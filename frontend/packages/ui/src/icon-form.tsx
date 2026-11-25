@@ -5,6 +5,8 @@ import {Button} from './button'
 import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {toast} from './toast'
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
 
 export function IconForm({
   url,
@@ -35,12 +37,14 @@ export function IconForm({
   const upload = (file: File, resetInput?: () => void) => {
     if (!onIconUpload) return
     if (!fileUpload) return
-    fileUpload(file)
+    processImage(file, AVATAR_IMAGE_POLICY)
+      .then(fileUpload)
       .then((data) => {
         onIconUpload(data)
       })
       .catch((error) => {
         console.error(`Failed to upload icon: ${error.message}`, error)
+        toast.error(error instanceof Error ? error.message : 'Failed to upload icon')
       })
       .finally(() => {
         resetInput?.()
@@ -56,14 +60,8 @@ export function IconForm({
     if (!file) return
     if (!onIconUpload) return
     if (!fileUpload) return
-    // Clear the input so the same file can be chosen again after the cropper is cancelled.
-    if (cropper.pick(file)) {
-      event.target.value = ''
-      return
-    }
-    upload(file, () => {
-      event.target.value = ''
-    })
+    event.target.value = ''
+    if (!cropper.pick(file)) upload(file)
   }
 
   const iconImage = <UIAvatar label={label} id={id} url={url} size={size} />
@@ -82,6 +80,7 @@ export function IconForm({
       >
         <input
           type="file"
+          accept={IMAGE_FILE_ACCEPT}
           onChange={handleFileChange}
           style={{
             opacity: 0,

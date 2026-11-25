@@ -32,7 +32,7 @@ import {useNetworkDialog} from './network-dialog'
 export default function Footer({children}: {children?: ReactNode}) {
   const updateStatus = useUpdateStatus()
   return (
-    <FooterWrapper className="flex-none">
+    <FooterWrapper>
       <FooterNetworkingButton />
       <div className="flex items-center gap-4 px-1">
         <SizableText
@@ -46,6 +46,11 @@ export default function Footer({children}: {children?: ReactNode}) {
           <SizableText size="xs" color="muted" className="cursor-default select-none" style={{fontSize: 10}}>
             {getUpdateStatusLabel(updateStatus)}
           </SizableText>
+        )}
+        {updateStatus?.type === 'ready-to-restart' && updateStatus.deferred && (
+          <Button size="sm" variant="outline" onClick={() => window.autoUpdate?.restart()}>
+            Restart to Update
+          </Button>
         )}
       </div>
 

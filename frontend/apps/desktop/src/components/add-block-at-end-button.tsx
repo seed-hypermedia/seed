@@ -8,7 +8,7 @@ export function AddBlockAtEndButton({editor}: {editor: HyperMediaEditor}) {
     <Button
       size="icon"
       variant="outline"
-      className="text-muted-foreground hover:bg-primary mt-2 flex size-6 h-7 w-7 min-w-6 scale-95 items-center justify-center rounded-full transition-all hover:scale-110 hover:text-white active:scale-95"
+      className="text-muted-foreground hover:bg-primary mt-2 flex size-6 h-7 w-7 min-w-6 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 hover:text-white active:scale-95"
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()

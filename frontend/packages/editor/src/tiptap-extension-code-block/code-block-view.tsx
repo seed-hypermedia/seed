@@ -1,18 +1,13 @@
 import {Button} from '@shm/ui/button'
+import {DiagramView} from '@shm/ui/diagram-view'
 import {Tooltip} from '@shm/ui/tooltip'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {Check, ChevronDown, Copy, Eye, EyeOff, X} from 'lucide-react'
-import mermaid from 'mermaid'
+import {renderAsync} from 'pele/lazy'
+import '@shm/ui/diagram.css'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-
-// Initialize mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'default',
-  securityLevel: 'loose',
-})
 
 let mermaidRenderId = 0
 
@@ -28,6 +23,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [mermaidSvg, setMermaidSvg] = useState<string>('')
   const [mermaidError, setMermaidError] = useState<string | null>(null)
+  const [diagramToolbar, setDiagramToolbar] = useState<HTMLSpanElement | null>(null)
 
   const isMermaid = language === 'mermaid'
   const codeContent = node.textBetween(0, node.content.size, '', '\n')
@@ -61,12 +57,11 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
     if (!codeContent.trim()) return
 
     const id = `mermaid-preview-${mermaidRenderId++}`
-    mermaid.render(id, codeContent).then(
+    renderAsync(codeContent, {idPrefix: id}).then(
       ({svg}) => {
         if (!cancelled) setMermaidSvg(svg)
       },
       (error) => {
-        document.getElementById(id)?.remove()
         if (!cancelled) setMermaidError(error instanceof Error ? error.message : 'Invalid diagram')
       },
     )
@@ -226,6 +221,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
             )}
           </Button>
         </Tooltip>
+        <span ref={setDiagramToolbar} className="contents" />
         <span className="sr-only" role="status">
           {copyState === 'idle' ? '' : copyLabel}
         </span>
@@ -274,10 +270,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
               <p className="font-mono text-sm">Error: {mermaidError}</p>
             </div>
           ) : mermaidSvg ? (
-            <div
-              className="flex w-full items-center justify-center overflow-auto"
-              dangerouslySetInnerHTML={{__html: mermaidSvg}}
-            />
+            <DiagramView svg={mermaidSvg} expandButtonContainer={diagramToolbar} />
           ) : (
             <p className="text-muted-foreground text-center text-sm">
               {codeContent.trim() ? 'Rendering diagram…' : 'Enter diagram code to preview'}

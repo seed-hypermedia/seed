@@ -13,7 +13,7 @@ import {
 } from './chat-parts'
 import {formatElapsed, formatStepDuration, formatThinkingDuration} from './agent-run-status'
 import {serverNow, useServerNow} from './server-clock'
-import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
+import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/apps-protocol'
 import {
   detailLinkTarget,
   firstInlinePathValue,
@@ -50,30 +50,23 @@ import {ParkedRunActions} from './run-parked-actions'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
+import {getToolIcon} from './tool-icons'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {cn} from '@shm/ui/utils'
 import {
   Activity,
-  BookOpenText,
-  Bot,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Clock3,
-  Compass,
   Info,
-  ListChecks,
+  Globe,
   Loader2,
-  PackageCheck,
-  PenLine,
-  Route,
-  Search,
   SquareTerminal,
   UserRound,
   Workflow,
-  Wrench,
 } from 'lucide-react'
 import React, {Fragment, Suspense, useMemo, useRef, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
@@ -107,7 +100,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
    * model's next message lands.
    */
   isLiveTail?: boolean
-  /** Agent server URL, needed to resolve session attachment images for display. */
+  /** App environment URL, needed to resolve session attachment images for display. */
   serverUrl?: string
   /** Signing account for server-side record queries (delegate work views). */
   accountUid?: string | null
@@ -330,7 +323,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   /** See ChatMessageBubble: keeps a trailing thinking group live between tool calls. */
   isLiveTail?: boolean
   rawMarkdownButton?: React.ReactNode
-  /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
+  /** App environment the parts' tool calls ran on, for tools that link to server-side records. */
   serverUrl?: string
   /** Signing account for server-side record queries (the delegate work view needs it). */
   accountUid?: string | null
@@ -513,7 +506,8 @@ function DeliberationDivider({durationMs, first}: {durationMs: number; first: bo
  */
 function StatusUpdateRow({item}: {item: ChatToolPart}) {
   const title = getToolString(item.args, 'title')
-  const description = getToolString(item.args, 'description')
+  // A reader the transcript is private to gets the server's redaction stub as the call's input.
+  const description = getToolString(item.args, 'description') ?? getToolString(item.args, 'summary')
   const isPending = item.result === undefined && item.rawOutput === undefined
   const [detailsOpen, setDetailsOpen] = useState(false)
   // The model turn that wrote this update, on the provider's clock. A status update is the one row
@@ -689,7 +683,7 @@ export function AgentErrorRow({
 
 /**
  * Resolves `attachment://<id>` links in a user message's blocks to displayable `data:` URLs by
- * fetching the session-private attachment bytes from the agent server. Blocks pass through
+ * fetching the session-private attachment bytes from the app environment. Blocks pass through
  * untouched while the fetch is in flight or when the message has no attachments.
  */
 function useAttachmentResolvedBlocks(
@@ -726,6 +720,8 @@ function substituteAttachmentLinks(blocks: HMBlockNode[], srcById: Record<string
  * popover with the verbatim lines.
  */
 function MessageContextInfo({lines}: {lines: string[]}) {
+  const isBrowser = lines.includes('View: web')
+  const pageUrl = isBrowser ? lines.find((line) => line.startsWith('URL: '))?.slice(5) : undefined
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -734,12 +730,13 @@ function MessageContextInfo({lines}: {lines: string[]}) {
           className="text-muted-foreground hover:text-foreground mt-1.5 flex items-center gap-1 rounded-full border border-current/20 px-1.5 py-0.5 text-[10px] opacity-80"
           title="What the agent was told about your current window"
         >
-          <Info className="size-3" />
-          Context
+          {isBrowser ? <Globe className="size-3" /> : <Info className="size-3" />}
+          {isBrowser ? 'Browser context' : 'Context'}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 max-w-[90vw] p-3">
         <div className="text-muted-foreground mb-2 text-xs font-medium">Context shared with the agent</div>
+        {pageUrl ? <div className="mb-2 text-xs break-all">{pageUrl}</div> : null}
         <pre className="bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-[11px] whitespace-pre-wrap">
           {lines.join('\n')}
         </pre>
@@ -900,7 +897,7 @@ function useToolLinkOpener() {
       const route =
         target.type === 'memory'
           ? {key: 'agent' as const, agentId, serverUrl, tab: 'memory' as const, memoryPath: target.path}
-          : {key: 'agent' as const, agentId, serverUrl, tab: 'tools' as const}
+          : {key: 'agent' as const, agentId, serverUrl, tab: 'permissions' as const}
       clickNavigate(route, event as never)
     },
   }
@@ -999,7 +996,7 @@ function TruncatedPayloadNotice({
 
 /**
  * Which machines a tool call touched, for the inspector. A timed-out publish reads the same as a
- * timed-out read unless the dialog says where the request went: the agent server that ran the tool,
+ * timed-out read unless the dialog says where the request went: the app environment that ran the tool,
  * and the Seed HM server that server publishes to and reads from (per its health endpoint). Every
  * `read`/`write` hits that HM server — a write may only target it — so the row is named for what
  * the operator has to go look at, not for the tool.
@@ -1016,7 +1013,7 @@ function ToolCallServersSection({args}: {args: ChatToolPart['args'] | undefined}
           : undefined
       : undefined
   const rows: {label: string; value: string}[] = [
-    {label: 'Agent server', value: serverUrl || 'Unknown'},
+    {label: 'App environment', value: serverUrl || 'Unknown'},
     {
       label: 'Hypermedia server',
       value: health.data?.hmServerUrl || (health.isError ? 'Unreachable' : health.isLoading ? 'Loading…' : 'Unknown'),
@@ -2065,35 +2062,6 @@ const toolColorClasses = {
   hidden: 'border-border bg-muted/60 text-muted-foreground',
 }
 
-/** Kind-keyed fallback icons. Every icon is distinct — a shared wrench says nothing about a row. */
-const toolIcons = {
-  search: Search,
-  read: BookOpenText,
-  resolve: Route,
-  navigate: Compass,
-  write: PenLine,
-  generic: Wrench,
-  // Hidden-kind rows are the session's own bookkeeping (status, plan) — notes about the work,
-  // not work.
-  hidden: Info,
-}
-
-/**
- * Name-keyed icons for calls whose kind icon would say the wrong thing: delegation and code
- * execution are registered as "write" tools, but a pen tells the reader nothing about spawning a
- * child or running a script.
- */
-const toolIconsByName: Record<string, typeof Wrench> = {
-  delegate: Bot,
-  sub_session: Bot,
-  run_workflow: Workflow,
-  execute: SquareTerminal,
-  execute_code: SquareTerminal,
-  return_result: PackageCheck,
-  status: Info,
-  plan: ListChecks,
-}
-
 /** Last few non-empty lines of a live output tail. */
 function lastOutputLines(outputTail: string, maxLines: number): string {
   return outputTail
@@ -2256,15 +2224,19 @@ function DelegateWorkDetails({
 
       {(sessionId || runId) && serverUrl ? (
         <div className="flex items-center gap-3">
-          {sessionId ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
-          {runId ? <OpenRunLink runId={runId} serverUrl={serverUrl} /> : null}
+          {/* A child with a transcript is read there; the run page is only for one without. */}
+          {sessionId ? (
+            <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} />
+          ) : runId ? (
+            <OpenRunLink runId={runId} serverUrl={serverUrl} />
+          ) : null}
         </div>
       ) : null}
     </div>
   )
 }
 
-/** The child run's own page: the durable record, reachable even when the child has no transcript. */
+/** The child run's own page: the durable record of a child that has no transcript. */
 function OpenRunLink({runId, serverUrl}: {runId: string; serverUrl: string}) {
   const clickNavigate = useClickNavigate()
   return (
@@ -2440,7 +2412,7 @@ export function ToolCallLine({
 }: {
   item: ChatToolPart
   liveActivity?: AgentRunActivity
-  /** Agent server the run lives on; without it the embedded run record cannot be loaded. */
+  /** App environment the run lives on; without it the embedded run record cannot be loaded. */
   serverUrl?: string
   /** Signing account for server-side queries; without it the delegate work view falls back to raw details. */
   accountUid?: string | null
@@ -2466,7 +2438,7 @@ export function ToolCallLine({
       ? Workflow
       : isExecuteRow
         ? SquareTerminal
-        : toolIconsByName[item.name] ?? toolIcons[render?.kind || 'generic']
+        : getToolIcon(item.name, render?.kind)
   const isPending = item.result === undefined && item.rawOutput === undefined
   const rowLabel = isTimerWorkflow
     ? isPending

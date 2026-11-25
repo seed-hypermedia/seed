@@ -136,6 +136,47 @@ func TestGetResource(t *testing.T) {
 		require.Equal(t, "Test Document", resp.GetDocument().Metadata.Fields["title"].GetStringValue())
 	})
 
+	t.Run("GetDocumentWithTSIDLookingPath", func(t *testing.T) {
+		t.Parallel()
+		srv := newTestDocsAPI(t, "carol")
+		ctx := context.Background()
+
+		// Regression: "user-story-maps" multibase-decodes (base64url, 'u' prefix) to exactly
+		// 10 bytes, so it used to be mistaken for a comment TSID and GetResource failed with
+		// "blob type 'Change' is not supported" when a version was pinned.
+		// The second path is a real base58btc TSID string used as a document path.
+		paths := []string{
+			"/user-story-maps",
+			"/" + string(blob.NewTSIDWithHash(time.UnixMilli(1793298326812), [4]byte{1, 2, 3, 4})),
+		}
+
+		for _, path := range paths {
+			doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+				SigningKeyName: "main",
+				Account:        srv.me.Account.PublicKey.String(),
+				Path:           path,
+				Changes: []*documents.DocumentChange{
+					{Op: &documents.DocumentChange_SetMetadata_{
+						SetMetadata: &documents.DocumentChange_SetMetadata{
+							Key:   "title",
+							Value: "TSID-looking path",
+						},
+					}},
+				},
+			})
+			require.NoError(t, err, path)
+
+			base := fmt.Sprintf("hm://%s%s", srv.me.Account.Principal(), path)
+			for _, iri := range []string{base, base + "?v=" + doc.Version} {
+				resp, err := srv.GetResource(ctx, &documents.GetResourceRequest{Iri: iri})
+				require.NoError(t, err, iri)
+				require.NotNil(t, resp.GetDocument(), iri)
+				require.Equal(t, path, resp.GetDocument().Path, iri)
+				require.Equal(t, doc.Version, resp.GetDocument().Version, iri)
+			}
+		}
+	})
+
 	t.Run("GetDocumentViaWebURLWithHmPath", func(t *testing.T) {
 		t.Parallel()
 		srv := newTestDocsAPI(t, "alice")
@@ -289,7 +330,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
 		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 
 		iri := fmt.Sprintf("hm://%s/%s", srv.me.Account.Principal(), tsid)
@@ -354,7 +395,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
 
 		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 		iri := fmt.Sprintf("hm://%s/%s?v=%s", srv.me.Account.Principal(), tsid, comment.CID)
@@ -365,6 +406,77 @@ func TestGetResource(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.GetComment())
 		require.Equal(t, "/test", resp.GetComment().TargetPath)
+	})
+
+	t.Run("GetEditedCommentWithSpecificVersion", func(t *testing.T) {
+		t.Parallel()
+		srv := newTestDocsAPI(t, "alice")
+		ctx := context.Background()
+
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        srv.me.Account.PublicKey.String(),
+			Path:           "/test",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{
+						Key:   "title",
+						Value: "Test Document",
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		originalBody := []blob.CommentBlock{
+			{
+				Block: blob.Block{
+					Type: "paragraph",
+					Text: "This is the original comment",
+				},
+			},
+		}
+
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, originalBody, time.Now())
+		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
+
+		editedBody := []blob.CommentBlock{
+			{
+				Block: blob.Block{
+					Type: "paragraph",
+					Text: "This is the edited comment",
+				},
+			},
+		}
+
+		edited := mustCreateComment(ctx, t, srv.idx, &srv.me, tsid, srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, editedBody, comment.Decoded.BlobTime().Add(time.Second))
+
+		// Pinning the edited version must resolve to the same record, with the
+		// edited text and the edit blob's CID as its version.
+		iri := fmt.Sprintf("hm://%s/%s?v=%s", srv.me.Account.Principal(), tsid, edited.CID)
+		resp, err := srv.GetResource(ctx, &documents.GetResourceRequest{
+			Iri: iri,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetComment())
+		require.Equal(t, blob.RecordID{Authority: srv.me.Account.Principal(), TSID: tsid}.String(), resp.GetComment().Id)
+		require.Equal(t, edited.CID.String(), resp.GetComment().Version)
+		require.Len(t, resp.GetComment().Content, 1)
+		require.Equal(t, "This is the edited comment", resp.GetComment().Content[0].Block.Text)
+
+		// Pinning the original version must still resolve and return the original text.
+		originalIRI := fmt.Sprintf("hm://%s/%s?v=%s", srv.me.Account.Principal(), tsid, comment.CID)
+		originalResp, err := srv.GetResource(ctx, &documents.GetResourceRequest{
+			Iri: originalIRI,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, originalResp.GetComment())
+		require.Equal(t, blob.RecordID{Authority: srv.me.Account.Principal(), TSID: tsid}.String(), originalResp.GetComment().Id)
+		require.Equal(t, comment.CID.String(), originalResp.GetComment().Version)
+		require.Len(t, originalResp.GetComment().Content, 1)
+		require.Equal(t, "This is the original comment", originalResp.GetComment().Content[0].Block.Text)
 	})
 
 	t.Run("GetContactWithSpecificVersion", func(t *testing.T) {
@@ -470,10 +582,10 @@ func TestGetResource(t *testing.T) {
 	})
 }
 
-func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, space core.Principal, path string, version []cid.Cid, threadRoot, replyParent cid.Cid, body []blob.CommentBlock, ts time.Time) blob.Encoded[*blob.Comment] {
+func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, id blob.TSID, space core.Principal, path string, version []cid.Cid, threadRoot, replyParent cid.Cid, body []blob.CommentBlock, ts time.Time) blob.Encoded[*blob.Comment] {
 	t.Helper()
 
-	eb, err := blob.NewComment(u.Account, "", space, path, version, threadRoot, replyParent, body, blob.VisibilityPublic, ts.Round(blob.ClockPrecision))
+	eb, err := blob.NewComment(u.Account, id, space, path, version, threadRoot, replyParent, body, blob.VisibilityPublic, ts.Round(blob.ClockPrecision))
 	require.NoError(t, err)
 
 	// eb implements blocks.Block directly

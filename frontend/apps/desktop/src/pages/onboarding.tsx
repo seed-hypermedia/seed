@@ -2,12 +2,13 @@ import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {useDesktopAccountIntent} from '@/components/desktop-intents'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useSelectedAccountId} from '@/selected-account'
-import {getOrCreateSiteHome} from '@/utils/create-site'
+import {findExistingSiteHome} from '@/utils/create-site'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
+import {useOpenCreateSpace} from '@shm/ui/create-space-context'
 import {PanelContainer} from '@shm/ui/container'
 import {GeneralPageSurface} from '@shm/ui/general-page'
 import {toast} from '@shm/ui/toast'
@@ -22,18 +23,21 @@ export default function OnboardingPage() {
   const triggerWindowEvent = useTriggerWindowEvent()
   const navigate = useNavigate()
   const createSiteIntent = useDesktopAccountIntent()
+  const openCreateSpace = useOpenCreateSpace()
   const [isCreatingSite, setIsCreatingSite] = useState(false)
 
   const createSite = async (accountUid: string) => {
     setIsCreatingSite(true)
     try {
-      const homeId = await getOrCreateSiteHome(accountUid)
-      navigate({
-        key: 'document',
-        id: homeId,
-      })
+      // An identity signed in from elsewhere may already have a space.
+      const existingHomeId = await findExistingSiteHome(accountUid)
+      if (existingHomeId) {
+        navigate({key: 'document', id: existingHomeId})
+      } else {
+        openCreateSpace?.()
+      }
     } catch (error) {
-      console.error('Failed to verify site before creating draft:', error)
+      console.error('Failed to verify site before creating space:', error)
       toast.error('Could not verify whether your space already exists. Please try again.')
     } finally {
       setIsCreatingSite(false)
@@ -99,7 +103,7 @@ export default function OnboardingPage() {
                 </div>
                 <button
                   onClick={() => createAccountDialog.open({})}
-                  className="flex items-center gap-4 rounded-lg border p-4 shadow-sm transition-all hover:shadow-lg"
+                  className="flex items-center gap-4 rounded-lg border p-4 shadow-sm transition-shadow duration-150 hover:shadow-md"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dotted border-neutral-400 bg-white">
                     <User className="size-6 text-neutral-400" />

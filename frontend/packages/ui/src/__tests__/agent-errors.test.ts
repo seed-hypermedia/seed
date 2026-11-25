@@ -37,11 +37,11 @@ describe('describeAgentError', () => {
   it('keeps a refusal from the server as an error, quoting what it said', () => {
     const notice = describeAgentError(new AgentServerError('forbidden', 403), {
       failed: 'Couldn’t load this agent',
-      serverLabel: 'Local Agents',
+      serverLabel: 'Local app environment',
     })
     expect(notice.tone).toBe('error')
     expect(notice.title).toBe('Couldn’t load this agent')
-    expect(notice.detail).toBe('Local Agents refused the request: forbidden')
+    expect(notice.detail).toBe('Local app environment refused the request: forbidden')
   })
 
   it('falls back to the raw message without a server label', () => {

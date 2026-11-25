@@ -265,55 +265,6 @@ describe('Draft route detection', () => {
   })
 })
 
-describe('URL displayable route detection', () => {
-  function isUrlDisplayableRoute(route: {key: string}): boolean {
-    return (
-      route.key === 'document' ||
-      route.key === 'feed' ||
-      route.key === 'activity' ||
-      route.key === 'directory' ||
-      route.key === 'collaborators' ||
-      route.key === 'comments'
-    )
-  }
-
-  it('should return true for document route', () => {
-    expect(isUrlDisplayableRoute({key: 'document'})).toBe(true)
-  })
-
-  it('should return true for feed route', () => {
-    expect(isUrlDisplayableRoute({key: 'feed'})).toBe(true)
-  })
-
-  it('should return true for activity route', () => {
-    expect(isUrlDisplayableRoute({key: 'activity'})).toBe(true)
-  })
-
-  it('should return true for directory route', () => {
-    expect(isUrlDisplayableRoute({key: 'directory'})).toBe(true)
-  })
-
-  it('should return true for collaborators route', () => {
-    expect(isUrlDisplayableRoute({key: 'collaborators'})).toBe(true)
-  })
-
-  it('should return true for comments route', () => {
-    expect(isUrlDisplayableRoute({key: 'comments'})).toBe(true)
-  })
-
-  it('should return false for draft route', () => {
-    expect(isUrlDisplayableRoute({key: 'draft'})).toBe(false)
-  })
-
-  it('should return false for contacts route', () => {
-    expect(isUrlDisplayableRoute({key: 'contacts'})).toBe(false)
-  })
-
-  it('should return false for bookmarks route', () => {
-    expect(isUrlDisplayableRoute({key: 'bookmarks'})).toBe(false)
-  })
-})
-
 describe('View term for route', () => {
   // Simulate getViewTermForRoute logic
   function getViewTermForRoute(route: {key: string; panel?: {key: string}}): string | null {

@@ -15,12 +15,24 @@ import {code as rawCodec} from 'multiformats/codecs/raw'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
+import * as accountMnemonic from './account-mnemonic'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
 import * as notificationApi from './notification-api'
 import type {AccountProfileSummary, ProfileLoadState} from './profile'
 import * as vault from './vault'
+
+// The signed request is public protocol data, never vault keys or credentials.
+const PENDING_DELEGATION_KEY = 'seed-vault-pending-delegation'
+
+function clearPendingDelegation() {
+  try {
+    window.sessionStorage.removeItem(PENDING_DELEGATION_KEY)
+  } catch {
+    // Storage can be unavailable; the in-memory flow still works.
+  }
+}
 
 export interface SessionInfo {
   authenticated: boolean
@@ -59,6 +71,33 @@ export function getPendingFlowPath(
     return state.returnToPath
   }
   return '/'
+}
+
+/**
+ * sessionStorage marker set just before an enterprise vault hands a direct
+ * visit to the site's sign-in page. The site sends a browser it already knows
+ * straight back; the marker tells the vault not to send it out again.
+ */
+const SITE_SIGN_IN_RETURN_KEY = 'vault:site-sign-in-return'
+
+/** Records that the next load of this tab comes back from the site's sign-in. */
+export function markSiteSignInReturn(): void {
+  try {
+    window.sessionStorage.setItem(SITE_SIGN_IN_RETURN_KEY, '1')
+  } catch {
+    // Storage unavailable: the vault simply offers its own sign-in next time.
+  }
+}
+
+/** Reads and clears the marker; true when this page load returns from the site's sign-in. */
+export function consumeSiteSignInReturn(): boolean {
+  try {
+    const marked = window.sessionStorage.getItem(SITE_SIGN_IN_RETURN_KEY) === '1'
+    if (marked) window.sessionStorage.removeItem(SITE_SIGN_IN_RETURN_KEY)
+    return marked
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -627,6 +666,92 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     await ensureVaultLoaded(freshVaultResponse)
   }
 
+  async function importAccount(loadKey: () => Promise<{publicKey: string; seed: Uint8Array}>) {
+    if (!state.decryptedDEK) {
+      state.error = 'Vault must be unlocked first'
+      throw new Error(state.error)
+    }
+
+    state.loading = true
+    state.error = ''
+
+    if (!state.vaultLoaded) {
+      try {
+        await ensureVaultLoaded()
+      } catch (e) {
+        state.error = state.error || getErrorMessage(e, 'Failed to load vault')
+        state.loading = false
+        throw e
+      }
+    }
+
+    const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+    const previousSelectedAccountIndex = state.selectedAccountIndex
+    let insertedAccount = false
+
+    try {
+      const loaded = await loadKey()
+      const alreadyExists = vaultData.accounts.some((candidate) => {
+        return vault.getAccountName(candidate) === loaded.publicKey
+      })
+
+      if (alreadyExists) {
+        throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+      }
+
+      const importedAccount: vault.Account = {
+        name: loaded.publicKey,
+        seed: loaded.seed,
+        createTime: Date.now(),
+        delegations: [],
+      }
+
+      vaultData.accounts.push(importedAccount)
+      insertedAccount = true
+      state.selectedAccountIndex = vaultData.accounts.length - 1
+
+      try {
+        await actions.saveVaultData()
+      } catch (error) {
+        if (!(error instanceof APIError) || error.statusCode !== 409) {
+          throw error
+        }
+
+        // Discard our optimistic insertion before loading the remote accounts.
+        vaultData.accounts.pop()
+        insertedAccount = false
+        state.selectedAccountIndex = previousSelectedAccountIndex
+        await reloadVaultAfterConflict()
+        const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+        const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
+          return vault.getAccountName(candidate) === loaded.publicKey
+        })
+
+        if (existingAccountIndex !== -1) {
+          throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+        }
+
+        refreshedVaultData.accounts.push(importedAccount)
+        insertedAccount = true
+        state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
+        await actions.saveVaultData()
+      }
+      return loaded.publicKey
+    } catch (e) {
+      if (insertedAccount) {
+        state.vaultData.accounts.pop()
+        state.selectedAccountIndex = previousSelectedAccountIndex
+      }
+
+      // Error is surfaced to the user via state.error; no console.error
+      // to avoid noisy output in tests that intentionally trigger failures.
+      state.error = state.error || getErrorMessage(e, 'Failed to import account')
+      throw e
+    } finally {
+      state.loading = false
+    }
+  }
+
   const actions = {
     resetState() {
       Object.assign(
@@ -807,14 +932,29 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handlePreLogin() {
+    async handlePreLogin({
+      signInOnly = false,
+      checkRegistration = false,
+    }: {signInOnly?: boolean; checkRegistration?: boolean} = {}) {
       state.error = ''
       state.loading = true
 
+      const email = state.inviteOnly ? state.email.trim().toLowerCase() : state.email
+      state.email = email
       try {
-        const data = await client.preLogin({email: state.email})
+        const data = await client.preLogin({email})
+        // Ignore an answer for an address the user changed while the lookup was pending.
+        if (state.email !== email) return false
         const hasPassword = data.credentials?.password ?? false
         const hasPasskey = data.credentials?.passkey ?? false
+
+        // Signing in must never send registration email or create an account.
+        if (signInOnly && (!data.exists || (!hasPassword && !hasPasskey))) {
+          state.error = 'No sign-in method found for this email. Check the address or choose Create account.'
+          return false
+        }
+
+        if (checkRegistration && (!data.exists || (!hasPassword && !hasPasskey))) return true
 
         if (data.exists) {
           state.userHasPassword = hasPassword
@@ -830,8 +970,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         } else {
           await actions.handleStartRegistration()
         }
-      } catch (_e) {
-        state.error = 'Connection failed. Please try again.'
+      } catch (e) {
+        if (state.email === email) {
+          state.error = state.inviteOnly && e instanceof APIError ? e.message : 'Connection failed. Please try again.'
+        }
       } finally {
         state.loading = false
       }
@@ -1316,18 +1458,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
      */
     async handleConditionalLogin() {
       if (!localCrypto.isWebAuthnSupported()) {
-        console.log('Webauthn not supported')
         return
       }
 
       try {
         const available = await webauthn.browserSupportsWebAuthnAutofill()
         if (!available) {
-          console.log('Webauthn autofill not supported')
           return
         }
       } catch (err) {
-        console.log('Webauthn autfill error', err)
         return
       }
 
@@ -1772,85 +1911,18 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /** Import an exported account key file into the unlocked vault. */
     async importAccount(keyFileJSON: string, password?: string) {
-      if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        throw new Error(state.error)
-      }
+      return importAccount(() => keyfile.load(keyFileJSON, password))
+    },
 
-      state.loading = true
-      state.error = ''
-
-      if (!state.vaultLoaded) {
-        try {
-          await ensureVaultLoaded()
-        } catch (e) {
-          state.error = state.error || getErrorMessage(e, 'Failed to load vault')
-          state.loading = false
-          throw e
-        }
-      }
-
-      const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
-      const previousSelectedAccountIndex = state.selectedAccountIndex
-      let insertedAccount = false
-
-      try {
-        const loaded = await keyfile.load(keyFileJSON, password)
-        const alreadyExists = vaultData.accounts.some((candidate) => {
-          return vault.getAccountName(candidate) === loaded.publicKey
-        })
-
-        if (alreadyExists) {
-          throw new Error(`Account ${loaded.publicKey} already exists in vault`)
-        }
-
-        const importedAccount: vault.Account = {
-          name: loaded.publicKey,
-          seed: loaded.seed,
-          createTime: Date.now(),
-          delegations: [],
-        }
-
-        vaultData.accounts.push(importedAccount)
-        insertedAccount = true
-        state.selectedAccountIndex = vaultData.accounts.length - 1
-
-        try {
-          await actions.saveVaultData()
-        } catch (error) {
-          if (!(error instanceof APIError) || error.statusCode !== 409) {
-            throw error
-          }
-
-          await reloadVaultAfterConflict()
-          const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
-          const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
-            return vault.getAccountName(candidate) === loaded.publicKey
-          })
-
-          if (existingAccountIndex !== -1) {
-            throw new Error(`Account ${loaded.publicKey} already exists in vault`)
-          }
-
-          refreshedVaultData.accounts.push(importedAccount)
-          state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
-          await actions.saveVaultData()
-        }
-        return loaded.publicKey
-      } catch (e) {
-        if (insertedAccount) {
-          state.vaultData.accounts.pop()
-          state.selectedAccountIndex = previousSelectedAccountIndex
-        }
-
-        // Error is surfaced to the user via state.error; no console.error
-        // to avoid noisy output in tests that intentionally trigger failures.
-        state.error = state.error || getErrorMessage(e, 'Failed to import account')
-        throw e
-      } finally {
-        state.loading = false
-      }
+    /** Restore an account from its original mnemonic and optional passphrase. */
+    async importAccountFromMnemonic(phrase: string, passphrase = '') {
+      return importAccount(async () => {
+        const seed = await accountMnemonic.deriveAccountSeed(phrase, passphrase)
+        const publicKey = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
+        return {seed, publicKey}
+      })
     },
 
     selectAccount(index: number) {
@@ -2048,19 +2120,42 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     /**
      * Parse delegation parameters from a URL and store the request.
-     * If the URL has no delegation params, this is a no-op.
+     * On authentication routes without params, resumes this tab’s pending request.
      * If params are present but invalid, sets state.error.
      */
     parseDelegationFromUrl(url: URL | string) {
       try {
-        const request = hmauth.parseDelegationRequest(url)
+        let request = hmauth.parseDelegationRequest(url)
+        const current = new URL(url)
+        // Only resume on authentication routes, never when explicitly opening settings.
+        if (
+          !request &&
+          /^\/vault(?:\/?$|\/login(?:\/|$)|\/delegate$|\/auth\/|\/verify\/|\/password\/)/.test(current.pathname)
+        ) {
+          let saved: string | null = null
+          try {
+            saved = window.sessionStorage.getItem(PENDING_DELEGATION_KEY)
+          } catch {
+            // No persisted request is available in this browser.
+          }
+          if (saved) {
+            request = hmauth.parseDelegationRequest(saved)
+            if (request?.vaultOrigin !== current.origin) throw new Error('Delegation request vault origin mismatch')
+          }
+        }
         if (request) {
+          try {
+            window.sessionStorage.setItem(PENDING_DELEGATION_KEY, request.originalUrl)
+          } catch {
+            // Continue this login in memory if browser storage is unavailable.
+          }
           state.delegationRequest = request
           if (request.email) {
             state.email = request.email
           }
         }
       } catch (e) {
+        clearPendingDelegation()
         state.error = (e as Error).message || 'Invalid delegation request'
       }
     },
@@ -2289,6 +2384,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           }
         }
 
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
 
@@ -2310,16 +2406,19 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const url = new URL(state.delegationRequest.redirectUri)
         url.searchParams.set('error', 'access_denied')
         url.searchParams.set('state', state.delegationRequest.state)
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
         window.location.href = url.toString()
       } else {
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
       }
     },
 
     async handleLogout() {
+      clearPendingDelegation()
       await client.logout()
       state.session = null
       state.decryptedDEK = null

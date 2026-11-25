@@ -5,7 +5,7 @@ import {act} from 'react-dom/test-utils'
 import type {NavRoute} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {EmbedWrapper} from '../embed-wrapper'
+import {EmbedWrapper, getEmbedDocumentRoute} from '../embed-wrapper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -94,6 +94,36 @@ describe('EmbedWrapper', () => {
     expect(routeOnClickMock).not.toHaveBeenCalled()
   })
 
+  it('leaves editor selection clicks active when embed navigation is disabled', () => {
+    const id = hmId('uid-1', {path: ['doc']})
+    act(() =>
+      root.render(
+        <EmbedWrapper id={id} route={{key: 'document', id}} parentBlockId={null} openOnClick={false}>
+          <span>Editable embed</span>
+        </EmbedWrapper>,
+      ),
+    )
+    const event = new MouseEvent('click', {bubbles: true, cancelable: true})
+    container.querySelector('span')!.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('does not cancel navigation clicks within a nested embed', () => {
+    const id = hmId('uid-1', {path: ['doc']})
+    act(() =>
+      root.render(
+        <EmbedWrapper id={id} route={{key: 'document', id}} parentBlockId={null}>
+          <div data-content-type="embed">
+            <span>Nested source</span>
+          </div>
+        </EmbedWrapper>,
+      ),
+    )
+    const event = new MouseEvent('click', {bubbles: true, cancelable: true})
+    container.querySelector('span')!.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it('preserves an active comments panel while passing a block-ref document embed id unchanged', () => {
     const panelId = hmId('uid-source', {path: ['source']})
     const targetId = hmId('uid-target', {
@@ -119,6 +149,91 @@ describe('EmbedWrapper', () => {
       key: 'document',
       id: targetId,
       panel: {key: 'comments', id: panelId, openComment: 'source-comment'},
+    })
+  })
+})
+
+describe('embed reference routes', () => {
+  it('moves an expanded thread into the panel while selecting document content', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(
+      getEmbedDocumentRoute(reference, {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'}),
+    ).toEqual({
+      key: 'document',
+      id: {...id, blockRef: 'block', blockRange: {start: 2, end: 8}},
+      panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
+    })
+  })
+
+  it('preserves the active document version and panel when selecting its reference', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const panel = {key: 'comments' as const, id, openComment: 'thread'}
+    const route = {key: 'document' as const, id, panel}
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(getEmbedDocumentRoute(reference, route)).toEqual({
+      ...route,
+      id: {...id, blockRef: 'block', blockRange: {start: 2, end: 8}},
+    })
+    expect(route.id.blockRef).toBeNull()
+  })
+
+  it('keeps the embed version on the same document when keepVersion is set', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const panel = {key: 'comments' as const, id, openComment: 'thread'}
+    const route = {key: 'document' as const, id, panel}
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(getEmbedDocumentRoute(reference, route, {keepVersion: true})).toEqual({
+      ...route,
+      id: {
+        ...id,
+        version: 'quoted-version',
+        latest: false,
+        blockRef: 'block',
+        blockRange: {start: 2, end: 8},
+      },
+    })
+  })
+
+  it('keeps the embed version and panel on the comments route when keepVersion is set', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(
+      getEmbedDocumentRoute(
+        reference,
+        {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
+        {keepVersion: true},
+      ),
+    ).toEqual({
+      key: 'document',
+      id: {
+        ...id,
+        version: 'quoted-version',
+        latest: false,
+        blockRef: 'block',
+        blockRange: {start: 2, end: 8},
+      },
+      panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
     })
   })
 })

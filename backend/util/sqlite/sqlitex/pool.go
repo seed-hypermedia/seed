@@ -58,6 +58,10 @@ type Pool struct {
 
 	all   map[*sqlite.Conn]context.CancelFunc
 	roles map[*sqlite.Conn]connRole
+	// cacheStats is the last page-cache sample of every connection, taken
+	// each time Put returns it. Fixed after Open, so Put reads it without
+	// the lock just like roles.
+	cacheStats map[*sqlite.Conn]*cacheSample
 
 	mu sync.RWMutex
 }
@@ -68,6 +72,29 @@ const (
 	connRead connRole = iota
 	connWrite
 )
+
+// cacheSample is one connection's page cache as of the last time it came
+// back to the pool. Put is the one moment a connection is both idle and owned
+// by the calling goroutine, which under SQLITE_OPEN_NOMUTEX is the only safe
+// moment to ask SQLite about it.
+type cacheSample struct {
+	usedBytes atomic.Int64
+	hits      atomic.Int64
+	misses    atomic.Int64
+	sampledAt atomic.Int64 // unix nanoseconds, zero until the first Put
+}
+
+// ConnCacheStats is one pooled connection's page cache as sampled the last
+// time it was returned to the pool.
+type ConnCacheStats struct {
+	Role      string
+	Stats     sqlite.CacheStats
+	SampledAt time.Time
+}
+
+// openPools is every Pool that is currently open, so /debug/sqlite can list
+// their connections without being handed a pool.
+var openPools sync.Map // *Pool -> struct{}
 
 // Open opens a fixed-size pool of SQLite connections.
 // A flags value of 0 defaults to:
@@ -99,6 +126,7 @@ func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err err
 		freeWrite:  make(chan *sqlite.Conn, 1),
 		closed:     make(chan struct{}),
 		file:       uri,
+		cacheStats: make(map[*sqlite.Conn]*cacheSample, poolSize+1),
 	}
 	defer func() {
 		// If an error occurred, call Close outside the lock so this doesn't deadlock.
@@ -131,6 +159,7 @@ func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err err
 	p.freeWrite <- conn
 	p.all[conn] = func() {}
 	p.roles[conn] = connWrite
+	p.cacheStats[conn] = &cacheSample{}
 
 	for range poolSize {
 		conn, err := sqlite.OpenConn(uri, readFlags)
@@ -146,9 +175,42 @@ func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err err
 		p.freeRead <- conn
 		p.all[conn] = func() {}
 		p.roles[conn] = connRead
+		p.cacheStats[conn] = &cacheSample{}
 	}
 
+	openPools.Store(p, struct{}{})
 	return p, nil
+}
+
+// ConnCacheStats reports every connection's page cache as of the last time it
+// was returned to the pool. A connection that has never come back has a zero
+// SampledAt.
+func (p *Pool) ConnCacheStats() []ConnCacheStats {
+	out := make([]ConnCacheStats, 0, len(p.cacheStats))
+	for conn, s := range p.cacheStats {
+		role := "read"
+		if p.roles[conn] == connWrite {
+			role = "write"
+		}
+
+		var at time.Time
+
+		if ns := s.sampledAt.Load(); ns != 0 {
+			at = time.Unix(0, ns)
+		}
+
+		out = append(out, ConnCacheStats{
+			Role: role,
+			Stats: sqlite.CacheStats{
+				UsedBytes: s.usedBytes.Load(),
+				Hits:      s.hits.Load(),
+				Misses:    s.misses.Load(),
+			},
+			SampledAt: at,
+		})
+	}
+
+	return out
 }
 
 // File returns the path to the database file that was used to create the pool.
@@ -396,6 +458,15 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 
 	conn.ResetTxTracking()
 	cancel()
+
+	// Sample the page cache while this goroutine still owns the connection.
+	cs := conn.CacheStats()
+	s := p.cacheStats[conn]
+	s.usedBytes.Store(cs.UsedBytes)
+	s.hits.Store(cs.Hits)
+	s.misses.Store(cs.Misses)
+	s.sampledAt.Store(time.Now().UnixNano())
+
 	switch p.roles[conn] {
 	case connRead:
 		p.freeRead <- conn
@@ -435,6 +506,7 @@ var PoolCloseTimeout = 5 * time.Second
 // Close will panic if not all connections are returned before
 // PoolCloseTimeout.
 func (p *Pool) Close() (err error) {
+	openPools.Delete(p)
 	close(p.closed)
 
 	p.mu.RLock()

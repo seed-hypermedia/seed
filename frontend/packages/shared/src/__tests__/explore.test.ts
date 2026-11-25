@@ -8,11 +8,14 @@ import {
   documentInfoToExploreResultDocument,
   exploreDateTokens,
   exploreQueryChips,
+  joinExploreSearchBox,
+  moveTypedExploreFilters,
   parseExploreQuery,
   removeExploreQueryChip,
   replaceExploreChips,
   searchResultItemToExploreResult,
   serializeExploreQuery,
+  splitExploreSearchBox,
   toggleExploreColumn,
   toggleExplorePredicate,
   withExploreTypeFilter,
@@ -361,6 +364,67 @@ describe('Explore chips', () => {
     const final = removeExploreQueryChip(next, exploreQueryChips(next)[0]!.id)
     expect(final.ast).toMatchObject({kind: 'and'})
     expect(exploreQueryChips(final).map((chip) => chip.label)).toEqual(['status : active', 'text engelbart'])
+  })
+})
+
+describe('Explore search box', () => {
+  test('shows the search words and hides filters and view directives', () => {
+    expect(splitExploreSearchBox(parseExploreQuery('meeting type:block notes has:status view:table'))).toEqual({
+      text: 'meeting notes',
+      hidden: 'type:block AND has:status view:table',
+    })
+    expect(splitExploreSearchBox(parseExploreQuery('type:block'))).toEqual({text: '', hidden: 'type:block'})
+  })
+
+  test('keeps OR and NOT groups in the box whole', () => {
+    expect(splitExploreSearchBox(parseExploreQuery('meeting OR type:comment'))).toEqual({
+      text: 'meeting OR type:comment',
+      hidden: '',
+    })
+    expect(splitExploreSearchBox(parseExploreQuery('NOT has:reviewedBy draft'))).toEqual({
+      text: 'NOT has:reviewedBy draft',
+      hidden: '',
+    })
+    expect(splitExploreSearchBox(parseExploreQuery('(alpha OR beta) gamma type:block')).text).toBe(
+      '(alpha OR beta) gamma',
+    )
+  })
+
+  test('joins back into the same query', () => {
+    for (const query of [
+      'meeting notes type:block',
+      '(alpha OR beta) type:block sort:-name',
+      'NOT has:reviewedBy draft in:alice',
+      '"exact phrase" $author:alice view:card',
+    ]) {
+      const box = splitExploreSearchBox(parseExploreQuery(query))
+      expect(splitExploreSearchBox(parseExploreQuery(joinExploreSearchBox(box)))).toEqual(box)
+    }
+  })
+
+  test('keeps an OR typed in the box from taking the hidden filters into a branch', () => {
+    const query = joinExploreSearchBox({text: 'alpha OR beta', hidden: 'type:block'})
+    expect(compileExploreQuery(parseExploreQuery(query), {type: 'node'}).requestedTypes).toEqual(['block'])
+    expect(splitExploreSearchBox(parseExploreQuery(query))).toEqual({text: 'alpha OR beta', hidden: 'type:block'})
+  })
+
+  test('moves finished filters typed in the box out to the chips', () => {
+    expect(moveTypedExploreFilters({text: 'test type:block ', hidden: '$author:alice'})).toEqual({
+      text: 'test',
+      hidden: '$author:alice type:block',
+    })
+    expect(moveTypedExploreFilters({text: 'type:block', hidden: ''})).toEqual({text: '', hidden: 'type:block'})
+  })
+
+  test('leaves the box alone while a filter is unfinished, or inside OR and NOT', () => {
+    for (const text of ['test type:', 'test has:', 'test OR type:block', 'NOT has:reviewedBy', 'plain words']) {
+      expect(moveTypedExploreFilters({text, hidden: 'in:alice'})).toEqual({text, hidden: 'in:alice'})
+    }
+  })
+
+  test('sends typed text as typed when nothing is hidden', () => {
+    expect(joinExploreSearchBox({text: 'meeting  no', hidden: ''})).toBe('meeting  no')
+    expect(joinExploreSearchBox({text: '  ', hidden: 'type:block'})).toBe('type:block')
   })
 })
 

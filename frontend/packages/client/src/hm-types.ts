@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import {pageParamsFromUrl, pageParamsQuery} from './page-input'
 
 // Signing abstraction: each platform provides its own implementation
 export type HMSigner = {
@@ -25,6 +26,8 @@ export const unpackedHmIdSchema = z.object({
   hostname: z.string().nullable(),
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
+  /** JSON-encoded custom HTML page input, excluded from canonical resource identity. */
+  pageParams: z.record(z.string(), z.string()).optional(),
   // deprecated:
   targetDocUid: z.string().nullable().optional(),
   targetDocPath: z.array(z.string()).nullable().optional(),
@@ -36,6 +39,16 @@ export const HMBlockChildrenTypeSchema = z
   .union([z.literal('Group'), z.literal('Ordered'), z.literal('Unordered'), z.literal('Blockquote'), z.literal('Grid')])
   .nullable() // null or missing childrenType means "Group"
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
+
+/** Horizontal alignment of a block's text. A missing key means `left`, the default. */
+export const HMBlockTextAlignmentSchema = z.union([
+  z.literal('left'),
+  z.literal('center'),
+  z.literal('right'),
+  z.literal('justify'),
+])
+/** One of the four `textAlignment` attribute values. */
+export type HMBlockTextAlignment = z.infer<typeof HMBlockTextAlignmentSchema>
 
 export const HMEmbedViewSchema = z.union([
   z.literal('Content'),
@@ -217,6 +230,8 @@ const textBlockProperties = {
 const parentBlockAttributes = {
   childrenType: HMBlockChildrenTypeSchema.optional(),
   columnCount: z.number().optional(),
+  // An unknown value is dropped rather than failing the block, which would turn it into an unknown block.
+  textAlignment: HMBlockTextAlignmentSchema.optional().catch(undefined),
 }
 
 export const HMBlockParagraphSchema = z
@@ -335,8 +350,7 @@ export const HMBlockFileSchema = z
           .transform((value) => (value == null ? null : toNumber(value))), // number of bytes, as a string
         name: z.string().optional(),
       })
-      .optional()
-      .default({}),
+      .prefault({}),
     link: z.string(),
   })
   .strict()
@@ -565,26 +579,34 @@ export const HMDocumentMetadataSchema = z
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     /**
-     * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
-     * space's documents connect to it alongside their own configured servers, so a site can host
-     * agents for its audience — on the gateway, each site brings its own agents backend.
+     * The app environment an agent's mount document names (an http(s) origin). A document with
+     * `type: hm://hyper.media/agent` and this field is an agent: its versionless hm:// id is the
+     * agent's id, and that server must register it under exactly that id. A space's agents are
+     * found by querying its documents for this type; nothing else registers an agent with a space.
      */
+    appEnvironmentUrl: z.string().optional(),
     agentServerUrl: z.string().optional(),
     /**
-     * Agents this space publishes to its readers: `{[agentId]: order}`, where each id names an agent
-     * on {@link agentServerUrl} and the number is its position in the picker.
-     *
-     * This is what makes a space's agents reachable by someone who just arrived: an agent server
-     * only ever lists agents you own or collaborate on, so a reader cannot discover them by asking.
-     * Named here, the client fetches each one by id, which the server serves to any signed account
-     * once the agent is public-read.
-     *
-     * Only ids and order live here — an agent's name and icon are read from the agent itself, so
-     * renaming one never strands a stale copy in a signed document. Values are typed loosely
-     * because removal leaves a null attribute behind rather than dropping the key; `parseSpaceAgentIds`
-     * in @shm/ui/agents/space-agents is the reader for this field.
+     * Resource type: hm://hyper.media/page (custom HTML page), hm://hyper.media/app (an app, whose
+     * card embeds list its tools and pages) or hm://hyper.media/tool (an app's tool).
      */
-    spaceAgents: z.record(z.unknown()).optional(),
+    type: z.string().optional(),
+    /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
+    html: z.string().optional(),
+    /** Published HM struct schema describing a page's URL input or a tool's input. */
+    inputSchema: z.string().optional(),
+    /** Published HM struct schema describing what a tool returns. */
+    outputSchema: z.string().optional(),
+    /** UnixFS folder whose index.ts default-exports a tool's async function. */
+    code: z.string().optional(),
+    /** hm:// URL of the app's own page that its Home tab shows. */
+    homePage: z.string().optional(),
+    /** Published HM struct schema of an app's public config (readable by anyone who can read the app). */
+    publicConfigSchema: z.string().optional(),
+    /** Published HM struct schema of an app's private config, which the server running the app keeps. */
+    privateConfigSchema: z.string().optional(),
+    /** An app's public config values, shaped by its publicConfigSchema. */
+    publicConfig: z.record(z.string(), z.unknown()).optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -592,6 +614,9 @@ export const HMDocumentMetadataSchema = z
     seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
     showOutline: z.boolean().optional(),
     showActivity: z.boolean().optional(),
+    showConversations: z.boolean().optional(),
+    showDocumentBrowser: z.boolean().optional(),
+    showCollectionControls: z.boolean().optional(),
     contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
     childrenType: HMBlockChildrenTypeSchema.optional(),
     theme: z
@@ -626,6 +651,9 @@ export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 /** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
 export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
 
+/** Metadata keys that bind a document or its children to an attributes schema: structure, not user attributes. */
+export const SCHEMA_BINDING_METADATA_KEYS: ReadonlySet<string> = new Set(['attributesSchema', 'childAttributesSchema'])
+
 /** User-facing explanations for document attributes understood by Seed. */
 export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   name: 'Document or space title.',
@@ -634,8 +662,18 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
-  agentServerUrl: 'Agents server readers of this space connect to.',
-  spaceAgents: 'Agents this space publishes to its readers, by id and order.',
+  appEnvironmentUrl:
+    'App environment a space is bound to, on its home document (read before agentServerUrl), or the one an app document was created for.',
+  agentServerUrl: 'App environment that hosts the agent this document mounts.',
+  type: 'Resource type, such as a custom HTML page, an app or a tool.',
+  html: 'UnixFS folder holding a custom HTML page.',
+  inputSchema: 'Schema of the input a page or tool takes.',
+  outputSchema: 'Schema of what a tool returns.',
+  code: 'UnixFS folder holding a tool’s code, entry point index.ts.',
+  homePage: 'The app page its Home tab shows.',
+  publicConfigSchema: 'Schema of an app’s public config.',
+  privateConfigSchema: 'Schema of an app’s private config, kept by the server running it.',
+  publicConfig: 'An app’s public config values.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',
@@ -643,6 +681,9 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   seedExperimentalHomeOrder: 'Legacy ordering preference for a space home page.',
   showOutline: 'Whether to show the document outline.',
   showActivity: 'Whether to show document activity and tools.',
+  showConversations: 'Whether readers may start and join conversations on the space’s documents.',
+  showDocumentBrowser: 'Whether the sidebar with the space’s document browser starts open when readers arrive.',
+  showCollectionControls: 'Whether collections offer readers search, filter, sort and view controls.',
   contentWidth: 'Width of the document content area.',
   childrenType: 'Layout of the document’s root-level blocks.',
   theme: 'Visual settings for a space.',
@@ -722,15 +763,6 @@ export const HMCommentGroupSchema = z.object({
   type: z.literal('commentGroup'),
 })
 export type HMCommentGroup = z.infer<typeof HMCommentGroupSchema>
-
-export const HMExternalCommentGroupSchema = z.object({
-  comments: z.array(HMCommentSchema),
-  moreCommentsCount: z.number(),
-  id: z.string(),
-  target: z.lazy(() => HMMetadataPayloadSchema),
-  type: z.literal('externalCommentGroup'),
-})
-export type HMExternalCommentGroup = z.infer<typeof HMExternalCommentGroupSchema>
 
 export type HMBlockType = HMBlock['type']
 
@@ -1053,7 +1085,7 @@ export const HMBlockUnknownSchema = z
     type: z.string(),
     id: z.string(),
     revision: z.string().optional(),
-    attributes: z.record(z.any()).optional(),
+    attributes: z.record(z.string(), z.any()).optional(),
     annotations: z.array(z.any()).optional(),
     text: z.string().optional(),
     link: z.string().optional(),
@@ -1062,7 +1094,7 @@ export const HMBlockUnknownSchema = z
 
 export const HMBlockSchema = z.union([HMBlockKnownSchema, HMBlockUnknownSchema])
 
-export const knownBlockTypes = new Set(HMBlockKnownSchema.optionsMap.keys())
+export const knownBlockTypes = new Set<string>(HMBlockKnownSchema.options.map((schema) => schema.shape.type.value))
 
 export function isKnownBlockType(btype: string): boolean {
   return knownBlockTypes.has(btype)
@@ -1713,7 +1745,7 @@ export const HMRawDocumentInfoSchema = z
     account: z.string(),
     /** The document path, `/`-prefixed; empty for the space's home document. */
     path: z.string().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     authors: z.array(z.string()).optional(),
     createTime: z.string().optional(),
     updateTime: z.string().optional(),
@@ -1897,7 +1929,6 @@ export type HMListDiscussionsInput = z.infer<typeof HMListDiscussionsInputSchema
 export const HMListDiscussionsOutputSchema = z.object({
   discussions: z.array(HMCommentGroupSchema),
   authors: z.record(z.string(), HMMetadataPayloadSchema),
-  citingDiscussions: z.array(HMExternalCommentGroupSchema),
 })
 export type HMListDiscussionsOutput = z.infer<typeof HMListDiscussionsOutputSchema>
 
@@ -1986,7 +2017,7 @@ export type HMListAccountsRequest = z.infer<typeof HMListAccountsRequestSchema>
 
 // GetCID - fetch raw IPFS block data by CID
 export const HMGetCIDOutputSchema = z.object({
-  value: z.any(),
+  value: z.any().optional(),
 })
 export type HMGetCIDOutput = z.infer<typeof HMGetCIDOutputSchema>
 
@@ -2069,6 +2100,7 @@ export const HMRawDocumentChangeSchema = z.object({
   author: z.string().optional(),
   deps: z.array(z.string()).optional(),
   createTime: z.string().optional(),
+  message: z.string().optional(),
 })
 export type HMRawDocumentChange = z.infer<typeof HMRawDocumentChangeSchema>
 
@@ -2099,6 +2131,7 @@ export const HMRawCapabilitySchema = z.object({
   path: z.string().optional(),
   role: z.string().optional(),
   noRecursive: z.boolean().optional(),
+  isExact: z.boolean().optional(),
   label: z.string().optional(),
   createTime: z.string().optional(),
 })
@@ -2223,6 +2256,7 @@ export const HMQueryBlockFilterOptionsSchema = z.record(
   z.object({
     values: z.array(z.string()),
     type: z.enum(['text', 'number', 'boolean', 'date', 'list']),
+    labels: z.record(z.string(), z.string()).optional(),
   }),
 )
 /** Filter choices available before viewer search, filters, and display limits. */
@@ -2274,29 +2308,50 @@ export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
 
 // PrepareDocumentChange - call gRPC PrepareChange, returns unsigned CBOR bytes for client signing
 
+// Callers sometimes hand us protobuf-es message instances (a Block built with
+// Block.fromJson, whose attributes are a Struct). The request body is CBOR
+// built by walking own properties, so an instance would travel in its
+// in-memory shape ({fields: {x: {kind: {case, value}}}}) and the daemon would
+// store that verbatim. Serialize any message to its JSON form before
+// validating, so every caller sends plain JSON.
+function protoMessageToJson(value: unknown): unknown {
+  if (value && typeof value === 'object' && typeof (value as {toJson?: unknown}).toJson === 'function') {
+    return (value as {toJson: (options?: {emitDefaultValues?: boolean}) => unknown}).toJson({emitDefaultValues: true})
+  }
+  return value
+}
+
+const ProtoStructSchema = z.preprocess(protoMessageToJson, z.object({}).catchall(z.any()))
+
 const ProtoAnnotationSchema = z.object({
   type: z.string(),
   link: z.string().optional(),
-  attributes: z.record(z.string(), z.any()).optional(),
+  attributes: ProtoStructSchema.optional(),
   starts: z.array(z.number()).optional(),
   ends: z.array(z.number()).optional(),
 })
 
-const ProtoBlockSchema = z.object({
-  id: z.string().optional(),
-  type: z.string().optional(),
-  text: z.string().optional(),
-  link: z.string().optional(),
-  attributes: z.record(z.string(), z.any()).optional(),
-  annotations: z.array(ProtoAnnotationSchema).optional(),
-  revision: z.string().optional(),
-})
+const ProtoBlockSchema = z.preprocess(
+  protoMessageToJson,
+  z.object({
+    id: z.string().optional(),
+    type: z.string().optional(),
+    text: z.string().optional(),
+    link: z.string().optional(),
+    attributes: ProtoStructSchema.optional(),
+    annotations: z.array(ProtoAnnotationSchema).optional(),
+    revision: z.string().optional(),
+  }),
+)
+
+// Accept protobuf Empty instances and strip their runtime fields during parsing.
+const ProtoEmptySchema: z.ZodType<object> = z.object({})
 
 const ProtoSetAttributeValueSchema = z.union([
   z.object({case: z.literal('stringValue'), value: z.string()}),
   z.object({case: z.literal('intValue'), value: z.union([z.bigint(), z.coerce.bigint()])}),
   z.object({case: z.literal('boolValue'), value: z.boolean()}),
-  z.object({case: z.literal('nullValue'), value: z.object({})}),
+  z.object({case: z.literal('nullValue'), value: ProtoEmptySchema}),
   z.object({case: z.undefined(), value: z.undefined().optional()}),
 ])
 
@@ -2324,6 +2379,8 @@ export const HMPrepareDocumentChangeInputSchema = z.object({
   changes: z.array(ProtoDocumentChangeSchema),
   capability: z.string().optional(),
   visibility: z.number().int().optional(),
+  /** Optional human-readable description of the change, like a commit message. */
+  message: z.string().optional(),
 })
 export type HMPrepareDocumentChangeInput = z.infer<typeof HMPrepareDocumentChangeInputSchema>
 
@@ -2522,12 +2579,13 @@ export function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {path, version, latest, blockRef, blockRange, uid} = hmId
+  const {path, version, latest, blockRef, blockRange, uid, pageParams} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
+    pageParams,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -2539,7 +2597,9 @@ export function getHMQueryString({
   version,
   latest,
   panel,
+  pageParams,
 }: {
+  pageParams?: Record<string, string>
   version?: string | null
   latest?: boolean | null
   panel?: string | null
@@ -2554,7 +2614,9 @@ export function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
-  return serializeHmQueryString(query)
+  const base = serializeHmQueryString(query)
+  const input = pageParamsQuery(pageParams)
+  return base + (input ? (base ? '&' : '?') + input : '')
 }
 
 export function serializeBlockRange(range: BlockRange | null | undefined): string {
@@ -2692,6 +2754,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     hostname: hostname || null,
     latest,
     scheme: parsed.scheme,
+    ...(pageParamsFromUrl(hypermediaId) ? {pageParams: pageParamsFromUrl(hypermediaId)} : {}),
   }
 }
 

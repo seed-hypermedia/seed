@@ -171,6 +171,34 @@ func refCitations(cs []*pb.Citation) []*pb.Citation {
 	return out
 }
 
+// A metadata value that names an account or a document is a citation of it, attributed to the
+// document that set the attribute like any block link, typed metadata/Link and anchored at the
+// key. This is what lets "set me as owner" show up in the account's citations and count as a
+// mention of it.
+func TestListCitations_MetadataReference(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestDocsAPI(t, "alice")
+	kp := srv.me.Account
+	bob := coretest.NewTester("bob").Account
+	clock := newCitClock()
+
+	bobIRI := citIRI(bob, "")
+	owned := createCitDoc(t, srv.idx, kp, "/owned", 1, clock,
+		citTitleOp(t, "Owned"),
+		blob.NewOpSetAttributes("", []blob.KeyValue{{Key: []string{"owner"}, Value: bobIRI}}),
+	)
+
+	got := refCitations(listCitationsAll(t, srv, bobIRI))
+	require.Len(t, got, 1, "the owner attribute is one citation of the account")
+	require.Equal(t, owned.iri(), got[0].Source)
+	require.Equal(t, owned.ref.String(), got[0].SourceBlob.Cid)
+	require.Equal(t, blob.MetadataLinkType, got[0].CitationType)
+	require.Equal(t, "owner", got[0].SourceContext, "the anchor of a metadata citation is the attribute key")
+	require.Equal(t, bobIRI, got[0].Target)
+	require.Empty(t, got[0].TargetFragment)
+}
+
 func TestListCitations_SharedGenesisSelfLink(t *testing.T) {
 	t.Parallel()
 
@@ -436,4 +464,80 @@ func TestListCitations_OneCitationPerCitingBlock(t *testing.T) {
 	got = refCitations(listCitationsAll(t, srv, a.iri()))
 	require.Len(t, got, 2)
 	require.ElementsMatch(t, []string{"P1", "P2"}, []string{got[0].SourceContext, got[1].SourceContext})
+}
+
+// commentCitations returns only the Comment-typed citations, mirroring refCitations.
+func commentCitations(cs []*pb.Citation) []*pb.Citation {
+	var out []*pb.Citation
+
+	for _, c := range cs {
+		if c.SourceType == "Comment" {
+			out = append(out, c)
+		}
+	}
+
+	return out
+}
+
+// A comment written on document B whose body links to document A must report B as its
+// source document, not A. Before the fix, the Comment arm of qListCitationsTpl selected
+// the requested target's IRI as source_iri, so every comment citation claimed the target
+// as its home (seed-hypermedia/seed#921).
+func TestListCitations_CommentSourceDocumentIsCommentTarget(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestDocsAPI(t, "alice")
+	kp := srv.me.Account
+	clock := newCitClock()
+
+	a := createCitDoc(t, srv.idx, kp, "/a", 1, clock, append([]blob.OpMap{citTitleOp(t, "A")}, citBlockOps("b1", "target block")...)...)
+	b := createCitDoc(t, srv.idx, kp, "/b", 1, clock, citTitleOp(t, "B"))
+
+	// A comment on B whose body links to A. The link is indexed as a resource_link
+	// from the comment blob to A, so listing citations of A returns it.
+	commentBody := []blob.CommentBlock{
+		{Block: blob.Block{ID_Good: "c1", Type: "paragraph", Text: "see A", Link: a.iri() + "#b1"}},
+	}
+	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", b.kp.Principal(), "/b", nil, cid.Undef, cid.Undef, commentBody, clock.next())
+
+	tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
+	commentID := b.kp.Principal().String() + "/" + tsid.String()
+
+	got := commentCitations(listCitationsAll(t, srv, a.iri()))
+	require.Len(t, got, 1, "the comment on B that links to A is one citation of A")
+	require.Equal(t, "hm://"+commentID, got[0].Source)
+	require.Equal(t, b.iri(), got[0].SourceDocument, "the source document is B, where the comment lives, not A which it links to")
+	require.Equal(t, "b1", got[0].TargetFragment)
+}
+
+// A comment written directly on document A that links to a block of A reports A as its
+// source document. This is the case the e2e test already covers for a moved document; here
+// it is asserted without a move so the two cases (comment on B vs comment on A) are
+// distinguished by their SourceDocument, which was impossible before the fix.
+func TestListCitations_CommentOnSameDocumentReportsItAsSource(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestDocsAPI(t, "alice")
+	kp := srv.me.Account
+	clock := newCitClock()
+
+	a := createCitDoc(t, srv.idx, kp, "/a", 1, clock, append([]blob.OpMap{citTitleOp(t, "A")}, citBlockOps("b1", "target block")...)...)
+
+	commentBody := []blob.CommentBlock{
+		{Block: blob.Block{ID_Good: "c1", Type: "paragraph", Text: "see A", Link: a.iri() + "#b1"}},
+	}
+	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", a.kp.Principal(), "/a", nil, cid.Undef, cid.Undef, commentBody, clock.next())
+
+	tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
+	commentID := a.kp.Principal().String() + "/" + tsid.String()
+
+	// A comment on A produces two resource_links to A: comment/target (the comment's own
+	// target, no fragment) and comment/paragraph (the body link to A#b1). Both are citations
+	// of A, and both must report A as their source document.
+	got := commentCitations(listCitationsAll(t, srv, a.iri()))
+	require.Len(t, got, 2)
+	for _, c := range got {
+		require.Equal(t, "hm://"+commentID, c.Source)
+		require.Equal(t, a.iri(), c.SourceDocument, "a comment on A reports A as its source document")
+	}
 }

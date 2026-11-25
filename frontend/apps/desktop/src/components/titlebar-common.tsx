@@ -1,41 +1,54 @@
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
+import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
-import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
+import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus, useVaultEmail} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useNotificationInbox} from '@/models/notification-inbox'
-import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
 import {
   agentRunUrl,
   agentSessionUrl,
   agentTriggerUrl,
   agentUrl,
   isOmnibarRouteUrlShareable,
-  resolveOmnibarUrlToRoute,
+  parseBrowserAddress,
+  resolveOmnibarNavigation,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
-import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {useRecentAccountIds, useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
-import {client} from '@/trpc'
-import {pathNameify} from '@/utils/path'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
+import {
+  AccountMenuIdentity,
+  AccountMenuSwitcher,
+  AccountMenuSection,
+  accountMenuContentClassName,
+} from '@shm/ui/account-menu'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {createInspectNavRouteFromRoute, NavRoute} from '@shm/shared/routes'
+import {
+  createInspectNavRouteFromRoute,
+  getActivityBellTarget,
+  getRouteSpaceUid,
+  isActivityOpen,
+  NavRoute,
+} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
+import {AccountAvatar} from '@shm/ui/account-avatar'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
-import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
-import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
-import {focusExploreSearch} from '@shm/ui/explore-search-focus'
+import {AgentActivityLiveUpdates, useAgentReadBaseline} from '@shm/ui/agents/activity'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -43,7 +56,9 @@ import {
   useAgentServerUrls,
   useAgentSession,
   useLocalAgentServerUrl,
+  useOrphanAgents,
 } from '@shm/ui/agents/models'
+import {ASSISTANT_TOGGLE_LABEL, OrphanAgentsDot, useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -55,8 +70,8 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AccountAvatar} from '@shm/ui/account-avatar'
 import {Back, Forward} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -64,20 +79,21 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useQuery} from '@tanstack/react-query'
 import {
-  Activity,
   Bell,
   Bot,
-  ChevronDown,
+  Bookmark,
+  ContactRound,
+  Globe,
+  KeyRound,
+  PanelsTopLeft,
+  SquarePen,
   ChevronRight,
-  ChevronUp,
   Database,
   FileCode2,
   Lock,
   LogIn,
   LogOut,
-  MessageCircle,
   PanelLeftClose,
   PanelRightClose,
   Plus,
@@ -85,33 +101,16 @@ import {
   Search,
   Settings,
   User,
-  UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
-import {BookmarksPopover} from './bookmarks-popover'
+import {useBookmarksPanel} from './bookmarks-panel'
+import {useCreateSpaceDialog} from './create-space-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
 import {usePublishSite} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
-import {TitleBarProps} from './titlebar'
-
-// Route keys that have an id and support DocOptionsButton
-const DOC_OPTIONS_ROUTE_KEYS = [
-  'document',
-  'feed',
-  'activity',
-  'comments',
-  'directory',
-  'collaborators',
-  'inspect',
-  'all-documents',
-  'metadata',
-] as const
-
-type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
-
 const OMNIBAR_DOMAIN_STALE_TIME_MS = 3 * 60 * 60 * 1000
 
 function getUrlHostname(url?: string | null): string | null {
@@ -123,64 +122,37 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
-function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
-  return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
-}
-
-export function DocOptionsButton(_props: {
-  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
-}) {
-  return null
-}
-
+// The bell belongs to a space, so it only shows on pages inside one.
 function NotificationButton() {
   const accountUid = useSelectedAccountId()
-  if (!accountUid) return null
-  return <NotificationButtonForAccount accountUid={accountUid} />
+  const spaceUid = getRouteSpaceUid(useNavRoute())
+  if (!accountUid || !spaceUid) return null
+  return <NotificationButtonForAccount accountUid={accountUid} spaceUid={spaceUid} />
 }
 
-function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
+function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: string; spaceUid: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
-  const inbox = useNotificationInbox(accountUid)
-  const readState = useLocalNotificationReadState(accountUid)
-  const isActive = route.key === 'notifications'
-  const persistedView = useQuery({
-    queryKey: [queryKeys.SETTINGS, 'notifications-view'],
-    queryFn: () => client.appSettings.getSetting.query('notifications-view'),
-  })
-
-  const unreadCount = useMemo(() => {
-    if (!inbox.data || !readState.data) return 0
-    return inbox.data.filter(
-      (item) =>
-        !isNotificationEventRead({
-          readState: readState.data,
-          eventId: item.feedEventId,
-          eventAtMs: item.eventAtMs,
-        }),
-    ).length
-  }, [inbox.data, readState.data])
+  const isActive = isActivityOpen(route)
+  const collapse = useCollapseActivity(hmId(spaceUid), route.key === 'feed' ? route.tab : 'to-you')
+  const unreadCount = useUnreadNotificationsBySpace(accountUid)[spaceUid] ?? 0
 
   return (
-    <Tooltip content="Notifications" asChild>
+    <Tooltip content="Activity" asChild>
       <Button
         className={cn(
           'window-no-drag relative h-8 rounded-full border-1 p-0',
           isActive
-            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
         )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-disabled={isActive || undefined}
-        onClick={
-          isActive
-            ? undefined
-            : () => {
-                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
-                navigate({key: 'notifications', view})
-              }
-        }
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -194,6 +166,7 @@ function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
   )
 }
 
+/** Account menu with identity switching, settings, drafts, and personal sites. */
 export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
@@ -202,14 +175,33 @@ export function AccountProfileButton() {
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
+  const recentAccountIds = useRecentAccountIds()
   const vaultStatus = useVaultStatus()
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const vaultEmail = useVaultEmail({enabled: remoteVaultConnected})
+  const createSpaceDialog = useCreateSpaceDialog()
+  const accountHome = useResource(accountUid ? hmId(accountUid) : undefined)
   const canLogOut = vaultStatus.data?.backendMode === VaultBackendMode.REMOTE
   const [menuOpen, setMenuOpen] = useState(false)
-  const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
   const route = useNavRoute()
+  const spaceUid = getRouteSpaceUid(route)
+  const capability = useSelectedAccountCapability(spaceUid ? hmId(spaceUid) : undefined)
+  const {isSiteOwner} = useIsSiteOwner(spaceUid ?? undefined)
+  const contacts = useSelectedAccountContacts()
+  const isMember =
+    !!spaceUid && contacts.data?.some((contact) => contact.subject === spaceUid && contact.subscribe?.site)
+  const role =
+    capability?.role === 'owner'
+      ? 'Owner'
+      : capability?.role === 'writer'
+        ? 'Writer'
+        : capability?.role === 'agent'
+          ? 'Agent'
+          : isMember
+            ? 'Member'
+            : undefined
   const {data: experiments} = useExperiments()
   const queryDevtoolsIsOpen = useStream(queryDevtoolsOpen)
   const routeDialog = useAppDialog(RouteDialog)
@@ -240,6 +232,18 @@ export function AccountProfileButton() {
     // instead of being filtered out and stranding a valid daemon key.
     return accountData ?? {id: hmId(uid), metadata: null}
   })
+  accountOptions?.sort((a, b) => {
+    const aRecent = recentAccountIds.indexOf(a.id.uid)
+    const bRecent = recentAccountIds.indexOf(b.id.uid)
+    if (aRecent !== bRecent) {
+      if (aRecent === -1) return 1
+      if (bRecent === -1) return -1
+      return aRecent - bRecent
+    }
+    return (
+      (a.metadata?.name || 'Account').localeCompare(b.metadata?.name || 'Account') || a.id.uid.localeCompare(b.id.uid)
+    )
+  })
   const hasAccounts = !!myAccountIds.data?.length
 
   useEffect(() => {
@@ -269,7 +273,10 @@ export function AccountProfileButton() {
       <>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+            <Button
+              aria-label="Account menu"
+              className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
+            >
               <div className="bg-muted flex size-8 items-center justify-center rounded-full">
                 <User className="text-muted-foreground size-4" />
               </div>
@@ -326,13 +333,16 @@ export function AccountProfileButton() {
   return (
     <>
       <DropdownMenu
+        open={menuOpen}
         onOpenChange={(open) => {
           setMenuOpen(open)
-          if (!open) setSwitcherOpen(false)
         }}
       >
         <DropdownMenuTrigger asChild>
-          <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+          <Button
+            aria-label="Account menu"
+            className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
+          >
             {accountUid ? (
               <HMIcon
                 id={hmId(accountUid)}
@@ -347,108 +357,80 @@ export function AccountProfileButton() {
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-          {/* Account header + switcher */}
-          <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
-            <button
-              className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-              onClick={() => setSwitcherOpen(!switcherOpen)}
-            >
-              {accountUid ? (
-                <HMIcon
-                  id={hmId(accountUid)}
-                  name={selectedAccount?.metadata?.name}
-                  icon={selectedAccount?.metadata?.icon}
-                  size={32}
-                />
-              ) : (
-                <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
-                  <User className="text-muted-foreground size-4" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
-              </div>
-              {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
-            </button>
-            {switcherOpen && (
-              <>
-                <div
-                  className="max-h-[200px] overflow-y-auto"
-                  style={{
-                    background: [
-                      'linear-gradient(var(--popover) 33%, transparent) center top',
-                      'linear-gradient(transparent, var(--popover) 66%) center bottom',
-                      'radial-gradient(farthest-side at 50% 0, oklch(0 0 0 / 0.12), transparent) center top',
-                      'radial-gradient(farthest-side at 50% 100%, oklch(0 0 0 / 0.12), transparent) center bottom',
-                    ].join(', '),
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '100% 40px, 100% 40px, 100% 6px, 100% 6px',
-                    backgroundAttachment: 'local, local, scroll, scroll',
-                  }}
-                >
-                  {/* The selected account is already shown in the header above, so it is not repeated as an option. */}
-                  {accountOptions?.map((option) =>
-                    option && option.id.uid !== selectedIdentityValue ? (
-                      <button
-                        key={option.id.uid}
-                        className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-                        onClick={() => {
-                          setSelectedIdentity?.(option.id.uid || null)
-                          setSwitcherOpen(false)
-                        }}
-                      >
-                        <AccountAvatar
-                          id={option.id}
-                          name={option.metadata?.name}
-                          icon={option.metadata?.icon}
-                          size={32}
-                        />
-                        <p className="min-w-0 truncate text-sm">
-                          {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
-                        </p>
-                      </button>
-                    ) : null,
-                  )}
-                </div>
-                <button
-                  className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2 disabled:opacity-60"
-                  onClick={() => {
+        <DropdownMenuContent side="bottom" align="end" className={accountMenuContentClassName}>
+          <AccountMenuSwitcher
+            identity={
+              <AccountMenuIdentity
+                avatar={
+                  accountUid ? (
+                    <HMIcon
+                      id={hmId(accountUid)}
+                      name={selectedAccount?.metadata?.name}
+                      icon={selectedAccount?.metadata?.icon}
+                      size={40}
+                    />
+                  ) : (
+                    <User className="size-10" />
+                  )
+                }
+                name={selectedAccount?.metadata?.name}
+                role={role}
+                email={remoteVaultConnected ? vaultEmail.data : undefined}
+              />
+            }
+          >
+            {accountOptions?.map((option) =>
+              option && option.id.uid !== selectedIdentityValue ? (
+                <DropdownMenuItem
+                  key={option.id.uid}
+                  onSelect={() => {
                     setMenuOpen(false)
-                    createAccountDialog.open({})
+                    setSelectedIdentity?.(option.id.uid)
+                    navigate({key: 'document', id: hmId(option.id.uid)})
                   }}
                 >
-                  <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-                    <Plus className="size-4" />
-                  </div>
-                  <p className="text-sm">Create account</p>
-                </button>
-              </>
+                  <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={24} />
+                  <span className="min-w-0 truncate">{option.metadata?.name || 'Account'}</span>
+                </DropdownMenuItem>
+              ) : null,
             )}
-          </div>
-          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                setMenuOpen(false)
+                createAccountDialog.open({})
+              }}
+            >
+              <Plus className="size-4" />
+              Create account
+            </DropdownMenuItem>
+          </AccountMenuSwitcher>
+          <AccountMenuSection>Settings</AccountMenuSection>
           {accountUid && (
             <DropdownMenuItem
               onClick={() => {
                 navigate({key: 'profile', id: hmId(accountUid)})
               }}
             >
-              <User className="size-4" />
-              My Profile
+              <ContactRound className="size-5" />
+              My profile
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-            <Bot className="size-4" />
-            Agents
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
-            <UserCog className="size-4" />
-            Account Settings
+            <KeyRound className="size-5" />
+            Manage accounts
           </DropdownMenuItem>
-          {/* <DropdownMenuItem disabled>
-            <Monitor className="size-4" />
-            Site settings
-          </DropdownMenuItem> */}
+          {spaceUid && isSiteOwner ? (
+            <DropdownMenuItem onSelect={() => navigate({key: 'site-settings', id: hmId(spaceUid)})}>
+              <PanelsTopLeft className="size-5" />
+              Space settings
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem onSelect={() => navigate({key: 'drafts'})}>
+            <SquarePen className="size-5" />
+            Drafts
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
             <Settings className="size-4" />
             App settings
@@ -456,9 +438,7 @@ export function AccountProfileButton() {
           {experiments?.developerTools ? (
             <>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <DropdownMenuLabel className="text-muted-foreground text-xs font-bold tracking-wider">
-                DEVELOPERS
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">DEVELOPERS</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => setQueryDevtoolsOpen(!queryDevtoolsIsOpen)}>
                 <Database className="size-4" />
                 {queryDevtoolsIsOpen ? 'Hide React Query Devtools' : 'Show React Query Devtools'}
@@ -475,10 +455,36 @@ export function AccountProfileButton() {
               ) : null}
             </>
           ) : null}
+          <DropdownMenuSeparator />
+          <AccountMenuSection>My sites</AccountMenuSection>
+          {accountHome.data?.type === 'document' ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                if (accountUid) navigate({key: 'document', id: hmId(accountUid)})
+              }}
+            >
+              <Globe className="size-5" />
+              <span className="truncate">
+                {accountHome.data.document.metadata.siteUrl
+                  ? getUrlHostname(accountHome.data.document.metadata.siteUrl)
+                  : accountHome.data.document.metadata.name || 'My space'}
+              </span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              disabled={!accountUid || accountHome.isLoading || accountHome.isError}
+              className="font-normal text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
+              onSelect={() => createSpaceDialog.open()}
+            >
+              <Plus className="size-5 text-green-600 dark:text-green-500" />
+              Create new site
+            </DropdownMenuItem>
+          )}
           {canLogOut ? (
             <>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem
+                className="font-normal"
                 variant="destructive"
                 onClick={() => {
                   setMenuOpen(false)
@@ -500,6 +506,7 @@ export function AccountProfileButton() {
       />
       {authDialog.content}
       {createAccountDialog.content}
+      {createSpaceDialog.content}
       {routeDialog.content}
     </>
   )
@@ -509,20 +516,21 @@ export function AccountProfileButton() {
  * Title bar toggle for the assistant chat panel. Opening it restores the most recently used
  * agent/session (the panel resolves that itself). Styled like the bookmarks button while open.
  */
-function AssistantChatButton({
-  assistantOpen,
-  onToggleAssistant,
-}: Pick<TitleBarProps, 'assistantOpen' | 'onToggleAssistant'>) {
-  // The unread indicator: the agents lists, kept live by one account socket per server mounted
-  // here (the title bar outlives the panel), against this device's read marks.
+function AssistantChatButton() {
+  const toggle = useAssistantPanelToggle()
   const agentsAccountUid = useSelectedAgentsAccountId()
+  // First run on this device: what already happened counts as read, so the panel's unread marks
+  // start from now.
   const agentServerUrls = useAgentServerUrls()
-  const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
-  if (!onToggleAssistant) return null
-  const isActive = !!assistantOpen
-  const tooltip = activity?.label ?? (isActive ? 'Close Agents' : 'Open Agents')
+  useAgentReadBaseline(agentServerUrls.data, agentsAccountUid)
+  // Orphan agents (owned, in no space yet) are flagged here too: the panel's card is where they get
+  // adopted, and this button is how someone learns to open it.
+  const orphanAgents = useOrphanAgents(agentsAccountUid)
+  if (!toggle) return null
+  const isActive = toggle.isOpen
+  const orphans = orphanAgents.settled ? orphanAgents.agents.length : 0
   return (
-    <Tooltip content={tooltip} asChild>
+    <Tooltip content={ASSISTANT_TOGGLE_LABEL} asChild>
       <Button
         className={cn(
           'window-no-drag relative h-8 w-8 rounded-full border p-0',
@@ -532,88 +540,88 @@ function AssistantChatButton({
         )}
         aria-pressed={isActive}
         aria-label="Agents"
-        onClick={onToggleAssistant}
+        onClick={toggle.toggle}
       >
-        <MessageCircle className="size-4" />
-        <AgentActivityDot indicator={activity} />
-        <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
+        <Bot className="size-4" />
+        <OrphanAgentsDot orphans={orphans} />
       </Button>
     </Tooltip>
   )
 }
 
-export function PageActionButtons(props: TitleBarProps) {
+/** Space header toggle for the global bookmarks side panel. */
+export function BookmarksButton() {
+  const bookmarksPanel = useBookmarksPanel()
+  const isActive = bookmarksPanel.isOpen
+  return (
+    <Tooltip content="Bookmarks" asChild>
+      <Button
+        className={cn(
+          'window-no-drag relative h-8 w-8 rounded-full border p-0',
+          isActive
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-label="Bookmarks"
+        aria-pressed={isActive}
+        onClick={isActive ? bookmarksPanel.close : bookmarksPanel.open}
+      >
+        <Bookmark className="size-4" />
+      </Button>
+    </Tooltip>
+  )
+}
+export function PageActionButtons() {
   return (
     <TitlebarSection>
-      <ExploreButton />
-      <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
-      <BookmarksPopover />
-      <NotificationButton />
-      <ActivityFeedButton />
+      <AgentActivityConnection />
       <AccountProfileButton />
     </TitlebarSection>
   )
 }
 
-/**
- * Titlebar Activity Feed button. Inside a space it opens that space's feed.
- * With no space in the route it opens the node wide feed.
- */
-function ActivityFeedButton() {
-  const route = useNavRoute()
-  const navigate = useNavigate()
-  const isActive = route.key === 'feed' || route.key === 'node-feed'
-  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-  const siteId = routeId?.uid ? hmId(routeId.uid) : null
+/** The space's own tools in its header: Agents, Bookmarks, and the Activity bell. */
+export function SpaceHeaderTools() {
   return (
-    <Tooltip content="Activity Feed" asChild>
-      <Button
-        className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
-          isActive
-            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
-            : 'border-transparent',
-        )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-label="Activity Feed"
-        onMouseEnter={() => {
-          import('@shm/ui/feed').catch(() => {})
-        }}
-        onClick={() => navigate(siteId ? {key: 'feed', id: siteId} : {key: 'node-feed'})}
-      >
-        <Activity className="size-4" />
-      </Button>
-    </Tooltip>
+    <div className="flex items-center gap-1">
+      <AssistantChatButton />
+      <BookmarksButton />
+      <NotificationButton />
+    </div>
   )
 }
 
-/**
- * Titlebar entry point to Explore page, scoped to the space in the current route.
- * Routes with no space open Explore across the whole node instead.
- */
-function ExploreButton() {
+// Keeps the Agents unread dot live with one connection per app environment. It stays in the window bar, which outlives
+// every page, while the Agents button itself is only in the space header.
+function AgentActivityConnection() {
+  const agentsAccountUid = useSelectedAgentsAccountId()
+  const agentServerUrls = useAgentServerUrls()
+  return <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
+}
+
+/** Opens Explore across the whole node, independent of the selected site. */
+export function ExploreButton({className}: {className?: string}) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const isActive = route.key === 'explore'
-  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-  const siteId = routeId?.uid ? hmId(routeId.uid) : null
   return (
     <Tooltip content="Explore" asChild>
       <Button
         className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
+          'window-no-drag h-10 w-full justify-start gap-3 rounded-xl border-0 px-3 text-sm font-semibold',
           isActive
-            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            ? 'bg-sidebar-accent text-brand hover:bg-sidebar-accent/80 hover:text-brand dark:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent/80 dark:hover:text-sidebar-accent-foreground'
             : 'border-transparent',
+          className,
         )}
         aria-current={isActive ? 'page' : undefined}
-        aria-label="Explore"
         onClick={() => {
           focusExploreSearch()
-          navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
+          navigate({key: 'explore', context: {type: 'node'}})
         }}
       >
         <Search className="size-4" />
+        Explore
       </Button>
     </Tooltip>
   )
@@ -624,24 +632,24 @@ export function NavigationButtons() {
   const dispatch = useNavigationDispatch()
   if (!state) return null
   return (
-    <div className="no-window-drag flex shrink-0">
+    <div className="no-window-drag flex shrink-0 items-center">
       <Button
-        size="icon"
+        size="iconSm"
         onClick={() => dispatch({type: 'pop'})}
         variant="ghost"
         disabled={state.routeIndex <= 0}
-        className="rounded-tl-0 rounded-bl-0 shrink-0"
+        className="rounded-tl-0 rounded-bl-0 shrink-0 has-[>svg]:px-0.5"
       >
-        <Back className="size-4" />
+        <Back className="size-4.5" />
       </Button>
 
       <Button
-        size="icon"
+        size="iconSm"
         onClick={() => dispatch({type: 'forward'})}
         disabled={state.routeIndex >= state.routes.length - 1}
-        className="rounded-tr-0 rounded-br-0 shrink-0"
+        className="rounded-tr-0 rounded-br-0 shrink-0 has-[>svg]:px-0.5"
       >
-        <Forward className="size-4" />
+        <Forward className="size-4.5" />
       </Button>
     </div>
   )
@@ -724,8 +732,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Welcome to Seed Hypermedia'
     case 'library':
       return 'Library'
-    case 'agents':
-      return 'Agents'
     case 'drafts':
       return 'Drafts'
     case 'contacts':
@@ -740,10 +746,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Query Documents'
     case 'explore':
       return 'Explore'
-    case 'node-feed':
-      return 'Activity Feed'
-    case 'notifications':
-      return 'Notifications'
     case 'draft':
       return 'Draft'
     default:
@@ -858,9 +860,7 @@ function useCurrentRouteUrl(): {
   // Entity metadata is authoritative; otherwise consider the hostname from the current route.
   const candidateSiteUrl = entitySiteUrl || routeId?.hostname || null
   const candidateSiteHostname = getUrlHostname(candidateSiteUrl)
-  const gatewayHostname = getUrlHostname(gwUrl)
-  const shouldValidateSiteUrl =
-    !!candidateSiteHostname && !!lookupUid && candidateSiteHostname !== gatewayHostname && candidateSiteUrl !== gwUrl
+  const shouldValidateSiteUrl = !!candidateSiteHostname && !!lookupUid
   const domainInfo = useDomain(shouldValidateSiteUrl ? candidateSiteHostname : null, {
     enabled: shouldValidateSiteUrl,
     forceCheck: true,
@@ -870,7 +870,6 @@ function useCurrentRouteUrl(): {
   })
   const validatedSiteUrl = selectValidatedOmnibarSiteUrl({
     candidateSiteUrl,
-    gatewayUrl: gwUrl,
     accountUid: lookupUid,
     registeredAccountUid: domainInfo.data?.registeredAccountUid,
     domainStatus: domainInfo.data?.status,
@@ -891,6 +890,7 @@ function useCurrentRouteUrl(): {
   const draftTitle = draft?.metadata?.name
 
   return useMemo(() => {
+    if (route.key === 'web') return {displayUrl: route.url, copyableUrl: route.url}
     if (route.key === 'draft') {
       const hostname = validatedSiteUrl || gwUrl
       if (route.editUid) {
@@ -912,12 +912,6 @@ function useCurrentRouteUrl(): {
         return {displayUrl: url, copyableUrl: null}
       }
       return {displayUrl: null, copyableUrl: null}
-    }
-
-    if (route.key === 'agent-server') {
-      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
-      const url = `${route.serverUrl}/agents`
-      return {displayUrl: url, copyableUrl: url}
     }
 
     if (route.key === 'agent') {
@@ -1048,28 +1042,6 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
 }
 
 /**
- * Check if current route has a document that can show URL
- */
-function isUrlDisplayableRoute(route: NavRoute): boolean {
-  return (
-    route.key === 'document' ||
-    route.key === 'feed' ||
-    route.key === 'inspect' ||
-    route.key === 'inspect-ipfs' ||
-    route.key === 'activity' ||
-    route.key === 'directory' ||
-    route.key === 'collaborators' ||
-    route.key === 'comments' ||
-    route.key === 'all-documents' ||
-    route.key === 'metadata' ||
-    (route.key === 'explore' && route.context.type === 'site') ||
-    route.key === 'site-profile' ||
-    route.key === 'site-settings-emails' ||
-    route.key === 'site-settings'
-  )
-}
-
-/**
  * Hook to manage omnibar state machine
  */
 function useOmnibarState(currentUrl: string | null) {
@@ -1148,6 +1120,8 @@ function useOmnibarState(currentUrl: string | null) {
  */
 export function Omnibar() {
   const route = useNavRoute()
+  const {experiments} = useUniversalAppContext()
+  const {externalOpen} = useAppContext()
   const navigate = useNavigate()
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const localAgentServerUrl = useLocalAgentServerUrl()
@@ -1186,14 +1160,13 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
-      if (route) {
-        navigate(route)
-        return true
-      }
-      return false
+      const target = await resolveOmnibarNavigation(url, {domainResolver, isWebBrowserEnabled: readWebBrowserEnabled})
+      if (!target) return false
+      if ('route' in target) navigate(target.route)
+      else externalOpen(target.externalUrl)
+      return true
     },
-    [navigate],
+    [navigate, externalOpen],
   )
 
   // Handle keyboard events
@@ -1202,6 +1175,12 @@ export function Omnibar() {
       if (e.key === 'Escape') {
         blur()
       } else if (e.key === 'Enter') {
+        const webAddress = experiments?.webBrowser ? parseBrowserAddress(inputValue) : null
+        if (webAddress) {
+          e.preventDefault()
+          void handleUrlNavigation(webAddress).then(() => blur())
+          return
+        }
         if (mode === 'focused') {
           e.preventDefault()
           const url = inputValue.trim()
@@ -1235,7 +1214,7 @@ export function Omnibar() {
         searchInputRef.current?.handleArrowDown()
       }
     },
-    [blur, mode, inputValue, handleUrlNavigation],
+    [blur, mode, inputValue, handleUrlNavigation, experiments?.webBrowser],
   )
 
   // Handle click on idle state to focus

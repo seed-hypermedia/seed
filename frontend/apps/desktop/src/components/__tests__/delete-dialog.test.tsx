@@ -4,11 +4,17 @@ import {act} from 'react-dom/test-utils'
 import {describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
-const {deleteMutateAsyncMock, listSiteDataMock, toastErrorMock, toastPromiseMock} = vi.hoisted(() => ({
+const {deleteMutateAsyncMock, listSiteDataMock, toastErrorMock, toastPromiseMock, agentDeletion} = vi.hoisted(() => ({
   deleteMutateAsyncMock: vi.fn(),
   listSiteDataMock: [] as any[],
   toastErrorMock: vi.fn(),
   toastPromiseMock: vi.fn(),
+  /** What the mounted-agent hook reports; a test flips `isAgent` to delete an agent's document. */
+  agentDeletion: {isAgent: false, serverUrl: undefined as string | undefined, deleteAgent: vi.fn(async () => {})},
+}))
+
+vi.mock('@shm/ui/agents/delete-mounted-agent', () => ({
+  useMountedAgentDeletion: () => agentDeletion,
 }))
 
 vi.mock('@/models/access-control', () => ({
@@ -135,6 +141,40 @@ describe('DeleteDocumentDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onSuccess).toHaveBeenCalledTimes(1)
 
+    cleanupRendered(root, container)
+  })
+
+  it("deletes a mounted agent's document as the agent: server first, then the document", async () => {
+    const id = hmId('alice', {path: ['helper']})
+    deleteMutateAsyncMock.mockReset()
+    toastPromiseMock.mockReset()
+    agentDeletion.deleteAgent.mockClear()
+    const order: string[] = []
+    agentDeletion.isAgent = true
+    agentDeletion.deleteAgent.mockImplementation(async () => {
+      order.push('agent')
+    })
+    deleteMutateAsyncMock.mockImplementation(async () => {
+      order.push('document')
+    })
+
+    const {container, root} = renderDialog({input: {id}, onClose: vi.fn()})
+    expect(findButtonExact(container, 'Delete document')).toBeUndefined()
+    expect(container.textContent).toContain('its sessions, memory and triggers on its server')
+    const deleteButton = findButtonExact(container, 'Delete agent')
+
+    await act(async () => {
+      deleteButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(order).toEqual(['agent', 'document'])
+    expect(toastPromiseMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({loading: 'Deleting agent…', success: 'Successfully deleted agent'}),
+    )
+    agentDeletion.isAgent = false
     cleanupRendered(root, container)
   })
 

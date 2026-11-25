@@ -6,6 +6,7 @@ import {updateGroupCommand} from '../../../api/blockManipulation/commands/update
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import styles from './Block.module.css'
+import {nestBlocksUnderHeadings, stripBlockWhitespaces} from './externalHtmlPaste'
 import {normalizeFragment} from './normalizeFragment'
 
 export const BlockChildren = Node.create<{
@@ -14,6 +15,7 @@ export const BlockChildren = Node.create<{
   name: 'blockChildren',
   group: 'childContainer',
   content: 'blockNodeChild+',
+  allowGapCursor: true,
 
   addAttributes() {
     return {
@@ -201,10 +203,19 @@ export const BlockChildren = Node.create<{
   },
 
   addProseMirrorPlugins() {
+    // Set while ProseMirror parses HTML that didn't come from a ProseMirror editor.
+    let pastingExternalHtml = false
+
     return [
       new Plugin({
         props: {
+          transformPastedHTML: (html) => {
+            pastingExternalHtml = !html.includes('data-pm-slice')
+            return stripBlockWhitespaces(html)
+          },
           transformPasted: (slice, view) => {
+            const nestHeadings = pastingExternalHtml
+            pastingExternalHtml = false
             const {selection} = view.state
             const isSelectionInText =
               selection.$from.parent.isTextblock &&
@@ -239,7 +250,8 @@ export const BlockChildren = Node.create<{
               }
             }
 
-            // Check if all top-level nodes are blockNode (internal copy/paste).
+            // Check if all top-level nodes are blockNode: an internal copy, or external HTML that ProseMirror already
+            // wrapped in blockNodes.
             let allBlockNodes = slice.content.childCount > 0
             slice.content.forEach((node: any) => {
               if (node.type.name !== 'blockNode') {
@@ -247,6 +259,9 @@ export const BlockChildren = Node.create<{
               }
             })
             if (allBlockNodes) {
+              if (nestHeadings) {
+                return new Slice(nestBlocksUnderHeadings(slice.content, view.state.schema), 0, 0)
+              }
               return slice
             }
 
@@ -282,7 +297,8 @@ export const BlockChildren = Node.create<{
             // External paste: normalize into the blockNode/blockChildren shape the
             // schema expects, then close the slice so it's inserted as new blocks.
             const schema = view.state.schema
-            return new Slice(normalizeFragment(slice.content, schema), 0, 0)
+            const normalized = normalizeFragment(slice.content, schema)
+            return new Slice(nestHeadings ? nestBlocksUnderHeadings(normalized, schema) : normalized, 0, 0)
           },
         },
       }),

@@ -7,23 +7,34 @@ import {ChildDeletionPublishDialog} from '../child-deletion-publish-dialog'
 ;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {send, snapshot} = vi.hoisted(() => ({
+const {send, snapshot, state} = vi.hoisted(() => ({
   send: vi.fn(),
-  snapshot: {
-    matches: ({publishing}: {publishing: string}) => publishing === 'confirmingChildDeletion',
+  state: {publishing: 'confirmingChildDeletion', error: null as string | null},
+  snapshot: {} as {
+    matches: (value: {publishing: string} | string) => boolean
     context: {
-      confirmedChildDeletions: [
-        {
-          documents: [
-            {id: 'hm://alice/parent/child', version: 'v1', title: 'Child document'},
-            {id: 'hm://alice/parent/child/nested', version: 'v2'},
-          ],
-        },
-      ],
-      childDeletionError: null,
-    },
+      confirmedChildDeletions: Array<{documents: Array<{id: string; version: string; title?: string}>}>
+      childDeletionError: string | null
+    }
   },
 }))
+Object.assign(snapshot, {
+  matches: (value: {publishing: string} | string) =>
+    typeof value === 'string' ? state.publishing === value : value.publishing === state.publishing,
+  context: {
+    confirmedChildDeletions: [
+      {
+        documents: [
+          {id: 'hm://alice/parent/child', version: 'v1', title: 'Child document'},
+          {id: 'hm://alice/parent/child/nested', version: 'v2'},
+        ],
+      },
+    ],
+    get childDeletionError() {
+      return state.error
+    },
+  },
+})
 
 vi.mock('@shm/shared/models/use-document-machine', () => ({
   useDocumentSelector: (selector: (value: typeof snapshot) => unknown) => selector(snapshot),
@@ -35,6 +46,8 @@ let root: Root
 
 beforeEach(() => {
   send.mockClear()
+  state.publishing = 'confirmingChildDeletion'
+  state.error = null
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -73,6 +86,72 @@ describe('ChildDeletionPublishDialog', () => {
     )!
     act(() => confirm.click())
     expect(send).toHaveBeenCalledWith({type: 'publish.confirmChildDeletion'})
+    expect(send).not.toHaveBeenCalledWith({type: 'publish.cancelChildDeletion'})
+  })
+
+  it('replaces the footer cancel button with a top-right close X', () => {
+    act(() => root.render(<ChildDeletionPublishDialog />))
+    const dialog = document.querySelector('[role="alertdialog"]')!
+    const footer = dialog.querySelector('[data-slot="alert-dialog-footer"]')!
+    expect(
+      Array.from(dialog.querySelectorAll('button')).some((button) => button.textContent === 'Back to editing'),
+    ).toBe(false)
+    const close = dialog.querySelector('button[aria-label="Back to editing"]')!
+    expect(footer.contains(close)).toBe(false)
+    act(() => (close as HTMLButtonElement).click())
+    expect(send).toHaveBeenCalledWith({type: 'publish.cancelChildDeletion'})
+  })
+
+  it('cancels through onOpenChange when Escape is pressed', () => {
+    act(() => root.render(<ChildDeletionPublishDialog />))
+    const dialog = document.querySelector('[role="alertdialog"]')!
+    act(() => {
+      dialog.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))
+    })
+    expect(send).toHaveBeenCalledWith({type: 'publish.cancelChildDeletion'})
+  })
+
+  it('shows only the two publish actions in the confirming footer', () => {
+    act(() => root.render(<ChildDeletionPublishDialog />))
+    const buttons = Array.from(document.querySelectorAll('[data-slot="alert-dialog-footer"] button')).map(
+      (button) => button.textContent,
+    )
+    expect(buttons).toEqual(['Publish without deleting', 'Publish and delete 2 documents'])
+  })
+
+  it('offers publishing without deleting while confirming', () => {
+    act(() => root.render(<ChildDeletionPublishDialog />))
+    const skip = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Publish without deleting',
+    )!
+    expect(skip).toBeTruthy()
+    act(() => skip.click())
+    expect(send).toHaveBeenCalledWith({type: 'publish.skipChildDeletion'})
+    expect(send).not.toHaveBeenCalledWith({type: 'publish.cancelChildDeletion'})
+    expect(send).not.toHaveBeenCalledWith({type: 'publish.confirmChildDeletion'})
+  })
+
+  it('offers publishing without deleting after inspection failed, without a delete option', () => {
+    state.publishing = 'childDeletionFailed'
+    state.error = 'offline'
+    act(() => root.render(<ChildDeletionPublishDialog />))
+    const dialog = document.querySelector('[role="alertdialog"]')!
+    expect(dialog.textContent).toContain('offline')
+    expect(
+      Array.from(dialog.querySelectorAll('button')).some(
+        (button) => button.textContent?.startsWith('Publish and delete'),
+      ),
+    ).toBe(false)
+    const buttons = Array.from(dialog.querySelectorAll('[data-slot="alert-dialog-footer"] button')).map(
+      (button) => button.textContent,
+    )
+    expect(buttons).toEqual(['Publish without deleting'])
+    const skip = Array.from(dialog.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Publish without deleting',
+    )!
+    expect(skip).toBeTruthy()
+    act(() => skip.click())
+    expect(send).toHaveBeenCalledWith({type: 'publish.skipChildDeletion'})
     expect(send).not.toHaveBeenCalledWith({type: 'publish.cancelChildDeletion'})
   })
 })

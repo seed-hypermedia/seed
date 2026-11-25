@@ -1,0 +1,60 @@
+diff --git a/v3/types.cjs b/v3/types.cjs
+index 7c3fa90509fe0149fde8ad5e647b9657014c538f..bf981ec9d55e8bc49f2c6ea35fdca58fcb0dab83 100644
+--- a/v3/types.cjs
++++ b/v3/types.cjs
+@@ -1792,6 +1792,7 @@ class ZodArray extends ZodType {
+                     exact: true,
+                     message: def.exactLength.message,
+                 });
++                if (tooBig) return parseUtil_js_1.INVALID;
+                 status.dirty();
+             }
+         }
+@@ -1818,7 +1819,7 @@ class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2849,7 +2850,7 @@ class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         const valueType = this._def.valueType;
+diff --git a/v3/types.js b/v3/types.js
+index ea2be4dba5775eabf4d5b5fecdead5e1a0ca52ff..351a87f6df1871c8188a9b7901df2a4610028e73 100644
+--- a/v3/types.js
++++ b/v3/types.js
+@@ -1771,6 +1771,7 @@ export class ZodArray extends ZodType {
+                     exact: true,
+                     message: def.exactLength.message,
+                 });
++                if (tooBig) return INVALID;
+                 status.dirty();
+             }
+         }
+@@ -1797,7 +1798,7 @@ export class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                return INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2820,7 +2821,7 @@ export class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                return INVALID;
+             }
+         }
+         const valueType = this._def.valueType;

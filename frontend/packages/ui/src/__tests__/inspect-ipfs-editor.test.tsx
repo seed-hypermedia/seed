@@ -64,8 +64,9 @@ describe('InspectIpfsPage as the blob editor', () => {
   function mount(
     ipfsPath: string,
     blobs: Record<string, unknown> = {},
-    props: {editField?: {docUrl: string; field: string}} = {},
+    props: {editField?: {docUrl: string; field: string}; signedIn?: boolean} = {},
   ) {
+    const {signedIn = true, ...pageProps} = props
     const published: {cid?: string; data: Uint8Array}[] = []
     nav.push.mockReset()
     nav.replace.mockReset()
@@ -80,7 +81,8 @@ describe('InspectIpfsPage as the blob editor', () => {
       }),
       publishDocument: vi.fn(async (_input: unknown) => {}),
     }
-    const selectedIdentity = {get: () => 'z6MkSigner', subscribe: () => () => {}}
+    // Logged out (web) or no key (desktop): the identity stream yields nothing.
+    const selectedIdentity = {get: () => (signedIn ? 'z6MkSigner' : null), subscribe: () => () => {}}
     act(() =>
       root.render(
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
@@ -91,7 +93,7 @@ describe('InspectIpfsPage as the blob editor', () => {
             selectedIdentity={selectedIdentity as any}
           >
             <TooltipProvider>
-              <InspectIpfsPage ipfsPath={ipfsPath} {...props} />
+              <InspectIpfsPage ipfsPath={ipfsPath} {...pageProps} />
             </TooltipProvider>
           </UniversalAppProvider>
         </QueryClientProvider>,
@@ -147,6 +149,25 @@ describe('InspectIpfsPage as the blob editor', () => {
     expect(container.textContent).toContain('world')
     // The header names the blob by its (shortened) CID.
     expect(container.querySelector('[data-document-top-bar]')!.textContent).toContain(cid.slice(0, 10))
+  })
+
+  it('without an account a draft cannot be published, and says why', async () => {
+    const {published} = mount(`new/${schemaCid('example/employee')!}`, {}, {signedIn: false})
+    await waitFor(() => container.textContent!.includes('Schema attached'))
+    const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
+    expect(publish.disabled).toBe(true)
+    expect(container.querySelector('[data-testid="blob-status"]')!.textContent).toBe('Select an account to publish')
+    await act(async () => publish.click())
+    expect(published).toHaveLength(0)
+  })
+
+  it('without an account a published blob is read-only: no Edit button', async () => {
+    const value = {hello: 'world'}
+    const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(value))).toString()
+    mount(cid, {[cid]: value}, {signedIn: false})
+    await waitFor(() => container.textContent!.includes('hello'))
+    expect(container.querySelector('[data-testid="blob-edit"]')).toBeNull()
+    expect(container.querySelector('[data-testid="blob-publish"]')).toBeNull()
   })
 
   it('a blank draft offers a schema picker; a seeded draft does not', async () => {

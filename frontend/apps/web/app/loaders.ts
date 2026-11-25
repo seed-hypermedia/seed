@@ -1,5 +1,6 @@
 import {getQueryBlockInput} from '@shm/editor/query-block-input'
 import {renderDocumentToHTML} from '@shm/editor/ssr-render'
+import {resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
@@ -41,8 +42,7 @@ import {
   queryQueryBlock,
   queryResource,
 } from '@shm/shared/models/queries'
-import {republishVersionCarry} from '@shm/shared/redirects'
-import {createResourceFetcher, createResourceResolver} from '@shm/shared/resource-loader'
+import {createResourceFetcher, createResourceResolver, followRedirects} from '@shm/shared/resource-loader'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
 import {instrument, InstrumentationContext} from './instrumentation.server'
@@ -55,6 +55,14 @@ import {getConfig} from './site-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
+import {
+  HMDocumentShell,
+  isBotUserAgent,
+  isContentHiddenView,
+  isExpectedResourceError,
+  RESOURCE_DELETED_MESSAGE,
+  toDocumentShell,
+} from './resource-payload'
 import {WEB_IS_GATEWAY} from '@shm/shared/constants'
 
 /**
@@ -113,7 +121,11 @@ export async function getAccount(
       metadata,
     } as HMMetadataPayload
   } catch (e) {
-    console.error('Error getting account ' + accountUid, e)
+    if (isExpectedResourceError(e)) {
+      console.warn(`Error getting account ${accountUid}: ${(e as Error).message}`)
+    } else {
+      console.error('Error getting account ' + accountUid, e)
+    }
     return {id: hmId(accountUid), metadata: {}}
   }
 }
@@ -393,6 +405,38 @@ function createNoopInstrumentationContext(): InstrumentationContext {
 }
 
 /**
+ * The resource query the client hydrates for a route must hold the document the loader just
+ * loaded for it. The loader had `document` in hand for this very request, so a not-found, an
+ * error or a missing entry here means the id it dehydrates is one the daemon cannot serve —
+ * the #1120 shape, where the response is a 200 yet the page shows "Document Not Found". Such a
+ * bug is invisible in server logs otherwise, so say it loudly. The page still renders whatever
+ * it can; the log line is the signal to alert on.
+ */
+function assertRouteResourceHydrates(
+  prefetchCtx: PrefetchContext,
+  routeId: UnpackedHypermediaId,
+  document: HMDocument,
+) {
+  const cached = prefetchCtx.queryClient.getQueryData(queryResource(serverUniversalClient, routeId).queryKey) as
+    | HMResource
+    | null
+    | undefined
+  if (cached?.type === 'document') return
+  console.error(
+    `[web-loader] INVARIANT: route resource would hydrate as "${
+      cached?.type ?? 'missing'
+    }" although its document loaded`,
+    {
+      route: packHmId(routeId),
+      version: routeId.version ?? null,
+      latest: routeId.latest ?? null,
+      loadedDocument: `${document.account}${document.path} @ ${document.version}`,
+      cachedMessage: cached && cached.type === 'error' ? cached.message : undefined,
+    },
+  )
+}
+
+/**
  * Load resource payload using prefetch-only architecture.
  * React Query handles deduplication automatically.
  */
@@ -404,35 +448,35 @@ async function loadResourcePayload(
     latestDocument?: HMDocument | null
     comment?: HMComment
     commentId?: UnpackedHypermediaId
-    // Set when `docId` is a republish redirect and `document` is the content of its
-    // target. The route keeps the republish's own address, not the target's.
-    republish?: boolean
   },
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
-  const {document, latestDocument, comment, commentId, republish} = payload
+  const {document, latestDocument, comment, commentId} = payload
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
-  // Create the final ID that will be returned to the client.
+  // Derive the route identity from the resolved document rather than a caller-supplied
+  // republish flag. Pin ordinary documents to the version served in this response.
+  //
   // Clear `latest` when pinning to a specific version — otherwise the client's
   // REST fetch includes both `?v=...&l`, the handler drops the version, and the
   // daemon may return a stale "latest" pointer (overwriting correct SSR data).
   //
-  // A republish route is the exception: `document.version` belongs to the TARGET
-  // document, so pinning it onto the republish's address asks the daemon for a
-  // version that does not exist there and every lookup (the SSR prefetch and each
-  // client refetch) resolves as not-found. Keep the route's own unpinned id.
-  const finalId: UnpackedHypermediaId = republish ? docId : {...docId, version: document.version, latest: false}
+  // For a republish, retain the route's own version/latest selection. An explicit
+  // version is carried to the target by followRedirects (#1128); an unpinned route
+  // must stay unpinned so subsequent refetches can follow the target's latest content.
+  const documentLivesAtRoute =
+    document.account === docId.uid && (document.path || '') === hmIdPathToEntityQueryPath(docId.path)
+  const finalId: UnpackedHypermediaId = documentLivesAtRoute
+    ? {...docId, version: document.version, latest: false}
+    : docId
 
-  if (republish) {
-    // Seed the route's resource query with the followed target content — the same
-    // shape queryResource produces when it follows a republish on the client (target
-    // document under the republish's id) — so the prefetch below does not resolve the
-    // redirect chain a second time.
+  if (!documentLivesAtRoute) {
+    // Seed the route's resource query with the content reached through the redirect — the
+    // same shape queryResource produces when it follows a republish on the client (target
+    // document under the republish's id) — so the prefetch below does not walk the chain
+    // a second time.
     prefetchCtx.queryClient.setQueryData(queryResource(serverUniversalClient, finalId).queryKey, {
       type: 'document',
       id: finalId,
@@ -442,6 +486,7 @@ async function loadResourcePayload(
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)
+  assertRouteResourceHydrates(prefetchCtx, finalId, document)
 
   // For comments, also prefetch the comment resource so useResource(commentId) has data
   if (commentId) {
@@ -461,23 +506,27 @@ async function loadResourcePayload(
   // cache key. Any data change misses the cache and re-renders (~4-15ms on
   // the heaviest real pages); a hit can never serve stale markup.
   const dehydratedState = dehydratePrefetchContext(prefetchCtx)
-  const dataFingerprint = hashString(
-    stringifyWithBigInt(
-      dehydratedState.queries
-        .map((q) => [q.queryHash, q.state.data] as const)
-        // Prefetch completion order varies run-to-run; sort for a stable key.
-        .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-    ),
-  )
+  const renderContent = !!document.content && !options?.contentHidden
+  const dataFingerprint = renderContent
+    ? hashString(
+        stringifyWithBigInt(
+          dehydratedState.queries
+            .map((q) => [q.queryHash, q.state.data] as const)
+            // Prefetch completion order varies run-to-run; sort for a stable key.
+            .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+        ),
+      )
+    : ''
 
   const {origin} = getOriginRequestData(parsedRequest)
   const originHomeId = options?.originHomeId
-  const cacheKey = document.version
-    ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
-        document.version
-      }|d:${dataFingerprint}`
-    : undefined
-  const ssrContentHTML = document.content
+  const cacheKey =
+    renderContent && document.version
+      ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
+          document.version
+        }|d:${dataFingerprint}`
+      : undefined
+  const ssrContentHTML = renderContent
     ? renderDocumentToHTML(document.content, {
         cacheKey,
         rootChildrenType: document.metadata?.childrenType,
@@ -490,7 +539,10 @@ async function loadResourcePayload(
         queryClient: prefetchCtx.queryClient,
         // The mounted editor's content width: contentWidth setting minus the
         // px-4 content padding. Media with absolute px widths size against it.
-        editorWidth: getContentWidthValue(document.metadata?.contentWidth) - 32,
+        // Resolved against the space's setting the same way the page does, so
+        // the server render matches the width the client settles on.
+        editorWidth:
+          getContentWidthValue(resolveDocumentDisplay(document.metadata, homeDocument?.metadata).contentWidth) - 32,
         // The same context values WebSiteProvider passes on the client, so
         // block components produce identical URLs server-side.
         appContext: {
@@ -503,9 +555,7 @@ async function loadResourcePayload(
         },
       })
     : null
-  if (ssrContentHTML) {
-    console.log(`[ssr-render] Generated ${ssrContentHTML.length} chars of SSR HTML for ${cacheKey || 'uncached'}`)
-  } else if (document.content?.length) {
+  if (renderContent && !ssrContentHTML && document.content?.length) {
     console.warn(
       `[ssr-render] Failed to generate SSR HTML for ${cacheKey || 'unknown'} (${document.content.length} blocks)`,
     )
@@ -524,6 +574,19 @@ async function loadResourcePayload(
   }
 }
 
+export type ResourceLoadOptions = {
+  originHomeId?: UnpackedHypermediaId
+  /**
+   * The page will not show the document's content (a view-term panel such as
+   * /:activity or /:comments, the inspector, or a comment), and the request is
+   * from a crawler, which never switches to the content view client-side:
+   * skip server-rendering the content HTML. See isContentHiddenView.
+   */
+  contentHidden?: boolean
+  /** The request is from a crawler; comment pages never show the target's content to it. */
+  isBot?: boolean
+}
+
 // Low-level fetcher - returns all types including redirect and not-found
 export const fetchResource = createResourceFetcher(grpcClient)
 
@@ -535,9 +598,7 @@ export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -547,33 +608,14 @@ export async function loadResource(
     current: {name: '', start: 0, children: []},
   } as InstrumentationContext
 
-  const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
-  if (resource.type === 'redirect' && resource.republish) {
-    // A republish redirect renders the target's content at THIS route — matching the
-    // client-side queryResource behavior — instead of bouncing the browser to the target URL.
-    // A version pinned on the republish route is the target's version: follow the hop with it.
-    const followTarget = {...resource.redirectTarget, ...republishVersionCarry(resource, id)}
-    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(followTarget)})`, () =>
-      resolveResource(followTarget),
-    )
-    if (followed.type === 'document') {
-      const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(followed.id)})`, () =>
-        getLatestDocument(followed.id),
-      )
-      return await loadResourcePayload(
-        id,
-        parsedRequest,
-        {
-          document: followed.document,
-          latestDocument,
-          republish: true,
-        },
-        ctx,
-        options,
-      )
-    }
-    // The chain does not end at a live document — fall through to the plain-redirect handling.
-  }
+  // One walk through redirects, shared with the client query and the shared resolver
+  // (resource-loader.ts). A move redirect on the first hop is returned as-is so the route
+  // can answer with a 302; a republish is followed to its content, which the route then
+  // renders at the republish's own address.
+  const walk = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () =>
+    followRedirects(fetchResource, id, {stopAtMove: true}),
+  )
+  const resource = walk.resource
   if (resource.type === 'redirect') {
     // The destination URL is built in loadSiteResource, which has the route
     // context (view term, open comment, panel) that must survive the redirect.
@@ -608,19 +650,23 @@ export async function loadResource(
         commentId,
       },
       ctx,
-      options,
+      // A comment page shows the discussion, not the target's content.
+      {...options, contentHidden: options?.contentHidden || options?.isBot},
     )
   }
   if (resource.type === 'tombstone') {
-    throw new Error('Resource has been deleted')
+    throw new Error(RESOURCE_DELETED_MESSAGE)
   }
   // resource.type === 'document'
   const document = resource.document
-  const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(id)})`, () =>
-    getLatestDocument(id),
+  // The route keeps the address it was asked for: a republish's own address presents the
+  // target's content (queryResource does the same on the client); otherwise the document's.
+  const routeId = walk.republishSourceId ?? id
+  const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(resource.id)})`, () =>
+    getLatestDocument(resource.id),
   )
   return await loadResourcePayload(
-    id,
+    routeId,
     parsedRequest,
     {
       document,
@@ -636,9 +682,7 @@ export async function loadResourceWithDiscovery(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -673,7 +717,8 @@ export async function loadResourceWithDiscovery(
   }
 }
 
-export type SiteDocumentPayload = WebResourcePayload & {
+export type SiteDocumentPayload<D extends HMDocumentShell = HMDocumentShell> = Omit<WebResourcePayload, 'document'> & {
+  document: D
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
@@ -764,8 +809,39 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     commentVersion?: string | null
   },
 ): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+  return loadSiteResourcePayload(parsedRequest, id, extraData, {documentContent: false})
+}
+
+/**
+ * {@link loadSiteResource} for pages that render the payload's document content
+ * themselves (the download page's header outline) instead of reading it from the
+ * dehydrated query cache.
+ */
+export async function loadSiteResourceWithContent<T extends Record<string, unknown> = Record<string, never>>(
+  parsedRequest: ParsedRequest,
+  id: UnpackedHypermediaId,
+  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+): Promise<WrappedResponse<SiteDocumentPayload<HMDocument> & Omit<T, 'instrumentationCtx'>>> {
+  return loadSiteResourcePayload(parsedRequest, id, extraData, {documentContent: true}) as any
+}
+
+async function loadSiteResourcePayload<T extends Record<string, unknown> = Record<string, never>>(
+  parsedRequest: ParsedRequest,
+  id: UnpackedHypermediaId,
+  extraData:
+    | (T & {
+        instrumentationCtx?: InstrumentationContext
+        viewTerm?: string | null
+        accountUid?: string | null
+        openComment?: string | null
+        commentVersion?: string | null
+      })
+    | undefined,
+  {documentContent}: {documentContent: boolean},
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
+  const isBot = isBotUserAgent(parsedRequest.headers.get('user-agent'))
   // Profile pages render/load the account root document, but the public
   // metadata identifies the profile view term addressed by the URL.
   const metadataId =
@@ -799,7 +875,11 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   }
   try {
     const resourceContent = await instrument(ctx || noopCtx, `loadResourceWithDiscovery(${packHmId(id)})`, () =>
-      loadResourceWithDiscovery(id, parsedRequest, ctx, {originHomeId}),
+      loadResourceWithDiscovery(id, parsedRequest, ctx, {
+        originHomeId,
+        isBot,
+        contentHidden: isBot && isContentHiddenView(extraData),
+      }),
     )
 
     // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)
@@ -865,6 +945,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
+      document: documentContent ? resourceContent.document : toDocumentShell(resourceContent.document),
       ...(comment ? {comment} : {}),
       dehydratedState: mergedDehydratedState,
       homeMetadata,
@@ -912,14 +993,10 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         (extraData || {}) as RedirectRouteContext,
         originHomeId,
       )
-      console.log('[web-loader] redirecting resource route', {
-        from: id,
-        to: e.target,
-        destRedirectUrl,
-      })
+      console.log(`[web-loader] redirecting resource route ${id.id} -> ${e.target.id} (${destRedirectUrl})`)
       return redirect(destRedirectUrl)
     }
-    console.error('Error Loading Site Document', id, e)
+    logSiteResourceError(id, e)
 
     let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
@@ -946,6 +1023,19 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       },
       {status: id ? 200 : 404},
     )
+  }
+}
+
+/**
+ * Missing, deleted and private documents are routine (crawlers probe dead links
+ * all day): log them as one line. Anything else is unexpected and keeps its
+ * stack trace.
+ */
+function logSiteResourceError(id: UnpackedHypermediaId, e: unknown) {
+  if (isExpectedResourceError(e)) {
+    console.warn(`Error Loading Site Document ${id.id}: ${e instanceof Error ? e.message : String(e)}`)
+  } else {
+    console.error('Error Loading Site Document', id, e)
   }
 }
 

@@ -1,3 +1,4 @@
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   parseCustomURL as _parseCustomURL,
@@ -5,7 +6,7 @@ import {
   unpackHmId as _unpackHmId,
 } from '@seed-hypermedia/client/hm-types'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
-import type {NavRoute} from '../routes'
+import type {NavRoute, DocumentRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import type {StateStream} from './stream'
 
@@ -15,7 +16,7 @@ import type {StateStream} from './stream'
 const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
   comments: ['Comment'],
   versions: ['Ref'],
-  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
 }
 
 export function activityFilterToSlug(filterEventType?: string[]): string | null {
@@ -58,6 +59,99 @@ export const VIEW_TERMS = [
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
+/** Parses agent views without confusing space settings with a mounted document's settings. */
+export function extractAgentDocumentView(parts: string[]): {
+  path: string[]
+  agentView: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
+  toolCallId?: string
+  agentSessionId?: string
+  agentTriggerId?: string
+} | null {
+  if (parts.at(-2) === ':call' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: undefined, toolCallId: decodeURIComponent(parts.at(-1)!)}
+  }
+  const appView = parts.at(-1)
+  if (parts.at(-2) === ':app' && appView && (APP_VIEWS as readonly string[]).includes(appView)) {
+    return {path: parts.slice(0, -2), agentView: undefined, appView: appView as DocumentRoute['appView']}
+  }
+  if (parts.at(-2) === ':session' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: 'session', agentSessionId: parts.at(-1)}
+  }
+  if (parts.at(-2) === ':triggers' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: 'triggers', agentTriggerId: parts.at(-1)}
+  }
+  // Settings pages: `:settings/<page>`. The bare `:prompt` and `:tools` forms are older links.
+  const settingsPage = parts.at(-1)
+  if (parts.at(-2) === ':settings' && settingsPage && isAgentSettingsPage(settingsPage)) {
+    return {path: parts.slice(0, -2), agentView: settingsPage}
+  }
+  const term = parts.at(-1)
+  if (
+    term &&
+    [':sessions', ':tools', ':settings', ':triggers', ':memory', ':prompt', ':access'].includes(term) &&
+    parts.length > 1
+  ) {
+    const view = term === ':tools' ? 'permissions' : (term.slice(1) as DocumentRoute['agentView'])
+    return {path: parts.slice(0, -1), agentView: view}
+  }
+  return null
+}
+
+/** The pages under an agent's Settings tab, addressed as `:settings/<page>`. */
+export const AGENT_SETTINGS_PAGES = ['prompt', 'permissions', 'identities', 'mcp'] as const
+export type AgentSettingsPage = (typeof AGENT_SETTINGS_PAGES)[number]
+
+export function isAgentSettingsPage(view: string | undefined): view is AgentSettingsPage {
+  return !!view && (AGENT_SETTINGS_PAGES as readonly string[]).includes(view)
+}
+
+/** Converts canonical agent IDs to document navigation; legacy server IDs retain their routes. */
+export function mountedAgentRoute(route: NavRoute): NavRoute {
+  if (route.key !== 'agent' && route.key !== 'agent-session') return route
+  const id = route.agentId ? unpackHmId(route.agentId) : null
+  if (!id?.path?.length) return route
+  return route.key === 'agent-session'
+    ? {key: 'document', id, agentView: 'session', agentSessionId: route.sessionId}
+    : {
+        key: 'document',
+        id,
+        agentView:
+          route.tab === 'collaborators' ? 'access' : route.tab === 'tools' ? 'permissions' : route.tab || 'sessions',
+        agentTriggerId: route.triggerId,
+        agentMemoryPath: route.memoryPath,
+      }
+}
+
+/** App and tool tabs live at `:app/<view>`; plain `:tools` and `:settings` belong to agents. */
+export const APP_VIEWS = ['tools', 'pages', 'triggers', 'settings'] as const
+
+/** Suffix used by every mounted-agent and app-tab URL producer. */
+export function agentDocumentViewPath(route: DocumentRoute): string | undefined {
+  if (!route.agentView) {
+    if (route.toolCallId) return `:call/${encodeURIComponent(route.toolCallId)}`
+    return route.appView ? `:app/${route.appView}` : undefined
+  }
+  if (route.agentView === 'triggers' && route.agentTriggerId)
+    return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
+  if (route.agentView === 'tools') return ':settings/permissions'
+  if (isAgentSettingsPage(route.agentView)) return `:settings/${route.agentView}`
+  // A session view with no id is the list; `:session/` would parse back as a document path.
+  if (route.agentView === 'session') {
+    return route.agentSessionId ? `:session/${encodeURIComponent(route.agentSessionId)}` : ':sessions'
+  }
+  return `:${route.agentView}`
+}
+
+function appendAgentViewQuery(url: string, route: DocumentRoute): string {
+  if (!route.agentView) return url
+  const query = new URLSearchParams()
+  if (route.agentMemoryPath) query.set('file', route.agentMemoryPath)
+  if (!query.size) return url
+  const [base, fragment] = url.split('#')
+  return `${base}${base!.includes('?') ? '&' : '?'}${query}${fragment ? `#${fragment}` : ''}`
+}
+
 /**
  * Whether a path or URL addresses a view-term panel (`/:followers`, `/:comments`, ...)
  * rather than a document itself. Panels are alternate views of documents and accounts
@@ -72,10 +166,16 @@ export function isViewTermPath(pathOrUrl: string): boolean {
     path = pathStart >= 0 ? path.slice(pathStart) : '/'
   }
   path = path.split(/[?#]/)[0] || ''
-  return path.split('/').some((segment) => (VIEW_TERMS as readonly string[]).includes(segment))
+  return path
+    .split('/')
+    .some(
+      (segment) =>
+        (VIEW_TERMS as readonly string[]).includes(segment) ||
+        [':sessions', ':session', ':tools', ':triggers', ':memory', ':prompt', ':access'].includes(segment),
+    )
 }
 
-// Route keys that correspond to view terms (excludes 'options' which is panel-only)
+// Route keys that correspond to view terms
 export type ViewRouteKey =
   | 'activity'
   | 'comments'
@@ -90,7 +190,7 @@ export type ViewRouteKey =
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed'
 
 function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
   const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)
@@ -120,12 +220,72 @@ export function extractViewTermFromUrl(url: string): {
   isInspect: boolean
   viewTerm: ViewTerm | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
   settingsTab?: string
   settingsDomain?: string
+  agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
+  toolCallId?: string
+  agentSessionId?: string
+  agentTriggerId?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+  const callMatch = inspectCleanUrl.match(/\/:call\/([^/?#]+)(?=[?#]|$)/)
+  if (callMatch) {
+    return {
+      url: inspectCleanUrl.replace(callMatch[0], ''),
+      isInspect,
+      viewTerm: null,
+      toolCallId: decodeURIComponent(callMatch[1]!),
+    }
+  }
+  const appMatch = inspectCleanUrl.match(/\/:app\/(tools|pages|triggers|settings)(?=[?#]|$)/)
+  if (appMatch) {
+    return {
+      url: inspectCleanUrl.replace(appMatch[0], ''),
+      isInspect,
+      viewTerm: null,
+      appView: appMatch[1] as DocumentRoute['appView'],
+    }
+  }
+  const agentMatch = inspectCleanUrl.match(
+    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/(?:prompt|permissions|identities|mcp)|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
+  )
+  if (agentMatch) {
+    try {
+      return {
+        url: inspectCleanUrl.replace(agentMatch[0], ''),
+        isInspect,
+        viewTerm: null,
+        agentView: (agentMatch[2]
+          ? 'session'
+          : agentMatch[3]
+            ? 'triggers'
+            : agentMatch[1]!.startsWith(':settings/')
+              ? agentMatch[1]!.slice(':settings/'.length)
+              : agentMatch[1] === ':tools'
+                ? 'permissions'
+                : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
+        ...(agentMatch[2] ? {agentSessionId: decodeURIComponent(agentMatch[2])} : {}),
+        ...(agentMatch[3] ? {agentTriggerId: decodeURIComponent(agentMatch[3])} : {}),
+      }
+    } catch {
+      return {url: inspectCleanUrl, isInspect, viewTerm: null}
+    }
+  }
+
+  // Check for the :feed/to-you pattern (the Activity page on its To you tab)
+  const feedTabMatch = inspectCleanUrl.match(/\/\:feed\/(to-you)(?=[?#]|$)/)
+  if (feedTabMatch) {
+    return {
+      url: inspectCleanUrl.replace(feedTabMatch[0], ''),
+      isInspect,
+      viewTerm: ':feed',
+      feedTab: feedTabMatch[1],
+    }
+  }
 
   // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
   // Comment IDs may be a single segment or a slash-delimited path.
@@ -240,6 +400,7 @@ export function isSiteProfileTab(value: string | null | undefined): value is Sit
   return !!value && (SITE_PROFILE_TABS as readonly string[]).includes(value)
 }
 
+/** Builds a site URL with optional view, panel, reply, and content selection. */
 export function createSiteUrl({
   path,
   hostname,
@@ -249,6 +410,8 @@ export function createSiteUrl({
   blockRange,
   viewTerm,
   panel,
+  reply,
+  pageParams,
 }: {
   path: string[] | null | undefined
   hostname: string
@@ -258,6 +421,8 @@ export function createSiteUrl({
   blockRange?: BlockRange | null
   viewTerm?: string | null
   panel?: string | null
+  reply?: string | null
+  pageParams?: Record<string, string>
 }) {
   let res = hostname
   if (path && path.length) {
@@ -266,7 +431,7 @@ export function createSiteUrl({
   if (viewTerm) {
     res += '/' + viewTerm
   }
-  res += getHMQueryString({latest, version, panel})
+  res += getHMQueryString({latest, version, panel, reply, pageParams})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -303,6 +468,7 @@ export function createCommentUrl({
   if (siteUrl) {
     return createSiteUrl({
       path: docId.path,
+      pageParams: docId.pageParams,
       hostname: siteUrl,
       latest: latest ?? undefined,
       version: commentVersion ?? undefined,
@@ -313,6 +479,7 @@ export function createCommentUrl({
   }
   return createWebHMUrl(docId.uid, {
     path: docId.path,
+    pageParams: docId.pageParams,
     latest,
     version: commentVersion,
     viewTerm: viewTermWithComment,
@@ -337,6 +504,10 @@ export function createCommentUrl({
 export type CopyLinkInput = {
   id: UnpackedHypermediaId
   commentId?: UnpackedHypermediaId | null
+  /** Reply to select within the root identified by commentId. */
+  replyCommentId?: string
+  /** Layout to retain when copying a comment from a thread. */
+  commentView?: 'panel' | 'expanded'
   gatewayUrl?: string | null
 }
 
@@ -348,15 +519,16 @@ export type CopyLinkInput = {
  * Behavior:
  * - `input.id.hostname` set → site-style URL via `createSiteUrl`.
  * - `input.id.hostname` unset → gateway URL via `createWebHMUrl`.
- * - `input.commentId` present → delegates to `createCommentUrl` using the
- *   comment's uid+tsid as the comment identifier and the comment id's own
- *   `version` as `commentVersion`.
+ * - `input.commentId` present → opens the comment panel on the latest document.
+ *   `commentView` retains the expanded layout and `replyCommentId` selects a reply.
+ *   Comment block and fragment links retain the main comment route.
+ *   Copied comment links do not pin document or comment versions.
  * - If `blockRef` is present on `input.id` and `blockRange` is `undefined`,
  *   default to `{expanded: true}` so whole-block links end in `+`. Callers may
  *   pass `{expanded: false}` or `{start,end}` to override.
  */
 export function buildCopyLinkUrl(input: CopyLinkInput): string {
-  const {id, commentId, gatewayUrl} = input
+  const {id, commentId, gatewayUrl, replyCommentId, commentView} = input
   const effectiveRange: BlockRange | null | undefined =
     id.blockRef && (id.blockRange === undefined || id.blockRange === null) ? {expanded: true} : id.blockRange
   const siteHostname =
@@ -367,36 +539,48 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
       ? gatewayUrl
       : id.hostname
 
-  if (commentId) {
-    const tsid = commentId.path?.[0]
-    const packedCommentId = tsid ? `${commentId.uid}/${tsid}` : commentId.uid
+  // Block and fragment links use the main comment route to retain their selection.
+  if (commentId && id.blockRef) {
     return createCommentUrl({
       docId: id,
-      commentId: packedCommentId,
-      siteUrl: siteHostname ?? null,
+      commentId: `${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}`,
+      siteUrl: siteHostname,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
-      latest: id.latest ?? null,
+      latest: id.latest,
     })
   }
+
+  const commentPath = commentId ? `${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}` : undefined
+  const panel = commentPath && commentView !== 'expanded' ? `comments/${commentPath}` : undefined
+  const viewTerm = commentPath && commentView === 'expanded' ? `:comments/${commentPath}` : undefined
+  const reply = commentId ? replyCommentId : undefined
 
   if (siteHostname) {
     return createSiteUrl({
       path: id.path,
+      pageParams: id.pageParams,
       hostname: siteHostname,
-      version: id.version,
+      version: commentId ? undefined : id.version,
       latest: id.latest ?? undefined,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
+      panel,
+      viewTerm,
+      reply,
     })
   }
 
   return createWebHMUrl(id.uid, {
-    version: id.version,
+    version: commentId ? undefined : id.version,
     blockRef: id.blockRef,
     blockRange: effectiveRange,
+    panel,
+    viewTerm,
+    reply,
     latest: id.latest,
     path: id.path,
+    pageParams: id.pageParams,
     hostname: gatewayUrl ?? undefined,
   })
 }
@@ -419,13 +603,13 @@ export function commentIdToHmId(commentId: string, version?: string | null): Unp
   })
 }
 
-export function hmIdToURL({uid, path, version, latest, blockRef, blockRange}: UnpackedHypermediaId) {
+export function hmIdToURL({uid, path, version, latest, blockRef, blockRange, pageParams}: UnpackedHypermediaId) {
   let res = `${HYPERMEDIA_SCHEME}://${uid}`
 
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  res += getHMQueryString({version, latest})
+  res += getHMQueryString({version, latest, pageParams})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -582,7 +766,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     panel = route.panel
   }
 
-  if (!panel) return null
+  if (!panel || (route.key === 'comments' && panel.key === 'comments')) return null
 
   // Priority 1: Encode openComment - most specific
   if (panel.key === 'comments' && panel.openComment) {
@@ -600,6 +784,11 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     if (filterSlug) return `activity/${filterSlug}`
   }
 
+  // The space Activity panel spells out To you. All updates is the bare key
+  if (panel.key === 'feed' && (panel as {tab?: string}).tab === 'to-you') {
+    return 'feed/to-you'
+  }
+
   return panel.key as PanelQueryKey
 }
 
@@ -610,6 +799,7 @@ export function routeToUrl(
     originHomeId?: UnpackedHypermediaId | undefined
   },
 ): string | null {
+  route = mountedAgentRoute(route)
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'inspect') {
@@ -637,11 +827,17 @@ export function routeToUrl(
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
+      ...(route.agentView || route.appView || route.toolCallId
+        ? {version: null, latest: true, blockRef: null, blockRange: null}
+        : {}),
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
+      viewTerm: agentDocumentViewPath(route),
     })
-    return url
+    return appendAgentViewQuery(url, route)
   }
   if (
     route.key === 'feed' ||
@@ -662,6 +858,9 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
+    if (route.key === 'feed' && route.tab === 'to-you') {
+      viewTermPath = ':feed/to-you'
+    }
     // For comments with openComment, put commentId in view term path.
     // On comment permalinks, ?v pins the comment version (not the document version).
     let commentPermalinkVersion: {version: string | null; latest: null} | undefined
@@ -677,6 +876,8 @@ export function routeToUrl(
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
   }
   if (route.key === 'schema' && route.id) {
@@ -720,10 +921,20 @@ export function routeToUrl(
   return null
 }
 
+/** Gets the continuation target from the single active Comments view. */
+export function getRouteReplyCommentId(route: NavRoute): string | undefined {
+  if (route.key === 'comments') return route.openComment ? route.replyCommentId : undefined
+  if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
+    return route.panel.replyCommentId
+  }
+  return undefined
+}
+
 /**
  * Serializes an application route into an hm:// URL.
  */
 export function routeToHmUrl(route: NavRoute): string | null {
+  route = mountedAgentRoute(route)
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'inspect') {
@@ -741,15 +952,19 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'document') {
     let url = packBaseId(route.id.uid, route.id.path)
+    const viewPath = agentDocumentViewPath(route)
+    if (viewPath) url += `/${viewPath}`
     url += getHMQueryString({
-      version: route.id.version,
-      latest: route.id.latest,
+      version: viewPath ? null : route.id.version,
+      latest: viewPath ? true : route.id.latest,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
-    if (route.id.blockRef) {
+    if (route.id.blockRef && !viewPath) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
     }
-    return url
+    return appendAgentViewQuery(url, route)
   }
 
   if (
@@ -766,6 +981,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTermPath = ':feed/to-you'
     // On comment permalinks, ?v pins the comment version (not the document version).
     let versionQuery: {version?: string | null; latest?: boolean | null} = {
       version: route.id.version,
@@ -781,6 +997,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
     url += getHMQueryString({
       ...versionQuery,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -813,6 +1031,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
 /** Build a bookmark URL from a NavRoute, keeping only baseId + view term. */
 export function bookmarkUrlFromRoute(route: NavRoute): string | null {
+  route = mountedAgentRoute(route)
   if (route.key === 'inspect') {
     return createHmInspectUrl(route)
   }
@@ -820,7 +1039,11 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     return createHmInspectIpfsUrl(route)
   }
   if (route.key === 'document') {
-    return packBaseId(route.id.uid, route.id.path)
+    return appendAgentViewQuery(
+      packBaseId(route.id.uid, route.id.path) +
+        (agentDocumentViewPath(route) ? `/${agentDocumentViewPath(route)}` : ''),
+      route,
+    )
   }
   if (
     route.key === 'feed' ||
@@ -859,7 +1082,10 @@ export function createWebHMUrl(
     originHomeId,
     viewTerm,
     panel,
+    reply,
+    pageParams,
   }: {
+    pageParams?: Record<string, string>
     version?: string | null | undefined
     blockRef?: string | null | undefined
     blockRange?: BlockRange | null
@@ -869,6 +1095,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     viewTerm?: string | null
     panel?: string | null
+    reply?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -888,6 +1115,8 @@ export function createWebHMUrl(
     latest: latest ?? null,
     version: latest ? undefined : version,
     panel,
+    reply,
+    pageParams,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -899,10 +1128,14 @@ function getHMQueryString({
   version,
   latest,
   panel,
+  reply,
+  pageParams,
 }: {
+  pageParams?: Record<string, string>
   version?: string | null
   latest?: boolean | null
   panel?: string | null
+  reply?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -914,7 +1147,10 @@ function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
-  return serializeQueryString(query)
+  if (reply) query.reply = reply
+  const base = serializeQueryString(query)
+  const input = pageParamsQuery(pageParams)
+  return base + (input ? (base ? '&' : '?') + input : '')
 }
 
 function packBaseId(uid: string, path?: string[] | null) {
@@ -924,12 +1160,13 @@ function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {path, version, latest, blockRef, blockRange, uid} = hmId
+  const {path, version, latest, blockRef, blockRange, uid, pageParams} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
+    pageParams,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -962,6 +1199,7 @@ export function hmId(
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
+    pageParams?: Record<string, string>
   } = {},
 ): UnpackedHypermediaId {
   const [uid, ...path] = (idPath || '').split('/')

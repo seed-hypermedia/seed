@@ -14,10 +14,11 @@ import {
   Video,
 } from 'lucide-react'
 import {Node} from 'prosemirror-model'
-import {NodeSelection} from 'prosemirror-state'
+import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {RiGridFill, RiHeading, RiText, RiWindow2Fill} from 'react-icons/ri'
 import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
 import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
 import {HMBlockSchema} from './schema'
 
 const SHOW_NEW_DOCUMENT_SLASH_COMMAND = false
@@ -286,6 +287,11 @@ export function getSlashMenuItems({
     group: 'Layout',
     icon: <Columns3 size={18} />,
     hint: 'Insert a Grid layout',
+    // Don't allow creating a grid inside a grid cell.
+    isAvailable: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      const {state} = editor._tiptapEditor
+      return !isInGridContainer(state, state.selection.from)
+    },
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       const currentBlock = editor.getTextCursorPosition().block
       const prevBlock = editor.getTextCursorPosition().prevBlock
@@ -350,8 +356,10 @@ export function getSlashMenuItems({
             // Create blockChildren with Grid type
             const gridGroup = schema.nodes['blockChildren'].create({listType: 'Grid', columnCount: '3'}, emptyChildren)
 
-            // Insert after the block content node
-            state.tr.insert(blockInfo.blockContent.afterPos, gridGroup)
+            // Insert after the block content node and move the cursor into the first cell.
+            const gridPos = blockInfo.blockContent.afterPos
+            state.tr.insert(gridPos, gridGroup)
+            state.tr.setSelection(TextSelection.create(state.tr.doc, gridPos + 3))
             dispatch(state.tr)
             return true
           })

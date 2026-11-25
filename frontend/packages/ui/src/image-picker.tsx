@@ -3,6 +3,7 @@ import {ChangeEvent, DragEvent, ReactNode, useEffect, useMemo, useState} from 'r
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Tabs, TabsContent, TabsList, TabsTrigger} from './components/tabs'
+import {IMAGE_FILE_ACCEPT, isSupportedImage, registerProcessedImage} from './image-processing'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 
@@ -240,7 +241,7 @@ function UploadDropzone({
     event.preventDefault()
     setDragging(false)
     const file = event.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) onFile(file)
+    if (file && isSupportedImage(file)) onFile(file)
   }
 
   return (
@@ -261,7 +262,7 @@ function UploadDropzone({
       <span className="text-xs">{kind === 'icon' ? 'Square images work best' : 'or drag it here'}</span>
       <input
         type="file"
-        accept="image/*"
+        accept={IMAGE_FILE_ACCEPT}
         aria-label={kind === 'icon' ? 'Choose document icon' : 'Choose document cover image'}
         disabled={pending}
         className="sr-only"
@@ -346,5 +347,7 @@ async function renderEmojiToFile(emoji: EmojiEntry): Promise<File> {
   context.fillText(emoji.unicode, EMOJI_IMAGE_SIZE / 2, baseline)
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Could not render emoji')
-  return new File([blob], `emoji-${emoji.hexcode.toLowerCase()}.png`, {type: 'image/png'})
+  const file = new File([blob], `emoji-${emoji.hexcode.toLowerCase()}.png`, {type: 'image/png'})
+  registerProcessedImage(file, EMOJI_IMAGE_SIZE, EMOJI_IMAGE_SIZE)
+  return file
 }

@@ -9,6 +9,11 @@ import {WindowTitle} from '../window-title'
 const state = vi.hoisted(() => ({
   route: {} as any,
   resourceName: undefined as string | undefined,
+  draftName: undefined as string | undefined,
+}))
+
+vi.mock('@/models/accounts', () => ({
+  useDraft: (id: string | undefined) => ({data: id ? {metadata: {name: state.draftName}} : undefined}),
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
@@ -32,6 +37,7 @@ describe('WindowTitle', () => {
     container = document.createElement('div')
     root = createRoot(container)
     state.resourceName = undefined
+    state.draftName = undefined
   })
 
   afterEach(() => {
@@ -53,6 +59,17 @@ describe('WindowTitle', () => {
     state.route = {key: 'document', id, panel: {key: 'comments'}}
     act(() => root.render(<WindowTitle />))
     expect(document.title).toBe('Document A')
+  })
+
+  it('calls an unnamed draft Untitled Document instead of its placeholder slug', () => {
+    state.route = {key: 'document', id: hmId('alice', {path: ['notes', '-draft-abc']})}
+
+    act(() => root.render(<WindowTitle />))
+    expect(document.title).toBe('Untitled Document')
+
+    state.draftName = 'My new note'
+    act(() => root.render(<WindowTitle />))
+    expect(document.title).toBe('My new note')
   })
 
   it('uses Seed until the active resource resolves', () => {

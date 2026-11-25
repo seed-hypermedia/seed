@@ -10,8 +10,10 @@ import {
 import {type ChatBubbleMessage} from './chat-parts'
 import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
 import {isPendingToolPart, isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
-import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
+import {sessionEventActor} from '@seed-hypermedia/apps-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 
 /**
  * Turns a session's durable event log into renderable chat rows.
@@ -401,6 +403,7 @@ export function retryableErrorRowKey(rows: AgentSessionChatRow[], isBusy: boolea
 /** Identifies which session the events belong to, for building per-event share links. */
 export type AgentSessionRowContext = {
   serverUrl: string
+  gatewayUrl?: string
   agentId?: string
   sessionId: string
   triggerContext?: AgentSessionTriggerContext | null
@@ -447,16 +450,19 @@ export function extractTriggerInstructions(content: string): string | undefined 
   return text ? text : undefined
 }
 
-/** Builds the shareable link to a session on its agent server. */
+/** Builds a UI link, using the document URL for mounted agents. */
 export function buildAgentSessionUrl(
   serverUrl: string,
   agentId: string | undefined,
   sessionId: string,
+  gatewayUrl = DEFAULT_GATEWAY_URL,
 ): string | undefined {
   if (!agentId) return undefined
-  return `${serverUrl.replace(/\/+$/, '')}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(
-    sessionId,
-  )}`
+  if (!agentId.startsWith('hm://'))
+    return `${gatewayUrl.replace(/\/+$/, '')}/hm/agents/session/${encodeURIComponent(
+      sessionId,
+    )}?server=${encodeURIComponent(serverUrl)}&agent=${encodeURIComponent(agentId)}`
+  return routeToUrl({key: 'agent-session', agentId, serverUrl, sessionId}, {hostname: gatewayUrl}) || undefined
 }
 
 /** Builds the deep link to one event, used by the per-message share action. */
@@ -465,8 +471,9 @@ export function buildAgentSessionEventUrl(
   agentId: string | undefined,
   sessionId: string,
   eventId: string,
+  gatewayUrl?: string,
 ): string | undefined {
-  const sessionUrl = buildAgentSessionUrl(serverUrl, agentId, sessionId)
+  const sessionUrl = buildAgentSessionUrl(serverUrl, agentId, sessionId, gatewayUrl)
   return sessionUrl ? `${sessionUrl}#event=${encodeURIComponent(eventId)}` : undefined
 }
 
@@ -576,6 +583,9 @@ export function buildAgentSessionChatRows(
       runId?: string
       sessionId?: string
       title?: string
+      /** Set on the server's redaction stub (apps/src/browser-privacy.ts) for a reader the transcript is private to. */
+      redacted?: boolean
+      summary?: string
     }
 
     if (
@@ -599,7 +609,12 @@ export function buildAgentSessionChatRows(
       // Hide it from the bubble and surface a friendly trigger card instead; the full text stays
       // available through the raw-markdown dialog.
       const hasTriggerBlock = payload.role === 'user' && payload.content.includes('<trigger_context>')
-      const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
+      // A transcript private to this reader arrives as the server's redaction stub; older servers
+      // put the stub itself, as JSON, in `content`. Show its summary, never the JSON.
+      const redactedSummary =
+        payload.redacted === true && typeof payload.summary === 'string' ? payload.summary : undefined
+      const displayContent =
+        redactedSummary ?? (hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content)
       if (hasTriggerBlock && triggerRow && !triggerInstructionsRead) {
         triggerRow.instructions = extractTriggerInstructions(payload.content)
         triggerInstructionsRead = true
@@ -633,7 +648,8 @@ export function buildAgentSessionChatRows(
           meta: payload.meta,
           createdAt: event.createdAt,
           content: displayContent,
-          rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
+          rawMarkdown:
+            redactedSummary ?? (typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content),
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
           contextLines: contextLines?.length ? contextLines : undefined,
           attachments: Array.isArray(payload.attachments)
@@ -642,7 +658,13 @@ export function buildAgentSessionChatRows(
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+          shareUrl: buildAgentSessionEventUrl(
+            context.serverUrl,
+            context.agentId,
+            context.sessionId,
+            event.id,
+            context.gatewayUrl,
+          ),
         },
       })
       continue
@@ -671,7 +693,13 @@ export function buildAgentSessionChatRows(
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+          shareUrl: buildAgentSessionEventUrl(
+            context.serverUrl,
+            context.agentId,
+            context.sessionId,
+            event.id,
+            context.gatewayUrl,
+          ),
         },
       }
       rows.push(row)
@@ -714,7 +742,13 @@ export function buildAgentSessionChatRows(
             eventId: event.id,
             sessionId: event.sessionId,
             seq: event.seq,
-            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+            shareUrl: buildAgentSessionEventUrl(
+              context.serverUrl,
+              context.agentId,
+              context.sessionId,
+              event.id,
+              context.gatewayUrl,
+            ),
           },
         }
         rows.push(row)
@@ -766,7 +800,13 @@ export function buildAgentSessionChatRows(
             eventId: event.id,
             sessionId: event.sessionId,
             seq: event.seq,
-            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+            shareUrl: buildAgentSessionEventUrl(
+              context.serverUrl,
+              context.agentId,
+              context.sessionId,
+              event.id,
+              context.gatewayUrl,
+            ),
           },
         })
       }

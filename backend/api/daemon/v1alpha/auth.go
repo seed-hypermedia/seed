@@ -192,32 +192,45 @@ func (srv *Server) AuthenticateBearerToken(ctx context.Context, token string) (c
 }
 
 func (srv *Server) authSecret(ctx context.Context) ([]byte, error) {
-	var secret []byte
-	err := srv.store.DB().WithTx(ctx, func(conn *sqlite.Conn) error {
-		raw, err := storage.GetKV(ctx, conn, authSecretKVKey)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to load daemon auth secret: %v", err)
-		}
-		if raw != "" {
-			secret, err = base64.RawURLEncoding.DecodeString(raw)
-			if err != nil || len(secret) != chacha20poly1305.KeySize {
-				return status.Error(codes.Internal, "stored daemon auth secret is invalid")
-			}
-			return nil
-		}
-
-		secret = make([]byte, chacha20poly1305.KeySize)
-		if _, err := rand.Read(secret); err != nil {
-			return status.Errorf(codes.Internal, "failed to create daemon auth secret: %v", err)
-		}
-		encoded := base64.RawURLEncoding.EncodeToString(secret)
-		if err := storage.SetKV(ctx, conn, authSecretKVKey, encoded, false); err != nil {
-			return status.Errorf(codes.Internal, "failed to store daemon auth secret: %v", err)
-		}
-		return nil
-	})
+	raw, err := storage.GetKV(ctx, srv.store.DB(), authSecretKVKey)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to load daemon auth secret: %v", err)
+	}
+
+	if raw == "" {
+		err := srv.store.DB().WithTx(ctx, func(conn *sqlite.Conn) error {
+			// Another request may have initialized the secret while we waited for the writer.
+			var err error
+
+			raw, err = storage.GetKV(ctx, conn, authSecretKVKey)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to load daemon auth secret: %v", err)
+			}
+
+			if raw != "" {
+				return nil
+			}
+
+			secret := make([]byte, chacha20poly1305.KeySize)
+			if _, err := rand.Read(secret); err != nil {
+				return status.Errorf(codes.Internal, "failed to create daemon auth secret: %v", err)
+			}
+
+			raw = base64.RawURLEncoding.EncodeToString(secret)
+			if err := storage.SetKV(ctx, conn, authSecretKVKey, raw, false); err != nil {
+				return status.Errorf(codes.Internal, "failed to store daemon auth secret: %v", err)
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	secret, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || len(secret) != chacha20poly1305.KeySize {
+		return nil, status.Error(codes.Internal, "stored daemon auth secret is invalid")
 	}
 	return secret, nil
 }

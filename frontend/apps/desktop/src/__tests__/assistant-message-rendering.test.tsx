@@ -82,6 +82,8 @@ vi.mock('@shm/ui/agents/activity', () => ({
   markAgentSessionRead: () => {},
 }))
 vi.mock('@shm/ui/agents/models', () => ({
+  useForgetAgentServer: () => ({mutate: vi.fn()}),
+  isLocalAgentServer: (url: string, local: string | null) => url === local,
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   useSessionAttachmentDataUrls: () => ({}),
@@ -195,6 +197,25 @@ describe('assistant message rendering', () => {
     expect(document.body.textContent).toContain('URL: hm://z6MkDoc/plan')
     expect(document.body.textContent).toContain('View: document')
 
+    cleanupRendered(root, container)
+  })
+
+  it('identifies browser context and discloses the page and access state', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const contextLines = [
+      '## Current window',
+      'URL: https://example.com/article',
+      'View: web',
+      'Browser access: paused',
+    ]
+    act(() => root.render(<ChatMessageBubble message={{role: 'user', content: 'Archive this page', contextLines}} />))
+    const chip = findButton(container, (element) => element.textContent?.includes('Browser context') ?? false)
+    expect(chip).toBeTruthy()
+    click(chip)
+    expect(document.body.textContent).toContain('https://example.com/article')
+    expect(document.body.textContent).toContain('Browser access: paused')
     cleanupRendered(root, container)
   })
 

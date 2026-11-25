@@ -24,9 +24,13 @@ vi.mock('./blocknote', () => ({
   useBlockNote: (...args: any[]) => useBlockNoteMock(...args),
 }))
 
-vi.mock('./blocknote/react/BlockNoteView', () => ({
-  BlockNoteView: ({children}: {children?: React.ReactNode}) => <div data-testid="block-note-view">{children}</div>,
+vi.mock('./readonly-blocknote-view', () => ({
+  ReadOnlyBlockNoteView: ({children}: {children?: React.ReactNode}) => (
+    <div data-testid="block-note-view">{children}</div>
+  ),
 }))
+
+vi.mock('./blocknote/react/ImageGallery/ImageGalleryOverlay', () => ({ImageGalleryOverlay: () => null}))
 
 vi.mock('./schema', () => ({
   hmBlockSchema: {},

@@ -3,15 +3,26 @@ import * as Ariakit from '@ariakit/react'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
+  HMMentionCandidate,
   HMQueryBlockItemSummary,
   HMQueryBlockFilterOptions,
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
-import {getQueryBlockFilterOptions, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {
+  getQueryBlockFilterOptions,
+  getQueryBlockRefKey,
+  matchesQueryFilterEquality,
+} from '@shm/shared/models/query-block-filter'
+import {useUniversalAppContext} from '@shm/shared/routing'
+import {useStream} from '@shm/shared/use-stream'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavigate, useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {type SortingState} from '@tanstack/react-table'
+import {useActorRef, useSelector} from '@xstate/react'
+import {type ActorRefFrom} from 'xstate'
 import {
   ArrowDown,
   ArrowUp,
@@ -21,23 +32,28 @@ import {
   FileText,
   Filter,
   GitCompareArrows,
-  Grid3X3,
   MessageSquare,
   Plus,
   Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react'
-import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
+import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {badgeVariants} from './components/badge'
 import {Input} from './components/input'
-import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
 import {ActiveFilterChip, ActiveFilterChipRow} from './explore-filters'
 import {SelectField} from './form-fields'
+import {HMEntityLink} from './hm-entity-field'
+import {MentionResults} from './mention-results'
+import {parseQueryBlockSearchMention, queryBlockSearchMachine} from './query-block-search-machine'
 import {DocumentCard} from './newspaper'
 import {QueryBlockTable} from './query-block-table'
+import {NewDocumentCard} from './new-document-card'
+import {NewDocumentListItem} from './new-document-list-item'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
@@ -107,6 +123,8 @@ function createQueryTableState(
 export interface QueryBlockContentProps {
   /** Existing collection view and settings controls, shown after the search controls. */
   toolbarActions?: ReactNode
+  /** Whether to show the toolbar of search, filter, sort and view controls. Defaults to true. */
+  showControls?: boolean
   items: HMDocumentInfo[]
   style: 'Card' | 'List' | 'Table'
   columnCount?: string | number
@@ -116,10 +134,12 @@ export interface QueryBlockContentProps {
   itemContributors?: Record<string, string[]>
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   isDiscovering?: boolean
+  /** Shown instead of the default empty state when the block itself cannot produce results (no target). */
+  emptyMessage?: string
   prependItems?: ReactNode[]
   /** Drafts rendered as table rows with a separate actions column. */
   tableDrafts?: QueryBlockDraftSlotData
-  /** Creates a document in the query target when the results are empty. */
+  /** Creates a document in the query target. Shown first in every view, or as the empty state. */
   onCreateDocument?: () => void
   bannerContent?: ReactNode
   /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
@@ -144,6 +164,7 @@ export interface QueryBlockContentProps {
 /** Renders collection controls and results while retaining viewer state across view changes. */
 export function QueryBlockContent({
   toolbarActions,
+  showControls = true,
   items,
   style,
   columnCount = '3',
@@ -151,6 +172,7 @@ export function QueryBlockContent({
   accountsMetadata,
   interactionSummaries,
   isDiscovering,
+  emptyMessage,
   prependItems,
   tableDrafts,
   onCreateDocument,
@@ -266,6 +288,9 @@ export function QueryBlockContent({
     const current = sorting[0]
     if (!current) return filteredItems
     const {id, desc} = current
+    // Activity uses publish-reference timestamps that are not exposed on each row.
+    // Keep the backend order rather than replacing it with content-change times.
+    if (id === 'activity') return filteredItems
     return [...filteredItems].sort((a, b) => {
       const aValue = getQueryTableSortValue(a, id, context)
       const bValue = getQueryTableSortValue(b, id, context)
@@ -310,27 +335,30 @@ export function QueryBlockContent({
 
   return (
     <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
-      <QueryBlockToolbar
-        actions={toolbarActions}
-        documentCount={usesRemoteViewerQuery ? totalMatches ?? items.length : filteredItems.length}
-        descriptors={descriptors}
-        items={items}
-        context={context}
-        columnOrder={columnOrder}
-        columnVisibility={columnVisibility}
-        toggleColumnVisibility={toggleColumnVisibility}
-        moveColumn={moveColumn}
-        filters={effectiveFilters}
-        setFilters={setEffectiveFilters}
-        sorting={sorting}
-        setSorting={setSortingAndPersist}
-        search={effectiveSearch}
-        setSearch={setEffectiveSearch}
-        filterOptions={availableFilterOptions}
-        filterOptionsComplete={filterOptions !== undefined}
-        loadedCount={filteredItems.length}
-        isUpdating={isUpdating}
-      />
+      {showControls ? (
+        <QueryBlockToolbar
+          actions={toolbarActions}
+          documentCount={usesRemoteViewerQuery ? totalMatches ?? items.length : filteredItems.length}
+          descriptors={descriptors}
+          items={items}
+          context={context}
+          columnOrder={columnOrder}
+          columnVisibility={columnVisibility}
+          toggleColumnVisibility={toggleColumnVisibility}
+          moveColumn={moveColumn}
+          filters={effectiveFilters}
+          setFilters={setEffectiveFilters}
+          sorting={sorting}
+          setSorting={setSortingAndPersist}
+          allowActivitySort={!!onTableSortingChange}
+          search={effectiveSearch}
+          setSearch={setEffectiveSearch}
+          filterOptions={availableFilterOptions}
+          filterOptionsComplete={filterOptions !== undefined}
+          loadedCount={filteredItems.length}
+          isUpdating={isUpdating}
+        />
+      ) : null}
       {items.length === 0 && isDiscovering ? (
         <div className="bg-background text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
           <Spinner size="small" />
@@ -338,7 +366,9 @@ export function QueryBlockContent({
         </div>
       ) : !hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
-          {effectiveFilters.length || effectiveSearch ? (
+          {emptyMessage ? (
+            emptyMessage
+          ) : effectiveFilters.length || effectiveSearch ? (
             'No documents match the current search and filters.'
           ) : onCreateDocument ? (
             <Button type="button" variant="outline" size="sm" onClick={onCreateDocument}>
@@ -355,6 +385,7 @@ export function QueryBlockContent({
             <QueryBlockTable
               items={sortedItems}
               tableDrafts={tableDrafts}
+              onCreateDocument={onCreateDocument}
               descriptors={descriptors}
               context={context}
               sorting={sorting}
@@ -379,6 +410,7 @@ export function QueryBlockContent({
           banner={banner}
           bannerContent={bannerContent}
           prependItems={prependItems}
+          onCreateDocument={onCreateDocument}
           navigateCards={navigateCards}
           titleLinkOnly={titleLinkOnly}
           itemContributors={itemContributors}
@@ -388,11 +420,91 @@ export function QueryBlockContent({
         <QueryBlockList
           items={sortedItems}
           prependItems={prependItems}
+          onCreateDocument={onCreateDocument}
           context={context}
           visibleDescriptors={visibleDescriptors}
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Mention suggestions for the collection search. Mounted only while the menu is
+ * open so the universal app context and mention query are optional for the
+ * surrounding toolbar. react-query stays the data layer; results are reported
+ * to the search machine as `mention.results`.
+ */
+function QueryBlockSearchMentionMenu({
+  mode,
+  query,
+  listId,
+  actor,
+}: {
+  mode: 'account' | 'document'
+  query: string
+  listId: string
+  actor: ActorRefFrom<typeof queryBlockSearchMachine>
+}) {
+  const selected = useSelector(actor, (snapshot) => snapshot.context.selected)
+  const {selectedIdentity, originHomeId} = useUniversalAppContext()
+  const perspectiveAccountUid = useStream(selectedIdentity)
+  const route = useNavRouteOrNull()
+  const documentId =
+    route?.key === 'document'
+      ? route.id
+      : route?.key === 'draft' && route.editUid
+        ? hmId(route.editUid, {path: route.editPath})
+        : undefined
+  const mentions = useInlineMentions(query, {
+    mode,
+    perspectiveAccountUid,
+    siteUid: documentId?.uid ?? originHomeId?.uid,
+    documentId,
+  })
+  const index = Math.min(selected, mentions.suggestions.length - 1)
+  // The empty suggestions fallback is a fresh array each render; only report
+  // actual changes so the machine update cannot loop.
+  const lastReported = useRef<{
+    suggestions: HMMentionCandidate[]
+    isFetching: boolean
+    isError: boolean
+  } | null>(null)
+  useEffect(() => {
+    const prev = lastReported.current
+    if (
+      prev &&
+      prev.isFetching === mentions.isFetching &&
+      prev.isError === mentions.isError &&
+      prev.suggestions.length === mentions.suggestions.length &&
+      prev.suggestions.every((suggestion, i) => suggestion === mentions.suggestions[i])
+    ) {
+      return
+    }
+    lastReported.current = {
+      suggestions: mentions.suggestions,
+      isFetching: mentions.isFetching,
+      isError: mentions.isError,
+    }
+    actor.send({
+      type: 'mention.results',
+      suggestions: mentions.suggestions,
+      isFetching: mentions.isFetching,
+      isError: mentions.isError,
+    })
+  }, [mentions.suggestions, mentions.isFetching, mentions.isError, actor])
+  return (
+    <MentionResults
+      id={listId}
+      mode={mode}
+      suggestions={mentions.suggestions}
+      selected={index}
+      loading={mentions.isFetching}
+      error={mentions.isError}
+      onRetry={() => void mentions.refetch()}
+      onSelect={(candidate) => actor.send({type: 'mention.picked', candidate})}
+      className="max-w-[90vw]"
+    />
   )
 }
 
@@ -409,6 +521,7 @@ function QueryBlockToolbar({
   setFilters,
   sorting,
   setSorting,
+  allowActivitySort,
   search,
   setSearch,
   filterOptions,
@@ -429,6 +542,7 @@ function QueryBlockToolbar({
   setFilters: (filters: QueryTableFilter[]) => void
   sorting: SortingState
   setSorting: (sorting: SortingState) => void
+  allowActivitySort: boolean
   search: string
   setSearch: (value: string) => void
   filterOptions: HMQueryBlockFilterOptions
@@ -437,7 +551,17 @@ function QueryBlockToolbar({
   loadedCount: number
   isUpdating?: boolean
 }) {
-  const [searchExpanded, setSearchExpanded] = useState(false)
+  const searchActor = useActorRef(queryBlockSearchMachine)
+  const searchSnapshot = useSelector(searchActor, (snapshot) => snapshot)
+  useEffect(() => {
+    const subscription = searchActor.on('search.applied', (event) => setSearch(event.value))
+    return () => subscription.unsubscribe()
+  }, [searchActor, setSearch])
+  const searchExpanded = searchSnapshot.matches('editing')
+  const mentionOpen = searchSnapshot.hasTag('menuOpen')
+  const mentionListId = useId()
+  const mentionTrigger = mentionOpen ? parseQueryBlockSearchMention(searchSnapshot.context.draft) : null
+  const searchRefKey = getQueryBlockRefKey(search)
   return (
     <div
       data-query-block-toolbar
@@ -453,29 +577,105 @@ function QueryBlockToolbar({
         <div
           className={cn(
             'relative min-w-0 shrink transition-[width] duration-(--duration-normal) ease-(--ease-out-smooth) motion-reduce:transition-none',
-            searchExpanded ? 'w-64' : search ? 'w-40' : 'w-24',
+            searchExpanded ? 'w-64' : searchRefKey ? 'w-48' : search ? 'w-40' : 'w-24',
           )}
         >
           {searchExpanded ? (
             <>
-              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-              <Input
-                autoFocus
-                value={search}
-                onChangeText={setSearch}
-                onBlur={() => setSearchExpanded(false)}
-                placeholder="Search documents…"
-                aria-label="Search documents"
-                className="bg-background h-8 pl-8"
-              />
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2" />
+              <Popover open={mentionOpen}>
+                <PopoverAnchor>
+                  <Input
+                    autoFocus
+                    value={searchSnapshot.context.draft}
+                    onChangeText={(value) => searchActor.send({type: 'input.changed', value})}
+                    onKeyDown={(event) => {
+                      if (!mentionOpen) return
+                      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault()
+                        searchActor.send({type: event.key === 'ArrowDown' ? 'key.down' : 'key.up'})
+                        return
+                      }
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        searchActor.send({type: 'key.enter'})
+                        return
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        searchActor.send({type: 'key.escape'})
+                        return
+                      }
+                    }}
+                    onBlur={(event) => {
+                      // Clicking a mention result blurs the input; let the click win.
+                      const next = event.relatedTarget as HTMLElement | null
+                      if (next?.closest('[data-hm-search-results]')) return
+                      searchActor.send({type: 'input.blurred'})
+                    }}
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={mentionOpen}
+                    aria-controls={mentionOpen ? mentionListId : undefined}
+                    aria-activedescendant={
+                      mentionOpen &&
+                      !searchSnapshot.context.isFetching &&
+                      !searchSnapshot.context.isError &&
+                      searchSnapshot.context.suggestions.length > 0
+                        ? `${mentionListId}-${searchSnapshot.context.selected}`
+                        : undefined
+                    }
+                    placeholder="Search, @ people, [[ documents"
+                    aria-label="Search documents"
+                    className="bg-background h-8 w-full pl-8"
+                  />
+                </PopoverAnchor>
+                <PopoverContent
+                  align="start"
+                  className="w-auto border-0 bg-transparent p-0 shadow-none"
+                  onOpenAutoFocus={(event) => event.preventDefault()}
+                >
+                  {mentionOpen && mentionTrigger ? (
+                    <div data-hm-search-results>
+                      <QueryBlockSearchMentionMenu
+                        mode={mentionTrigger.mode}
+                        query={mentionTrigger.query}
+                        listId={mentionListId}
+                        actor={searchActor}
+                      />
+                    </div>
+                  ) : null}
+                </PopoverContent>
+              </Popover>
             </>
+          ) : searchRefKey ? (
+            <div className="border-border bg-background flex h-8 w-48 min-w-0 items-center gap-0.5 rounded-md border pr-0.5 pl-2">
+              <button
+                type="button"
+                aria-label="Search documents"
+                className="focus-visible:border-ring focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center rounded-md outline-none focus-visible:ring-[3px]"
+                onClick={() => searchActor.send({type: 'search.expanded', search})}
+              >
+                <HMEntityLink url={search} />
+              </button>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label="Clear search"
+                className="text-muted-foreground shrink-0"
+                onClick={() => searchActor.send({type: 'search.cleared'})}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           ) : (
             <Button
               variant="outline"
               size="sm"
               className="w-full min-w-0 justify-start"
               aria-label="Search documents"
-              onClick={() => setSearchExpanded(true)}
+              onClick={() => searchActor.send({type: 'search.expanded', search})}
             >
               <Search className="size-4" />
               <span className="truncate">{search || 'Search'}</span>
@@ -495,6 +695,7 @@ function QueryBlockToolbar({
           descriptors={getQuerySortColumns(descriptors, columnVisibility)}
           sorting={sorting}
           setSorting={setSorting}
+          allowActivitySort={allowActivitySort}
         />
         <AttributesPopover
           descriptors={descriptors}
@@ -583,14 +784,16 @@ function FilterPopover({
                 const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
                 const condition =
                   filter.operator === 'equals' ? 'IS' : filter.operator === 'notEquals' ? 'IS NOT' : filter.operator
-                const text = `${label} ${condition} ${filter.value}`
+                const value = filterOptions[filter.columnId]?.labels?.[filter.value] ?? filter.value
+                const text = `${label} ${condition} ${value}`
                 return (
                   <ActiveFilterChip
                     key={`${filter.columnId}:${index}`}
                     removeLabel={`Remove filter: ${text}`}
+                    title={text}
                     onRemove={() => setFilters(filters.filter((_, filterIndex) => filterIndex !== index))}
                   >
-                    {text}
+                    {`${label} ${condition} ${truncateFilterValue(value)}`}
                   </ActiveFilterChip>
                 )
               })}
@@ -685,6 +888,7 @@ function FilterPopover({
                     key={filter.columnId}
                     value={filter.value}
                     options={filterOptions[filter.columnId]?.values ?? []}
+                    labels={filterOptions[filter.columnId]?.labels}
                     onValue={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
                   />
                 ) : (
@@ -721,19 +925,32 @@ function FilterPopover({
   )
 }
 
+const MAX_FILTER_PILL_VALUE_LENGTH = 18
+
+function truncateFilterValue(value: string) {
+  return value.length > MAX_FILTER_PILL_VALUE_LENGTH ? `${value.slice(0, MAX_FILTER_PILL_VALUE_LENGTH - 1)}…` : value
+}
+
 function FilterValuePicker({
   value,
   options,
+  labels,
   onValue,
 }: {
   value: string
   options: string[]
+  labels?: Record<string, string>
   onValue: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const combobox = Ariakit.useComboboxStore({value: search, setValue: setSearch, open, setOpen})
-  const matchingOptions = options.filter((option) => option.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
+  const normalizedSearch = search.toLocaleLowerCase()
+  const matchingOptions = options.filter(
+    (option) =>
+      option.toLocaleLowerCase().includes(normalizedSearch) ||
+      labels?.[option]?.toLocaleLowerCase().includes(normalizedSearch),
+  )
   const unavailable = value && !options.some((option) => matchesQueryFilterEquality(option, value))
 
   return (
@@ -751,7 +968,7 @@ function FilterValuePicker({
           aria-label="Filter value"
         >
           <span className={cn('min-w-0 truncate', !value && 'text-muted-foreground')}>
-            {value || 'Select value…'}
+            {(value && labels?.[value]) || value || 'Select value…'}
             {unavailable ? ' (unavailable)' : ''}
           </span>
           <ChevronDown className="size-4 shrink-0 opacity-50" />
@@ -778,7 +995,7 @@ function FilterValuePicker({
                 setOpen(false)
               }}
             >
-              <span className="min-w-0">{option}</span>
+              <span className="min-w-0">{labels?.[option] ?? option}</span>
               {matchesQueryFilterEquality(option, value) ? <Check className="size-4 shrink-0" /> : null}
             </Ariakit.ComboboxItem>
           ))}
@@ -817,10 +1034,12 @@ function SortPopover({
   descriptors,
   sorting,
   setSorting,
+  allowActivitySort,
 }: {
   descriptors: QueryTableColumn[]
   sorting: SortingState
   setSorting: (sorting: SortingState) => void
+  allowActivitySort: boolean
 }) {
   const current = sorting[0]
   const columnId = current?.id ?? descriptors[0]?.id ?? 'title'
@@ -842,9 +1061,12 @@ function SortPopover({
             <SelectField
               id="sort-column"
               className="w-full"
-              options={descriptors.map((d) => ({value: d.id, label: d.label}))}
+              options={[
+                ...descriptors.map((d) => ({value: d.id, label: d.label})),
+                ...(allowActivitySort ? [{value: 'activity', label: 'Latest activity'}] : []),
+              ]}
               value={columnId}
-              onValue={(value) => setSorting([{id: value, desc}])}
+              onValue={(value) => setSorting([{id: value, desc: value === 'activity' ? true : desc}])}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -981,17 +1203,20 @@ function useProgressiveChunk<T>(items: T[]) {
 function QueryBlockList({
   items,
   prependItems,
+  onCreateDocument,
   context,
   visibleDescriptors,
 }: {
   items: HMDocumentInfo[]
   prependItems?: ReactNode[]
+  onCreateDocument?: () => void
   context: QueryTableValueContext
   visibleDescriptors: QueryTableColumn[]
 }) {
   const {visibleCount, sentinelRef} = useProgressiveChunk(items)
   return (
     <div className="flex flex-col">
+      {onCreateDocument ? <NewDocumentListItem onCreateDraft={onCreateDocument} /> : null}
       {prependItems}
       {items.slice(0, visibleCount).map((item) => (
         <QueryBlockListItem key={item.id.id} item={item} context={context} visibleDescriptors={visibleDescriptors} />
@@ -1018,11 +1243,7 @@ function QueryBlockListItem({
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
-          {item.isCollection ? (
-            <Grid3X3 aria-label="Collection" className="size-5" />
-          ) : (
-            <FileText aria-label="Document" className="size-5" />
-          )}
+          <DocumentKindIcon kind={getDocumentKind(item)} className="size-5" />
         </div>
         <QueryBlockItemTitle item={item} className="truncate font-medium hover:underline">
           {title}
@@ -1045,6 +1266,7 @@ function QueryBlockCards({
   banner,
   bannerContent,
   prependItems,
+  onCreateDocument,
   navigateCards,
   titleLinkOnly,
   itemContributors,
@@ -1056,6 +1278,7 @@ function QueryBlockCards({
   banner?: boolean
   bannerContent?: ReactNode
   prependItems?: ReactNode[]
+  onCreateDocument?: () => void
   navigateCards?: boolean
   titleLinkOnly?: boolean
   itemContributors?: Record<string, string[]>
@@ -1078,6 +1301,7 @@ function QueryBlockCards({
 
   return (
     <div className="flex flex-col gap-3 p-4">
+      {onCreateDocument ? <NewDocumentCard onCreateDraft={onCreateDocument} /> : null}
       {hasPrependItems ? prependItems : null}
       {bannerContent}
       {firstItem && (

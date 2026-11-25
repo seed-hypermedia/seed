@@ -15,6 +15,8 @@ import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
 import {signWindowsMakeResults, signWindowsPackagePaths} from './scripts/windows-signing'
+import {flipFuses} from '@electron/fuses'
+import {checkElectronFuses, electronFuses} from './scripts/electron-fuses'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -45,40 +47,44 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
-// The local agents server: a `bun build --compile` binary staged by
-// `agents/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
-// directory ships so it lands as `<resources>/agents/`, which is where
+// The local app environment: a `bun build --compile` binary staged by
+// `apps/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
+// directory ships so it lands as `<resources>/apps/`, which is where
 // `src/agents-server-path.ts` looks for it in a packaged app.
-const agentsServerName = process.env.AGENTS_SERVER_NAME || getPlatformTriple()
-const agentsDistPath = path.join(devProjectRoot, 'plz-out/bin/agents')
-const agentsBinaryPath = path.join(agentsDistPath, `seed-agents-${agentsServerName}`)
+const agentsServerName = process.env.APPS_SERVER_NAME || getPlatformTriple()
+const agentsDistPath = path.join(devProjectRoot, 'plz-out/bin/apps')
+const agentsBinaryPath = path.join(agentsDistPath, `seed-apps-${agentsServerName}`)
 const hasAgentsBinary = fs.existsSync(agentsBinaryPath) && fs.existsSync(path.join(agentsDistPath, 'package.json'))
 if (!hasAgentsBinary) {
   if (process.env.CI) {
     // Fail loudly rather than notarize and ship an app whose assistant cannot start.
     throw new Error(
-      `Missing agents server binary at ${agentsBinaryPath} (build it with \`cd agents && bun run build:binary\`)`,
+      `Missing app environment binary at ${agentsBinaryPath} (build it with \`cd apps && bun run build:binary\`)`,
     )
   }
   console.warn(
-    `[FORGE CONFIG]: ⚠️ No agents server binary at ${agentsBinaryPath} — packaging WITHOUT a local agents server. Build it with \`cd agents && bun run build:binary\`.`,
+    `[FORGE CONFIG]: ⚠️ No app environment binary at ${agentsBinaryPath} — packaging WITHOUT a local app environment. Build it with \`cd apps && bun run build:binary\`.`,
   )
 }
 
-const extraResources = [daemonBinaryPath]
+const extraResources = [daemonBinaryPath, path.join(devProjectRoot, 'frontend/packages/ui/THIRD_PARTY_NOTICES.md')]
 if (hasAgentsBinary) {
   extraResources.push(agentsDistPath)
 }
 
 /**
- * Mach-O files inside the staged microsandbox platform package (see agents/scripts/build-binary.ts).
- * They ship under `<resources>/agents/node_modules/` and must be signed for notarization.
+ * Mach-O files inside the staged microsandbox platform package (see apps/scripts/build-binary.ts).
+ * They ship under `<resources>/apps/node_modules/` and must be signed for notarization.
  */
 function agentsNestedBinaries(): string[] {
   const platformPkgDir = path.join(agentsDistPath, 'node_modules', '@superradcompany', 'microsandbox-darwin-arm64')
-  return ['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node']
-    .map((rel) => path.join(platformPkgDir, rel))
-    .filter((candidate) => fs.existsSync(candidate))
+  return [
+    ...['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node'].map((rel) =>
+      path.join(platformPkgDir, rel),
+    ),
+    // build-binary.ts copies the binding here for the compiled Bun server's relative loader.
+    path.join(agentsDistPath, 'node_modules', 'microsandbox', 'native', 'microsandbox.darwin-arm64.node'),
+  ].filter((candidate) => fs.existsSync(candidate))
 }
 
 function stagedMacExtraResourceBinaries(buildPath: string): string[] {
@@ -87,10 +93,8 @@ function stagedMacExtraResourceBinaries(buildPath: string): string[] {
 
   if (hasAgentsBinary) {
     binaries.push(
-      path.join(resourcesDir, 'agents', path.basename(agentsBinaryPath)),
-      ...agentsNestedBinaries().map((binary) =>
-        path.join(resourcesDir, 'agents', path.relative(agentsDistPath, binary)),
-      ),
+      path.join(resourcesDir, 'apps', path.basename(agentsBinaryPath)),
+      ...agentsNestedBinaries().map((binary) => path.join(resourcesDir, 'apps', path.relative(agentsDistPath, binary))),
     )
   }
 
@@ -230,7 +234,19 @@ const config: ForgeConfig = {
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: extraResources,
-    afterCopyExtraResources: [signMacExtraResourceBinaries],
+    // Runs after ASAR creation and executable renaming, before macOS/Windows signing.
+    afterCopyExtraResources: [
+      (buildPath, _version, platform, _arch, callback) => {
+        const executable = path.join(
+          buildPath,
+          platform === 'darwin' || platform === 'mas'
+            ? `${macAppName}.app`
+            : `${macAppName}${platform === 'win32' ? '.exe' : ''}`,
+        )
+        flipFuses(executable, {...electronFuses, resetAdHocDarwinSignature: true}).then(() => callback(), callback)
+      },
+      signMacExtraResourceBinaries,
+    ],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
@@ -342,12 +358,20 @@ const config: ForgeConfig = {
         packageExecutableName,
         packageResourceExecutableNames: [
           path.basename(daemonBinaryPath),
-          // The agents binary ships inside the `agents/` resources subdirectory.
-          ...(hasAgentsBinary ? [path.join('agents', path.basename(agentsBinaryPath))] : []),
+          // The agents binary ships inside the `apps/` resources subdirectory.
+          ...(hasAgentsBinary ? [path.join('apps', path.basename(agentsBinaryPath))] : []),
         ],
       })
 
       for (const outputPath of options.outputPaths) {
+        await checkElectronFuses(
+          path.join(
+            outputPath,
+            options.platform === 'darwin' || options.platform === 'mas'
+              ? `${macAppName}.app`
+              : `${macAppName}${options.platform === 'win32' ? '.exe' : ''}`,
+          ),
+        )
         console.info(`\nListing contents of: ${outputPath}`)
         const files = fs.readdirSync(outputPath)
         files.forEach((file) => {

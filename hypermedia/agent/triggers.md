@@ -1,12 +1,16 @@
 ---
 name: Triggers
-summary: "The reference for agent triggers: the sources that fire one, the continuations a firing runs, how monitors match and deduplicate events, and where triggers are edited."
+summary: "This is the reference for triggers: the nine sources that fire one, what a firing does, how a trigger document stores its source, how the monitors match events, and the ways to edit triggers."
 ---
-A [trigger](./trigger.md) lets an agent act when nobody is talking to it. It binds a **source** to a **continuation**. The source is something that happens: a [comment](../protocol/comments.md), a mention, a reply, a comment on a document the agent's account wrote, a [site](../protocol/sites.md) update, any list of those as alternative **conditions**, a schedule, a webhook delivery, or another [run](./runs.md) finishing. The continuation is what to do about it: start a conversation, wake a [parked](./park.md) run, or run a tool or [script](./script.md) with no model at all. Triggers belong to one agent and live on its agents server. They are the one piece of standing authority an agent holds, so the [security](./security.md) page covers them too. <!-- id:89o2eplg -->
+A [trigger](../trigger.md) lets an [agent](../agent.md) or an [app](../app.md) act when nobody is talking to it. It joins a **source**, the thing that happens, to a **continuation**, the thing to do about it. For example, the source can be a [comment](../protocol/comments.md) that mentions the agent, and the continuation can be a new [session](./session.md) with the agent. <!-- id:89o2eplg -->
+
+This page is the reference: every source, every continuation, how events are matched, and the ways to edit triggers. Read [Trigger](../trigger.md) first for the idea.
+
+A trigger has two forms, and their rules differ. A **trigger document** is a [document](../protocol/documents.md) under an app or an agent. A **trigger stored on the server** is a row that only the agent's server holds, on the [app environment](../software/app-environment.md). Each section says which form it is about. Triggers let an agent act with nobody watching, so the [security](./security.md) page covers them too.
 
 # The data model <!-- id:G5lPmDWS -->
 
-A trigger is a row with a name, an enabled flag, a source, an optional prompt, and an optional continuation. The protocol types are in `agents/protocol/src/index.ts`: <!-- id:x0qddyHJ -->
+On the server, every trigger of either form is a row. The row has a name, an enabled flag, a source, an optional prompt, and an optional continuation. The protocol types are in `apps/protocol/src/index.ts`: <!-- id:x0qddyHJ -->
 
 ```ts <!-- id:viN8eyx_ -->
 type AgentTriggerInput = {
@@ -18,26 +22,44 @@ type AgentTriggerInput = {
 }
 ```
 
-Prompts accept the same rich Seed [block](../protocol/blocks.md) format as agent system prompts. A plain string is parsed as markdown. Blocks are rendered to markdown before the thread starts. <!-- id:4uU-k5AH -->
+Prompts accept the same rich Seed [block](../protocol/blocks.md) format as agent [system prompts](./prompt.md). A plain string is parsed as markdown. Blocks are rendered to markdown before the thread starts. <!-- id:4uU-k5AH -->
+
+A trigger document has the same source. The server turns its `tool`, `input` and body into the continuation and the prompt:
+
+- If the document names a tool, the continuation is `tool`.
+- Otherwise the continuation is the default `newThread`, and the body is the prompt.
+
+The row of a trigger document also records the document's id, the version it was read from and its author.
 
 ## Sources <!-- id:HPNBLtru -->
+
+There are nine source types: the five activity sources, `activity` (a list of them), `schedule`, `webhook` and `run-completed`. The first five rows of the table are the activity sources. Both forms of trigger use the same sources.
 
 <!-- id:dzNzPOSx -->
 | source <!-- col:rpXTaztr --> | fires when <!-- col:y58r3u6I --> | fields <!-- col:KRwHxbA4 --> <!-- id:JZv2m3xq --> |
 | --- | --- | --- |
-| `document-comment` | a new comment appears on a resource | `resource`, optional `author` <!-- id:6QPvQAAG --> |
-| `user-mention` | a comment or document mentions one of the listed accounts | `mentionedAccounts[]`, optional `resourcePrefix` <!-- id:tQpu4TSH --> |
-| `comment-reply` | a comment replies directly to a comment by one of the listed accounts; an account's reply to itself never matches | `repliedToAccounts[]`, optional `resourcePrefix` |
-| `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` |
-| `site-update` | new activity appears under a resource prefix | `resourcePrefix`, optional `eventTypes[]` (`doc-update`, `comment`) <!-- id:fyoQw9B_ --> |
-| `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the four activity sources above |
-| `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timezone}`, or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
-| `webhook` | something POSTs JSON to the trigger's delivery URL | none; the secret is created with the trigger <!-- id:-P02QGwG --> |
-| `run-completed` | a run of this account reaches a terminal status | optional `agentId`, `status` (`succeeded`, `failed`, `canceled`), `titleMatch` <!-- id:4JzuZ8WZ --> |
+| `document-comment` | a new comment appears on a resource (a document, by its [hm:// URL](../protocol/urls.md)) | `resource`, optional `author` <!-- id:6QPvQAAG --> |
+| `user-mention` | a comment or document mentions one of the listed accounts, including a document attribute such as `owner` set to one of them | `mentionedAccounts[]`, optional `resourcePrefix` <!-- id:tQpu4TSH --> |
+| `comment-reply` | a comment replies directly to a comment by one of the listed accounts; an account's reply to itself never matches | `repliedToAccounts[]`, optional `resourcePrefix` <!-- id:jlCK6tbO --> |
+| `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` <!-- id:mf2zxBhI --> |
+| `site-update` | new activity appears under a resource prefix; activity the trigger's own agent authored (signed by one of its [signing identities](./identity.md)) never matches unless `includeOwnActivity` is true, so an agent writing or commenting under a prefix it watches does not start itself again | `resourcePrefix`, optional `eventTypes[]` (`doc-update`, `comment`, `citation`, `capability`, `contact`), optional `includeOwnActivity` <!-- id:fyoQw9B_ --> |
+| `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the five activity sources above <!-- id:awQJs1x6 --> |
+| `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timesOfDay?, timezone}` (`timesOfDay` lists several times a day), or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
+| `webhook` | something POSTs JSON to the trigger's delivery URL | none; the secret is created with the trigger. See [webhooks](./webhooks.md) <!-- id:-P02QGwG --> |
+| `run-completed` | a [run](./runs.md) of this account reaches a final status | optional `agentId`, `status` (`succeeded`, `failed`, `canceled`; see [run status](./runs.md#status)), `titleMatch` <!-- id:4JzuZ8WZ --> |
 
-A `user-mention` input still accepts the legacy singular `mentionedAccount` and turns it into the list. An empty list is rejected. Creating an agent with a signing identity also creates one enabled `activity` trigger, named "Mentions, replies, and comments for <agent>", with three conditions that follow that identity: a `user-mention`, a `comment-reply`, and a `document-author-comment`. That is why mentioning an agent's [account](../protocol/identity.md) in a comment, replying to it, or commenting on a document it published summons it. <!-- id:0m8OvinP -->
+The server rejects an empty account list.
 
-Each condition of an `activity` trigger has a stable `id`. A firing records which conditions matched (`matchedConditions`), and a session the firing started shows them. Two triggers can be merged into one with `CombineAgentTriggers`: the survivor takes the union of both condition lists, keeps both histories and deduplication claims, and the other is retired with `mergedInto` set; a retired trigger cannot be edited or re-enabled. `UpdateAgentTrigger` accepts an `expectedUpdatedAt` so two editors cannot silently overwrite each other. Compound sources need protocol 3; an older client sees neither them nor reply triggers and gets a typed `protocol_too_old` error when it touches one (see the [signed API](./signed-api.md)).
+Creating an agent with a signing identity also creates one enabled `activity` trigger, named "Mentions, replies, and comments for \<agent>". It has three conditions on the account `self`: a `user-mention`, a `comment-reply`, and a `document-author-comment`. In those three sources, `self` means whichever accounts the agent signs as when an event arrives. So the trigger follows a new primary account. When the server publishes a stored trigger as a document, it turns the agent's own account ids into `self`. That is why an agent answers when you mention its [account](../protocol/identity.md) in a comment, reply to it, or comment on a document it published. <!-- id:0m8OvinP -->
+
+Each condition of an `activity` trigger has a stable `id`. A firing records which conditions matched (`matchedConditions`), and a session the firing started shows them.
+
+Two triggers stored on the server can be merged into one with `CombineAgentTriggers`. The one that stays takes both condition lists, both histories and both sets of deduplication claims. The other is retired with `mergedInto` set. A retired trigger cannot be edited or turned on again. `UpdateAgentTrigger` accepts an `expectedUpdatedAt`, so two editors cannot overwrite each other without knowing. <!-- id:2RZmc9Te -->
+
+Changing to or from a webhook source depends on the form:
+
+- A trigger stored on the server cannot change between a webhook source and any other source. Make a new trigger instead.
+- A trigger document can. The server makes a new secret when the source becomes a webhook, and forgets the secret when the source changes away.
 
 ## Continuations <!-- id:SAHaWbYq -->
 
@@ -45,97 +67,128 @@ Each condition of an `activity` trigger has a stable `id`. A firing records whic
 | kind <!-- col:qqgDTBwN --> | what the firing does <!-- col:Dq0GeKn8 --> | model involved <!-- col:lmflRnlh --> <!-- id:FPjWAF39 --> |
 | --- | --- | --- |
 | `newThread` (default) | starts a session whose first message is the prompt plus a `<trigger_context>` block; `systemPrompt` adds instructions, `includeAgentSystemPrompt` (default true) can omit the agent's own prompt, `tools` narrows the grants | always <!-- id:9ArI3pSq --> |
-| `wake` | delivers `signal` (with optional `payload`) to a run parked on `ctx.waitForEvent`, the same delivery `SignalRun` makes; without `runId` the account's parked runs are searched for one the signal satisfies | never, the run decides <!-- id:c1T1oEj7 --> |
-| `tool` | calls one tool headlessly as a journaled workflow run: `read`, `write`, any granted callable, an authored lambda, or an MCP tool | never, unless `onFailure: 'thread'` and it fails <!-- id:Uh5xlgMG --> |
-| `script` | runs a workflow module (`export default async function (input, ctx)`) headlessly, with `ctx.input = {event, input, trigger: {id, name, firingId}}` | only if the script calls `ctx.delegate`, or on failure with `onFailure: 'thread'` <!-- id:3vfSy0-V --> |
+| `wake` | delivers `signal` (with optional `payload`) to a run [parked](./park.md) on `ctx.waitForEvent`, the same delivery `SignalRun` makes; without `runId` the account's parked runs are searched for one the signal satisfies | never, the run decides <!-- id:c1T1oEj7 --> |
+| `tool` | calls one tool headlessly as a journaled workflow run: `read`, `write`, any granted callable (a builtin or an MCP tool), or a [tool](../tool.md) by its hm:// URL. A [callable](./callables.md) is anything the agent's [`call` verb](./call.md) reaches | never, unless `onFailure: 'thread'` and it fails <!-- id:Uh5xlgMG --> |
+| `script` | runs a workflow [script](./script.md) module (`export default async function (input, ctx)`) headlessly, with `ctx.input = {event, input, trigger: {id, name, firingId}}` | only if the script calls `ctx.delegate`, or on failure with `onFailure: 'thread'` <!-- id:3vfSy0-V --> |
 
 For `tool`, `input` defaults to the trigger event itself. When you give an `input`, it is a JSON template. String values `"$event"` and `"$event.<path>"` are replaced from the event. For a webhook, the posted JSON is `"$event.payload"`. The tool name is checked when the trigger is written, because a headless firing has nobody to read a "no such tool" error. A `script` is checked by the workflow linter at write time: no `Date`, `Math.random`, timers, `fetch`, or imports, and exactly one default export. It is capped at the workflow source limit. The [journal](./journal.md) and [tool document](./tool-document.md) pages explain the run and the tool it calls. <!-- id:_ju96vTR -->
 
-`onFailure` is `none` or `thread`. With `none` (the default), the error is recorded on the firing and the trigger. With `thread`, the ordinary trigger thread starts with an `automationFailure` block inside its context and an instruction to `read run:<id>` and recover. The prompt is optional for headless kinds. When it is omitted, a default recovery prompt is stored, because the prompt is only used to escalate. <!-- id:Sh0R1Ar4 -->
+`onFailure` exists only on a trigger stored on the server. It is `none` or `thread`:
 
-A common pattern: an agent authors a tool with `write ~/tools/<name>` and wires a webhook to it with `continuation: {kind: 'tool', tool, input: {payload: '$event.payload'}, onFailure: 'thread'}`. From then on, deliveries run its code directly. A model starts only when the code fails. <!-- id:7kDY3C-p -->
+- With `none` (the default), the server records the error on the firing and the trigger.
+- With `thread`, the ordinary trigger thread starts. Its context holds an `automationFailure` block and an instruction to `read run:<id>` and recover.
+
+The prompt is optional for the `tool` and `script` kinds. When it is left out, the server stores a default recovery prompt, because the prompt is only used after a failure. <!-- id:Sh0R1Ar4 -->
+
+A trigger document expresses two of these continuations:
+
+- a `tool` continuation that calls a tool of its own host by hm:// URL;
+- a plain `newThread`, with no `systemPrompt`, no narrowed `tools`, and the agent's own prompt included.
+
+A trigger document has no `onFailure`. A failed tool call is recorded on the firing. Every other continuation exists only on a trigger stored on the server. See [the document and the server](../trigger.md).
+
+## The document form
+
+This section is about trigger documents only. A trigger document stores its source and input template as nested [metadata](../metadata.md) attributes.
+
+Document attributes merge key by key, and a list is one value that is replaced whole (see [how concurrent edits resolve](../protocol/documents.md)). So the source keeps each set as a map, with one key per entry:
+
+- `daysOfWeek: {mon: true, fri: true}`
+- `timesOfDay: {"08:00": true}`
+- `mentionedAccounts`, `repliedToAccounts` and `documentAuthors` as `{<account or self>: true}`
+- `eventTypes: {comment: true}`
+- `conditions` keyed by each condition's id
+
+Turning one day off is then a change to one key. Two people who edit different entries both keep their edits.
+
+The trigger engine works with lists. `triggerSourceToMetadata` and `triggerSourceFromMetadata` in `@seed-hypermedia/client/apps` convert between the two shapes. Writing a whole `source` or `input` clears it first, then sets each entry, so nothing from the old shape remains.
 
 # Firing <!-- id:W_1FNPPe -->
 
-Every activation is a [firing](./firing.md). It is a row in `trigger_firings` with a unique key `(account, trigger, activityKey)`, so a retried feed page or a repeated schedule tick cannot fire twice. For activity sources, admission is two steps in one transaction: the matcher first inserts a **claim** into `trigger_event_claims` for `(account, trigger, firing key)`, and only a new claim creates the firing row. Claims outlive a Combine (the survivor imports both sets) and are deleted with the trigger. Schedule, webhook, and run-completed firings skip claims and dedupe on the firing row alone. Activity firings use the feed event's identity. Schedule firings use `schedule:<triggerId>:<scheduledAt>`. A webhook delivery's key is `webhook:<Idempotency-Key>` when the sender supplies the header; without one every delivery is new, and a reused key with a different body is refused with 409. A comment that mentions someone produces two sibling feed events: the comment and a [citation](../protocol/comments.md). The monitor collapses them onto one key, `blob-<cid>` of the comment version, so a mention fires exactly once, whichever sibling arrives first. The [mention firing incident](./plans/mention-firing-incident.md) page traces why that rule exists. <!-- id:WsXEZEwz -->
-
-A firing's `status` records what happened: <!-- id:gujQ6cpk -->
-  - `created`: a thread was started. <!-- id:Hwqa0EPx -->
-  - `running`, then `succeeded`: a headless run. <!-- id:6H8HYNJq -->
-  - `delivered` or `no-listener`: a wake. <!-- id:TpYQ2W5U -->
-  - `error`. <!-- id:E52a_hwj -->
-  - `escalated`: a headless run failed and a recovery thread was started. <!-- id:3HgEZVKG -->
-
-The firing links its `sessionId` when it started a thread and its `runId` when it started a headless run. So `read run:<id>` and the trigger page can show what happened. When a headless script calls `ctx.delegate`, the firing adopts the first child session as its `sessionId`, later children nest under that session, and the first one carries the "Triggered by" context; an escalation re-points the firing at the recovery thread. Deleting a session clears the firing's `sessionId`; deleting an agent deletes its firings and claims. <!-- id:8c75m-cD -->
-
-Chains are loop-guarded. A `run-completed` firing is skipped when its ancestry already contains the same trigger within 8 hops, or is deeper than 8 hops at all, so two triggers cannot feed each other forever. The walk follows each firing's `runId`, so only run-completed chains are walkable. <!-- id:mpdiCPIg -->
+Each time a trigger goes off is a [firing](./firing.md). A firing is a row in `trigger_firings` with a unique key, so one event fires a trigger once. Firings of one trigger that start a session run one at a time. Chains of run-completed triggers stop after 8 hops. The firing page has the keys, the statuses and the loop guard.
 
 # The monitors <!-- id:HV4oYfVQ -->
 
 The **activity monitor** polls the Hypermedia server's activity feed, which is the `ListEvents` request of the [Seed API](../build/web-api.md). The settings are: <!-- id:kVkFZO2M -->
-  - `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS`: how often it polls (default 5 seconds). <!-- id:9klo2uSO -->
-  - `SEED_AGENTS_ACTIVITY_PAGE_SIZE`: events per page (50). <!-- id:Xa9UInqU -->
-  - `SEED_AGENTS_ACTIVITY_MAX_PAGES`: pages per poll (5). <!-- id:bzLCYoSZ -->
+  - `SEED_APPS_ACTIVITY_POLL_INTERVAL_MS`: how often it polls (default 5 seconds). <!-- id:9klo2uSO -->
+  - `SEED_APPS_ACTIVITY_PAGE_SIZE`: events per page (50). <!-- id:Xa9UInqU -->
+  - `SEED_APPS_ACTIVITY_MAX_PAGES`: pages per poll (5). <!-- id:bzLCYoSZ -->
 
-It only contacts the feed for accounts that have at least one enabled non-schedule trigger (webhook and run-completed triggers keep polling alive too). Each event goes to two consumers through one shared matcher: trigger matching, and any run parked on `ctx.waitForEvent({eventType, resource, author})` for that account. The feed is requested in **observed** order, so a blob that propagated late surfaces at the top when it arrives. An event is new when its key is not in the account's watermark, a ring of the most recently seen keys; its create time does not matter, so a comment that reaches the server hours after it was written still fires when first seen. The one time-based filter is the cold start: the first poll for an account only admits events created after its earliest enabled trigger. The watermark advances after each firing is durably recorded and is itself durable (`activity_watermarks`), so a restart resumes from the last handled event and does not replay. Polling depends on triggers, so an activity-shaped wait on an account with no enabled activity trigger only ends by timeout. Signal-shaped waits do not depend on polling. <!-- id:nkzChSE8 -->
+How the activity monitor works: <!-- id:nkzChSE8 -->
+
+- The monitor only polls for accounts that have at least one enabled trigger that is not a schedule. Webhook and run-completed triggers keep polling alive too.
+- Each event goes to two consumers through one shared matcher: trigger matching, and any run parked on `ctx.waitForEvent({eventType, resource, author})` for that account.
+- The monitor asks for the feed in **observed** order. So a [blob](../protocol/blobs.md) that reached the server late appears at the top when it arrives.
+- An event is new when its key is not in the account's watermark. The watermark is a ring of the most recently seen keys.
+- The event's create time does not matter. A comment that reaches the server hours after it was written still fires when the monitor first sees it.
+- There is one filter by time, on the first poll for an account. That poll only admits events created after the account's earliest enabled trigger.
+- The watermark moves forward after each firing is saved. The watermark is saved too (`activity_watermarks`). So after a restart the monitor continues from the last handled event and does not replay.
+- Polling depends on triggers. A wait for activity on an account with no enabled activity trigger only ends by timeout. A wait for a signal does not depend on polling.
 
 The **schedule monitor** checks enabled `schedule` triggers on the same interval, records their firings, and disables a `once` trigger at fire time, before its run starts. <!-- id:4faqwRaM -->
 
-The HTTP server delivers **webhooks** synchronously. A request to `POST /hm/api/agents/webhooks/<triggerId>/<secret>`, or to `POST /hm/api/agents/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, with a JSON body answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and under the webhook body cap. The secret is 43 URL-safe characters. It is generated with the trigger and shown on its page to accounts that can edit the agent. The client builds the delivery URL from the server's base. The legacy `/agents/api/webhooks/…` paths keep working, so URLs already handed out stay valid. <!-- id:30W5TAHJ -->
+The HTTP server delivers **webhooks** synchronously, with no polling. [Webhooks](./webhooks.md) has the delivery URL, the secret and the responses.
 
 **Run-completed** fires inline when a run is finalized. There is no polling. <!-- id:KKT9w-mu -->
 
-A trigger thread is a normal session whose first [run](./runs.md) has `origin: 'trigger'` (origin is a property of the run, not the session). The session carries `startedByTrigger`, an `AgentSessionTriggerContext` snapshot taken at firing time: the trigger, the firing, the activity summary, the full event, the conditions that matched, the prompt as it was then, and the firing's status and error. Later edits to the trigger do not rewrite it. The UI renders it as a context card and the model sees it as `<trigger_context>`. Trigger and headless runs dispatch on the background queue with `maxAttempts: 1`, so a failed firing is not retried automatically. The [operations](./operations.md) page describes the queue. <!-- id:4m4FD6FE -->
+A trigger thread is a normal session whose first run has `origin: 'trigger'`. Origin is a property of the run, not the session. The session carries `startedByTrigger`, an `AgentSessionTriggerContext` snapshot taken when the trigger fired. It holds the trigger, the firing, the activity summary, the full event, the conditions that matched, the prompt as it was then, and the firing's status and error. Later edits to the trigger do not rewrite it. The UI shows it as a context card, and the model sees it as `<trigger_context>`.
+
+Trigger runs go on the background queue. The server tries a background agent run up to three times. So a firing that fails because a [model provider](./model-providers.md) had a short problem is retried before it is recorded as failed. [The run queue](../operate/run-queue.md) describes it. <!-- id:4m4FD6FE -->
 
 # Working with triggers <!-- id:mTG59Yfj -->
 
+There are three ways to edit triggers: the [Seed app](../software/desktop.md), the agent itself, and the [signed API](../build/signed-api.md). In each, you change a trigger document by publishing a new version of the document. The actions that edit triggers stored on the server refuse a trigger document and name the document.
+
 ## In the Seed app <!-- id:jvEv2j0H -->
 
-The agent page's **Triggers** tab lists triggers. Each one opens in an editable detail view with: <!-- id:zchsSkup -->
+A [mounted agent](./mounting.md)'s **Triggers** tab lists its trigger documents first, the same way an app does. A trigger document opens inside the agent, and its edits stay in a draft until you publish them from the top bar. [Building an app](../build/building-an-app.md) describes that view.
+
+Triggers stored on the server follow under **On the server**, when there are any. Each of those opens in a detail view with: <!-- id:zchsSkup -->
   - name and enabled toggle <!-- id:hgkjPBKI -->
-  - the source and its form: a **When any of these happen** list of conditions with **Add condition** and a per-condition type menu (mention, reply to account, comment on account's document, comment on a document, site update), document autocomplete for comment conditions, account and site autocomplete, and interval, weekly, and one-time schedule forms; run-completed is shown only on triggers that already use it <!-- id:JJha9v1A -->
+  - the source and its form: a **When any of these happen** list of conditions with **Add condition** and a type menu for each condition (**Comment posted**, **User mention**, **Reply to account**, **Comment on account's document**, **Document updated**, **Reference added**, **Access granted**, **Contact updated**, then **Schedule** and **Webhook**), document autocomplete for comment conditions, account and [site](../protocol/sites.md) autocomplete, and interval, weekly, and one-time schedule forms; run-completed is shown only on triggers that already use it <!-- id:JJha9v1A -->
   - the prompt in the block editor <!-- id:anUmCwS4 -->
   - the continuation choice: **Start a thread (model handles it)**, **Call a tool (no model)**, **Run a script (no model)**, or **Wake a parked run**, with a tool picker fed by the agent's tools, a JSON input template, a script editor, a signal field for `wake`, and the on-failure toggle <!-- id:CdsHU--l -->
-  - **Combine with another trigger**, and a **Combined** badge on a retired trigger
-  - operational metadata: created, updated, last checked, last fired, last error <!-- id:VMDh9Iw3 -->
+  - **Combine with another trigger**, and a **Combined** badge on a retired trigger <!-- id:VdlOvvV9 -->
+  - last checked, last fired, the next fire for a schedule, and the last error <!-- id:VMDh9Iw3 -->
   - **Firings** with status, event summary, error, a link to the thread, and an inline run card for headless runs <!-- id:XHZ8P3WK -->
 
-Every edit autosaves. The list refreshes live from `trigger-updated` account events, so triggers an agent creates for itself appear at once. The [desktop and web UI](./desktop-ui.md) page covers the other screens. <!-- id:Bwq9P3yn -->
+In this view every edit saves by itself. The list refreshes live from `trigger-updated` account events, so triggers an agent creates for itself appear at once. [Agents in the Seed app](./in-the-app.md) covers the other screens. <!-- id:Bwq9P3yn -->
+
+Apps have a **Triggers** tab too. It lists trigger documents only, because an app has no triggers stored on the server. [Building an app](../build/building-an-app.md) walks through making one.
 
 ## The agent itself <!-- id:bBRPFDh1 -->
 
-An agent manages its own triggers with the [read](./read.md) and [write](./write.md) verbs: <!-- id:KA4JCbvJ -->
-  - `read ~/triggers/` lists them, with the write contract inline. <!-- id:BdwUYPMG -->
+An agent manages its own triggers with the [read](./read.md) and [write](./write.md) [verbs](./tools.md): <!-- id:KA4JCbvJ -->
+  - `read ~/triggers/` lists them, of both forms, with the write contract inline. <!-- id:BdwUYPMG -->
   - `read ~/triggers/<name>` returns one trigger with its five most recent firings. <!-- id:fB7qLr6W -->
-  - `write ~/triggers/<name>` creates, edits, enables, disables, or deletes by name (or id), and honours `enabled` as written. <!-- id:PqNfXf2G -->
+  - `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a trigger stored on the server, by name or id. It keeps `enabled` as written. <!-- id:PqNfXf2G -->
+  - `write hm://<account>/<agent or app path>/<name>` with `options.trigger` publishes a trigger document. An agent that already has trigger documents must use this for every new trigger a document can express. `~/triggers/<name>` then takes only the rest.
 
-The [Space index](./space-index.md) always advertises this, so an agent can complete "do this every morning" in one turn. There is no consent step. The owner decided on 2026-08-19 that agents manage their own triggers directly. The [security](./security.md) page records what that means for the threat model. <!-- id:j1HGdgrc -->
+The [Space index](./space-index.md) always tells the agent about this, so an agent can complete "do this every morning" in one turn. Nobody has to approve: agents manage their own triggers directly. The [security](./security.md) page records what that means for the threat model. <!-- id:j1HGdgrc -->
 
 ## Signed API <!-- id:6JaK_oUF -->
 
-There are six actions, all scoped to the account through the owning agent: <!-- id:32igKmQg -->
+There are six actions for triggers stored on the server. Each is limited to the signing account, through the agent that owns the trigger: <!-- id:32igKmQg -->
   - `ListAgentTriggers {agentId}` <!-- id:LTDaOlak -->
   - `GetAgentTrigger {triggerId}`: returns the trigger, its sessions, up to 25 most recent firings, and `webhookSecret` for editors. <!-- id:5sWdcAKU -->
   - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` <!-- id:UNaF32tJ -->
   - `UpdateAgentTrigger {triggerId, patch, expectedUpdatedAt?}`: the optional timestamp refuses a stale edit. <!-- id:f18H8tDf -->
   - `DeleteAgentTrigger {triggerId}` <!-- id:LgMQdOP3 -->
-  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}`: merges the other trigger's conditions, firings, and claims into this one and retires the other with `mergedInto`.
+  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}`: merges the other trigger's conditions, firings, and claims into this one and retires the other with `mergedInto`. <!-- id:HwXBs7E9 -->
 
-Deleting a trigger detaches its runs and removes its firings. Sessions it created are kept. Details are in the [signed API](./signed-api.md). <!-- id:JMPdcC4g -->
+Deleting a trigger detaches its runs and removes its firings. Sessions it created are kept. The shapes are in [the signed API for triggers](../build/signed-api-triggers.md). <!-- id:JMPdcC4g -->
 
-## Tests and tooling <!-- id:rrtBKYP9 -->
+Two more actions work with trigger documents:
 
-`bun run test:trigger` in `agents/` boots the real daemon against a local stand-in for the activity feed. It creates an agent and a mention trigger over the signed API and asserts that a comment mention fires exactly one session. The unit suites are `activity-triggers.test.ts`, `trigger-events.test.ts`, `activity-trigger-race.test.ts`, and `schedule-triggers.test.ts`. <!-- id:fnvnd4yo -->
-
-# Where this is going <!-- id:LOPg6RLL -->
-
-As of September 2026, triggers are SQLite rows edited through CRUD actions and the `~/triggers/` verb surface. The [roadmap](./roadmap.md) records the plan: trigger **documents**, content-addressed like `~/tools/` and versioned by CID, replacing the CRUD actions, with a `document-change` source and an `appendTo` continuation. None of that is built. The `agent_triggers` table also has a `cooldown_ms` column that nothing reads or writes. There is no cooldown feature. <!-- id:7AfhhSIj -->
+- `ListHostTriggers {hostId}` returns the triggers of an app or an agent as the server holds them, with their recent firings. It also returns the ones the server could not use.
+- `RunTriggerNow {triggerId}` fires a schedule trigger once, as its schedule would. It needs write access to the trigger's document. It also works on a schedule trigger stored on the server, for a writer of the agent.
 
 # See also <!-- id:aqgk0ha- -->
 
-- [trigger](./trigger.md) and [firing](./firing.md), the term pages. <!-- id:5xLIJVIG -->
-- [Trigger continuations](./trigger-continuations.md), the dated record of when headless continuations shipped. <!-- id:dRNNJ0yv -->
+- [Trigger](../trigger.md), the concept, and how a trigger document relates to the server.
+- [Firing](./firing.md) for deduplication, statuses and the loop guard. <!-- id:5xLIJVIG -->
+- [Webhooks](./webhooks.md) for delivering events from outside.
 - [park and wait](./park.md) and [wake source](./wake-source.md), for the runs a `wake` continuation reaches. <!-- id:KzpZ9_1r -->
-- [Persistence](./persistence.md) for the `agent_triggers`, `trigger_firings`, and `activity_watermarks` tables. <!-- id:iGyU4fg4 -->
-- [Operations](./operations.md) for the monitor configuration and the run queue. <!-- id:wUmHU66d -->
+- [Persistence](../operate/persistence.md) for the `agent_triggers`, `trigger_firings`, and `activity_watermarks` tables. <!-- id:iGyU4fg4 -->
+- [Configuration](../operate/configuration.md) for the monitor settings, and [the run queue](../operate/run-queue.md). <!-- id:wUmHU66d -->
 - [Agents glossary](./glossary.md) for every agent term. <!-- id:Bm3zr_cA -->

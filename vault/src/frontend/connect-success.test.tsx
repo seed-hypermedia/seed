@@ -58,8 +58,8 @@ describe('connect success routing repro', () => {
     await rtl.waitFor(() => {
       expect(window.location.pathname).toBe('/vault/connect/success')
     })
-    expect(rtl.screen.getByText('Open Seed')).toBeTruthy()
-    expect(rtl.screen.getByText('account settings.')).toBeTruthy()
+    expect(await rtl.screen.findByText('Open Seed')).toBeTruthy()
+    expect(await rtl.screen.findByText('account settings.')).toBeTruthy()
 
     // The redirect race would bounce to "/" a beat later; make sure we stay.
     await new Promise((resolve) => setTimeout(resolve, 50))

@@ -1,4 +1,4 @@
-// Document-menu entry points to the blob editor: "New Blob" (a blank DAG-CBOR
+// Inspector-menu entry points to the blob editor: "New Blob" (a blank DAG-CBOR
 // object) and "New Schema" (a new instance of the bundled meta-schema). Both
 // open the inspector's draft mode: `inspect-ipfs` with `new` / `new/<schemaCid>`.
 import {createInspectIpfsNavRoute, type NavRoute} from '@shm/shared/routes'

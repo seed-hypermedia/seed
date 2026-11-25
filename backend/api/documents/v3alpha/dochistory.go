@@ -109,6 +109,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 			Author:     change.Signer.String(),
 			Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
 			CreateTime: timestamppb.New(change.Ts),
+			Message:    change.Message,
 		})
 	}
 
@@ -127,8 +128,8 @@ func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocum
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode change ID '%s': %v", in.Id, err)
 	}
 
-	if srv.cfg.PublicOnly {
-		ctx = blob.WithPublicOnly(ctx)
+	if srv.cfg.ServerMode {
+		ctx = blob.WithServerMode(ctx)
 	}
 
 	blk, err := srv.idx.Get(ctx, c)
@@ -146,5 +147,6 @@ func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocum
 		Author:     change.Signer.String(),
 		Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
 		CreateTime: timestamppb.New(change.Ts),
+		Message:    change.Message,
 	}, nil
 }

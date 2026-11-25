@@ -7,7 +7,6 @@ import {BlockNoteEditor} from './BlockNoteEditor'
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
 
-import {Gapcursor} from '@tiptap/extension-gapcursor'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {History} from '@tiptap/extension-history'
 import {Italic} from '@tiptap/extension-italic'
@@ -30,6 +29,7 @@ import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {DragExtension} from './extensions/DragMedia/DragExtension'
+import {GapCursorExtension} from './extensions/GapCursor/GapCursorExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
@@ -37,6 +37,7 @@ import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
 import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {TextColorMark} from './extensions/TextColor/TextColorMark'
 import {TextFamilyMark} from './extensions/TextFamily/TextFamilyMark'
+import {TextAlignmentExtension} from './extensions/TextAlignment/TextAlignmentExtension'
 import {TextSizeMark} from './extensions/TextSize/TextSizeMark'
 import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
@@ -107,6 +108,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       })
     }),
     CustomBlockSerializerExtension,
+    TextAlignmentExtension,
 
     HardBreak,
     BlockNode.configure({
@@ -148,12 +150,13 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   if (!isEmbed && !isViewer) {
     ret.push(
       // DevTools,
-      Gapcursor,
+      GapCursorExtension,
       Placeholder.configure({
         emptyNodeClass: blockStyles.isEmpty,
         firstEmptyBlockClass: blockStyles.isFirstEmptyBlock,
         hasAnchorClass: blockStyles.hasAnchor,
         isFilterClass: blockStyles.isFilter,
+        emptyGridCellClass: blockStyles.isEmptyGridCell,
         includeChildren: true,
         showOnlyCurrent: false,
       }),

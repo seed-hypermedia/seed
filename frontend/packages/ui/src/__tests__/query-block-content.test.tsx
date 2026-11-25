@@ -12,8 +12,16 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@shm/shared/utils/navigation', () => ({
   useNavigate: () => navigate,
+  useNavRouteOrNull: () => null,
 }))
 
+import type {HMMentionCandidate} from '@seed-hypermedia/client/hm-types'
+import {queryClient} from '@shm/shared/models/query-client'
+import {UniversalAppProvider} from '@shm/shared/routing'
+import type {UniversalClient} from '@shm/shared/universal-client'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {parseQueryBlockSearchMention} from '../query-block-search-machine'
 import {QueryBlockContent as QueryBlockContentImpl, type QueryBlockContentProps} from '../query-block-content'
 import {TooltipProvider} from '../tooltip'
 
@@ -29,6 +37,7 @@ function QueryBlockContent(props: QueryBlockContentProps) {
 
 let container: HTMLDivElement
 let root: Root
+let mentionQueryClient: QueryClient
 let observers: MockIntersectionObserver[] = []
 
 class MockIntersectionObserver {
@@ -56,6 +65,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  mentionQueryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
 })
 
 afterEach(() => {
@@ -63,6 +73,8 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  mentionQueryClient.clear()
+  queryClient.clear()
 })
 
 function renderQueryBlock(style: 'Card' | 'List' | 'Table') {
@@ -79,6 +91,35 @@ function makeItems(count: number) {
     authors: [],
   })) as any
 }
+
+describe('QueryBlockContent controls', () => {
+  it('shows the toolbar by default, so callers that never set it keep it', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(2)} style="List" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelector('[data-query-block-toolbar]')).not.toBeNull()
+  })
+
+  it('drops the toolbar but keeps the results when controls are turned off', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(2)}
+          style="List"
+          accountsMetadata={{}}
+          showControls={false}
+          toolbarActions={<button type="button">View options</button>}
+        />,
+      )
+    })
+
+    expect(container.querySelector('[data-query-block-toolbar]')).toBeNull()
+    expect(container.textContent).not.toContain('View options')
+    expect(container.textContent).toContain('Item 0')
+    expect(container.textContent).toContain('Item 1')
+  })
+})
 
 describe('QueryBlockContent loading state', () => {
   it('shows a spinner while a list query block is loading', () => {
@@ -257,6 +298,76 @@ describe('QueryBlockContent table view', () => {
       'Backlinks',
     ])
     expect(container.textContent).not.toContain('Ready')
+  })
+})
+
+describe('QueryBlockContent activity sorting', () => {
+  it.each(['Table', 'List', 'Card'] as const)(
+    'keeps server activity order in %s, including tied timestamps',
+    (style) => {
+      const items = makeItems(3)
+      items[0].metadata.name = 'Zed publish reference'
+      items[1].metadata.name = 'Beta comment'
+      items[2].metadata.name = 'Alpha content change'
+      items.forEach((item: any, index: number) => {
+        item.updateTime = `2026-01-0${index + 1}T00:00:00Z`
+        item.activitySummary = {
+          latestChangeTime: item.updateTime,
+          latestCommentTime: '2026-02-01T00:00:00Z',
+          commentCount: 1,
+        }
+      })
+      act(() =>
+        root.render(
+          <QueryBlockContent
+            items={items}
+            style={style}
+            accountsMetadata={{}}
+            tableSorting={[{id: 'activity', desc: true}]}
+          />,
+        ),
+      )
+      const content = container.textContent!
+      expect(content.indexOf('Zed publish reference')).toBeLessThan(content.indexOf('Beta comment'))
+      expect(content.indexOf('Beta comment')).toBeLessThan(content.indexOf('Alpha content change'))
+    },
+  )
+
+  it('selects newest activity first and requests the reverse order without sorting by local change time', () => {
+    const items = makeItems(2)
+    items[0].metadata.name = 'Older document with new comment'
+    items[0].updateTime = '2025-01-01T00:00:00Z'
+    items[1].metadata.name = 'Recently updated document'
+    items[1].updateTime = '2026-01-01T00:00:00Z'
+    function Collection() {
+      const [sorting, setSorting] = React.useState([{id: 'updated', desc: false}])
+      const results = sorting[0]?.id === 'activity' && !sorting[0].desc ? [...items].reverse() : items
+      return (
+        <QueryBlockContent
+          items={results}
+          style="Table"
+          accountsMetadata={{}}
+          tableSorting={sorting}
+          onTableSortingChange={setSorting}
+        />
+      )
+    }
+    act(() => root.render(<Collection />))
+    act(() => (container.querySelector('button[aria-label="Sort"]') as HTMLButtonElement).click())
+    const combo = document.querySelector('[role="combobox"]')!
+    act(() => combo.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})))
+    const activity = Array.from(document.querySelectorAll('[role="option"]')).find(
+      (option) => option.textContent === 'Latest activity',
+    )
+    expect(activity).toBeTruthy()
+    act(() => activity!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})))
+    const names = () => Array.from(container.querySelectorAll('tbody tr td a[title]')).map((link) => link.textContent)
+    expect(names()).toEqual(['Older document with new comment', 'Recently updated document'])
+    const ascending = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Ascending',
+    )!
+    act(() => ascending.click())
+    expect(names()).toEqual(['Recently updated document', 'Older document with new comment'])
   })
 })
 
@@ -483,6 +594,34 @@ describe('QueryBlockContent Card attribute layout', () => {
   })
 })
 
+describe('QueryBlockContent Attributes popover saved attribute keys', () => {
+  it('lists saved keys including empty-on-all keys, omits schema-binding keys', () => {
+    const items = makeItems(2)
+    items[0].metadata.Priority = 'High'
+    items[0].metadata.childAttributesSchema = 'hm://hyper.media/example/article'
+    // Assignee is empty on every item
+    items[0].metadata.Assignee = ''
+    items[1].metadata.Assignee = ''
+
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} />
+        </TooltipProvider>,
+      )
+    })
+
+    const attributesButton = container.querySelector('button[aria-label="Attributes"]') as HTMLButtonElement
+    expect(attributesButton).toBeTruthy()
+    act(() => attributesButton.click())
+
+    const popoverText = document.body.textContent ?? ''
+    expect(popoverText).toContain('Priority')
+    expect(popoverText).toContain('Assignee')
+    expect(popoverText).not.toContain('Child Attributes Schema')
+  })
+})
+
 describe('QueryBlockContent list view with prepended draft items', () => {
   it('renders prepended draft items even when no published documents match the query', () => {
     act(() => {
@@ -499,6 +638,75 @@ describe('QueryBlockContent list view with prepended draft items', () => {
     expect(container.querySelector('[data-testid="draft-slot"]')).toBeTruthy()
     expect(container.textContent).not.toContain('No documents found.')
     expect(container.textContent).not.toContain('No documents match the current search and filters.')
+  })
+})
+
+describe('QueryBlockContent new document entry', () => {
+  function getNewDocumentButtons() {
+    return Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === 'New document')
+  }
+
+  it.each(['Table', 'List', 'Card'] as const)(
+    'shows one "New document" entry before the results in the %s view',
+    (style) => {
+      const onCreateDocument = vi.fn()
+      act(() => {
+        root.render(
+          <QueryBlockContent
+            items={makeItems(2)}
+            style={style}
+            banner={style === 'Card'}
+            accountsMetadata={{}}
+            prependItems={[<div key="draft">Draft item</div>]}
+            onCreateDocument={onCreateDocument}
+          />,
+        )
+      })
+
+      const buttons = getNewDocumentButtons()
+      expect(buttons).toHaveLength(1)
+      const text = container.textContent ?? ''
+      expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Item 0'))
+      if (style !== 'Table') expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Draft item'))
+
+      act(() => {
+        buttons[0]!.click()
+      })
+      expect(onCreateDocument).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('places the table entry above draft rows', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          onCreateDocument={vi.fn()}
+          tableDrafts={{
+            drafts: [{draft: {id: 'd1', metadata: {name: 'Draft one'}} as any}],
+            onOpenDraft: vi.fn(),
+            onDeleteDraft: vi.fn(),
+            onUpdateDraftName: vi.fn(),
+          }}
+        />,
+      )
+    })
+
+    const rows = Array.from(container.querySelectorAll('tbody tr'))
+    expect(rows[0]?.textContent).toBe('New document')
+    expect(rows[1]?.querySelector('input')?.value ?? rows[1]?.textContent).toContain('Draft one')
+    // Spans every column, including the draft actions column.
+    expect(rows[0]?.querySelector('td')?.colSpan).toBe(rows[1]?.querySelectorAll('td').length)
+  })
+
+  it('hides the entry for readers who cannot create documents', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(2)} style="Table" accountsMetadata={{}} />)
+    })
+
+    expect(getNewDocumentButtons()).toHaveLength(0)
   })
 })
 
@@ -700,5 +908,306 @@ describe('QueryBlockContent progressive list rendering', () => {
     })
 
     expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(8)
+  })
+})
+
+describe('QueryBlockContent item icons', () => {
+  function makeKindItems() {
+    const [agent, collection, document] = makeItems(3)
+    agent.metadata = {name: 'Helper', type: 'hm://hyper.media/agent'}
+    collection.isCollection = true
+    return [agent, collection, document]
+  }
+
+  it.each(['List', 'Table'] as const)('marks agents, collections and documents in the %s view', (style) => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeKindItems()} style={style} accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
+  })
+})
+
+describe('QueryBlockContent filter value labels', () => {
+  it('shows resolved names for reference options and keeps the raw URL as the filter value', () => {
+    const onViewerFiltersChange = vi.fn()
+    const items = makeItems(1)
+    items[0].metadata.owner = 'hm://owneruid'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'}]}
+          onViewerFiltersChange={onViewerFiltersChange}
+          filterOptions={{
+            'metadata:owner': {
+              type: 'text',
+              values: ['hm://owneruid'],
+              labels: {'hm://owneruid': 'horacio'},
+            },
+          }}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const trigger = document.querySelector('button[aria-label="Filter value"]') as HTMLButtonElement
+    expect(trigger).toBeTruthy()
+    expect(trigger.textContent).toContain('horacio')
+
+    act(() => trigger.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    const option = Array.from(document.querySelectorAll('[role="option"]')).find(
+      (element) => element.textContent === 'horacio',
+    ) as HTMLElement
+    expect(option).toBeTruthy()
+    act(() => option.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(onViewerFiltersChange).toHaveBeenCalledWith([
+      {columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'},
+    ])
+  })
+
+  it('shows the resolved name instead of the raw URL in the applied filter pill', () => {
+    const items = makeItems(1)
+    items[0].metadata.owner = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: items[0].metadata.owner as string}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{
+            'metadata:owner': {
+              type: 'text',
+              values: [items[0].metadata.owner as string],
+              labels: {[items[0].metadata.owner as string]: 'horacio'},
+            },
+          }}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector('button[aria-label="Remove filter: Owner IS horacio"]') as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe('Owner IS horacio')
+  })
+
+  it('truncates long applied filter values to 18 characters with an ellipsis', () => {
+    const items = makeItems(1)
+    const url = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+    items[0].metadata.owner = url
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: url}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{'metadata:owner': {type: 'text', values: [url]}}}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector(`button[aria-label="Remove filter: Owner IS ${url}"]`) as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe(`Owner IS ${url.slice(0, 17)}…`)
+    expect(pill.title).toBe(`Owner IS ${url}`)
+  })
+})
+
+const mentionAccounts: HMMentionCandidate[] = [
+  {
+    id: hmId('bea', {path: [':profile'], version: 'version'}),
+    type: 'account',
+    title: 'Bea',
+    icon: '',
+    parentNames: [],
+    searchQuery: '',
+    sameSite: false,
+    issuedContact: false,
+  },
+]
+
+const mentionDocuments: HMMentionCandidate[] = [
+  {
+    id: hmId('docuid', {path: ['spec', 'one'], version: 'version'}),
+    type: 'document',
+    title: 'Spec One',
+    icon: '',
+    parentNames: [],
+    searchQuery: '',
+    sameSite: false,
+    issuedContact: false,
+  },
+]
+
+function makeMentionSearchItems() {
+  return [
+    {
+      id: {id: 'hm://a/1', uid: 'a', path: ['1']},
+      path: ['1'],
+      metadata: {name: 'Owned doc', owner: 'hm://bea'},
+      authors: [],
+    },
+    {
+      id: {id: 'hm://a/2', uid: 'a', path: ['2']},
+      path: ['2'],
+      metadata: {name: 'Spec doc', spec: 'hm://docuid/spec/one'},
+      authors: [],
+    },
+    {
+      id: {id: 'hm://a/3', uid: 'a', path: ['3']},
+      path: ['3'],
+      metadata: {name: 'Plain doc'},
+      authors: [],
+    },
+  ] as any
+}
+
+function renderMentionSearchBlock(items = makeMentionSearchItems()) {
+  const universalClient = {
+    request: async (key: string, params?: {mode?: string}) =>
+      key === 'MentionCandidates' ? (params?.mode === 'document' ? mentionDocuments : mentionAccounts) : null,
+    fetchRecents: async () => [],
+  } as unknown as UniversalClient
+  act(() => {
+    root.render(
+      <QueryClientProvider client={mentionQueryClient}>
+        <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={universalClient}>
+          <QueryBlockContent items={items} style="List" accountsMetadata={{}} />
+        </UniversalAppProvider>
+      </QueryClientProvider>,
+    )
+  })
+  const searchButton = container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement
+  act(() => searchButton.click())
+  return container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+}
+
+function enterSearchText(input: HTMLInputElement, text: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text)
+    input.dispatchEvent(new Event('input', {bubbles: true}))
+  })
+}
+
+function pressSearchKey(input: HTMLInputElement, key: string) {
+  act(() => input.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true})))
+}
+
+function mentionListbox() {
+  return document.body.querySelector('[role="listbox"]')
+}
+
+async function waitForMentionOptions(count: number) {
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(document.body.querySelectorAll('[role="option"]:not(:disabled)')).toHaveLength(count)
+  })
+}
+
+describe('parseQueryBlockSearchMention', () => {
+  it('parses account and document triggers only at the start of the text', () => {
+    expect(parseQueryBlockSearchMention('@be')).toEqual({mode: 'account', query: 'be'})
+    expect(parseQueryBlockSearchMention('  @be')).toEqual({mode: 'account', query: 'be'})
+    expect(parseQueryBlockSearchMention('[[spec')).toEqual({mode: 'document', query: 'spec'})
+    expect(parseQueryBlockSearchMention('@')).toEqual({mode: 'account', query: ''})
+    expect(parseQueryBlockSearchMention('foo @bar')).toBeNull()
+    expect(parseQueryBlockSearchMention('')).toBeNull()
+    expect(parseQueryBlockSearchMention('search term')).toBeNull()
+  })
+})
+
+describe('QueryBlockContent mention search', () => {
+  it('typing @ opens the Accounts listbox without applying the draft as a filter, and Enter selects the account', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Accounts')
+    // The draft must not filter the collection while the mention is being composed.
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).toContain('Plain doc')
+    pressSearchKey(input, 'Enter')
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).not.toContain('Spec doc')
+    expect(container.textContent).not.toContain('Plain doc')
+    expect(mentionListbox()).toBeNull()
+  })
+
+  it('typing [[ opens the Documents listbox and clicking an option filters by that document ref', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '[[spec')
+    await waitForMentionOptions(1)
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Documents')
+    act(() => (document.body.querySelector('[role="option"]') as HTMLButtonElement).click())
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).not.toContain('Owned doc')
+    expect(container.textContent).not.toContain('Plain doc')
+    // The collapsed control shows the entity pill for the stored document ref (no version).
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeTruthy()
+  })
+
+  it('Escape dismisses the menu and keeps the draft as a literal search', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Escape')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(mentionListbox()).toBeNull()
+    expect(input.value).toBe('@be')
+  })
+
+  it('shows the selected ref as a pill and Clear search resets it', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Enter')
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeTruthy()
+    act(() => (container.querySelector('button[aria-label="Clear search"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeNull()
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).toContain('Plain doc')
+  })
+
+  it('reopens the menu for a new trigger after Escape and re-expanding the search', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Escape')
+    expect(mentionListbox()).toBeNull()
+    act(() => input.blur())
+    act(() => (container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement).click())
+    const reopened = container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+    enterSearchText(reopened, '@bea')
+    await waitForMentionOptions(1)
+    expect(reopened.getAttribute('aria-expanded')).toBe('true')
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Accounts')
+  })
+
+  it('does not open the menu when the trigger is not at the start of the text', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, 'foo @bar')
+    await act(async () => {})
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(mentionListbox()).toBeNull()
   })
 })

@@ -11,5 +11,5 @@ This page describes the **example/person** type, one of the [example schemas](..
 - [address](./address.md): the included home type. <!-- id:sv6xArNj -->
 - [employee](./employee.md): extends person. <!-- id:_OvYj0Na -->
 - [alice](./alice.md): an instance. <!-- id:4joKQ5wA -->
-- [person-doc](./person-doc.md): a person as a document type. <!-- id:pFQ4sKNg -->
+- [person-doc](./person-doc.md): a person as a [document](../protocol/documents.md) type. <!-- id:pFQ4sKNg -->
 - [Examples](../example.md): every example, grouped by feature. <!-- id:xUV15vTn -->

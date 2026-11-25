@@ -12,6 +12,7 @@ import {DocumentEditor} from '../../src/document-editor'
 import {CommentEditor} from '../../src/comment-editor'
 import {DraftActionsContext, type DraftActions} from '../../src/draft-actions-context'
 import {TooltipProvider} from '@shm/ui/tooltip'
+import {processImage, CONTENT_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {createMachine} from 'xstate'
@@ -218,6 +219,9 @@ type FixtureName =
   | 'withTwoEmbeds'
   | 'draftAndPublished'
   | 'allBlocks'
+  | 'queryAtEnd'
+  | 'longText'
+  | 'headingSizes'
 
 const text = (text: string) =>
   ({
@@ -356,6 +360,52 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
     } as any,
     p('p-bottom', [text('Last paragraph')]),
   ],
+
+  // A published document ending in a query has no trailing paragraph in its
+  // saved content. Entering edit mode must preserve its block identities.
+  queryAtEnd: [
+    {id: 'query-heading', type: 'heading', props: {level: '2'}, content: [text('Issues')], children: []} as any,
+    {
+      id: 'query-at-end',
+      type: 'query',
+      props: {
+        style: 'Card',
+        columnCount: '3',
+        queryIncludes: JSON.stringify([{space: 'bafy-doc-uid', path: '', mode: 'Children'}]),
+        querySort: JSON.stringify([{term: 'updated', reverse: true}]),
+        banner: 'false',
+      },
+      content: [],
+      children: [],
+    } as any,
+  ],
+
+  longText: Array.from({length: 30}, (_, i) => p(`p-long-${i + 1}`, [text(`Paragraph ${i + 1}`)])),
+
+  // Top-level and nested headings that share an explicit text size, so their rendered sizes can be compared.
+  headingSizes: (['small', 'medium', 'big'] as const).map((size) => ({
+    id: `h-top-${size}`,
+    type: 'heading',
+    props: {level: '2'},
+    content: [{type: 'text', text: `Top ${size}`, styles: {textSize: size}}],
+    children: [
+      {
+        id: `h-nested-${size}`,
+        type: 'heading',
+        props: {level: '3'},
+        content: [{type: 'text', text: `Nested ${size}`, styles: {textSize: size}}],
+        children: [
+          {
+            id: `h-deep-${size}`,
+            type: 'heading',
+            props: {level: '4'},
+            content: [{type: 'text', text: `Deep ${size}`, styles: {textSize: size}}],
+            children: [],
+          },
+        ],
+      },
+    ],
+  })) as any,
 }
 
 function getFixtureFromUrl(): FixtureName {
@@ -676,6 +726,13 @@ function RawModeApp({fixtureName}: {fixtureName: FixtureName}) {
 
   const editor = useBlockNote<HMBlockSchema>({
     blockSchema: hmBlockSchema,
+    handleFileAttachment: new URLSearchParams(window.location.search).has('imageUpload')
+      ? async (file) => {
+          const processed = await processImage(file, CONTENT_IMAGE_POLICY)
+          const url = URL.createObjectURL(processed)
+          return {url, displaySrc: url, name: processed.name, mime: processed.type}
+        }
+      : undefined,
     getSlashMenuItems: getSlashMenuItems,
     onEditorContentChange: (e) => {
       setEditorContent(e.topLevelBlocks)

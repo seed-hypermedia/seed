@@ -1,28 +1,13 @@
 /**
- * Mapping the protocol's session and run lifecycles onto the status colours the UI draws.
+ * Mapping the protocol's run lifecycle onto the status labels the UI draws.
  *
- * Kept in one place because the same run status has to read consistently in three spots — the
- * session list dot, the run card's pill, and a child row inside a plan step — and a card that
- * called `waiting` "active" would tell the reader the agent is working when it is in fact parked,
+ * Kept in one place because the run card and child rows must describe the same status. A card
+ * that called `waiting` "active" would tell the reader the agent is working when it is parked,
  * possibly on them.
  */
 
-import type {RunInfo, RunPlan, RunStatus, SessionInfo} from '@shm/ui/agents/client'
+import type {RunInfo, RunPlan, RunStatus} from '@shm/ui/agents/client'
 import type {StatusTone} from './ui/primitives'
-
-/** Colour for a session's derived status. */
-export function sessionStatusTone(status: SessionInfo['status']): StatusTone {
-  switch (status) {
-    case 'streaming':
-      return 'active'
-    case 'error':
-      return 'error'
-    case 'stopped':
-      return 'idle'
-    default:
-      return 'idle'
-  }
-}
 
 /** Colour for a durable run's status. */
 export function runStatusTone(status: RunStatus): StatusTone {

@@ -2,21 +2,33 @@ name: Check hypermedia
 
 # The Hypermedia schema library and its pages: every schema is a valid Hypermedia schema, the
 # generated registry/types/lockfile match the files, and every page satisfies the type it binds to.
-# Same check the sync runs before publishing (see scripts/hypermedia/check.mjs).
+# Same check the sync runs before publishing (see scripts/hypermedia/check.mjs). It includes the sync's
+# own offline refusals (broken links, tree), so what would stop a publish stops the pull request instead.
+# The release workflows call it first, so a tree that cannot be published fails a release in a minute,
+# before anything is built.
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - 'hypermedia/**'
       - 'scripts/hypermedia/**'
-      - 'frontend/packages/client/src/schema-*.ts'
+      - 'frontend/packages/client/src/**'
+      - 'frontend/apps/cli/src/utils/space-sync*'
+      - 'frontend/apps/cli/src/utils/dev-loop*'
+      - 'frontend/apps/cli/src/utils/dev-sync*'
+      - 'frontend/apps/cli/src/sync-hypermedia.ts'
       - '.github/workflows/check-hypermedia.yml'
   push:
     branches: [main]
     paths:
       - 'hypermedia/**'
       - 'scripts/hypermedia/**'
-      - 'frontend/packages/client/src/schema-*.ts'
+      - 'frontend/packages/client/src/**'
+      - 'frontend/apps/cli/src/utils/space-sync*'
+      - 'frontend/apps/cli/src/utils/dev-loop*'
+      - 'frontend/apps/cli/src/utils/dev-sync*'
+      - 'frontend/apps/cli/src/sync-hypermedia.ts'
       - '.github/workflows/check-hypermedia.yml'
 
 jobs:
@@ -30,7 +42,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.10'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check hypermedia/
         run: node scripts/hypermedia/check.mjs
+      - name: Check documentation sync preserves source
+        run:
+          pnpm --filter @seed-hypermedia/cli exec bun test src/utils/space-sync.test.ts src/utils/dev-loop.test.ts
+          src/utils/dev-sync.test.ts

@@ -1,3 +1,4 @@
+import {QueryClient, QueryObserver} from '@tanstack/react-query'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {queryKeys} from '@shm/shared/models/query-keys'
 
@@ -131,6 +132,39 @@ describe('activity event processing', () => {
   })
 
   describe('processEvents integration', () => {
+    it('refreshes active collection results when a comment arrives', async () => {
+      const {processEvents} = await loadModule()
+      const client = new QueryClient({defaultOptions: {queries: {retry: false, staleTime: Infinity}}})
+      const queryKey = [queryKeys.QUERY_BLOCK, {sort: [{term: 'activity', reverse: true}]}]
+      let documents = ['recent-update', 'old-document']
+      const queryFn = async () => documents
+      await client.fetchQuery({queryKey, queryFn})
+      const observer = new QueryObserver(client, {queryKey, queryFn})
+      const unsubscribe = observer.subscribe(() => {})
+      const pendingInvalidations: Promise<void>[] = []
+      appInvalidateQueriesMock.mockImplementation((key) => {
+        pendingInvalidations.push(client.invalidateQueries({queryKey: key}))
+      })
+
+      try {
+        documents = ['old-document', 'recent-update']
+        processEvents([
+          makeBlobEvent(
+            'Comment',
+            'hm://z6MkAuthor/comment',
+            'z6MkAuthor',
+            JSON.stringify({target: 'hm://z6MkOwner/old-document'}),
+          ),
+        ])
+        await Promise.all(pendingInvalidations)
+        expect(client.getQueryData(queryKey)).toEqual(['old-document', 'recent-update'])
+      } finally {
+        unsubscribe()
+        client.clear()
+        appInvalidateQueriesMock.mockReset()
+      }
+    })
+
     it('ripples profile invalidations across account, collaborators, search, and feed', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Profile', 'hm://z6MkProfileUser')])

@@ -20,12 +20,22 @@ export type DocumentState = {
   headDepth: number
   /** Dot-separated head CIDs (version string). */
   version: string
+  /**
+   * The latest timestamp among the head changes, in milliseconds (a Change's `ts`). A Change built
+   * on these heads must be stamped later than this, whatever the local clock says: the daemon
+   * treats a Change that is not later than its dependencies as broken. Absent when the server
+   * did not report the heads' times.
+   */
+  headTs?: number
 }
 
 /**
  * Resolves the current document state including head depth.
  */
-export async function resolveDocumentState(client: SeedClient, targetId: string): Promise<DocumentState> {
+export async function resolveDocumentState(
+  client: Pick<SeedClient, 'request'>,
+  targetId: string,
+): Promise<DocumentState> {
   const unpacked = unpackHmId(targetId)
   if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
   const changesResp = await client.request('ListChanges', {targetId: unpacked})
@@ -80,12 +90,32 @@ export async function resolveDocumentState(client: SeedClient, targetId: string)
   // Version string: dot-separated head CIDs.
   const version = heads.join('.')
 
+  // The heads' timestamps. `createTime` is the Change's own `ts` (milliseconds) as an RFC 3339
+  // string, so parsing it gives the exact value. Unknown for any head means unknown for all.
+  let headTs: number | undefined = 0
+  for (const change of changesResp.changes) {
+    if (!change.id || !heads.includes(change.id)) continue
+    const ts = change.createTime ? Date.parse(change.createTime) : NaN
+    if (!Number.isFinite(ts)) {
+      headTs = undefined
+      break
+    }
+    if (ts > headTs!) headTs = ts
+  }
+
   return {
     genesis,
     heads,
     headDepth: maxHeadDepth,
     version,
+    headTs,
   }
+}
+
+/** Whether two version strings name the same heads, in any order. */
+export function sameDocumentVersion(a: string | undefined, b: string | undefined): boolean {
+  const heads = (version: string | undefined) => (version ?? '').split('.').filter(Boolean).sort().join('.')
+  return heads(a) === heads(b)
 }
 
 /** Maximum redirect hops {@link resolveEditableDocument} follows before giving up. */
@@ -148,7 +178,10 @@ export type FollowedResource = {
  * address: the content belongs to `targetId`, and a write to `id` behaves differently from a write
  * to `targetId` (see {@link describeRedirect}). Callers surface `redirects` to the user or agent.
  */
-export async function followRedirects(client: SeedClient, id: UnpackedHypermediaId): Promise<FollowedResource> {
+export async function followRedirects(
+  client: Pick<SeedClient, 'request'>,
+  id: UnpackedHypermediaId,
+): Promise<FollowedResource> {
   const seen = new Set<string>([packHmId(id)])
   const redirects: RedirectHop[] = []
   let current = id
@@ -197,12 +230,16 @@ export function describeRedirect(followed: Pick<FollowedResource, 'id' | 'target
  * `type: 'redirect'`. Operations on such a path (edit, fork, move, delete) act on the redirect
  * target's document, so this follows the chain (bounded, cycle-safe) to that document.
  */
-export async function followToDocument(client: SeedClient, id: UnpackedHypermediaId): Promise<FollowedDocument> {
+export async function followToDocument(
+  client: Pick<SeedClient, 'request'>,
+  id: UnpackedHypermediaId,
+): Promise<FollowedDocument> {
   const followed = await followRedirects(client, id)
   const first = followed.redirects[0]
   if (followed.resource.type !== 'document') {
     throw new Error(
       `Cannot edit ${packHmId(followed.targetId)}: resource is ${followed.resource.type}` +
+        (followed.resource.type === 'error' ? ` (${followed.resource.message})` : '') +
         (first ? ` (followed redirect from ${packHmId(id)})` : ''),
     )
   }
@@ -220,15 +257,48 @@ export async function followToDocument(client: SeedClient, id: UnpackedHypermedi
  *
  * Edits at a redirected address must build the Change on the redirect target's DAG (the source
  * path has no changes of its own — `ListChanges` returns nothing for it) and publish a Version
- * Ref at the source path with a fresh generation, which supersedes the redirect Ref.
+ * Ref at the source path with a fresh generation, which supersedes the redirect Ref. Every other
+ * edit keeps the document's generation: see {@link editRefGeneration}.
+ *
+ * `document` and `state` are read one after the other; when they name different versions both are
+ * read once more. Compare `document.version` with `state.version` ({@link sameDocumentVersion})
+ * to know whether the content is the content at the heads.
  */
 export async function resolveEditableDocument(
-  client: SeedClient,
+  client: Pick<SeedClient, 'request'>,
   id: UnpackedHypermediaId,
 ): Promise<EditableDocumentBase> {
-  const followed = await followToDocument(client, id)
-  const state = await resolveDocumentState(client, packHmId(followed.targetId))
+  let followed = await followToDocument(client, id)
+  let state = await resolveDocumentState(client, packHmId(followed.targetId))
+  if (!sameDocumentVersion(followed.document.version, state.version)) {
+    // The document and its heads come from two reads. A write that landed between them leaves the
+    // content older than the heads, so both are read again, once. A caller that still sees them
+    // differ must not compute block moves against that content (documentUpdateBlobs does not).
+    followed = await followToDocument(client, id)
+    state = await resolveDocumentState(client, packHmId(followed.targetId))
+  }
   return {...followed, state}
+}
+
+/**
+ * The generation for the Version Ref of an edit to an existing document.
+ *
+ * A generation identifies one life of a document at a path; an edit continues that life, so its
+ * Ref must carry the generation the document already has. Stamping each Ref with a new timestamp
+ * instead opens a new generation per edit. A fresh generation (`fresh`, normally the new Change's
+ * timestamp) is right only when the Ref takes over a path from a redirect (`supersedesRedirect`),
+ * or when the document reports no generation to continue.
+ */
+export function editRefGeneration(
+  document: Pick<HMDocument, 'generationInfo'>,
+  fresh: number,
+  supersedesRedirect = false,
+): number {
+  if (supersedesRedirect) return fresh
+  const current = document.generationInfo?.generation
+  if (current === undefined || current === null) return fresh
+  const generation = Number(current)
+  return Number.isFinite(generation) ? generation : fresh
 }
 
 /**

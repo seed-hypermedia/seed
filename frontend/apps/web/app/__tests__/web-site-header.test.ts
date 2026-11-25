@@ -5,6 +5,8 @@ vi.mock('@shm/shared', () => ({unpackHmId: vi.fn()}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: vi.fn()}))
 vi.mock('@shm/ui/hm-host-banner', () => ({HypermediaHostBanner: vi.fn()}))
 vi.mock('@shm/ui/site-header', () => ({SiteHeader: vi.fn()}))
+// web-utils reaches the agents platform and, through it, the editor's CSS, which vitest cannot load.
+vi.mock('../web-utils', () => ({useWebCreateDocumentMenuItem: vi.fn()}))
 
 import {resolveNavigationItems} from '../web-site-header'
 

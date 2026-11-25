@@ -17,10 +17,10 @@ interface PasswordInputProps {
   error?: string
 }
 
-const strengthConfig: Record<number, string> = {
-  0: 'w-1/3 bg-destructive',
-  1: 'w-2/3 bg-brand-3',
-  2: 'w-full bg-brand-6',
+const strengthConfig: Record<number, {className: string; scaleX: number}> = {
+  0: {className: 'bg-destructive', scaleX: 1 / 3},
+  1: {className: 'bg-brand-3', scaleX: 2 / 3},
+  2: {className: 'bg-brand-6', scaleX: 1},
 }
 
 /**
@@ -39,6 +39,7 @@ export function PasswordInput({
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
   const strength = showStrength ? sharedPassword.checkPasswordStrength(value) : 0
+  const {className: strengthBarClass, scaleX: strengthScaleX} = strengthConfig[strength]!
 
   return (
     <div className="mb-4 space-y-2">
@@ -76,7 +77,10 @@ export function PasswordInput({
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {showStrength && value ? (
         <div className="mt-2 h-1 overflow-hidden rounded-sm bg-black/10 dark:bg-white/10">
-          <div className={`h-full transition-all duration-300 ${strengthConfig[strength]}`} />
+          <div
+            className={`h-full w-full origin-left transition-[transform,background-color] duration-300 ${strengthBarClass}`}
+            style={{transform: `scaleX(${strengthScaleX})`}}
+          />
         </div>
       ) : null}
     </div>

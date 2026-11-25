@@ -1,3 +1,4 @@
+import {AVATAR_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
@@ -190,7 +191,7 @@ describe('EditProfileDialog', () => {
     })
 
     expect(fileUploadMock).toHaveBeenCalledTimes(1)
-    expect(fileUploadMock).toHaveBeenCalledWith(imageFile)
+    expect(fileUploadMock).toHaveBeenCalledWith(imageFile, AVATAR_IMAGE_POLICY)
 
     expect(updateProfileMock).toHaveBeenCalledWith({
       account: ACCOUNT_UID,

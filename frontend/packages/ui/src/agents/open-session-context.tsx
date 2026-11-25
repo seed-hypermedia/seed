@@ -45,13 +45,13 @@ export function useOpenAgentSession() {
 }
 
 /**
- * How the hosting surface opens a run's own page — the durable record with its hierarchy, code,
- * and activity. Returns a click handler for the given run, or nothing when the surface has no way
- * in, so a row can decide whether it is a button at all.
+ * How the hosting surface opens a run. Returns a click handler for the given run, or nothing when
+ * the surface has no way in, so a row can decide whether it is a button at all.
  *
- * The main window navigates to the run page. The assistant panel has no run page to show, so
- * there a run with a transcript opens that transcript in the panel instead, and a run without one
- * (a script, a delegate that never got a session) stays inert.
+ * A run with a transcript IS that transcript: it opens the session, on every surface, because the
+ * session holds everything the run did. Only a run without one (a script, a delegate that never
+ * got a session) has a run page, and the main window navigates there. The assistant panel has no
+ * run page to show, so there such a run stays inert.
  */
 export function useOpenAgentRun() {
   const override = useContext(OpenAgentSessionContext)
@@ -62,10 +62,18 @@ export function useOpenAgentRun() {
     agentId?: string
     serverUrl: string
   }): (() => void) | undefined => {
-    if (override) {
-      const sessionId = target.sessionId
-      return sessionId ? () => override(sessionId, target.agentId) : undefined
+    const sessionId = target.sessionId
+    if (sessionId) {
+      if (override) return () => override(sessionId, target.agentId)
+      return () =>
+        navigate({
+          key: 'agent-session',
+          sessionId,
+          ...(target.agentId ? {agentId: target.agentId} : {}),
+          serverUrl: target.serverUrl,
+        })
     }
+    if (override) return undefined
     return () =>
       navigate({
         key: 'agent-run',

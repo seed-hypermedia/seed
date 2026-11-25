@@ -25,7 +25,12 @@ export function splitLegacySchemaDraft<M extends HMMetadata | Record<string, unk
 }
 
 /** The metadata keys that bind a document to an attributes schema and can be authored in place. */
-export const BINDING_SCHEMA_KEYS = ['attributesSchema', 'childAttributesSchema'] as const
+export const ATTRIBUTE_BINDING_KEYS = ['attributesSchema', 'childAttributesSchema'] as const
+/**
+ * Every metadata key whose schema a draft can author in place and publish freezes into an IPFS
+ * object: the attribute bindings, and an app's public and private config schemas.
+ */
+export const BINDING_SCHEMA_KEYS = [...ATTRIBUTE_BINDING_KEYS, 'publicConfigSchema', 'privateConfigSchema'] as const
 export type BindingSchemaKey = (typeof BINDING_SCHEMA_KEYS)[number]
 /**
  * A draft's working attributes schemas, by binding key: the struct behind this document's own

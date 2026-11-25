@@ -16,6 +16,7 @@ import (
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
 	"github.com/polydawn/refmt/obj/atlas"
+	"go.uber.org/zap"
 )
 
 // TypeChange is the type for Change blobs.
@@ -29,6 +30,8 @@ type Change struct {
 	Deps    []cid.Cid  `refmt:"deps,omitempty"`
 	Depth   int        `refmt:"depth,omitempty"`
 	Body    ChangeBody `refmt:"body,omitempty"`
+	// Message is an optional human-readable description of the change, like a commit message.
+	Message string `refmt:"message,omitempty"`
 }
 
 // ChangeBody is the body of a Change.
@@ -44,8 +47,18 @@ type ChangeBody struct {
 	Ops []OpMap `refmt:"ops,omitempty"`
 }
 
+// ChangeOption sets an optional field of a Change.
+type ChangeOption func(*Change)
+
+// WithMessage sets a human-readable description of the change, like a commit message.
+func WithMessage(msg string) ChangeOption {
+	return func(c *Change) {
+		c.Message = msg
+	}
+}
+
 // NewChange creates a new Change.
-func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
+func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time, opts ...ChangeOption) (eb Encoded[*Change], err error) {
 	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
 		return cmp.Compare(a.KeyString(), b.KeyString())
 	}) {
@@ -62,6 +75,10 @@ func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, b
 		Deps:    deps,
 		Depth:   depth,
 		Body:    body,
+	}
+
+	for _, opt := range opts {
+		opt(cc)
 	}
 
 	if err := Sign(signer, cc, &cc.BaseBlob.Sig); err != nil {
@@ -447,21 +464,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsType, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 				return fmt.Errorf("failed to insert record in fts table: %w", err)
 			}
-			u, err := url.Parse(vs)
-			if err != nil {
-				continue
-			}
-
-			if u.Scheme != "ipfs" {
-				continue
-			}
-
-			c, err := cid.Decode(u.Host)
-			if err != nil {
-				continue
-			}
-
-			sb.AddBlobLink("metadata/"+k, c)
+			indexMetadataValue(&sb, ictx.log, k, vs)
 		case OpSetAttributes:
 			if op.Block != "" {
 				continue
@@ -489,21 +492,10 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsKey, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
-				u, err := url.Parse(vs)
-				if err != nil {
-					continue
-				}
 
-				if u.Scheme != "ipfs" {
-					continue
+				if isStr {
+					indexMetadataValue(&sb, ictx.log, k, vs)
 				}
-
-				c, err := cid.Decode(u.Host)
-				if err != nil {
-					continue
-				}
-
-				sb.AddBlobLink("metadata/"+k, c)
 			}
 		case OpReplaceBlock:
 			blk := op.Block
@@ -581,6 +573,58 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 	}
 
 	return nil
+}
+
+// MetadataLinkType is the resource link type of an hm:// reference held in document metadata:
+// an account (a bare z6Mk… id, its hm://<uid> home URL or a :profile URL) or a document URL set
+// as an attribute value, such as an `owner` field. The link's anchor is the attribute key, where
+// a block link carries the block id. Readers treat an account reference as a mention of that
+// account, so setting someone as the owner of a document notifies them and fires their mention
+// triggers, and the reference shows up among the citations of the account and the document.
+const MetadataLinkType = "metadata/Link"
+
+// indexMetadataValue records the links a string metadata value carries. An ipfs:// value is a
+// blob link typed by its key (icons, covers, schema blobs); an account id or an hm:// URL whose
+// authority is an account is a MetadataLinkType resource link anchored at the key. Everything
+// else (plain text, http URLs, hm://hyper.media/page-style type URLs) carries no link. Values
+// are user-typed, so a malformed reference is skipped rather than failing the whole change.
+func indexMetadataValue(sb *structuralBlob, log *zap.Logger, key, value string) {
+	if value == "" {
+		return
+	}
+
+	if p, err := core.DecodePrincipal(value); err == nil {
+		sb.AddResourceLink(MetadataLinkType, IRI("hm://"+p.String()), false, DocLinkMeta{Anchor: key})
+		return
+	}
+
+	u, err := url.Parse(value)
+	if err != nil {
+		return
+	}
+
+	switch u.Scheme {
+	case "ipfs":
+		c, err := cid.Decode(u.Host)
+		if err != nil {
+			return
+		}
+
+		sb.AddBlobLink("metadata/"+key, c)
+	case "hm":
+		if _, err := core.DecodePrincipal(u.Host); err != nil {
+			return
+		}
+
+		if err := indexURL(sb, log, key, MetadataLinkType, value); err != nil {
+			log.Warn("FailedToIndexMetadataLink",
+				zap.String("key", key),
+				zap.String("value", value),
+				zap.String("blobCID", sb.CID.String()),
+				zap.Error(err),
+			)
+		}
+	}
 }
 
 type changeIndexedAttrs struct {

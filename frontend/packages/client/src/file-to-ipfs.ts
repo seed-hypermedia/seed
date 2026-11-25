@@ -78,6 +78,66 @@ export async function filesToIpfsBlobs(binaries: Uint8Array[]): Promise<{
   return {resultCIDs, blobs}
 }
 
+/** One file of a folder to publish: a slash-separated path inside the folder and its bytes. */
+export type IpfsDirectoryFile = {path: string; content: Uint8Array}
+
+/**
+ * Builds a UnixFS directory from files, the way `ipfs add -r` does, so the folder's root CID
+ * resolves at `/ipfs/<cid>/<path>` on any gateway and in the Seed daemon. Nested paths create
+ * nested directories. Custom HTML pages publish such a folder (with an `index.html`) and reference
+ * the root CID from the document's `html` metadata attribute.
+ *
+ * Returns the root directory CID and every block that must be published alongside.
+ */
+export async function directoryToIpfsBlobs(files: IpfsDirectoryFile[]): Promise<{
+  cid: string
+  blobs: CollectedBlob[]
+}> {
+  if (files.length === 0) throw new Error('A folder needs at least one file')
+  const seen = new Set<string>()
+  const entries = files.map((file) => {
+    const path = normalizeDirectoryFilePath(file.path)
+    if (seen.has(path)) throw new Error(`Duplicate file in folder: ${path}`)
+    seen.add(path)
+    return {path, content: file.content}
+  })
+  const blockstore = new MemoryBlockstore()
+  let rootCid: string | undefined
+  const blobs: CollectedBlob[] = []
+  const published = new Set<string>()
+  // With wrapWithDirectory the importer yields each file, each intermediate directory, and
+  // last the wrapping root, whose path is empty. Entries carry the codec-correct CID (dag-pb
+  // for directories and chunked files); the memory blockstore keys by multihash and would
+  // hand those back as raw CIDs, so entries come first and the store only adds leaf chunks.
+  for await (const entry of unixFSImporter(entries, blockstore, {wrapWithDirectory: true})) {
+    if (entry.path === '' || entry.path === undefined) rootCid = entry.cid.toString()
+    blobs.push({cid: entry.cid.toString(), data: await blockstore.get(entry.cid)})
+    published.add(entry.cid.multihash.digest.join(','))
+  }
+  if (!rootCid) throw new Error('Failed to build the folder root')
+  for await (const pair of blockstore.getAll()) {
+    const key = pair.cid.multihash.digest.join(',')
+    if (published.has(key)) continue
+    published.add(key)
+    blobs.push({cid: pair.cid.toString(), data: pair.block})
+  }
+  return {cid: rootCid, blobs}
+}
+
+/** A folder path is relative, slash-separated, and never climbs out or hides in dot segments. */
+export function normalizeDirectoryFilePath(path: string): string {
+  const segments = path
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
+  if (segments.length === 0) throw new Error('A folder file needs a name')
+  for (const segment of segments) {
+    if (segment === '..') throw new Error(`Invalid folder path: ${path}`)
+    if (/[\x00-\x1f]/.test(segment)) throw new Error(`Invalid folder path: ${path}`)
+  }
+  return segments.join('/')
+}
+
 // ── file:// link resolution in block trees ──────────────────────────────────
 
 const FILE_PROTOCOL = 'file://'

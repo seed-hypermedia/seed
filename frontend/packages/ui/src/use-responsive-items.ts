@@ -32,10 +32,10 @@ export function splitResponsiveItems<T extends {key: string}>({
   }
   for (const {item, width} of widths) {
     if (visibleKeys.has(item.key)) continue
-    if (width <= remainingWidth) {
-      visibleKeys.add(item.key)
-      remainingWidth -= width
-    }
+    // Stop at the first item that doesn't fit, so a shorter one further down can't jump ahead of it.
+    if (width > remainingWidth) break
+    visibleKeys.add(item.key)
+    remainingWidth -= width
   }
   if (visibleKeys.size === 0 && items[0]) visibleKeys.add(items[0].key)
 

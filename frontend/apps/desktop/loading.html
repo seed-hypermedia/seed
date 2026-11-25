@@ -2,6 +2,10 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-eT2k319fUJfrmrhJe0FLu437zJQTS8bBpNR3HyrN12Q='; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'"
+    />
     <title>Seed - Loading</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
@@ -18,6 +22,8 @@
       }
 
       #root {
+        -webkit-app-region: drag;
+        user-select: none;
         width: 100%;
         height: 100%;
         display: flex;
@@ -25,6 +31,10 @@
         align-items: center;
         justify-content: center;
         gap: 1rem;
+      }
+
+      button {
+        -webkit-app-region: no-drag;
       }
 
       .spinner {

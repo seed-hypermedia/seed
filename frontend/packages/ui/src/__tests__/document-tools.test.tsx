@@ -3,12 +3,30 @@ import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {hmId} from '@shm/shared'
-import {DocumentTools} from '../document-tools'
+import {hmId, activitySlugToFilter, type NavRoute} from '@shm/shared'
+import {DocumentTools, getDocumentToolRoute} from '../document-tools'
 
 vi.mock('../page-tabs', () => ({
-  PageTab: ({label, count, showZeroCount}: {label?: string; count?: number; showZeroCount?: boolean}) => (
-    <span data-label={label} data-count={count} data-show-zero-count={showZeroCount}>
+  PageTab: ({
+    label,
+    count,
+    showZeroCount,
+    route,
+    active,
+  }: {
+    label?: string
+    count?: number
+    showZeroCount?: boolean
+    route: unknown
+    active?: boolean
+  }) => (
+    <span
+      data-label={label}
+      data-count={count}
+      data-show-zero-count={showZeroCount}
+      data-route={JSON.stringify(route)}
+      data-active={active}
+    >
       {label}
     </span>
   ),
@@ -39,14 +57,155 @@ afterEach(() => {
 })
 
 describe('DocumentTools', () => {
+  it('integrates agent views with document tabs and keeps Sessions selected for a transcript', () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper'], version: 'old-version'})}
+          hasAgent
+          activeTab="content"
+          activeAgentView="session"
+        />,
+      ),
+    )
+    const sessionTab = container.querySelector('[data-label="Sessions"]')!
+    expect(sessionTab.getAttribute('data-active')).toBe('true')
+    expect(container.querySelector('[data-label="Content"]')?.getAttribute('data-active')).toBe('false')
+    expect(JSON.parse(sessionTab.getAttribute('data-route')!)).toMatchObject({
+      key: 'document',
+      agentView: 'sessions',
+      id: {version: null, path: ['helper']},
+    })
+    for (const label of ['Content', 'Triggers', 'Settings'])
+      expect(container.querySelector(`[data-label="${label}"]`)).not.toBeNull()
+  })
+
+  it("trims an agent's tab bar to the document tools that have something to show", () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="content"
+          commentsCount={0}
+          metadataCount={0}
+          citationsCount={4}
+          collabsCount={3}
+        />,
+      ),
+    )
+    const labels = () =>
+      Array.from(container.querySelectorAll('[data-label]'))
+        .filter((tab) => !tab.closest('[aria-hidden="true"]'))
+        .map((tab) => tab.getAttribute('data-label'))
+    // Nothing to show: no comments; connections, people and attributes never show here.
+    expect(labels()).toEqual(['Content', 'Sessions', 'Triggers', 'Memory', 'People', 'Settings'])
+
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="content"
+          commentsCount={2}
+          metadataCount={1}
+        />,
+      ),
+    )
+    expect(labels()).toContain('Comments')
+    // Attributes are reached from the options menu on an agent, never from the tab bar.
+    expect(labels()).not.toContain('Attributes')
+    expect(labels()).not.toContain('Connections')
+    expect(labels()).not.toContain('3 people')
+  })
+
+  it('keeps Settings lit while the prompt page, which lives inside it, is open', () => {
+    act(() =>
+      root.render(
+        <DocumentTools id={hmId('alice', {path: ['helper']})} hasAgent activeTab="content" activeAgentView="prompt" />,
+      ),
+    )
+    expect(container.querySelector('[data-label="Prompt"]')).toBeNull()
+    expect(container.querySelector('[data-label="Settings"]')?.getAttribute('data-active')).toBe('true')
+  })
+
+  it('keeps an open Comments panel in the agent tab bar even when empty', () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="comments"
+          currentPanel={{key: 'comments', id: hmId('alice', {path: ['helper']})}}
+          commentsCount={0}
+        />,
+      ),
+    )
+    expect(container.querySelector('[data-label="Comments"]')?.getAttribute('data-active')).toBe('true')
+  })
+  it('gives an agent document a Home tab (its document) and no Content tab, even before registration finishes', () => {
+    act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome activeTab="content" />))
+    expect(container.querySelector('[data-label="Content"]')).toBeNull()
+    expect(container.querySelector('[data-label="Home"]')?.getAttribute('data-active')).toBe('true')
+  })
+
+  it("lights Home, not Sessions, at an agent document's base URL", () => {
+    act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome hasAgent activeTab="content" />))
+    expect(container.querySelector('[data-label="Home"]')?.getAttribute('data-active')).toBe('true')
+    expect(container.querySelector('[data-label="Sessions"]')?.getAttribute('data-active')).not.toBe('true')
+  })
+
   it('shows the Attributes tab with a zero count when the document has no custom attributes', () => {
     act(() => {
       root.render(<DocumentTools id={hmId('alice', {path: ['doc']})} metadataCount={0} />)
     })
 
-    const attributesTabs = container.querySelectorAll('[data-label="Attributes"]')
-    expect(attributesTabs).toHaveLength(2)
+    const attributesTabs = Array.from(container.querySelectorAll('[data-label="Attributes"]')).filter(
+      (tab) => !tab.closest('[aria-hidden="true"]'),
+    )
+    expect(attributesTabs).toHaveLength(1)
     expect(Array.from(attributesTabs).every((tab) => tab.getAttribute('data-count') === '0')).toBe(true)
     expect(Array.from(attributesTabs).every((tab) => tab.getAttribute('data-show-zero-count') === 'true')).toBe(true)
+  })
+})
+
+describe('document tool panel navigation', () => {
+  const id = hmId('alice', {path: ['doc'], version: 'v1', blockRef: 'paragraph'})
+  it.each(['collaborators', 'comments', 'metadata'] as const)('opens %s without moving the document', (key) => {
+    const route: NavRoute = {key: 'document', id, panel: {key: 'activity', id}}
+    expect(getDocumentToolRoute(route, id, {key, id})).toEqual({...route, panel: {key, id}})
+  })
+
+  it('keeps the draft open when a tool is selected', () => {
+    const route: NavRoute = {key: 'draft', id: 'draft-1', editUid: 'alice', editPath: ['doc']}
+    expect(getDocumentToolRoute(route, id, {key: 'comments', id})).toEqual({...route, panel: {key: 'comments', id}})
+  })
+
+  it('moves an expanded thread into the panel with its selected reply', () => {
+    const route: NavRoute = {
+      key: 'comments',
+      id,
+      openComment: 'alice/root',
+      replyCommentId: 'alice/reply',
+      panel: {key: 'collaborators', id},
+    }
+    expect(getDocumentToolRoute(route, id, {key: 'comments', id})).toEqual({
+      key: 'document',
+      id,
+      panel: {key: 'comments', id, openComment: 'alice/root', replyCommentId: 'alice/reply'},
+    })
+  })
+
+  it('uses the citations filter even when the main activity page has a different filter', () => {
+    const route: NavRoute = {key: 'activity', id, filterEventType: ['Update']}
+    const panel = {key: 'activity' as const, id, filterEventType: activitySlugToFilter('citations')}
+    expect(getDocumentToolRoute(route, id, panel)).toEqual({key: 'document', id, panel})
+  })
+
+  it('does not pin a resolved document version when no current route is supplied', () => {
+    expect(getDocumentToolRoute(undefined, id, {key: 'metadata', id})).toMatchObject({
+      key: 'document',
+      id: {version: null, latest: true},
+    })
   })
 })

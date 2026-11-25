@@ -34,6 +34,8 @@ vi.mock('electron', async () => {
       BrowserWindow.focused = this
       this.emit('focus')
     }
+    show() {}
+    restore() {}
     close() {
       if (BrowserWindow.focused === this) BrowserWindow.focused = null
       this.emit('close')
@@ -50,6 +52,8 @@ vi.mock('electron', async () => {
   }
 })
 vi.mock('../errors', () => ({default: vi.fn()}))
+vi.mock('../app-web-browser', () => ({setupWebBrowser: vi.fn(), getPageWebContents: vi.fn()}))
+vi.mock('../app-window-security', () => ({installWindowGuards: vi.fn()}))
 vi.mock('../app-focus', () => ({markAppWindowFocused: vi.fn(), markAppWindowBlurred: vi.fn()}))
 vi.mock('../app-recents', () => ({updateRecentRoute: vi.fn()}))
 vi.mock('../app-settings', () => ({getAppTheme: () => 'light', shouldUseDarkColors: () => false}))
@@ -64,10 +68,13 @@ vi.mock('../logger', () => ({
 vi.mock('../memory-profiler-window', () => ({logWindowOpen: vi.fn(), logWindowClose: vi.fn()}))
 
 import {defaultRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   createAppWindow,
   createAppWindowInputSchema,
+  focusWindowForRoute,
   getAllWindows,
+  getFocusedWindowNewWindowRoute,
   getWindowNavState,
   getWindowsState,
 } from '../app-windows'
@@ -146,6 +153,143 @@ describe('new window state', () => {
 
   it('uses defaults when there is no source window', () => {
     createAppWindow({id: 'new', routes: [defaultRoute]})
-    expect(getWindowNavState().new).toMatchObject({sidebarLocked: true, sidebarWidth: 15, accessoryWidth: 20})
+    expect(getWindowNavState().new).toMatchObject({sidebarLocked: true, sidebarWidth: 22, accessoryWidth: 20})
+  })
+})
+
+describe('getFocusedWindowNewWindowRoute', () => {
+  it('routes to the focused window sidebar space home document', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-a')})
+  })
+
+  it('falls back to the default route when the sidebar reports no space', () => {
+    createAppWindow({id: 'source', routes: [defaultRoute]})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('falls back to the default route after the sidebar clears its space', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: null})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('uses the space reported by the focused window', () => {
+    const first = createAppWindow({id: 'first', routes: [defaultRoute]})
+    const second = createAppWindow({id: 'second', routes: [defaultRoute]})
+    first.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    second.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-b'})
+    first.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-a')})
+    second.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual({key: 'document', id: hmId('space-b')})
+  })
+
+  it('does not persist the sidebar space to the window state', () => {
+    const source = createAppWindow({id: 'source', routes: [defaultRoute]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getWindowsState().source).not.toHaveProperty('sidebarSpaceUid')
+    expect(getWindowNavState().source.sidebarSpaceUid).toBe('space-a')
+  })
+
+  it('falls back to the default route when a window already shows the space home', () => {
+    const source = createAppWindow({id: 'source', routes: [{key: 'document', id: hmId('space-a')}]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+  })
+
+  it('falls back to the default route when another window shows the space home', () => {
+    const first = createAppWindow({id: 'first', routes: [{key: 'document', id: hmId('space-a')}]})
+    const second = createAppWindow({id: 'second', routes: [{key: 'document', id: hmId('space-a', {path: ['doc']})}]})
+    second.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    second.focus()
+    expect(getFocusedWindowNewWindowRoute()).toEqual(defaultRoute)
+    // first is unchanged and still open
+    expect(getAllWindows().get('first')).toBe(first)
+  })
+
+  it('opens a new window when requested from the space home', () => {
+    const source = createAppWindow({id: 'source', routes: [{key: 'document', id: hmId('space-a')}]})
+    source.webContents.ipc.emit('windowSidebarSpace', {}, {spaceUid: 'space-a'})
+    const result = createAppWindow({routes: [getFocusedWindowNewWindowRoute()]})
+    expect(result).not.toBe(source)
+    expect(getAllWindows().size).toBe(2)
+  })
+})
+
+describe('duplicate window prevention', () => {
+  it('focuses the window already showing the document instead of opening a new one', () => {
+    const docRoute = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
+    const first = createAppWindow({id: 'first', routes: [docRoute]})
+    const result = createAppWindow({routes: [docRoute]})
+    expect(result).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+    // The window already shows the exact route, so no navigation is sent.
+    expect(first.webContents.send).not.toHaveBeenCalledWith('open_route', expect.anything())
+  })
+
+  it('navigates the existing window when the requested route differs', () => {
+    const docRoute = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
+    const versionedRoute = {key: 'document', id: hmId('alice', {path: ['doc'], version: 'bafyv1'})} as const
+    const first = createAppWindow({id: 'first', routes: [docRoute]})
+    const result = createAppWindow({routes: [versionedRoute]})
+    expect(result).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+    expect(first.webContents.send).toHaveBeenCalledWith('open_route', versionedRoute)
+  })
+
+  it('still opens a new window for a different document', () => {
+    const first = createAppWindow({id: 'first', routes: [{key: 'document', id: hmId('alice', {path: ['doc']})}]})
+    const second = createAppWindow({routes: [{key: 'document', id: hmId('alice', {path: ['other']})}]})
+    expect(second).not.toBe(first)
+    expect(getAllWindows().size).toBe(2)
+  })
+
+  it('dedupes a bare draft route against the window showing that draft', () => {
+    const draftDocRoute = {key: 'document', id: hmId('alice', {path: ['docs', '-d1']})} as const
+    const first = createAppWindow({id: 'first', routes: [draftDocRoute]})
+    const result = createAppWindow({routes: [{key: 'draft', id: 'd1'}]})
+    expect(result).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+  })
+
+  it('dedupes an edit-draft route against the window showing the published document', () => {
+    const docRoute = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
+    const first = createAppWindow({id: 'first', routes: [docRoute]})
+    const result = createAppWindow({routes: [{key: 'draft', id: 'd1', editUid: 'alice', editPath: ['doc']}]})
+    expect(result).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+  })
+
+  it('still refocuses singleton windows like settings', () => {
+    const first = createAppWindow({id: 'first', routes: [{key: 'settings'}]})
+    const result = createAppWindow({routes: [{key: 'settings'}]})
+    expect(result).toBe(first)
+    expect(getAllWindows().size).toBe(1)
+  })
+})
+
+describe('focusWindowForRoute', () => {
+  it('focuses the window showing the resource and reports handled', () => {
+    const docRoute = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
+    const otherRoute = {key: 'document', id: hmId('alice', {path: ['other']})} as const
+    const first = createAppWindow({id: 'first', routes: [docRoute]})
+    createAppWindow({id: 'second', routes: [otherRoute]})
+    expect(focusWindowForRoute(docRoute, 'second')).toBe(true)
+    // Same route already shown: focused only, no extra navigation.
+    expect(first.webContents.send).not.toHaveBeenCalledWith('open_route', expect.anything())
+  })
+
+  it('returns false when only the requesting window shows the resource', () => {
+    const docRoute = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
+    createAppWindow({id: 'first', routes: [docRoute]})
+    expect(focusWindowForRoute(docRoute, 'first')).toBe(false)
+  })
+
+  it('returns false for routes no window shows', () => {
+    createAppWindow({id: 'first', routes: [defaultRoute]})
+    expect(focusWindowForRoute({key: 'document', id: hmId('alice')}, 'first')).toBe(false)
   })
 })

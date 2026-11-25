@@ -56,6 +56,28 @@ describe('site config shared by several web processes', () => {
     expect(await b.getConfig('new.hyper.media')).toEqual({registeredAccountUid: 'z6New'})
   })
 
+  it('serves a site another process created a moment ago', async () => {
+    const a = await startProcess()
+    const b = await startProcess()
+    // b has just checked the file, so its throttle would skip the next check.
+    expect(await b.getConfig('old.hyper.media')).toEqual({registeredAccountUid: 'z6Old'})
+
+    await a.writeConfig('new.hyper.media', {availableRegistrationSecret: 'secret'})
+    expect(await b.getConfig('new.hyper.media')).toEqual({availableRegistrationSecret: 'secret'})
+    expect((await b.getServiceConfig({fresh: true}))?.namedServices.new).toEqual({
+      availableRegistrationSecret: 'secret',
+    })
+  })
+
+  it('reads a registration another process just completed when asked for a fresh copy', async () => {
+    const a = await startProcess()
+    const b = await startProcess()
+    expect(await b.getConfig('old.hyper.media')).toEqual({registeredAccountUid: 'z6Old'})
+
+    await a.writeConfig('old.hyper.media', {registeredAccountUid: 'z6Moved'})
+    expect(await b.getConfig('old.hyper.media', {fresh: true})).toEqual({registeredAccountUid: 'z6Moved'})
+  })
+
   it('does not drop a site another process wrote when it writes next', async () => {
     const a = await startProcess()
     const b = await startProcess()

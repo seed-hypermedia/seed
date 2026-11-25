@@ -49,16 +49,21 @@ describe('query block table model', () => {
     ])
   })
 
-  it('discovers custom metadata fields as table columns', () => {
+  it('discovers custom metadata fields without exposing built-in page metadata', () => {
     const columns = buildQueryTableColumns([
-      item('One', {status: 'Ready', priority: 2, type: 'Collection'}),
+      item('One', {
+        status: 'Ready',
+        priority: 2,
+        type: 'hm://hyper.media/page',
+        html: 'ipfs://bundle',
+        inputSchema: 'hm://hyper.media/page-input',
+      }),
       item('Two', {status: 'Draft', priority: 5}),
     ])
 
-    expect(columns.slice(-3)).toEqual([
+    expect(columns.filter((column) => column.id.startsWith('metadata:'))).toEqual([
       {id: 'metadata:priority', label: 'Priority', type: 'number', defaultVisible: false},
       {id: 'metadata:status', label: 'Status', type: 'text', defaultVisible: false},
-      {id: 'metadata:type', label: 'Type', type: 'text', defaultVisible: false},
     ])
   })
 
@@ -207,5 +212,86 @@ describe('query block table model', () => {
       'title',
       'updated',
     ])
+  })
+})
+
+describe('buildQueryTableColumns attribute key discovery', () => {
+  it('lists keys saved on any item, including keys empty on every item', () => {
+    const columns = buildQueryTableColumns([
+      item('One', {Priority: 'High', Assignee: '', Empty: null, Blank: []}),
+      item('Two', {Priority: 'Low', Assignee: '', Empty: '', Blank: []}),
+      item('Three', {Object: {id: 'x'}, Assignee: ''}),
+    ])
+    expect(
+      columns
+        .filter((c) => c.id.startsWith('metadata:'))
+        .map((c) => c.label)
+        .sort(),
+    ).toEqual(['Assignee', 'Blank', 'Empty', 'Object', 'Priority'].sort())
+  })
+
+  it('never lists schema-binding keys, whether they come from items or from filterOptions metadata keys', () => {
+    const columns = buildQueryTableColumns(
+      [
+        item('One', {
+          attributesSchema: 'hm://hyper.media/example/article',
+          childAttributesSchema: 'hm://hyper.media/example/article',
+        }),
+      ],
+      {
+        'metadata:attributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+        'metadata:childAttributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+      },
+    )
+    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([])
+  })
+})
+
+describe('account reference fallback matching', () => {
+  const context = {
+    accountsMetadata: {owneruid: {id: hmId('owneruid'), metadata: {name: 'horacio'}}},
+  }
+
+  it('searches rows by the resolved account name of bare account refs', () => {
+    const descriptors = buildQueryTableColumns()
+    expect(queryTableItemMatchesSearch(item('One', {owner: 'hm://owneruid'}), 'horac', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(item('One', {owner: 'hm://otheruid'}), 'horac', descriptors, context)).toBe(
+      false,
+    )
+  })
+
+  it('matches reference URL searches by ref equality', () => {
+    const descriptors = buildQueryTableColumns()
+    const row = item('One', {owner: 'hm://owneruid'})
+    expect(queryTableItemMatchesSearch(row, 'hm://owneruid?v=abc', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(row, 'https://hyper.media/hm/owneruid', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(row, 'hm://otheruid', descriptors, context)).toBe(false)
+  })
+
+  it('matches reference searches only by exact ref key, never as a substring', () => {
+    const descriptors = buildQueryTableColumns()
+    const owner = item('Owner', {owner: 'hm://owneruid'})
+    const spec = item('Spec', {spec: 'hm://owneruid/docs/x'})
+    const plain = item('Plain', {})
+    for (const row of [owner, spec, plain]) {
+      expect(queryTableItemMatchesSearch(row, 'hm://owneruid', descriptors, context)).toBe(row === owner)
+      expect(queryTableItemMatchesSearch(row, 'hm://owneruid/docs/x?v=1', descriptors, context)).toBe(row === spec)
+    }
+  })
+
+  it('matches contains filters by account name and ref key', () => {
+    const rows = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
+    expect(
+      filterQueryTableItems(rows, [{columnId: 'metadata:owner', operator: 'contains', value: 'horac'}], context).map(
+        (entry) => entry.metadata.name,
+      ),
+    ).toEqual(['One'])
+    expect(
+      filterQueryTableItems(
+        rows,
+        [{columnId: 'metadata:owner', operator: 'contains', value: 'hm://owneruid?v=x'}],
+        context,
+      ).map((entry) => entry.metadata.name),
+    ).toEqual(['One'])
   })
 })

@@ -3,6 +3,7 @@ import {FileText, ImagePlus, Plus, Smile} from 'lucide-react'
 import {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {ImagePickerPopover} from './image-picker'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage} from './image-processing'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {cn} from './utils'
 
@@ -84,7 +85,8 @@ export function DocumentMetadataAffordanceButtons({
 
   async function handlePickedFile(field: MetadataAffordanceKey, file: File) {
     if (!fileUpload) return
-    const cid = await fileUpload(file)
+    const imagePolicy = field === 'icon' ? AVATAR_IMAGE_POLICY : COVER_IMAGE_POLICY
+    const cid = await fileUpload(await processImage(file, imagePolicy))
     onBeforeMetadataChange?.()
     onMetadata({[field]: toIpfsUrl(cid)} as Partial<HMMetadata>)
   }
@@ -319,6 +321,7 @@ export function EditableDocumentMetadataFields({
   return (
     <div
       className={cn('relative flex flex-col gap-2', metadata?.cover && 'pt-8', className)}
+      data-publish-shortcut="allow"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >

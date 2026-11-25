@@ -1,5 +1,5 @@
 import {NavRoute, useRouteLink} from '@shm/shared'
-import {LucideIcon} from 'lucide-react'
+import {ArrowUpRight, LucideIcon} from 'lucide-react'
 import {cloneElement, isValidElement, ReactNode} from 'react'
 import {Button, ButtonProps} from './button'
 import {Tooltip} from './tooltip'
@@ -38,6 +38,8 @@ export interface PageTabProps extends Omit<ButtonProps, 'variant' | 'asChild'> {
   tooltip?: string
   /** Optional count badge (e.g., comments count) */
   count?: number
+  /** Count shown when labels are collapsed and the full label already includes it. */
+  collapsedCount?: number
   /** Whether to render the count when it is zero. */
   showZeroCount?: boolean
   /** Optional icon component from lucide-react */
@@ -54,6 +56,12 @@ export interface PageTabProps extends Omit<ButtonProps, 'variant' | 'asChild'> {
    * the action can adapt its styling to sit inside the accent pill.
    */
   trailingAction?: ReactNode
+  /** Compact outlined document-tool style. */
+  appearance?: 'default' | 'document-tool'
+  /** Optional identity avatars in place of the icon. */
+  leading?: ReactNode
+  /** Shows that this expanded view can be moved into the right panel. */
+  moveToPanel?: boolean
 }
 
 /**
@@ -66,21 +74,46 @@ export function PageTab({
   tooltip,
   count,
   showZeroCount = false,
+  collapsedCount,
   icon: Icon,
   active = false,
   showLabel = true,
   bg,
   trailingAction,
+  appearance = 'default',
+  leading,
+  moveToPanel = false,
   className,
   ...props
 }: PageTabProps) {
   const linkProps = useRouteLink(route)
+  const documentTool = appearance === 'document-tool'
 
   const linkContent = (
     <>
-      {Icon && <Icon className="size-4" />}
-      {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
-      {count || (showZeroCount && count === 0) ? <span className="text-sm">{count}</span> : null}
+      {leading || (Icon && <Icon className={cn('size-4', documentTool && 'text-muted-foreground')} />)}
+      {label && (showLabel || documentTool) ? (
+        <span className={cn('truncate text-sm', documentTool ? !showLabel && 'sr-only' : 'hidden md:block')}>
+          {label}
+        </span>
+      ) : null}
+      {documentTool && !showLabel && collapsedCount !== undefined && (
+        <span className="text-sm tabular-nums" aria-hidden="true">
+          {collapsedCount}
+        </span>
+      )}
+      {count || (showZeroCount && count === 0) ? (
+        <span
+          className={cn(
+            'text-sm',
+            documentTool && 'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs tabular-nums',
+            documentTool && (active ? 'bg-card' : 'bg-background'),
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+      {moveToPanel && <ArrowUpRight className="text-muted-foreground size-4" aria-hidden="true" />}
     </>
   )
 
@@ -112,9 +145,17 @@ export function PageTab({
 
   const btn = (
     <Button
-      className={cn('flex-1 rounded-full', bg, className)}
+      className={cn(
+        'rounded-full',
+        documentTool
+          ? 'border-border bg-card text-foreground hover:bg-background active:bg-muted h-9 flex-none gap-1.5 border px-3 font-semibold shadow-none transition-colors duration-(--duration-normal) ease-(--ease-out-smooth) motion-reduce:transition-none'
+          : 'flex-1',
+        documentTool && active && 'bg-background',
+        bg,
+        className,
+      )}
       asChild
-      variant={active ? 'accent' : 'ghost'}
+      variant={documentTool ? 'ghost' : active ? 'accent' : 'ghost'}
       {...props}
     >
       <a {...linkProps} data-tab={route.key}>
@@ -122,7 +163,7 @@ export function PageTab({
       </a>
     </Button>
   )
-  return <Tooltip content={active ? '' : tooltip || ''}>{btn}</Tooltip>
+  return <Tooltip content={moveToPanel ? 'Move to right panel' : active ? '' : tooltip || ''}>{btn}</Tooltip>
 }
 
 /**

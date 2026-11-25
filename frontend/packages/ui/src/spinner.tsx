@@ -38,3 +38,16 @@ export const Spinner = React.forwardRef<HTMLSpanElement, SpinnerProps>(
 )
 
 Spinner.displayName = 'Spinner'
+
+/** One stable, viewport-centered loading surface for enterprise authentication handoffs. */
+export function SignInLoading() {
+  return (
+    <div
+      role="status"
+      aria-label="Signing in"
+      className="bg-background fixed inset-0 z-50 flex items-center justify-center"
+    >
+      <Spinner size="large" className="text-primary transition-none motion-reduce:animate-none" aria-hidden="true" />
+    </div>
+  )
+}

@@ -146,6 +146,27 @@ export function pickDefaultProviderModel(
   )
 }
 
+/**
+ * Models a new agent should start with checked in its quick-switch list: the provider's preferred
+ * set, restricted to what the catalog actually offers, in preferred order. Empty when the provider
+ * declares none or the catalog has none of them.
+ */
+export function pickDefaultEnabledModels(
+  models: ProviderModelInfo[] | undefined,
+  providerType: string | undefined,
+): ProviderModelInfo[] {
+  const preferredIds =
+    providerType && isModelProviderType(providerType)
+      ? PROVIDER_METADATA[providerType].preferredEnabledModelIds
+      : undefined
+  if (!preferredIds?.length) return []
+  const curated = curateProviderModels(models, providerType)
+  return preferredIds.flatMap((preferredId) => {
+    const match = curated.recommended.find((model) => matchesPreferredModelId(model.id, preferredId))
+    return match ? [match] : []
+  })
+}
+
 export function modelLabel(model: ProviderModelInfo): string {
   return model.name && model.name !== model.id ? `${model.name} (${model.id})` : model.id
 }

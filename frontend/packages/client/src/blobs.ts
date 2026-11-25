@@ -117,7 +117,7 @@ export async function generateWebCryptoKeyPair(): Promise<WebCryptoKeyPair> {
 // ---- Verification ----
 //
 // The pure-JS @noble verify is ~20-25x slower than OpenSSL under some JS engines (measured ~3ms/op
-// vs ~130µs on the bun build the agents server runs), and every signed request verifies at least
+// vs ~130µs on the bun build the app environment runs), and every signed request verifies at least
 // one signature — so on a busy server this dominates CPU. When a Node-style `crypto` module is
 // available (Node, Bun, Electron main) we verify natively; browsers keep the @noble path. Both
 // accept exactly the RFC 8032-valid signatures legit signers produce, so the result is identical

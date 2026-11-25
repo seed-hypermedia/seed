@@ -1151,6 +1151,9 @@ func TestListEventsRunsOnlyTheLegsTheFilterNames(t *testing.T) {
 	blobs, mentions = list("doc/Link")
 	require.Zero(t, blobs+mentions, "a link type absent from the feed yields nothing")
 
+	blobs, mentions = list("metadata/Link")
+	require.Zero(t, blobs+mentions, "a metadata reference is a link type the filter accepts")
+
 	blobs, mentions = list()
 	require.Equal(t, 2, blobs, "no filter serves every blob event (the Profile and the Comment)")
 	require.Equal(t, 1, mentions, "no filter serves the mention too")

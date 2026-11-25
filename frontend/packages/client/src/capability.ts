@@ -2,13 +2,12 @@
  * Capability SDK — create and resolve capabilities (delegate access to other accounts).
  */
 
-import type {HMPublishBlobsInput} from './hm-types'
+import type {HMPublishBlobsInput, HMRequest} from './hm-types'
 import {entityQueryPathToHmIdPath, packBaseId} from './hm-types'
 import {base58btc} from 'multiformats/bases/base58'
 import {createCapability as createCapabilityBlob} from './blobs'
 import type {AnySigner} from './signer'
 import {toPublishInput} from './signing'
-import type {SeedClient} from './client'
 
 /** Role values for capability blobs. */
 export type CapabilityRole = 'WRITER' | 'AGENT'
@@ -50,12 +49,19 @@ export async function createCapability(input: CreateCapabilityInput, signer: Any
  * @param path - The document path being written to (e.g. "/podcasts"). When provided,
  *   ListCapabilities is queried with this path so the backend returns capabilities
  *   scoped to that path (or any ancestor path that covers it).
+ * @param capability - When supplied, resolve only this existing capability.
  */
 export async function resolveCapability(
-  client: SeedClient,
+  client: {
+    request: (
+      key: 'ListCapabilities',
+      input: Extract<HMRequest, {key: 'ListCapabilities'}>['input'],
+    ) => Promise<Extract<HMRequest, {key: 'ListCapabilities'}>['output']>
+  },
   targetAccount: string,
   signerAccount: string,
   path?: string,
+  capability?: string,
 ): Promise<string | undefined> {
   if (targetAccount === signerAccount) return undefined
   const pathSegments = path ? entityQueryPathToHmIdPath(path) : null
@@ -71,8 +77,13 @@ export async function resolveCapability(
     scheme: null,
   }
   const caps = await client.request('ListCapabilities', {targetId})
-  const match = caps.capabilities.find(
-    (c) => c.delegate === signerAccount && (c.role === 'WRITER' || c.role === 'AGENT'),
-  )
+  const match = caps.capabilities.find((c) => {
+    if (capability && c.id !== capability) return false
+    if (c.delegate !== signerAccount || (c.role !== 'WRITER' && c.role !== 'AGENT')) return false
+    if (c.account && c.account !== targetAccount) return false
+    const scope = c.path || ''
+    const target = path || ''
+    return target === scope || (!c.noRecursive && (scope === '' || target.startsWith(scope + '/')))
+  })
   return match?.id
 }

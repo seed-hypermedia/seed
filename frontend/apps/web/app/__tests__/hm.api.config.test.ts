@@ -53,6 +53,7 @@ describe('/hm/api/config', () => {
     expect(config.notifyServiceUrl).toBe('https://site.example/hm/api/notify')
     expect(config.notifyServiceHost).toBe('https://site.example')
     expect(config.agentServerUrl).toBe('https://site.example/hm/api/agents')
+    expect(config.appEnvironmentUrl).toBe('https://site.example/hm/api/agents')
   })
 
   it('passes a legacy origin-only notify value through', async () => {

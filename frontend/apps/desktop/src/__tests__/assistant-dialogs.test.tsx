@@ -21,14 +21,16 @@ vi.mock('@shm/ui/agents/activity', () => ({
   markAgentSessionRead: () => {},
 }))
 vi.mock('@shm/ui/agents/models', () => ({
+  useForgetAgentServer: () => ({mutate: vi.fn()}),
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
-  LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  LOCAL_AGENT_SERVER_LABEL: 'Local app environment',
   isLocalAgentServer: () => false,
   describeAgentServer: (serverUrl: string) => new URL(serverUrl).host,
   addOptimisticSessionMessage: vi.fn(),
   removeOptimisticSessionFromLists: vi.fn(),
   useAgentLists: () => [],
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useAgentServerUrls: () => ({data: [], isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),

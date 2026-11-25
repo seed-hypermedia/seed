@@ -1,14 +1,17 @@
+import {CommentAudience} from '@shm/ui/members-facepile'
 import {useCreateAccount} from '@/auth'
 import {reportError} from '@/report-error'
-import {useNavigate as useRemixNavigate} from '@remix-run/react'
+import {useLocation, useNavigate as useRemixNavigate} from '@remix-run/react'
 import {commentRecordIdFromBlob, createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
+  HMComment,
   HMMetadataPayload,
   HMPublishBlobsOutput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported} from '@shm/ui/image-processing'
 import {
   getValidatedWebSeedLinkState,
   hmId,
@@ -27,10 +30,11 @@ import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {getMentionThreadContext, useDocumentComments} from '@shm/shared/models/comments'
 import {useAccount, useResource} from '@shm/shared/models/entity'
-import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
+import {invalidateAfterCommentPublish} from '@shm/shared/comment-invalidation'
+import {useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -39,10 +43,17 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useMutation} from '@tanstack/react-query'
+import type {CommentComposerInput} from '@shm/shared/models/comment-composer-machine'
+import {useCommentComposer, useCommentComposerStatus} from '@shm/shared/models/use-comment-composer'
 import {Check, SendHorizontal, X} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useCommentDraftPersistence} from './comment-draft-utils'
+import {
+  getDraftKey,
+  injectMediaRefs,
+  loadWebCommentDraft,
+  removeWebCommentDraft,
+  saveWebCommentDraft,
+} from './comment-draft-utils'
 import {resolveCommentTargetVersion} from './comment-target-version'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
@@ -52,6 +63,8 @@ import {isPerfEnabled, markCommentSubmitEnd, markCommentSubmitStart, markEditorL
 type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
 export type WebCommentingProps = {
+  /** Use the compact panel-footer editor. */
+  compact?: boolean
   docId: UnpackedHypermediaId
   /** Comment ID from CommentEditorProps - used to resolve reply parent */
   commentId?: string | null
@@ -63,6 +76,7 @@ export type WebCommentingProps = {
   /** Codepoint range within the quoted block when commenting on a text fragment. */
   quotingRange?: {start: number; end: number}
   onSuccess?: (successData: {id: string; response: HMPublishBlobsOutput; commentPayload: PublishCommentInput}) => void
+  onCommentSubmitted?: (comment: HMComment) => void
   /** Focus the editor on mount. */
   focusOnMount?: boolean
   /** @deprecated Use focusOnMount. Kept for older callers. */
@@ -70,6 +84,7 @@ export type WebCommentingProps = {
 }
 
 export default function WebCommenting({
+  compact,
   docId,
   commentId,
   isReplying,
@@ -79,6 +94,7 @@ export default function WebCommenting({
   quotingBlockId,
   quotingRange,
   onSuccess,
+  onCommentSubmitted,
   focusOnMount,
   autoFocus,
 }: WebCommentingProps) {
@@ -88,13 +104,13 @@ export default function WebCommenting({
   )
   const tx = useTxString()
   const universalClient = useUniversalClient()
-  const {getSigner, publish} = universalClient
+  const {getSigner, publish: publishBlobs} = universalClient
   const {originHomeId} = useUniversalAppContext()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useDocumentComments(docId)
   const resolvedReply = useMemo(() => {
-    const id = replyCommentIdProp || commentId
+    const id = commentId || replyCommentIdProp
     if (!id) return null
     const comment = commentsService.data?.comments?.find((c) => c.id === id)
     if (!comment) return null
@@ -105,7 +121,7 @@ export default function WebCommenting({
     }
   }, [replyCommentIdProp, commentId, commentsService.data?.comments])
 
-  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
+  const replyCommentId = commentId || replyCommentIdProp || resolvedReply?.replyCommentId
   const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
   const isReplyEditor = isReplying || !!replyCommentId || !!commentId
@@ -119,34 +135,19 @@ export default function WebCommenting({
     [commentsService.data?.comments, replyCommentId, replyCommentVersion, rootReplyCommentVersion],
   )
 
-  // Use draft persistence
-  const {
-    draft,
-    draftMediaRefs,
-    isLoading: isDraftLoading,
-    saveDraft,
-    removeDraft,
-  } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId, quotingRange)
-
-  // Track latest editor content for non-destructive reads (e.g. persisting intent to IDB)
-  const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
   const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
+  const getContentRef = useRef<
+    Parameters<NonNullable<React.ComponentProps<typeof CommentEditor>['handleSubmit']>>[0] | null
+  >(null)
 
-  // Generation counter: bumped on clearDraft to force editor remount via key
-  const [editorGeneration, setEditorGeneration] = useState(0)
-  const clearDraft = useCallback(() => {
-    removeDraft()
-    setEditorGeneration((g) => g + 1)
-  }, [removeDraft])
+  const targetResource = useResource(docId)
+  const docVersion = resolveCommentTargetVersion(docId, targetResource.data)
 
-  // Generate a stable draftId for IndexedDB media storage
-  const draftId = useMemo(() => {
-    const parts = ['comment-draft', docId.id]
-    if (replyCommentId) parts.push(`reply-${replyCommentId}`)
-    if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
-    if (quotingRange) parts.push(`range-${quotingRange.start}-${quotingRange.end}`)
-    return parts.join('-')
-  }, [docId.id, replyCommentId, quotingBlockId, quotingRange?.start, quotingRange?.end])
+  const draftKey = useMemo(
+    () => getDraftKey(docId.id, replyCommentId, quotingBlockId, quotingRange),
+    [docId.id, replyCommentId, quotingBlockId, quotingRange?.start, quotingRange?.end],
+  )
+  const draftId = draftKey
 
   // Cleanup old draft media on mount
   useEffect(() => {
@@ -159,72 +160,195 @@ export default function WebCommenting({
 
   const queryClient = useQueryClient()
   const route = useNavRoute()
+  const navigation = useNavigation(undefined)
   const navNavigate = useNavigate('replace')
 
-  type PostCommentVars = {commentPayload: PublishCommentInput; contentBlocks: HMBlockNode[]}
-
-  const postComment = useMutation({
-    mutationFn: async ({commentPayload}: PostCommentVars) => {
-      const commentBlobData = commentPayload.blobs[0]?.data
-      if (!commentBlobData) throw new Error('No comment blob data')
-      const commentId = await commentRecordIdFromBlob(commentBlobData)
-      const response = await publish(commentPayload)
-      return {response, commentId, commentPayload}
-    },
-    onMutate: async ({commentPayload, contentBlocks}: PostCommentVars) => {
-      await queryClient.cancelQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS, docId]})
-
-      const authorMetadata: HMMetadataPayload | null = myAccount.data
-        ? {id: myAccount.data.id, metadata: myAccount.data.metadata || null}
-        : null
-
-      const optimisticComment = await buildOptimisticComment({
-        commentPayload,
-        authorUid: userKeyPair!.id,
-        docId,
-        docVersion: docVersion!,
-        contentBlocks,
-        replyParentId: replyCommentId || undefined,
-        threadRootVersion: rootReplyCommentVersion || undefined,
-        quoting,
-        visibility: 'PUBLIC',
-      })
-
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
-      navigateToComment(navNavigate, route, optimisticComment.id)
-    },
-    onError: (_err) => {
-      // Keep the optimistic comment visible — the publish can be retried later.
-      // Do NOT roll back cache or navigation; do NOT invalidate queries (would crash offline).
-      console.warn('Comment publish failed, keeping optimistic comment:', _err)
-      reportError(_err, {feature: 'web-comment', operation: 'publish', docId: docId.id})
-    },
-    onSuccess: ({response, commentId, commentPayload}) => {
-      if (isPerfEnabled()) markCommentSubmitEnd()
-      onSuccess?.({
-        response,
-        commentPayload: commentPayload,
-        id: commentId,
-      })
-      // refetchType 'all': posting navigates to the focused-comment view, which
-      // unmounts the discussions list. With refetchOnMount disabled on web, an
-      // 'active'-only invalidation would leave that list rendering its stale
-      // cache (without the new comment) when the user tabs back to it (#812).
-      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
-      invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
-      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
-      invalidateQueries([queryKeys.DOC_CITATIONS], {refetchType: 'all'})
-      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
-      invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
-    },
+  const latestRef = useRef({
+    route,
+    navNavigate,
+    navigation,
+    onCommentSubmitted,
+    onSuccess,
+    myAccount: undefined as ReturnType<typeof useAccount> | undefined,
+    createAccount: undefined as (() => void) | undefined,
+    docVersion,
+    replyCommentId,
+    replyCommentVersion,
+    rootReplyCommentVersion,
+    draftId,
   })
+
+  const composerInput = useMemo<CommentComposerInput>(
+    () => ({
+      loadDraft: async () => loadWebCommentDraft(draftKey),
+      saveDraft: async (content) => {
+        saveWebCommentDraft(draftKey, {docId: docId.id, replyCommentId, quotingBlockId, quotingRange}, content)
+      },
+      removeDraft: async () => {
+        removeWebCommentDraft(draftKey)
+      },
+      publish: async ({content, accountUid}) => {
+        if (!getSigner) throw new Error('getSigner not available')
+        if (!docVersion) throw new Error('Missing document version')
+        const signer = getSigner(accountUid)
+        let capturedBlocks = content.blocks
+        const getContent = getContentRef.current
+        const payloadBase = {
+          docId,
+          docVersion,
+          replyCommentVersion,
+          rootReplyCommentVersion,
+          quoting,
+          prepareAttachments,
+        }
+        const commentPayload = getContent
+          ? await createComment(
+              {
+                ...payloadBase,
+                getContent: async (prepare: typeof prepareAttachments) => {
+                  const result = await getContent(prepare)
+                  capturedBlocks = result.blockNodes
+                  return result
+                },
+              },
+              signer,
+            )
+          : await createComment({...payloadBase, content: content.blocks} as any, signer)
+        const commentBlobData = commentPayload.blobs[0]?.data
+        if (!commentBlobData) throw new Error('No comment blob data')
+        const recordId = await commentRecordIdFromBlob(commentBlobData)
+        await queryClient.cancelQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS, docId]})
+        const myAccountData = latestRef.current.myAccount?.data
+        const authorMetadata: HMMetadataPayload | null = myAccountData
+          ? {id: myAccountData.id, metadata: myAccountData.metadata || null}
+          : null
+        const optimisticComment = await buildOptimisticComment({
+          commentPayload,
+          authorUid: accountUid,
+          docId,
+          docVersion,
+          contentBlocks: capturedBlocks,
+          replyParentId: replyCommentId || undefined,
+          threadRootVersion: rootReplyCommentVersion || undefined,
+          quoting,
+          visibility: 'PUBLIC',
+        })
+        const rollback = applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
+        let response
+        try {
+          response = await publishBlobs(commentPayload)
+          if (!response.cids[0]) throw new Error('Failed to publish comment blob')
+        } catch (err) {
+          rollback()
+          throw err
+        }
+        const publishedComment = {...optimisticComment, version: response.cids[0]!}
+        applyOptimisticComment(queryClient, docId, publishedComment, undefined, quoting)
+        invalidateAfterCommentPublish(queryClient, {targetId: docId, comment: publishedComment})
+        latestRef.current.onSuccess?.({response, commentPayload, id: recordId})
+        return publishedComment
+      },
+    }),
+    [
+      draftKey,
+      docId,
+      docVersion,
+      replyCommentId,
+      quotingBlockId,
+      quotingRange,
+      replyCommentVersion,
+      rootReplyCommentVersion,
+      quoting,
+      getSigner,
+      publishBlobs,
+      queryClient,
+    ],
+  )
+
+  const actor = useCommentComposer('web:' + draftKey, composerInput)
+  const {loading, busy} = useCommentComposerStatus(actor)
+
+  useEffect(() => {
+    const subscriptions = [
+      actor.on('editor.cleared', () => {
+        submitHandleRef.current?.reset()
+      }),
+      actor.on('published', (event) => {
+        const {navNavigate, route, navigation, onCommentSubmitted, draftId} = latestRef.current
+        onCommentSubmitted?.(event.comment)
+        if (isPerfEnabled()) markCommentSubmitEnd()
+        navigateToComment(
+          navNavigate,
+          route,
+          event.comment.id,
+          navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+        )
+        if (typeof window !== 'undefined') {
+          import('./draft-media-db')
+            .then(({deleteAllDraftMediaForDraft}) => deleteAllDraftMediaForDraft(draftId))
+            .catch((err) => console.error('Failed to cleanup draft media:', err))
+        }
+      }),
+      actor.on('account.required', (event) => {
+        const {route, docVersion, createAccount, replyCommentId, replyCommentVersion, rootReplyCommentVersion} =
+          latestRef.current
+        if (!docVersion) return
+        void (async () => {
+          try {
+            await setPendingIntent({
+              type: 'comment',
+              commentRoute: route,
+              docId,
+              docVersion,
+              content: event.content.blocks,
+              replyCommentId: replyCommentId || undefined,
+              replyCommentVersion: replyCommentVersion || undefined,
+              rootReplyCommentVersion: rootReplyCommentVersion || undefined,
+              quotingBlockId,
+              quotingRange,
+            })
+          } catch (e) {
+            console.warn('Failed to persist pending comment intent:', e)
+          }
+          createAccount?.()
+        })()
+      }),
+      actor.on('publish.failed', (event) => {
+        console.warn('Comment publish failed; draft retained:', event.error)
+        reportError(event.error, {feature: 'web-comment', operation: 'publish', docId: docId.id})
+      }),
+      actor.on('draft.saveFailed', (event) => {
+        reportError(event.error, {feature: 'web-comment', operation: 'save-draft', docId: docId.id})
+      }),
+    ]
+    return () => subscriptions.forEach((subscription) => subscription.unsubscribe())
+  }, [
+    actor,
+    docId,
+    docVersion,
+    replyCommentId,
+    replyCommentVersion,
+    rootReplyCommentVersion,
+    quotingBlockId,
+    quotingRange,
+  ])
 
   // A republish route keeps its own unpinned id while rendering the target
   // document, so the version comes from the resolved resource (see helper).
-  const targetResource = useResource(docId)
-  const docVersion = resolveCommentTargetVersion(docId, targetResource.data)
   const remixNavigate = useRemixNavigate()
+  const location = useLocation()
+  const consumedSubmission = useRef<string | null>(null)
+  useEffect(() => {
+    const state = location.state as {submittedComment?: HMComment} | null
+    const comment = state?.submittedComment
+    if (!comment || !onCommentSubmitted || consumedSubmission.current === comment.id) return
+    const targetId = hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})
+    if (targetId.id !== docId.id) return
+    consumedSubmission.current = comment.id
+    onCommentSubmitted(comment)
+    const {submittedComment: _, ...remainingState} = state!
+    remixNavigate(`${location.pathname}${location.search}${location.hash}`, {replace: true, state: remainingState})
+  }, [location, onCommentSubmitted, docId.id, remixNavigate])
 
   const {
     content: createAccountContent,
@@ -237,8 +361,10 @@ export default function WebCommenting({
         .then((result) => {
           console.log('[commenting] processPendingIntent result:', result)
           if (result.type === 'comment') {
-            clearDraft()
-            remixNavigate(result.commentUrl)
+            actor.send({type: 'comment.publishedExternally', comment: result.comment})
+            remixNavigate(result.commentUrl, {replace: true, state: {submittedComment: result.comment}})
+          } else {
+            actor.send({type: 'account.cancelled'})
           }
         })
         .catch((e) => {
@@ -272,10 +398,8 @@ export default function WebCommenting({
     })
   }
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
   const handleSubmit = useCallback(
-    async (
+    (
       getContent: (
         prepareAttachments: (binaries: Uint8Array[]) => Promise<{
           blobs: {cid: string; data: Uint8Array}[]
@@ -287,101 +411,30 @@ export default function WebCommenting({
       }>,
       _reset: () => void,
     ) => {
-      if (isSubmitting || !docVersion) return // Prevent double submission
-
-      // Content changes are debounced in the editor; flush so latestBlocksRef
-      // holds the final content before reading it below.
+      if (!docVersion) return
+      getContentRef.current = getContent
       submitHandleRef.current?.flush()
-
-      if (!userKeyPair) {
-        // Persist intent to IDB so it can be processed after account creation
-        // (works for both local and vault flows).
-        // Use latestBlocksRef (updated on every editor change) instead of getContent(),
-        // because getContent() destructively mutates editor blocks.
-        try {
-          const blocks = latestBlocksRef.current
-          console.log('[commenting] saving intent, blocks:', blocks?.length ?? 'null')
-          if (blocks) {
-            await setPendingIntent({
-              type: 'comment',
-              docId,
-              docVersion,
-              content: blocks,
-              replyCommentId: replyCommentId || undefined,
-              replyCommentVersion: replyCommentVersion || undefined,
-              rootReplyCommentVersion: rootReplyCommentVersion || undefined,
-              quotingBlockId,
-              quotingRange,
-            })
-            console.log('[commenting] intent saved to IDB')
-          }
-        } catch (e) {
-          console.warn('Failed to persist pending comment intent:', e)
-        }
-        createAccount()
-        return
-      }
-
-      try {
-        setIsSubmitting(true)
-        if (isPerfEnabled()) markCommentSubmitStart()
-        if (!getSigner) throw new Error('getSigner not available')
-        const signer = getSigner(userKeyPair.id)
-        // Wrap getContent to capture block nodes before they're consumed by createComment
-        let capturedBlocks: HMBlockNode[] = []
-        const wrappedGetContent: typeof getContent = async (prepareAttachments) => {
-          const result = await getContent(prepareAttachments)
-          capturedBlocks = result.blockNodes
-          return result
-        }
-        const commentPayload = await createComment(
-          {
-            getContent: wrappedGetContent,
-            docId,
-            docVersion,
-            replyCommentVersion,
-            rootReplyCommentVersion,
-            quoting,
-            prepareAttachments,
-          },
-          signer,
-        )
-        await postComment.mutateAsync({commentPayload, contentBlocks: capturedBlocks})
-        console.log('✅ Comment posted successfully, calling promptEmailNotifications')
-        clearDraft()
-        // Clean up associated media from IndexedDB after successful publish
-        if (typeof window !== 'undefined') {
-          import('./draft-media-db')
-            .then(({deleteAllDraftMediaForDraft, revokeHMBlockObjectURLs}) => {
-              // Revoke object URLs before cleanup to free memory
-              if (draft) revokeHMBlockObjectURLs(draft)
-              return deleteAllDraftMediaForDraft(draftId)
-            })
-            .catch((err) => console.error('Failed to cleanup draft media:', err))
-        }
-        // TODO: bring back email notifications prompt for new notification system - only prompt if the user does not already notifs set up on the notify service.
-        // promptEmailNotifications()
-      } finally {
-        setIsSubmitting(false)
-      }
+      if (userKeyPair && isPerfEnabled()) markCommentSubmitStart()
+      actor.send({type: 'submit.requested', accountUid: userKeyPair?.id ?? null})
     },
-    [
-      isSubmitting,
-      userKeyPair,
-      docId,
-      docVersion,
-      replyCommentVersion,
-      rootReplyCommentVersion,
-      quotingBlockId,
-      quotingRange?.start,
-      quotingRange?.end,
-      quoting,
-      createAccount,
-      postComment,
-      clearDraft,
-      promptEmailNotifications,
-    ],
+    [docVersion, userKeyPair, actor],
   )
+
+  latestRef.current = {
+    route,
+    navNavigate,
+    navigation,
+    onCommentSubmitted,
+    onSuccess,
+    myAccount,
+    createAccount,
+    docVersion,
+    replyCommentId,
+    replyCommentVersion,
+    rootReplyCommentVersion,
+    draftId,
+  }
+
   const onAvatarPress = useMemo(() => {
     if (!userKeyPair) {
       return createAccount
@@ -393,26 +446,18 @@ export default function WebCommenting({
     ? 'plausible-event-name=Publish+Comment'
     : 'plausible-event-name=start-create-account'
 
-  // Re-inject mediaRefs into draft blocks so the editor can restore IndexedDB media
   const initialBlocks = useMemo(() => {
-    if (!draft) return undefined
-    if (!draftMediaRefs) return draft
-    return draft.map((node) => {
-      const block = node.block as any
-      const blockId = block?.id
-      if (!blockId || !draftMediaRefs[blockId]) return node
-      return {
-        ...node,
-        block: {
-          ...block,
-          attributes: {
-            ...block.attributes,
-            mediaRef: JSON.parse(draftMediaRefs[blockId]),
-          },
-        },
-      }
-    }) as HMBlockNode[]
-  }, [draft, draftMediaRefs])
+    if (loading) return undefined
+    const blocks = injectMediaRefs(actor.getSnapshot().context.content)
+    return blocks.length ? blocks : undefined
+  }, [actor, loading])
+
+  const handleContentChange = useCallback(
+    (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) =>
+      actor.send({type: 'content.changed', content: mediaRefs ? {blocks, mediaRefs} : {blocks}}),
+    [actor],
+  )
+  const handleEditorBlur = useCallback(() => actor.send({type: 'content.flushRequested'}), [actor])
 
   // Mark editor as loaded for performance measurement (only in perf test environment)
   // isPerfEnabled() is static at runtime, so this conditional hook is safe
@@ -425,23 +470,24 @@ export default function WebCommenting({
 
   // Don't render until the draft and the target version are known. A version
   // that never resolves means there is nothing to comment on.
-  if (isDraftLoading || !docVersion) {
+  if (loading || !docVersion) {
     return !docVersion && !targetResource.isLoading ? null : <div className="w-full">Loading…</div>
   }
 
   return (
     <div className="w-full">
       <CommentEditor
-        key={`${draftId}-${editorGeneration}`}
+        compact={compact}
+        referenceTarget={{documentId: docId.id, commentId: replyCommentId || undefined}}
+        key={draftId}
+        readOnly={busy}
         focusOnMount={focusOnMount ?? autoFocus}
         isReplying={isReplyEditor}
         submitHandleRef={submitHandleRef}
         handleSubmit={handleSubmit}
         initialBlocks={initialBlocks}
-        onContentChange={(blocks, mediaRefs) => {
-          latestBlocksRef.current = blocks
-          saveDraft(blocks, mediaRefs)
-        }}
+        onContentChange={handleContentChange}
+        onEditorBlur={handleEditorBlur}
         onAvatarPress={onAvatarPress}
         importWebFile={(url) => importWebFile(url, draftId)}
         handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
@@ -470,12 +516,14 @@ export default function WebCommenting({
               )}
             >
               <button
-                disabled={isSubmitting || disabled}
+                aria-label="Send comment"
+                disabled={busy || disabled}
                 className={cn(
                   buttonVariants({size: 'icon', variant: 'default'}),
                   publishButtonEventClass,
-                  'flex items-center justify-center rounded-sm p-2',
-                  (isSubmitting || disabled) && 'cursor-not-allowed opacity-50',
+                  'flex items-center justify-center p-2',
+                  compact ? 'size-12 shrink-0 rounded-full' : 'rounded-sm',
+                  (busy || disabled) && 'cursor-not-allowed opacity-50',
                 )}
                 onClick={() => handleSubmit(getContent, reset)}
               >
@@ -490,6 +538,7 @@ export default function WebCommenting({
         siteUid={docId.uid}
         documentId={docId}
       />
+      {compact && <CommentAudience docId={docId} />}
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>
@@ -529,6 +578,8 @@ async function handleFileAttachment(
   draftId?: string,
 ): Promise<{
   displaySrc: string
+  mime?: string
+  name?: string
   fileBinary?: Uint8Array
   mediaRef?: {
     draftId: string
@@ -538,7 +589,8 @@ async function handleFileAttachment(
     size: number
   }
 }> {
-  const fileBuffer = await file.arrayBuffer()
+  const attachment = file instanceof File ? await processImageIfSupported(file, CONTENT_IMAGE_POLICY) : file
+  const fileBuffer = await attachment.arrayBuffer()
   const fileBinary = new Uint8Array(fileBuffer)
 
   // If draftId provided and we're in browser, use IndexedDB
@@ -546,14 +598,14 @@ async function handleFileAttachment(
     try {
       const {putDraftMedia} = await import('./draft-media-db')
       const mediaId = generateUUID()
-      const name = (file as File).name || `media-${Date.now()}`
-      const mime = file.type || 'application/octet-stream'
-      const size = file.size
+      const name = (attachment as File).name || `media-${Date.now()}`
+      const mime = attachment.type || 'application/octet-stream'
+      const size = attachment.size
 
-      await putDraftMedia(draftId, mediaId, file, {name, mime, size})
+      await putDraftMedia(draftId, mediaId, attachment, {name, mime, size})
 
       return {
-        displaySrc: URL.createObjectURL(file),
+        displaySrc: URL.createObjectURL(attachment),
         mediaRef: {
           draftId,
           mediaId,
@@ -582,8 +634,10 @@ async function handleFileAttachment(
 
   // Legacy behavior: store as binary in the block
   return {
-    displaySrc: URL.createObjectURL(file),
+    displaySrc: URL.createObjectURL(attachment),
     fileBinary,
+    mime: attachment.type,
+    name: (attachment as File).name,
   }
 }
 

@@ -6,6 +6,7 @@ import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
 import {markInviteJoin} from '@/invite-join'
 import {safeNextPath, signInUrl} from '@/require-sign-in'
+import {requireSignInEnabled} from '@/require-sign-in.server'
 import {ensureDaemonAuth} from '@/universal-client'
 import {json, LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {useLoaderData, useSearchParams} from '@remix-run/react'
@@ -13,7 +14,7 @@ import {hostnameStripProtocol} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {Spinner} from '@shm/ui/spinner'
+import {SignInLoading, Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
 
@@ -33,12 +34,13 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     return json({
       siteName: homeMetadata?.name || hostnameStripProtocol(origin),
       siteIcon: homeMetadata?.icon || null,
+      requireSignIn: requireSignInEnabled(),
     })
   })
 }
 
 export default function SignInPage() {
-  const {siteName} = useLoaderData<typeof loader>()
+  const {siteName, requireSignIn} = useLoaderData<typeof loader>()
   const [searchParams] = useSearchParams()
   const next = safeNextPath(searchParams.get('next'))
   // An invitation link (invite-only vault): the vault creates the account for
@@ -79,6 +81,7 @@ export default function SignInPage() {
   }, [keyPairLoaded, keyPair, next])
 
   async function signIn() {
+    setAutoStarted(true)
     setBusy(true)
     setError(null)
     try {
@@ -88,14 +91,13 @@ export default function SignInPage() {
       // the site for them once the delegation is back.
       if (invite) markInviteJoin()
       const origin = window.location.origin
-      // Come back here rather than straight to `next`: this page waits for the
-      // session cookie before the full navigation the proxy gate checks, so a
-      // fast callback cannot race the cookie and land on a 401.
+      // The callback waits for the site cookie before loading the destination.
+      // Private sites can land there directly, without another sign-in page load.
       await redirectToVaultSignIn({
         origin,
         siteName,
         vaultUrl: `${WEB_IDENTITY_ORIGIN || origin}/vault/delegate`,
-        returnUrl: signInUrl(next),
+        returnUrl: requireSignIn ? next : signInUrl(next),
         invite,
         email: inviteEmail,
       })
@@ -106,15 +108,18 @@ export default function SignInPage() {
     }
   }
 
-  // An invitation needs no button: go straight to the vault to create the account.
+  // Private sites start authentication immediately; public sign-in keeps its existing button.
   useEffect(() => {
-    if (!invite || autoStarted || !keyPairLoaded || keyPair) return
+    if ((!invite && !requireSignIn) || autoStarted || !keyPairLoaded || keyPair) return
     setAutoStarted(true)
     void signIn()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invite, autoStarted, keyPairLoaded, keyPair])
+  }, [invite, requireSignIn, autoStarted, keyPairLoaded, keyPair])
 
-  const waitingOnSession = !keyPairLoaded || (!!keyPair && !error) || (!!invite && busy && !error)
+  const waitingOnSession =
+    !keyPairLoaded || (!!keyPair && !error) || (!!invite && busy && !error) || (requireSignIn && !error)
+
+  if (requireSignIn && waitingOnSession) return <SignInLoading />
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">

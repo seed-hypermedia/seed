@@ -35,6 +35,8 @@ export const loader: LoaderFunction = async ({request}) => {
         // Legacy field: older clients append `/hm/api/notifications` to it, which the
         // notify service on that origin still serves.
         notifyServiceHost: NOTIFY_SERVICE_HOST ? notifyServiceOrigin(NOTIFY_SERVICE_HOST) : null,
+        // The app environment the site advertises; `agentServerUrl` is the older name of the same field.
+        appEnvironmentUrl: SEED_AGENT_SERVER_URL || null,
         agentServerUrl: SEED_AGENT_SERVER_URL || null,
         requireSignIn: requireSignInEnabled(),
       },

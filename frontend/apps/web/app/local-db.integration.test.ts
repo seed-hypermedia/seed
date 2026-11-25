@@ -580,6 +580,13 @@ describe('local-db integration', () => {
         await setPendingIntent(intent)
         const stored = await getPendingIntent()
         expect(stored).toEqual(intent)
+        intent.commentRoute = {
+          key: 'document',
+          id: intent.docId,
+          panel: {key: 'comments', id: intent.docId, openComment: 'root', replyCommentId: 'parent'},
+        }
+        await setPendingIntent(intent)
+        expect(await getPendingIntent()).toEqual(intent)
       } finally {
         db.close()
       }

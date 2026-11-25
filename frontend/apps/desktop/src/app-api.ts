@@ -1,4 +1,6 @@
 import {parseDeepLink} from '@/utils/deep-links'
+import {getPageWebContents} from './app-web-browser'
+import {setupBrowserSessionPolicy} from './browser-session-policy'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
@@ -32,7 +34,7 @@ import {providerOAuthApi} from './app-provider-oauth'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
-import {getAgentsServerState, getLocalAgentsServerUrl} from './agents-server-process'
+import {getAgentsServerState, getLocalAgentsServerUrl, setLocalAgentsServerEnabled} from './agents-server-process'
 import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
 import {sitesApi} from './app-sites'
 import {syncApi} from './app-sync'
@@ -46,6 +48,7 @@ import {
   createAppWindowInputSchema,
   dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
+  focusWindowForRoute,
   getAllWindows,
   getFocusedWindow,
   getLastFocusedWindow,
@@ -110,7 +113,7 @@ ipcMain.on('close_window', (_event, _info) => {
 ipcMain.on('find_in_page_query', (_event, info: {query: string; findNext?: boolean; forward?: boolean}) => {
   const focusedWindow = getFocusedWindow()
   if (!focusedWindow || focusedWindow.webContents.isDestroyed()) return
-  focusedWindow.webContents.findInPage(info.query, {
+  getPageWebContents(focusedWindow).findInPage(info.query, {
     findNext: info.findNext,
     forward: info.forward,
   })
@@ -164,12 +167,15 @@ export function getDefaultStartupRoute(): NavRoute {
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
-  const validWindowEntries = Object.entries(windowsState).filter(([windowId, window]) => {
-    if (!window || !Array.isArray(window.routes)) return false
-    if (window.routes.length === 0) return false
-    return window.routes.every((route) => {
-      return navRouteSchema.safeParse(route).success
-    })
+  // Drop history entries whose route no longer exists (a page removed in an update) instead of the whole window.
+  const isValidRoute = (route: unknown) => navRouteSchema.safeParse(route).success
+  const validWindowEntries = Object.entries(windowsState).flatMap(([windowId, window]) => {
+    if (!window || !Array.isArray(window.routes)) return []
+    const routes = window.routes.filter(isValidRoute)
+    if (routes.length === 0) return []
+    // Keep pointing at the same entry, or at the closest earlier one if that entry was dropped.
+    const keptUpToCurrent = window.routes.slice(0, window.routeIndex + 1).filter(isValidRoute).length
+    return [[windowId, {...window, routes, routeIndex: Math.max(0, keptUpToCurrent - 1)}] as const]
   })
   await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
@@ -217,6 +223,9 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
 }
 
 export async function openRoute(route: NavRoute) {
+  // Keep one window per resource: routes to a document or singleton page that
+  // is already open focus that window instead of navigating the focused one.
+  if (focusWindowForRoute(route)) return
   const focusedWindow = getFocusedWindow()
   if (focusedWindow) {
     focusedWindow.webContents.send('open_route', route)
@@ -340,9 +349,14 @@ export const router = t.router({
   sites: sitesApi,
   prompting: promptingApi,
   appSettings: appSettingsApi,
-  /** Reports the local agents server the desktop spawned or attached to, if any. */
+  /** Reports the local app environment the desktop spawned or attached to, if any. */
   localAgentsServer: t.procedure.query(async () => {
     return {url: getLocalAgentsServerUrl(), state: getAgentsServerState()}
+  }),
+  /** Persists whether the desktop runs its bundled app environment, and starts or stops it now. */
+  setLocalAgentsServerEnabled: t.procedure.input(z.boolean()).mutation(async ({input}) => {
+    const url = await setLocalAgentsServerEnabled(input)
+    return {url, state: getAgentsServerState()}
   }),
   closeAppWindow: t.procedure.input(z.string()).mutation(async ({input}) => {
     closeAppWindow(input)
@@ -376,11 +390,23 @@ export const router = t.router({
     await getFirstAvailableAccount()
     const browserWindow = createAppWindow(input)
 
-    trpcHandlers.attachWindow(browserWindow)
-    browserWindow.on('close', () => {
-      trpcHandlers.detachWindow(browserWindow)
-    })
+    // createAppWindow may return a window that already shows the requested
+    // route instead of opening a new one; attaching twice is not needed.
+    if (!trpcAttachedWindows.has(browserWindow)) {
+      trpcAttachedWindows.add(browserWindow)
+      trpcHandlers.attachWindow(browserWindow)
+      browserWindow.on('close', () => {
+        trpcHandlers.detachWindow(browserWindow)
+      })
+    }
   }),
+
+  /** Focus the window already showing this route's resource, if any. Used to keep one window per document. */
+  focusWindowForRoute: t.procedure
+    .input(z.object({windowId: z.string(), route: navRouteSchema}))
+    .mutation(({input}) => {
+      return focusWindowForRoute(input.route as NavRoute, input.windowId)
+    }),
 
   webQuery: t.procedure
     .input(
@@ -389,6 +415,9 @@ export const router = t.router({
       }),
     )
     .mutation(async ({input: {webUrl}}) => {
+      // The imported page is untrusted web content: it renders in the web pane's partition with the
+      // same isolation and policies, never in the app's own session.
+      setupBrowserSessionPolicy()
       const webView = new BrowserWindow({
         show: false,
         width: 1200,
@@ -396,6 +425,10 @@ export const router = t.router({
         webPreferences: {
           offscreen: true,
           spellcheck: true,
+          partition: 'persist:seed-web-browser',
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
         },
         icon: process.env.CI
           ? path.resolve(__dirname, '../assets/icons-prod/icon.png')
@@ -483,6 +516,7 @@ export const router = t.router({
 export const trpc = router.createCaller({})
 
 const trpcHandlers = createIPCHandler({router, windows: []})
+const trpcAttachedWindows = new WeakSet<BrowserWindow>()
 
 export type AppRouter = typeof router
 

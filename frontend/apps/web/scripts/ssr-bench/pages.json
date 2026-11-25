@@ -1,0 +1,12 @@
+{
+  "siteUid": "z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB",
+  "pages": [
+    {"name": "gw-home", "path": "/"},
+    {"name": "protocol-doc", "path": "/hm/z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/protocol"},
+    {"name": "glossary-doc", "path": "/hm/z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/glossary"},
+    {"name": "teamtalks-home", "path": "/hm/z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno"},
+    {"name": "teamtalks-activity", "path": "/hm/z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno/:activity"},
+    {"name": "teamtalks-comments", "path": "/hm/z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno/:comments"},
+    {"name": "small-doc", "path": "/hm/z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj"}
+  ]
+}

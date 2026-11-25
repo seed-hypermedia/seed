@@ -29,7 +29,7 @@ config.watchFolders = [
   path.resolve(monorepoRoot, 'frontend/packages/client'),
   path.resolve(monorepoRoot, 'frontend/packages/shared'),
   path.resolve(monorepoRoot, 'frontend/packages/ui/src/agents'),
-  path.resolve(monorepoRoot, 'agents/protocol'),
+  path.resolve(monorepoRoot, 'apps/protocol'),
   ...(hasMonorepoNodeModules ? [monorepoNodeModules] : []),
 ]
 
@@ -51,7 +51,7 @@ config.resolver.extraNodeModules = {
   '@shm/shared': path.resolve(monorepoRoot, 'frontend/packages/shared'),
   // The agents protocol package: pure TypeScript types plus the tool registry, with no
   // dependencies at all, so it bundles as-is.
-  '@seed-hypermedia/agents-protocol': path.resolve(monorepoRoot, 'agents/protocol'),
+  '@seed-hypermedia/apps-protocol': path.resolve(monorepoRoot, 'apps/protocol'),
   react: path.resolve(projectRoot, 'node_modules/react'),
   'react-dom': path.resolve(projectRoot, 'node_modules/react-dom'),
 }
@@ -63,7 +63,7 @@ config.resolver.extraNodeModules = {
 // 'crypto'` — unresolvable in the native bundle. The browser variant calls
 // crypto.subtle.digest, which src/vault/platform.ts polyfills on Hermes.
 // 7. Resolve the platform-neutral half of the shared agents UI by path.
-// @shm/ui is a web package (Radix, Tailwind, lucide-react), but everything under its `agents/`
+// @shm/ui is a web package (Radix, Tailwind, lucide-react), but everything under its `apps/`
 // directory that is not a .tsx file is DOM-free — the signed client, the React Query models, the
 // chat row model, the tool summaries — and is what mobile shares with desktop and web instead of
 // reimplementing. The alias is deliberately scoped to those modules and resolves only extensions

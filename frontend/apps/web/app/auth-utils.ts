@@ -1,5 +1,6 @@
 // This file contains auth-related utilities that are decoupled
 // from any presentation and framework logic.
+import type {HMSigner} from '@seed-hypermedia/client/hm-types'
 import * as cbor from '@ipld/dag-cbor'
 import * as blobs from '@shm/shared/blobs'
 
@@ -22,6 +23,21 @@ export async function signWithKeyPair(keyPair: CryptoKeyPair, data: Uint8Array):
   }
   const signature = await crypto.subtle.sign('Ed25519' as unknown as AlgorithmIdentifier, keyPair.privateKey, data)
   return new Uint8Array(signature)
+}
+
+/** Bind a signer to one local identity, including its delegated account, without re-reading global auth state. */
+export function createWebIdentitySigner(
+  identity: CryptoKeyPair & {id: string; delegatedAccountUid?: string},
+  accountUid: string,
+): HMSigner {
+  if (identity.id !== accountUid && identity.delegatedAccountUid !== accountUid) {
+    throw new Error('This account is not available to the local web identity')
+  }
+  const {publicKey, privateKey} = identity
+  return {
+    getPublicKey: () => preparePublicKey(publicKey),
+    sign: (data) => signWithKeyPair({publicKey, privateKey}, new Uint8Array(data)),
+  }
 }
 
 /**

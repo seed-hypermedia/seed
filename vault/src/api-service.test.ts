@@ -188,6 +188,21 @@ describe('vault auth service', () => {
     })
   })
 
+  test('preLogin rejects invalid email before confirming registration availability', async () => {
+    const svc = createService()
+    for (const email of [
+      'not-an-email',
+      'a@b',
+      'a b@example.com',
+      'a@@example.com',
+      'a'.repeat(250) + '@example.com',
+    ]) {
+      await expect(svc.preLogin({email}, createContext())).rejects.toThrow('Enter a valid email address.')
+    }
+    await expect(svc.preLogin({email: 'new@example.com'}, createContext())).resolves.toEqual({exists: false})
+    expect(db.query<{count: number}, []>('SELECT count(*) AS count FROM users').get()?.count).toBe(0)
+  })
+
   test('preLogin reports existing users without credentials so the client can restart verification', async () => {
     const svc = createService()
     const email = 'no-credentials@test.com'

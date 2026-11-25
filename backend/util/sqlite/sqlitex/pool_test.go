@@ -492,3 +492,42 @@ func TestPoolReadOnlyInMemoryDB(t *testing.T) {
 
 	require.Error(t, sqlitex.Exec(conn, "CREATE TABLE foo (id INTEGER PRIMARY KEY);", nil), "writes must fail for read-only conns")
 }
+
+func TestPoolConnCacheStats(t *testing.T) {
+	t.Parallel()
+
+	pool, err := sqlitex.Open("file:"+filepath.Join(t.TempDir(), "db.sqlite"), 0, 2)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pool.Close()) })
+
+	for _, c := range pool.ConnCacheStats() {
+		require.True(t, c.SampledAt.IsZero(), "nothing is sampled before the first Put")
+	}
+
+	conn, release, err := pool.WriteConn(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, sqlitex.ExecScript(conn, "CREATE TABLE t (v); INSERT INTO t VALUES (1), (2), (3);"))
+	release()
+
+	conn, release, err = pool.ReadConn(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, sqlitex.Exec(conn, "SELECT count(*) FROM t;", nil))
+	release()
+
+	stats := pool.ConnCacheStats()
+	require.Len(t, stats, 3)
+
+	var sampled []string
+
+	for _, c := range stats {
+		if c.SampledAt.IsZero() {
+			continue
+		}
+
+		sampled = append(sampled, c.Role)
+		require.Positive(t, c.Stats.Hits+c.Stats.Misses, "role %s", c.Role)
+		require.Positive(t, c.Stats.UsedBytes, "role %s", c.Role)
+	}
+
+	require.ElementsMatch(t, []string{"write", "read"}, sampled, "one write and one read connection came back to the pool")
+}

@@ -21,7 +21,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         // pool has only 12 connections, so a document with thousands of
         // citations could hold a slot for 30s+ and convoy every other query
         // behind it. That took production down on 2026-08-11; see
-        // hypermedia/apps/daemon.md, "Load and the read pool".
+        // hypermedia/software/daemon.md, "Load and the read pool".
         //
         // Consequence: documents with more than LIST_PAGE_SIZE citations
         // under-report their counts. That is a deliberate trade against
@@ -54,8 +54,15 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         version: latestDoc.version,
       })
       const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
+      // The top-level comment count comes from the daemon's per-document
+      // document_comment_stats.comment_count, which reads the same comment_live
+      // rows ListComments returns under the same genesis key. Counting distinct
+      // comment citations instead would (a) truncate past one page of citations
+      // and (b) be a no-op today, because the daemon reports every comment
+      // citation's source as the requested document (seed#921, still open).
+      const commentCount = docInfo.activitySummary?.commentCount ?? 0
 
-      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount, commentCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be

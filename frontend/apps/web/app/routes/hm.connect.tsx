@@ -3,7 +3,7 @@ import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSiteHeader, WebSidebarLayout} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
@@ -52,21 +52,23 @@ export default function ConnectPage() {
   }
   return (
     <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
-      <div className="flex min-h-screen flex-1 flex-col items-center">
-        <WebSiteHeader
-          homeMetadata={homeMetadata}
-          originHomeId={originHomeId}
-          siteHomeId={originHomeId}
-          docId={null}
-          origin={origin}
-        />
-        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-0">
-          <div className="px-4">
-            <HMConnectPage />
-          </div>
-        </NavigationLoadingContent>
-        <PageFooter />
-      </div>
+      <WebSidebarLayout siteHomeId={originHomeId}>
+        <div className="flex min-h-screen flex-1 flex-col items-center">
+          <WebSiteHeader
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            siteHomeId={originHomeId}
+            docId={null}
+            origin={origin}
+          />
+          <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-0">
+            <div className="px-4">
+              <HMConnectPage />
+            </div>
+          </NavigationLoadingContent>
+          <PageFooter />
+        </div>
+      </WebSidebarLayout>
     </WebSiteProvider>
   )
 }

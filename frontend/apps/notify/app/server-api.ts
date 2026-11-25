@@ -1,5 +1,6 @@
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {corsJson} from './utils/cors'
+import {captureException} from './sentry'
 
 export class APIError extends Error {
   constructor(
@@ -37,6 +38,8 @@ export function cborApiAction<RequestType, ResultType>(handler: (data: RequestTy
       if (e instanceof APIError) {
         return corsJson({error: e.message}, {status: e.status})
       }
+      // Clients swallow this response, so report it the way the rest of the service reports failures.
+      captureException(e)
       return corsJson({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500})
     }
   }

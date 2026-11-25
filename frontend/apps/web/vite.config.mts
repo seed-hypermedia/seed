@@ -36,7 +36,9 @@ export default defineConfig(({isSsrBuild}) => {
     // ssr: {
     //   noExternal: ["react-tweet"],
     // },
-    build: {minify: true, sourcemap: true},
+    // SEED_WEB_NO_MINIFY=1 keeps function names readable in CPU profiles
+    // (scripts/ssr-bench); production builds are always minified.
+    build: {minify: !process.env.SEED_WEB_NO_MINIFY, sourcemap: true},
     ssr: {
       // Bundle all workspace packages and common dependencies for proper SSR with pnpm
       noExternal: [
@@ -94,7 +96,13 @@ export default defineConfig(({isSsrBuild}) => {
           v3_fetcherPersist: true,
           v3_relativeSplatPath: true,
           v3_throwAbortReason: true,
-          v3_lazyRouteDiscovery: true,
+          // Off on purpose. With it on, the catch-all document route makes Remix fetch
+          // `/__manifest` before the first client-side navigation to each path, and a failed
+          // fetch (the proxy answers 429 when a page has too many requests in flight) throws
+          // into the root error page. Publishing a comment navigates right after a burst of
+          // refetches, so that request was the one rejected. The route table is small enough
+          // to ship whole.
+          v3_lazyRouteDiscovery: false,
         },
       }),
       envOnlyMacros(),
@@ -149,7 +157,7 @@ export default defineConfig(({isSsrBuild}) => {
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
         '@seed-hypermedia/client': path.resolve(__dirname, '../../packages/client/src'),
-        '@seed-hypermedia/agents-protocol': path.resolve(__dirname, '../../../agents/protocol/src/index.ts'),
+        '@seed-hypermedia/apps-protocol': path.resolve(__dirname, '../../../apps/protocol/src/index.ts'),
       },
     },
   }

@@ -45,6 +45,11 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Resolved Docker image tag: $tag"
 
+  # The last job publishes hypermedia/ to the production docs. Whether it can is known in a minute,
+  # so every image waits for this: a release whose docs cannot be published builds nothing.
+  hypermedia-check:
+    uses: ./.github/workflows/check-hypermedia.yml
+
   # Use the reusable parallel test workflow
   frontend-tests:
     uses: ./.github/workflows/test-frontend-parallel.yml
@@ -65,14 +70,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: agents-bun-${{ runner.os }}-${{ hashFiles('agents/bun.lock') }}
+          key: agents-bun-${{ runner.os }}-${{ hashFiles('apps/bun.lock') }}
           restore-keys: |
             agents-bun-${{ runner.os }}-
       - name: Install dependencies
-        working-directory: agents
+        working-directory: apps
         run: bun install --frozen-lockfile
       - name: Run ${{ matrix.task }}
-        working-directory: agents
+        working-directory: apps
         run: |
           if [ "${{ matrix.task }}" = "test" ]; then
             bun test
@@ -107,7 +112,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.3'
 
       - name: Install build dependencies
         run: |
@@ -161,7 +166,7 @@ jobs:
   # Uploads pre-built artifacts so Docker jobs skip rebuilding.
   build-and-perf-test:
     runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests]
+    needs: [frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -307,7 +312,7 @@ jobs:
 
   docker-site:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -358,11 +363,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-site-release
 
   # The released hypermedia/ tree becomes the developer docs on hyper.media once the
-  # site image is out. Only a real release (a tag, or a manual run from main) publishes;
-  # a branch run of this workflow builds branch images and leaves the docs alone.
+  # site image is out. Only a release tag publishes production documentation;
+  # branch runs (including main) leave the production docs alone.
   publish-hypermedia:
     needs: [docker-site]
-    if: github.ref_type == 'tag' || github.ref_name == 'main'
+    if: github.ref_type == 'tag'
     uses: ./.github/workflows/sync-hypermedia.yml
     with:
       target: production
@@ -370,7 +375,7 @@ jobs:
 
   docker-monitord:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -395,7 +400,7 @@ jobs:
 
   docker-relayd:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -420,7 +425,7 @@ jobs:
 
   docker-agents:
     runs-on: ubuntu-latest
-    needs: [image-tag, agents-tests]
+    needs: [image-tag, agents-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -437,13 +442,13 @@ jobs:
       - name: Get commit date
         run: echo "COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})" >> "$GITHUB_ENV"
 
-      - name: DockerHub Release seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
+      - name: DockerHub Release seedhypermedia/apps:${{ needs.image-tag.outputs.tag }}
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          file: agents/Dockerfile
-          tags: seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
+          file: apps/Dockerfile
+          tags: seedhypermedia/apps:${{ needs.image-tag.outputs.tag }},seedhypermedia/agents:${{ needs.image-tag.outputs.tag }}
           build-args: |
             VERSION=${{ needs.image-tag.outputs.tag }}
             COMMIT_HASH=${{ github.sha }}
@@ -454,7 +459,7 @@ jobs:
 
   docker-vault:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   if (token && accountId && eventId && Number.isFinite(eventAtMs)) {
     try {
-      const result = applyNotificationReadFromEmailLink({
+      const result = await applyNotificationReadFromEmailLink({
         token,
         accountId,
         eventId,

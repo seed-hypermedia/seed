@@ -1,8 +1,10 @@
 ---
 name: IPLD
-summary: InterPlanetary Linked Data, the data model with nine kinds that Hypermedia Schemas adopt.
+summary: IPLD (InterPlanetary Linked Data) is the data model of IPFS, and its nine kinds of value are the ones Hypermedia Schemas describe.
 ---
-**IPLD**: InterPlanetary Linked Data. It is the data model, with its nine [kinds](./kind.md), that Hypermedia Schemas adopt. [Hypermedia Schemas](../schema.md) are a schema layer over it. <!-- id:DFPV_ngv -->
+**IPLD** means InterPlanetary Linked Data. It is the data model of IPFS: a small set of rules for what a value can be. It has nine [kinds](./kind.md) of value, such as string, list, map and link. <!-- id:DFPV_ngv -->
+
+[Hypermedia Schemas](../schema.md) use this data model as it is. A schema is a layer on top: it says which IPLD values are valid for one type.
 
 # See also <!-- id:tdveyF7H -->
 

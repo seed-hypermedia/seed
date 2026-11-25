@@ -204,6 +204,9 @@ export function InspectIpfsPage({
   const contextDocTitle = contextDoc ? getMetadataName(contextDoc.metadata) : undefined
   const {selectedIdentity} = useUniversalAppContext()
   const signerUid = useStream(selectedIdentity) ?? null
+  // Every write here publishes a signed blob: without an account (logged out on
+  // web, no key on desktop) the page is read-only and offers no authoring entry points.
+  const canAuthor = !!signerUid
   const contextRoute: NavRoute | null = contextDocId ? {key: 'document', id: contextDocId} : null
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -277,7 +280,7 @@ export function InspectIpfsPage({
   }
 
   // "Edit…" edits in place: the published value becomes the draft.
-  const canEdit = !isDraft && !hasSubpath && (kind === 'cbor' || kind === 'text')
+  const canEdit = canAuthor && !isDraft && !hasSubpath && (kind === 'cbor' || kind === 'text')
   const startEdit = () => {
     if (kind === 'cbor') setEditJson(rawValue)
     else if (kind === 'text') setEditText(rawText ?? '')
@@ -371,7 +374,7 @@ export function InspectIpfsPage({
         icon: <Braces className="size-4" />,
         onClick: () => setRawMode((r) => !r),
       })
-    if (valueIsSchema && cid && !hasSubpath)
+    if (canAuthor && valueIsSchema && cid && !hasSubpath)
       menuItems.push({
         key: 'new-instance',
         label: 'New Instance of this Schema',
@@ -416,7 +419,7 @@ export function InspectIpfsPage({
         onClick: () => setAttachMode(true),
       })
   }
-  menuItems.push(...blobBuilderMenuItems(navigate))
+  if (canAuthor) menuItems.push(...blobBuilderMenuItems(navigate))
   const exitLink = useRouteLink(mode === 'view' && exitRoute ? exitRoute : null)
 
   let body: ReactNode
@@ -613,7 +616,17 @@ export function InspectIpfsPage({
         }
         cid={cid}
         shortCid={editField ? null : shortCid}
-        status={mode !== 'edit' ? null : isDraft ? 'Unpublished draft' : isDirty ? 'Unpublished changes' : null}
+        status={
+          mode !== 'edit'
+            ? null
+            : !canAuthor
+              ? 'Select an account to publish'
+              : isDraft
+                ? 'Unpublished draft'
+                : isDirty
+                  ? 'Unpublished changes'
+                  : null
+        }
         trafficLightInset={trafficLightInset}
         windowControls={windowControls}
         actions={
@@ -628,7 +641,9 @@ export function InspectIpfsPage({
                 <Button
                   size="sm"
                   onClick={() => (editField ? setConfirmOpen(true) : publish())}
-                  disabled={!(isDirty && !publishing && editJson !== undefined) || (!!editField && !contextDoc)}
+                  disabled={
+                    !canAuthor || !(isDirty && !publishing && editJson !== undefined) || (!!editField && !contextDoc)
+                  }
                   data-testid="blob-publish"
                 >
                   {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}

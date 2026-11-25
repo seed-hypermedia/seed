@@ -3,8 +3,13 @@ import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-const state = vi.hoisted(() => ({identity: null as any}))
+const state = vi.hoisted(() => ({identity: null as any, home: undefined as any}))
 vi.mock('@/auth', () => ({useLocalKeyPair: () => state.identity}))
+vi.mock('@/models/site', () => ({useUpdateHomeDocument: () => ({mutateAsync: vi.fn(), isPending: false})}))
+vi.mock('@shm/ui/space-settings', () => ({useSpaceHome: () => state.home}))
+vi.mock('@shm/ui/space-settings-navigation', () => ({
+  HeaderAddLink: () => <button>Add or edit links</button>,
+}))
 vi.mock('@shm/ui/universal-dialog', () => ({useAppDialog: vi.fn()}))
 vi.mock('@shm/ui/components/dropdown-menu', () => ({
   DropdownMenuItem: ({onSelect, children}: any) => (
@@ -13,7 +18,7 @@ vi.mock('@shm/ui/components/dropdown-menu', () => ({
     </button>
   ),
 }))
-import {WebSpaceSettingsMenuItem} from './web-space-settings-menu'
+import {WebHeaderAddLink, WebSpaceSettingsMenuItem} from './web-space-settings-menu'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 let root: Root
 let container: HTMLDivElement
@@ -31,7 +36,7 @@ describe.each([false, true])('Space Settings account menu (mobile=%s)', (mobile)
     state.identity = {id: 'device-key', delegatedAccountUid: 'owner'}
     const open = vi.fn()
     act(() => root.render(<WebSpaceSettingsMenuItem siteUid="owner" mobile={mobile} onSelect={open} />))
-    expect(container.textContent).toBe('Space Settings')
+    expect(container.textContent).toBe('Space settings')
     act(() => container.querySelector('button')!.click())
     expect(open).toHaveBeenCalledOnce()
   })
@@ -45,5 +50,23 @@ describe.each([false, true])('Space Settings account menu (mobile=%s)', (mobile)
     act(() => root.render(<WebSpaceSettingsMenuItem siteUid={siteUid} mobile={mobile} onSelect={vi.fn()} />))
     expect(container.textContent).toBe('')
     expect(container.querySelector('button')).toBeNull()
+  })
+})
+describe('Header add-link button', () => {
+  it('offers the owner the add-link button once the home document loads', () => {
+    state.identity = {id: 'device-key', delegatedAccountUid: 'owner'}
+    state.home = {metadata: {name: 'Owner'}}
+    act(() => root.render(<WebHeaderAddLink siteUid="owner" />))
+    expect(container.textContent).toBe('Add or edit links')
+  })
+  it.each([
+    ['another space', {id: 'key', delegatedAccountUid: 'someone-else'}, {metadata: {}}],
+    ['a reader who is not signed in', null, {metadata: {}}],
+    ['a home document that is still loading', {id: 'key', delegatedAccountUid: 'owner'}, undefined],
+  ])('offers nothing for %s', (_case, identity, home) => {
+    state.identity = identity
+    state.home = home
+    act(() => root.render(<WebHeaderAddLink siteUid="owner" />))
+    expect(container.textContent).toBe('')
   })
 })

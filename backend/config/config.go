@@ -19,11 +19,14 @@ import (
 
 // Base configuration.
 type Base struct {
-	DataDir            string
-	LogLevel           string
-	PublicOnly         bool
+	DataDir  string
+	LogLevel string
+	// ServerMode trusts deployment networking for API access and filters private reads.
+	ServerMode         bool
 	KeystoreDir        string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
 	VaultMemorySecrets bool   // If set, the vault keeps its secrets in memory instead of the OS keychain (for testing)
+	// APIAllowedOrigins adds exact browser origins for default-mode HTTP access.
+	APIAllowedOrigins string
 }
 
 // Default returns the default configuration.
@@ -31,7 +34,7 @@ func (c Base) Default() Base {
 	return Base{
 		DataDir:    "~/.mtt",
 		LogLevel:   "info",
-		PublicOnly: false,
+		ServerMode: false,
 	}
 }
 
@@ -39,7 +42,8 @@ func (c Base) Default() Base {
 func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "Path to a directory where to store node data")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Log verbosity debug | info | warning | error")
-	fs.BoolVar(&c.PublicOnly, "public-only", c.PublicOnly, "Only serve public data in APIs")
+	fs.BoolVar(&c.ServerMode, "server-mode", c.ServerMode, "Trust deployment networking for API access; restrict private reads to authorized callers")
+	fs.StringVar(&c.APIAllowedOrigins, "api.allowed-origins", c.APIAllowedOrigins, "Trusted browser origins, comma-separated (default mode only)")
 	fs.StringVar(&c.KeystoreDir, "keystore-dir", c.KeystoreDir, "Directory for file-based keystore (insecure, for testing only)")
 	fs.BoolVar(&c.VaultMemorySecrets, "vault-memory-secrets", c.VaultMemorySecrets, "Keep vault secrets in memory instead of the OS keychain, keys don't survive a restart (for testing only)")
 }
@@ -68,6 +72,7 @@ type Config struct {
 	LLM     LLM
 	Lndhub  Lndhub
 	Syncing Syncing
+	Storage Storage
 	Debug   Debug
 }
 
@@ -85,6 +90,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	c.LLM.BindFlags(fs)
 	c.Lndhub.BindFlags(fs)
 	c.Syncing.BindFlags(fs)
+	c.Storage.BindFlags(fs)
 	c.Debug.BindFlags(fs)
 }
 
@@ -98,6 +104,7 @@ func Default() Config {
 		LLM:     LLM{}.Default(),
 		Lndhub:  Lndhub{}.Default(),
 		Syncing: Syncing{}.Default(),
+		Storage: Storage{}.Default(),
 		Debug:   Debug{}.Default(),
 	}
 }
@@ -484,6 +491,25 @@ func (p2p P2P) IsBootstrap(p peer.ID) bool {
 }
 
 // Debug configuration.
+// Storage configures the on-disk store.
+type Storage struct {
+	// SQLiteSoftHeapLimit caps the heap memory SQLite holds across every
+	// connection of the process, in bytes. Above it page caches recycle
+	// their oldest pages instead of growing. Zero means no limit.
+	SQLiteSoftHeapLimit int64
+}
+
+// Default storage configuration.
+func (s Storage) Default() Storage {
+	return Storage{}
+}
+
+// BindFlags binds the storage configuration flags.
+func (s *Storage) BindFlags(fs *flag.FlagSet) {
+	fs.Int64Var(&s.SQLiteSoftHeapLimit, "storage.sqlite-soft-heap-limit", s.SQLiteSoftHeapLimit, "Bytes of heap memory SQLite may hold across all connections before page caches recycle instead of growing (0 = no limit)")
+}
+
+// Debug configures debugging aids.
 type Debug struct {
 	DBReindexProfileDir string
 }

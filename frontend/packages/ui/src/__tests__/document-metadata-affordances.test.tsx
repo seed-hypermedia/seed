@@ -3,11 +3,16 @@ import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+vi.mock('../image-processing', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../image-processing')>()),
+  processImage: vi.fn((file: File) => Promise.resolve(file)),
+}))
 import {
   DocumentMetadataAffordanceButtons,
   EditableDocumentMetadataFields,
   HomeDocumentMetadataAffordanceBar,
 } from '../document-metadata-affordances'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage} from '../image-processing'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -28,6 +33,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  vi.mocked(processImage).mockClear()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -148,6 +154,7 @@ describe('DocumentMetadataAffordanceButtons', () => {
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({icon: 'ipfs://bafyicon'})
+    expect(processImage).toHaveBeenCalledWith(file, AVATAR_IMAGE_POLICY)
   })
 
   it('uploads a cover image chosen from the cover picker', async () => {
@@ -162,6 +169,7 @@ describe('DocumentMetadataAffordanceButtons', () => {
 
     expect(fileUpload).toHaveBeenCalledWith(file)
     expect(onMetadata).toHaveBeenCalledWith({cover: 'ipfs://bafycover'})
+    expect(processImage).toHaveBeenCalledWith(file, COVER_IMAGE_POLICY)
   })
 
   it('keeps invisible affordances out of the tab order', () => {

@@ -27,23 +27,34 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
+/** Parses a typed web address, allowing bare domains while leaving search text and other schemes alone. */
+export function parseBrowserAddress(input: string): string | null {
+  const value = input.trim()
+  const explicitHttp = /^https?:\/\//i.test(value)
+  if (!explicitHttp && (/\s/.test(value) || (!value.includes('.') && !/^localhost(?::|\/|$)/.test(value)))) return null
+  if (!explicitHttp && /^[a-z][a-z\d+.-]*:/i.test(value) && !/^localhost:\d/.test(value)) return null
+  try {
+    const url = new URL(explicitHttp ? value : `${/^localhost(?::|\/|$)/.test(value) ? 'http' : 'https'}://${value}`)
+    return url.hostname && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 /**
- * Returns the current site's custom domain only when it is actively resolving
- * to the same account as the page shown in the desktop omnibar.
+ * Selects the site's URL for the desktop omnibar, including a gateway's own
+ * home space. A successful domain check must resolve to the current account.
  */
 export function selectValidatedOmnibarSiteUrl(params: {
   candidateSiteUrl?: string | null
-  gatewayUrl: string
   accountUid?: string | null
   registeredAccountUid?: string | null
   domainStatus?: string | null
   isDomainLoading?: boolean
 }): string | null {
   const candidateHostname = getUrlHostname(params.candidateSiteUrl)
-  const gatewayHostname = getUrlHostname(params.gatewayUrl)
 
   if (!params.candidateSiteUrl || !candidateHostname) return null
-  if (gatewayHostname && candidateHostname === gatewayHostname) return null
 
   // Domain check still in flight — optimistically show what the user typed.
   if (params.isDomainLoading) return params.candidateSiteUrl
@@ -117,7 +128,18 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   const agentRoute = agentUrlToRoute(url)
   if (agentRoute) return agentRoute
 
-  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {
+    url: cleanUrl,
+    isInspect,
+    viewTerm,
+    activityFilter,
+    commentId,
+    accountUid,
+    agentView,
+    agentSessionId,
+    agentTriggerId,
+    settingsTab,
+  } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -127,14 +149,47 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   try {
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
+    // `/:settings/<site tab>` is the site's settings even under a path, as in url-to-route.
+    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length && !settingsTab)) {
+      const query = new URL(url).searchParams
+      return {
+        key: 'document',
+        id: result.hmId,
+        agentView: agentView || 'settings',
+        agentSessionId,
+        agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+        agentMemoryPath: query.get('file') || undefined,
+      }
+    }
 
-    const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
+    const replyCommentId = new URL(cleanUrl).searchParams.get('reply')
+    const baseRoute = result.panel
+      ? createDocumentNavRoute(result.hmId, null, result.panel, null, null, null, replyCommentId)
+      : appRouteOfId(result.hmId)
     if (!baseRoute) return null
 
-    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect)
+    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect, replyCommentId)
   } catch {
     return null
   }
+}
+
+/** Where an address typed into the omnibar goes: a Seed route, the integrated browser, or the system browser. */
+export type OmnibarNavigation = {route: NavRoute} | {externalUrl: string} | null
+
+/**
+ * Hypermedia addresses always resolve to a route. Any other website opens in the integrated browser
+ * while it is on, which the caller answers from the main process, and in the system browser otherwise.
+ */
+export async function resolveOmnibarNavigation(
+  url: string,
+  opts: ResolveOptions & {isWebBrowserEnabled: () => Promise<boolean>},
+): Promise<OmnibarNavigation> {
+  const {isWebBrowserEnabled, ...resolveOpts} = opts
+  const route = await resolveOmnibarUrlToRoute(url, resolveOpts)
+  if (route) return {route}
+  if (!/^https?:\/\//.test(url)) return null
+  return (await isWebBrowserEnabled()) ? {route: {key: 'web', url}} : {externalUrl: url}
 }
 
 /**
@@ -211,12 +266,8 @@ export function agentUrlToRoute(input: string): NavRoute | null {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     if (segments[0] !== 'agents') return null
-    if (segments.length === 1) {
-      url.pathname = '/'
-      url.search = ''
-      url.hash = ''
-      return {key: 'agent-server', serverUrl: normalizeAgentServerUrl(url.toString())}
-    }
+    // A bare `/agents` names the server, not a place in the app: there is no server page.
+    if (segments.length === 1) return null
     const agentId = segments[1]
     url.pathname = '/'
     url.search = ''
@@ -259,6 +310,7 @@ function applyResolvedViewTerm(
   commentId?: string,
   accountUid?: string,
   isInspect?: boolean,
+  replyCommentId?: string | null,
 ): NavRoute {
   if (route.key !== 'document') return route
 
@@ -281,6 +333,7 @@ function applyResolvedViewTerm(
       id: {...route.id, version: null, latest: true},
       openComment: commentId,
       openCommentVersion: route.id.version || undefined,
+      replyCommentId: replyCommentId || undefined,
     }
   }
 

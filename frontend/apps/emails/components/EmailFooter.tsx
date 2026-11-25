@@ -1,4 +1,5 @@
 import {MjmlColumn, MjmlSection, MjmlText} from '@faire/mjml-react'
+import {emailTheme} from './EmailLayout'
 
 /** Props for the unified email footer. */
 export interface EmailFooterProps {
@@ -10,7 +11,7 @@ export interface EmailFooterProps {
   manageNotificationsUrl?: string
 }
 
-const linkStyle: React.CSSProperties = {color: '#068f7b', textDecoration: 'underline'}
+const linkStyle: React.CSSProperties = {color: emailTheme.primaryText, textDecoration: 'underline'}
 
 /** Unified footer rendered at the bottom of every outbound email. */
 export function EmailFooter({siteUrl, unsubscribeUrl, manageNotificationsUrl}: EmailFooterProps) {
@@ -22,12 +23,12 @@ export function EmailFooter({siteUrl, unsubscribeUrl, manageNotificationsUrl}: E
   return (
     <>
       {siteUrl ? (
-        <MjmlSection padding="24px 24px 16px">
+        <MjmlSection padding={`16px ${emailTheme.gutter} 32px`}>
           <MjmlColumn>
-            <MjmlText fontSize="13px" color="#6b7280" align="center" lineHeight="1.6" padding="0">
+            <MjmlText fontSize="14px" color={emailTheme.primaryText} align="center" lineHeight="1.6" padding="0">
               With 💚
               <br />
-              <a href={siteUrl} style={{color: '#068f7b', textDecoration: 'none'}}>
+              <a href={siteUrl} style={linkStyle}>
                 {siteUrl}
               </a>
             </MjmlText>
@@ -35,16 +36,20 @@ export function EmailFooter({siteUrl, unsubscribeUrl, manageNotificationsUrl}: E
         </MjmlSection>
       ) : null}
 
-      <MjmlSection backgroundColor="#fdf8ee" padding="24px 24px 20px" borderRadius="0">
+      <MjmlSection
+        backgroundColor={emailTheme.footerBackground}
+        padding={`32px ${emailTheme.gutter}`}
+        borderRadius={`0 0 ${emailTheme.cardRadius} ${emailTheme.cardRadius}`}
+      >
         <MjmlColumn>
-          <MjmlText fontSize="12px" color="#6b7280" lineHeight="1.6" align="center" padding="0 0 12px">
+          <MjmlText fontSize="14px" color={emailTheme.body} lineHeight="1.6" padding="0 0 16px">
             You're receiving this email because someone signed up for an account using this address. This is a
             transactional email related to your account security.
           </MjmlText>
-          <MjmlText fontSize="12px" align="center" lineHeight="1.6" padding="0">
+          <MjmlText fontSize="14px" lineHeight="1.6" padding="0">
             {links.map((link, i) => (
               <span key={link.label}>
-                {i > 0 ? '    ' : ''}
+                {i > 0 ? <span style={{display: 'inline-block', width: '36px'}} /> : null}
                 <a href={link.href} style={linkStyle}>
                   {link.label}
                 </a>

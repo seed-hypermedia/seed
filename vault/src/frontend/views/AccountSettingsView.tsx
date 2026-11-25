@@ -2,8 +2,6 @@ import {AccountNotificationsSection} from '@/frontend/components/AccountNotifica
 import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {RecoveryWordsReminder} from '@/frontend/components/RecoveryWordsReminder'
-import {Input} from '@/frontend/components/ui/input'
-import {Label} from '@/frontend/components/ui/label'
 import {getProfileAvatarImageSrc, getProfileDisplayName, type AccountProfileSummary} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
@@ -16,7 +14,7 @@ import {ACCOUNT_SETTINGS_TAB_LABELS, type AccountSettingsTab} from '@shm/ui/comp
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
-import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
+import {ImportAccountDialog} from '@/frontend/components/ImportAccountDialog'
 import {Monitor, Smartphone, Tablet} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
 import {useLocation, useNavigate} from 'react-router-dom'
@@ -236,7 +234,11 @@ export function AccountSettingsView() {
         </AccountSettingsLayout>
 
         <CreateAccountDialog />
-        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+        <ImportAccountDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={(principal) => navigate({pathname: '/', hash: formatAccountHash(principal)})}
+        />
       </div>
 
       <ExportKeyDialog
@@ -334,43 +336,6 @@ function DevicesTabContent({account}: {account: vault.Account}) {
           dateLabel: new Date(session.createTime).toLocaleDateString(),
         }
       })}
-    />
-  )
-}
-
-function ImportDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}): ReactNode {
-  const actions = useActions()
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-
-  useEffect(() => {
-    if (!open) setSelectedFile(null)
-  }, [open])
-
-  return (
-    <ImportKeyDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      hasFile={!!selectedFile}
-      renderFileField={({clearError}) => (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="import-key-file">Key File</Label>
-          <Input
-            id="import-key-file"
-            type="file"
-            accept=".hmkey.json,application/json"
-            onChange={(event) => {
-              setSelectedFile(event.target.files?.[0] ?? null)
-              clearError()
-            }}
-          />
-          {selectedFile ? <p className="text-muted-foreground text-sm break-all">{selectedFile.name}</p> : null}
-        </div>
-      )}
-      onImport={async (password) => {
-        if (!selectedFile) throw new Error('Key file is required')
-        const contents = await selectedFile.text()
-        await actions.importAccount(contents, password)
-      }}
     />
   )
 }

@@ -5,25 +5,25 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, NavRoute, SearchResult, useRouteLink, useValidatedWebRouteLink} from '@shm/shared'
+import {getMetadataName, NavRoute, SearchResult, useValidatedWebRouteLink} from '@shm/shared'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DocumentMaintenanceTrigger} from './document-maintenance'
 import {DraftBadge} from './draft-badge'
-import {ChevronDown, Close, Menu, Search} from './icons'
+import {ChevronDown, Close, Menu} from './icons'
 import {SmallListItem} from './list-item'
 import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, Lock} from 'lucide-react'
+import {Lock} from 'lucide-react'
 import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {MobileSearch} from './search'
-import {focusExploreSearch} from './explore-search-focus'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -65,72 +65,7 @@ function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedH
     .sort((a, b) => (b.id?.path?.length ?? 0) - (a.id?.path?.length ?? 0))[0]?.key
 }
 
-/**
- * Site header entry point to Explore page, scoped to the space being viewed.
- */
-function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
-  const linkRef = useRef<HTMLAnchorElement>(null)
-  const linkProps = useRouteLink(
-    {
-      key: 'explore',
-      context: {type: 'site', id: {...siteHomeId, latest: true, version: null}},
-    },
-    {onClick: focusExploreSearch},
-  )
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      if (!(event.metaKey || event.ctrlKey) || event.key !== 'k') return
-      event.preventDefault()
-      // Click the anchor rather than navigating directly, so the shortcut and the button share one
-      // navigation path and cannot drift apart.
-      linkRef.current?.click()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  return (
-    <Tooltip content="Explore">
-      <Button asChild variant="ghost" size="icon" className="h-8 rounded-full border-1 border-transparent p-0">
-        <a ref={linkRef} aria-label="Explore" {...linkProps}>
-          <Search className="size-4" />
-        </a>
-      </Button>
-    </Tooltip>
-  )
-}
-
-// Site header entry point to the space Activity Feed.
-function FeedHeaderButton({siteHomeId, isActive}: {siteHomeId: UnpackedHypermediaId; isActive: boolean}) {
-  const linkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-  return (
-    <Tooltip content="Activity Feed">
-      <Button
-        asChild
-        variant="ghost"
-        size="icon"
-        className={cn('h-8 rounded-full border-1 border-transparent p-0', isActive && 'dark:bg-muted bg-black/5')}
-      >
-        <a
-          aria-label="Activity Feed"
-          aria-current={isActive ? 'page' : undefined}
-          onMouseEnter={() => {
-            import('./feed').catch(() => {})
-          }}
-          {...linkProps}
-        >
-          <Activity className="size-4" />
-        </a>
-      </Button>
-    </Tooltip>
-  )
-}
+export const EditNavPanePlacementContext = React.createContext<'header' | 'menu'>('header')
 
 export function SiteHeader({
   siteHomeId,
@@ -148,7 +83,7 @@ export function SiteHeader({
   isLatest: _isLatest,
   editNavPane,
   editNavPanePortalRef,
-  isMainFeedVisible = false,
+  editNavMenuPortalRef,
   wrapperClassName,
   notifyServiceHost: _notifyServiceHost,
   routeType,
@@ -170,7 +105,7 @@ export function SiteHeader({
   isLatest?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
-  isMainFeedVisible: boolean
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
@@ -193,24 +128,28 @@ export function SiteHeader({
   const homeDoc = isHomeView
     ? {document, id: docId} // On home page — document IS the home doc
     : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
+  // Mobile-only menu trigger, rendered after the right actions so it sits at the far right.
+  const mobileMenuButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn('md:hidden')}
+      aria-label="Open menu"
+      onClick={() => {
+        setIsMobileMenuOpen(true)
+      }}
+    >
+      <Menu size={20} />
+    </Button>
+  )
   const headerSearch = (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn('md:hidden')}
-        onClick={() => {
-          setIsMobileMenuOpen(true)
-        }}
-      >
-        <Menu size={20} />
-      </Button>
       {siteHomeId && !IS_DESKTOP ? (
-        <div className="hidden items-center gap-1 md:flex">
-          <ExploreHeaderButton siteHomeId={siteHomeId} />
-          <FeedHeaderButton siteHomeId={siteHomeId} isActive={isMainFeedVisible} />
-          <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
-          <DocumentMaintenanceTrigger compact />
+        <div className="hidden items-center gap-4 md:flex">
+          <div className="flex items-center gap-1">
+            <AssistantPanelHeaderButton />
+            <DocumentMaintenanceTrigger compact />
+          </div>
         </div>
       ) : null}
     </>
@@ -251,7 +190,7 @@ export function SiteHeader({
     <header
       ref={headerRef}
       className={cn(
-        'border-border dark:bg-background relative z-40 flex w-full transform-gpu border-b bg-white px-4 py-2 transition-transform duration-200',
+        'border-border dark:bg-background relative z-40 flex w-full transform-gpu border-b bg-white py-2 pr-4 pl-2 transition-transform duration-200',
         {
           'flex-col': isCenterLayout,
           'flex-row items-center': !isCenterLayout,
@@ -264,7 +203,7 @@ export function SiteHeader({
       <div
         className={cn('flex min-w-0 items-center self-stretch sm:shrink-0', {
           'justify-center md:relative': isCenterLayout,
-          'flex-start': !isCenterLayout,
+          'flex-start gap-2': !isCenterLayout,
         })}
       >
         <div className={cn('flex min-w-0 overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : '')}>
@@ -274,6 +213,7 @@ export function SiteHeader({
           <div className="flex items-center gap-2 md:absolute md:right-0">
             {!IS_DESKTOP && headerSearch}
             {rightActions}
+            {!IS_DESKTOP && mobileMenuButton}
           </div>
         ) : null}
       </div>
@@ -296,6 +236,7 @@ export function SiteHeader({
       <div className="flex items-center gap-2">
         {!isCenterLayout && headerSearch}
         {!isCenterLayout && rightActions}
+        {!isCenterLayout && mobileMenuButton}
       </div>
       <MobileMenu
         open={isMobileMenuOpen}
@@ -327,12 +268,21 @@ export function SiteHeader({
                         setIsMobileMenuOpen(false)
                       }}
                     />
-                    <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
+                {editNavPane || editNavMenuPortalRef ? (
+                  // Collapse for readers who aren't the owner.
+                  <div ref={editNavMenuPortalRef} className="-mt-2 mb-4 flex flex-col px-1 empty:hidden">
+                    {editNavPane ? (
+                      <EditNavPanePlacementContext.Provider value="menu">
+                        {editNavPane}
+                      </EditNavPanePlacementContext.Provider>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!IS_DESKTOP && (
                   <div className="mb-4 flex flex-col gap-2 px-1">
-                    <AssistantPanelMenuItem siteUid={siteHomeId.uid} onClick={() => setIsMobileMenuOpen(false)} />
+                    <AssistantPanelMenuItem onClick={() => setIsMobileMenuOpen(false)} />
                     <DocumentMaintenanceTrigger onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
@@ -401,7 +351,7 @@ function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick
 }
 
 function MobileWebLinkItem({item, onClick}: {item: DocNavigationItem; onClick?: () => void}) {
-  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick})
+  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick, newWindow: true})
 
   return <SmallListItem bold title={getMetadataName(item.metadata)} {...linkProps} />
 }
@@ -424,26 +374,6 @@ function MobileMenuOutline({
   )
 }
 
-function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId; onClick?: () => void}) {
-  const feedLinkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-
-  return (
-    <SmallListItem
-      bold
-      title="Activity Feed"
-      icon={<Activity className="size-4" />}
-      {...feedLinkProps}
-      onClick={(e) => {
-        feedLinkProps.onClick?.(e)
-        onClick?.()
-      }}
-    />
-  )
-}
-
 function OverflowMenuItem({
   item,
 }: {
@@ -462,6 +392,8 @@ function OverflowMenuItem({
       : item.id
         ? {key: 'document', id: {...item.id, latest: true, version: null}}
         : item.webUrl || '',
+    // External links open in a new tab so readers keep their place on the site.
+    {newWindow: !item.draftId && !item.id && !!item.webUrl},
   )
   return (
     <DropdownMenuItem {...linkProps}>
@@ -501,13 +433,17 @@ function HeaderLinkItem({
             id: {...id, latest: true, version: null},
           }
         : webUrl || null,
+    // External links open in a new tab so readers keep their place on the site.
+    {newWindow: !draftId && !id && !!webUrl},
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')}>
       <a
         className={cn(
-          'cursor-pointer truncate border-b-2 px-1 pb-1 font-bold transition-colors select-none',
-          active ? 'border-foreground text-foreground' : 'text-muted-foreground hover:border-accent border-transparent',
+          'cursor-pointer truncate border-y-2 border-t-transparent px-1 py-1 font-bold transition-colors select-none',
+          active
+            ? 'border-b-foreground text-foreground'
+            : 'text-muted-foreground hover:border-b-accent border-b-transparent',
         )}
         {...linkProps}
       >
@@ -555,8 +491,8 @@ export function SiteHeaderMenu({
     <div
       ref={containerRef}
       className={cn(
-        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
-        'md:flex md:py-2 md:pr-0 md:pl-2',
+        'group/nav relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
+        'md:flex md:py-1 md:pr-0 md:pl-2',
         isCenterLayout ? 'justify-center' : 'justify-start',
       )}
     >
@@ -621,7 +557,8 @@ export function SiteHeaderMenu({
       )}
       {(editNavPane || editNavPanePortalRef) && (
         <div
-          className="shrink-0"
+          // Shown on hover on desktop and always on mobile.
+          className="shrink-0 opacity-0 transition-opacity group-hover/nav:opacity-100 focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
           ref={(node) => {
             editNavPaneRef.current = node
             editNavPanePortalRef?.(node)
@@ -634,6 +571,7 @@ export function SiteHeaderMenu({
   )
 }
 
+/** Full-screen mobile navigation, portaled above the header and document controls. */
 export function MobileMenu({
   renderContent,
   open,
@@ -643,7 +581,11 @@ export function MobileMenu({
   open: boolean
   onClose: () => void
 }) {
-  return (
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  useEffect(() => setPortalTarget(document.body), [])
+  if (!portalTarget) return null
+
+  return createPortal(
     <div
       className={cn(
         'bg-background fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col transition-transform duration-200 md:hidden',
@@ -651,7 +593,7 @@ export function MobileMenu({
       )}
     >
       <div className="flex flex-0 items-center justify-end p-4">
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label="Close navigation menu" onClick={onClose}>
           <Close className="size-4" />
         </Button>
       </div>
@@ -659,7 +601,8 @@ export function MobileMenu({
         {open ? renderContent() : null}
         <div className="h-20"></div>
       </ScrollArea>
-    </div>
+    </div>,
+    portalTarget,
   )
 }
 

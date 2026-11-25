@@ -36,9 +36,11 @@ import {
   takeOverHost,
   autoUpdates,
   clearSeedCron,
+  migrateLegacyCron,
   handleForeignStack,
   getRunningInstallDir,
   installWrapper,
+  resolveBunPath,
   getContainerImages,
   checkForNewImages,
   expectedServiceImages,
@@ -416,7 +418,9 @@ describe('generateCaddyfile', () => {
   test('routes /hm/api/agents to the agents service only when enabled, open like the site', () => {
     expect(generateCaddyfile(makeTestConfig())).not.toContain('seed-agents')
     const caddy = generateCaddyfile(makeTestConfig({agents: true}))
-    expect(caddy).toMatch(/@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\*\n\}/)
+    expect(caddy).toMatch(
+      /@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\* \/hm\/api\/apps \/hm\/api\/apps\/\*\n\}/,
+    )
     expect(caddy).toContain('reverse_proxy @agentsroute seed-agents:3050')
     expect(caddy.indexOf('reverse_proxy @agentsroute')).toBeLessThan(caddy.indexOf('reverse_proxy * seed-web'))
     expect(caddy).not.toContain('forward_auth')
@@ -836,7 +840,7 @@ describe('docker-compose image refs', () => {
     expect(agents).toMatch(/profiles:\n\s+- agents\n/)
     expect(agents).toContain('SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}')
     expect(agents).toContain('${SEED_SITE_WORKSPACE}/agents:/data')
-    expect(compose).toContain("SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://agentic.seed.hyper.media}'")
+    expect(compose).toContain("SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://hyper.media/hm/api/apps}'")
   })
 })
 
@@ -1020,6 +1024,53 @@ describe('containersMatchReleaseChannel', () => {
   test('false when docker is unavailable', () => {
     expect(containersMatchReleaseChannel(makeNoopShell(), makeTestConfig())).toBe(false)
   })
+
+  test('true when both configured image overrides match the running containers', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({
+          release_channel: 'main',
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  test('false when the running containers use channel images instead of configured overrides', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({
+          release_channel: 'main',
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  test('uses the release-channel image for a service without an override', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({release_channel: 'main', web_image: 'ghcr.io/horacioh/seed-web:main'}),
+      ),
+    ).toBe(true)
+  })
 })
 
 describe('detectForeignStack / assertNoForeignStack', () => {
@@ -1129,6 +1180,118 @@ describe('clearSeedCron', () => {
     const {shell, commands} = makeRecordingShell({'crontab -l': '0 0 * * * /backup.sh'})
     clearSeedCron(shell)
     expect(commands.find((c) => c.includes('| crontab -'))).toBeUndefined()
+  })
+})
+
+describe('resolveBunPath', () => {
+  test('uses the running bun executable when PATH lookup fails', () => {
+    expect(resolveBunPath(makeNoopShell())).toBe(process.execPath)
+  })
+})
+
+describe('migrateLegacyCron', () => {
+  const paths = makePaths('/opt/seed')
+  const legacyCrontab = [
+    '0 2 * * * /root/.bun/bin/bun "/opt/seed/deploy.js" upgrade >> "/opt/seed/deploy.log" 2>&1; /root/.bun/bin/bun "/opt/seed/deploy.js" deploy >> "/opt/seed/deploy.log" 2>&1 # seed-deploy',
+    '0 0,4,8,12,16,20 * * * docker image prune -a -f --filter "until=1h" # seed-cleanup',
+  ].join('\n')
+
+  test('replaces a legacy schedule and writes the fixed script wrapper', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+      'test -f': 'ok',
+      'base64 -d': 'ok',
+      'crontab -': 'ok',
+    })
+
+    await migrateLegacyCron(paths, shell, '/opt/seed/deploy.js')
+
+    const cronWrite = commands.find((command) => command.includes('| crontab -'))!
+    const crontab = cronWrite.match(/echo '([\s\S]*)' \| crontab -/)?.[1] ?? ''
+    expect(crontab).toContain('*/10')
+    expect(crontab).toContain('/usr/local/lib/seed/deploy.js')
+    expect(crontab).toContain('--dir "/opt/seed"')
+    expect(crontab).toContain('/root/.bun/bin/bun')
+    expect(crontab).not.toContain('0 2 * * *')
+
+    const wrapperWrite = commands.find((command) => command.includes('base64 -d >'))!
+    const wrapperBase64 = wrapperWrite.match(/echo (\S+) \|/)![1]
+    expect(Buffer.from(wrapperBase64, 'base64').toString('utf-8')).toContain('/usr/local/lib/seed/deploy.js')
+  })
+
+  test('does not rewrite an already-current seed crontab', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': buildCrontab('', paths, '/root/.bun/bin/bun'),
+      'command -v bun': '/root/.bun/bin/bun',
+    })
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('does not write when no seed cron line exists', async () => {
+    const {shell, commands} = makeRecordingShell({'crontab -l': '0 0 * * * /backup.sh'})
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('does not take over a seed cron line owned by another node', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l':
+        '*/10 * * * * /usr/local/bin/bun /usr/local/lib/seed/deploy.js --dir "/opt/seed-other" deploy # seed-deploy',
+    })
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('leaves the legacy cron untouched when the script cannot be installed', async () => {
+    const scriptDir = await mkdtemp(join(tmpdir(), 'seed-cron-migration-'))
+    const scriptPath = join(scriptDir, 'deploy.js')
+    await writeFile(scriptPath, 'legacy deploy script')
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+      'test -f': 'ok',
+    })
+
+    try {
+      await migrateLegacyCron(paths, shell, scriptPath)
+      expect(commands.filter((command) => command.includes('cp '))).toHaveLength(2)
+      expect(commands.find((command) => command.includes('test -f'))).toBeDefined()
+      expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+      expect(commands.find((command) => command.includes('base64 -d >'))).toBeUndefined()
+    } finally {
+      await rm(scriptDir, {recursive: true, force: true})
+    }
+  })
+
+  test('uses sudo to copy the script and gives the cron user ownership', async () => {
+    const scriptDir = await mkdtemp(join(tmpdir(), 'seed-cron-migration-'))
+    const scriptPath = join(scriptDir, 'deploy.js')
+    await writeFile(scriptPath, 'legacy deploy script')
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+      'sudo mkdir': 'ok',
+      'test -f': 'ok',
+      'base64 -d': 'ok',
+      'crontab -': 'ok',
+    })
+
+    try {
+      await migrateLegacyCron(paths, shell, scriptPath)
+      const sudoCopy = commands.find((command) => command.includes('sudo mkdir'))!
+      expect(sudoCopy).toContain('sudo chown "$(id -u):$(id -g)"')
+      expect(commands.find((command) => command.includes('| crontab -'))).toBeDefined()
+    } finally {
+      await rm(scriptDir, {recursive: true, force: true})
+    }
   })
 })
 
@@ -2361,13 +2524,13 @@ describe('enterprise: profile helpers', () => {
     expect(notifyHost(makeEnterpriseConfig())).toBe('')
     expect(notifyHost(makeEnterpriseConfig({notify: true}))).toBe('https://example.org/hm/api/notify')
     expect(agentsHost(makeEnterpriseConfig())).toBe('')
-    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://example.org/hm/api/agents')
+    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://example.org/hm/api/apps')
     // The site profile keeps the hosted notify service, now on hyper.media itself.
     expect(NOTIFY_SERVICE_HOST).toBe('https://hyper.media/hm/api/notify')
     expect(notifyHost(makeTestConfig())).toBe(NOTIFY_SERVICE_HOST)
     expect(notifyHost(makeTestConfig({notify: true}))).toBe(NOTIFY_SERVICE_HOST)
     expect(agentsHost(makeTestConfig())).toBe('')
-    expect(agentsHost(makeTestConfig({agents: true}))).toBe('https://node1.seed.run/hm/api/agents')
+    expect(agentsHost(makeTestConfig({agents: true}))).toBe('https://node1.seed.run/hm/api/apps')
   })
 
   test('compose profiles follow the config', () => {
@@ -2689,7 +2852,8 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain('COMPOSE_PROFILES="notify,agents,metrics"')
     expect(env).toContain('SEED_NOTIFY_HOST="https://example.org/hm/api/notify"')
     expect(env).toContain('NOTIFY_SERVICE_HOST="https://example.org/hm/api/notify"')
-    expect(env).toContain('SEED_AGENTS_HOST="https://example.org/hm/api/agents"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://example.org/hm/api/apps"')
+    expect(env).toContain('SEED_AGENTS_PUBLIC_URL="https://example.org/hm/api/apps"')
     expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
     expect(env).toContain('SEED_SMTP_HOST="smtp.example.org"')
     expect(env).toContain('SEED_SMTP_PORT="2587"')
@@ -2710,7 +2874,9 @@ describe('enterprise: buildComposeEnv', () => {
   test('site profile with agents passes its own agents URL and the profile', () => {
     const env = buildComposeEnv(makeTestConfig({agents: true, agents_kvm: true}), makePaths('/opt/seed'))
     expect(env).toContain('COMPOSE_PROFILES="agents"')
-    expect(env).toContain('SEED_AGENTS_HOST="https://node1.seed.run/hm/api/agents"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://node1.seed.run/hm/api/apps"')
+    // The app server knows it is the site itself, under /hm/api/apps.
+    expect(env).toContain('SEED_AGENTS_PUBLIC_URL="https://node1.seed.run/hm/api/apps"')
     expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
     expect(env).not.toContain('SEED_SERVICE_SECRET')
   })
@@ -2830,10 +2996,12 @@ describe('enterprise: generateCaddyfile', () => {
     const webhook = caddy.indexOf('@agents_webhook {')
     expect(webhook).toBeGreaterThan(0)
     expect(webhook).toBeLessThan(gateStart)
-    expect(caddy).toMatch(/@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\*\n/)
+    expect(caddy).toMatch(
+      /@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\* \/hm\/api\/apps\/webhooks\/\*\n/,
+    )
 
     // Members only: /hm/api/agents (API and WebSocket) sits behind the gate, before the catch-all.
-    const gated = caddy.indexOf('@agents path /hm/api/agents /hm/api/agents/*')
+    const gated = caddy.indexOf('@agents path /hm/api/agents /hm/api/agents/* /hm/api/apps /hm/api/apps/*')
     expect(gated).toBeGreaterThan(gateStart)
     expect(caddy.slice(gated, caddy.indexOf('}', gated + 30) + 1)).toMatch(
       /handle @agents \{\s*import gate\s*reverse_proxy seed-agents:3050/,

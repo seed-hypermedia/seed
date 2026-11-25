@@ -2,7 +2,11 @@ import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
-import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
+import {
+  getPrevBlockInfo,
+  mergeBlocksCommand,
+  removeBlockKeepingChildren,
+} from '../../api/blockManipulation/commands/mergeBlocks'
 import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestBlock'
 import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
@@ -181,10 +185,21 @@ export const KeyboardShortcutsExtension = Extension.create<{
                     // still has text, Backspace just moves selection up onto the
                     // previous block; deleting here would silently drop that text.
                     if (!blockInfo.blockContent.node.textContent) {
-                      state.tr.deleteRange(
-                        blockInfo.block.beforePos + 1,
-                        blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
-                      )
+                      const prevSiblingInfo = getPrevBlockInfo(state.doc, blockInfo.block.beforePos)
+
+                      if (blockInfo.childContainer && prevSiblingInfo) {
+                        removeBlockKeepingChildren(
+                          state.tr,
+                          prevSiblingInfo.block.beforePos,
+                          blockInfo.block.beforePos,
+                          false,
+                        )
+                      } else {
+                        state.tr.deleteRange(
+                          blockInfo.block.beforePos + 1,
+                          blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
+                        )
+                      }
                     }
                     return true
                   }
@@ -432,15 +447,31 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleEnter = () =>
       this.editor.commands.first(({commands}) => [
-        // When the cursor is inside an image caption, let the React
-        // handler manage Enter behavior — do not create or split blocks.
+        // An image caption is inline content of the image block, so Enter must
+        // never split or create a block there: it moves the cursor to the next
+        // block instead, appending an empty paragraph when the image is last.
         () =>
-          commands.command(({state}) => {
+          commands.command(({state, tr, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
-            if (blockInfo.blockContentType === 'image' && !(state.selection instanceof NodeSelection)) {
-              return true
+            if (blockInfo.blockContentType !== 'image' || state.selection instanceof NodeSelection) return false
+            if (!dispatch) return true
+
+            const afterPos = blockInfo.block.afterPos
+            // `near` returns a NodeSelection when the next block is an atom
+            // (video, file, embed), so it is used as-is instead of being
+            // rewrapped into a TextSelection that has no textblock to live in.
+            const nextSelection = TextSelection.near(state.doc.resolve(afterPos), 1)
+            if (nextSelection.from > afterPos) {
+              tr.setSelection(nextSelection)
+            } else {
+              // The image is the last block: Enter appends a paragraph to type in.
+              const {blockNode, paragraph} = state.schema.nodes
+              if (!blockNode || !paragraph) return true
+              tr.insert(afterPos, blockNode.create(null, paragraph.create()))
+              tr.setSelection(TextSelection.create(tr.doc, afterPos + 2))
             }
-            return false
+            tr.scrollIntoView()
+            return true
           }),
         // Add a block on top of the current one, if the block is not
         // empty and the selection is at the start of that block,

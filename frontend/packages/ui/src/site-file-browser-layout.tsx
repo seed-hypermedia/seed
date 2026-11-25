@@ -1,281 +1,187 @@
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {FileSearch2 as FileSearchCorner, ListFilter, PanelLeftClose, Search, X} from 'lucide-react'
-import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState} from 'react'
-import {createPortal} from 'react-dom'
-import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {Button} from './button'
-import {SiteFileBrowser, type SiteFileBrowserProps} from './site-file-browser'
-import {Tooltip} from './tooltip'
+import {getRouteKey, useNavigate, useNavRouteOrNull} from '@shm/shared/utils/navigation'
+import {useEffect, useRef, useState, type ReactNode} from 'react'
+import {Group, Panel} from 'react-resizable-panels'
+import {Dialog, DialogContent, DialogTitle} from './components/dialog'
+import {focusExploreSearch} from './explore-search-focus'
+import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
+import type {SiteFileBrowserProps} from './site-file-browser'
+import {SiteSidebar, SiteSidebarDocuments} from './site-sidebar'
+import {SiteSidebarPortal, SiteSidebarProvider, usePersistedSidebarOpen, useSiteSidebar} from './site-sidebar-context'
 import {useMedia} from './use-media'
-import type {MenuItemType} from './options-dropdown'
 
-/** Collapse state of the inline file browser, shared with the page chrome below it. */
-export interface SiteFileBrowserControls {
-  collapsed: boolean
-  setCollapsed: (collapsed: boolean) => void
-  /**
-   * Claims the reveal button so the layout stops rendering its own floating
-   * fallback. Returns a release callback.
-   */
-  claimRevealButton: () => () => void
-}
-
-const SiteFileBrowserContext = createContext<SiteFileBrowserControls | null>(null)
-
-/** Returns the inline file browser controls, or null outside a site layout (Electron, embeds). */
-export function useSiteFileBrowserControls(): SiteFileBrowserControls | null {
-  return useContext(SiteFileBrowserContext)
-}
-
-/** Props for the responsive site file browser layout. */
-export interface SiteFileBrowserLayoutProps {
-  siteId: UnpackedHypermediaId
-  activeDocumentId: UnpackedHypermediaId | null
+/** Page-owned browser data; desktop renders it in the existing application sidebar. */
+export interface SiteFileBrowserLayoutProps
+  extends Omit<SiteFileBrowserProps, 'searchVisible' | 'onSearchVisibleChange'> {
   siteName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
-  onNavigate: (id: UnpackedHypermediaId) => void
-  onPrefetch?: (id: UnpackedHypermediaId) => void
-  createMenuItem?: MenuItemType | null
-  onIncludeDocument?: SiteFileBrowserProps['onIncludeDocument']
-  getIncludeDocumentState?: SiteFileBrowserProps['getIncludeDocumentState']
+  showDocumentBrowser?: boolean
   children: ReactNode
 }
 
-/** Places the site file browser inline on wide layouts and in a left drawer on mobile. */
-export function SiteFileBrowserLayout({
-  siteId,
-  activeDocumentId,
-  siteName,
+/** Consolidates the file browser into the application sidebar on both platforms. */
+export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
+  const sidebar = useSiteSidebar()
+  useCollapseOnArrival(props.siteId.uid, props.showDocumentBrowser, IS_DESKTOP ? sidebar : null)
+  if (IS_DESKTOP && sidebar) {
+    return (
+      <>
+        <SiteSidebarPortal>
+          <SiteSidebarDocuments {...props} />
+        </SiteSidebarPortal>
+        {props.children}
+      </>
+    )
+  }
+  return <WebSiteSidebarLayout {...props} />
+}
+
+// The space the sidebar last arrived at, and whether it collapsed there. Kept outside React because a page's
+// layout remounts as the reader moves between pages, while arriving at a space happens once per visit.
+const arrival: {spaceUid: string | null; collapsed: boolean} = {spaceUid: null, collapsed: false}
+
+/**
+ * Collapses the sidebar on arriving at a space whose document browser is off, and reopens it on leaving for a space
+ * where it's on, unless the reader opened it themselves in between.
+ */
+function useCollapseOnArrival(
+  spaceUid: string,
+  showDocumentBrowser: boolean | undefined,
+  sidebar: {open: boolean; setOpen: (open: boolean) => void} | null,
+) {
+  const open = sidebar?.open
+  // Opening the sidebar is the reader's choice, so it isn't undone on leaving the space.
+  useEffect(() => {
+    if (open) arrival.collapsed = false
+  }, [open])
+  useEffect(() => {
+    if (!sidebar || showDocumentBrowser === undefined || arrival.spaceUid === spaceUid) return
+    arrival.spaceUid = spaceUid
+    if (!showDocumentBrowser) {
+      if (sidebar.open) {
+        sidebar.setOpen(false)
+        arrival.collapsed = true
+      }
+    } else if (arrival.collapsed) {
+      arrival.collapsed = false
+      if (!sidebar.open) sidebar.setOpen(true)
+    }
+  }, [spaceUid, showDocumentBrowser, sidebar])
+}
+
+function WebSiteSidebarLayout({
+  children,
   mobileOpen,
   onMobileOpenChange,
-  onNavigate,
-  onPrefetch,
-  createMenuItem,
-  onIncludeDocument,
-  getIncludeDocumentState,
-  children,
+  siteName,
+  showDocumentBrowser,
+  ...props
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
-  const [isClient, setIsClient] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
-  const [searchVisible, setSearchVisible] = useState(false)
-  const desktopContainerRef = useRef<HTMLDivElement>(null)
-  const browserPanelRef = useRef<ImperativePanelHandle>(null)
-  const [minimumPercent, setMinimumPercent] = useState(20)
-  const [revealClaims, setRevealClaims] = useState(0)
-  const didSetInitialWidth = useRef(false)
-  const browser = (
-    <SiteFileBrowser
-      siteId={siteId}
-      activeDocumentId={activeDocumentId}
-      onNavigate={onNavigate}
-      onPrefetch={onPrefetch}
-      searchVisible={searchVisible}
-      onSearchVisibleChange={setSearchVisible}
-      createMenuItem={createMenuItem}
-      onIncludeDocument={onIncludeDocument}
-      getIncludeDocumentState={getIncludeDocumentState}
-      onCreate={() => {
-        if (isMobile) onMobileOpenChange(false)
-      }}
-    />
-  )
-  // Only the inline (wide) layout has a collapse affordance; the mobile drawer is
-  // opened from the site header, so page chrome below gets no controls there.
-  const controls = useMemo<SiteFileBrowserControls>(
-    () => ({
-      collapsed,
-      setCollapsed,
-      claimRevealButton: () => {
-        setRevealClaims((claims) => claims + 1)
-        return () => setRevealClaims((claims) => claims - 1)
-      },
-    }),
-    [collapsed],
-  )
-  const mobileControls = useMemo<SiteFileBrowserControls>(
-    () => ({
-      collapsed: !mobileOpen,
-      setCollapsed: (nextCollapsed) => onMobileOpenChange(!nextCollapsed),
-      claimRevealButton: () => () => {},
-    }),
-    [mobileOpen, onMobileOpenChange],
-  )
-
+  const [open, setOpen] = usePersistedSidebarOpen(IS_DESKTOP)
+  const [hydrated, setHydrated] = useState(false)
+  useCollapseOnArrival(props.siteId.uid, showDocumentBrowser, hydrated && !isMobile ? {open, setOpen} : null)
+  const layout = useSavedPanelLayout('site-sidebar', ['site-sidebar', 'site-main-content'])
+  const navigate = useNavigate()
+  const route = useNavRouteOrNull()
+  const routeKey = route ? getRouteKey(route) : props.activeDocumentId?.id
+  const triggerRef = useRef<HTMLElement | null>(null)
+  useEffect(() => setHydrated(true), [])
   useEffect(() => {
-    setIsClient(true)
-  }, [])
-
+    // Entering mobile or navigating (including browser history) closes only the drawer.
+    if (isMobile) onMobileOpenChange(false)
+  }, [isMobile, routeKey, props.siteId.uid, onMobileOpenChange])
   useEffect(() => {
-    if (!mobileOpen) return
-    const previousOverflow = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onMobileOpenChange(false)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (IS_DESKTOP) return
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      if (!(event.metaKey || event.ctrlKey) || event.key !== 'k') return
+      event.preventDefault()
+      focusExploreSearch()
+      onMobileOpenChange(false)
+      navigate({key: 'explore', context: {type: 'site', id: {...props.siteId, latest: true, version: null}}})
     }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.documentElement.style.overflow = previousOverflow
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [mobileOpen, onMobileOpenChange])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate, props.siteId.uid, onMobileOpenChange])
 
-  useEffect(() => {
-    if (isMobile || !desktopContainerRef.current) return
-    const updateConstraints = () => {
-      const width = desktopContainerRef.current?.getBoundingClientRect().width ?? 0
-      if (!width) return
-      setMinimumPercent(Math.min(40, (240 / width) * 100))
-      if (!didSetInitialWidth.current) {
-        browserPanelRef.current?.resize(Math.min(40, (288 / width) * 100))
-        didSetInitialWidth.current = true
-      }
-    }
-    updateConstraints()
-    const observer = new ResizeObserver(updateConstraints)
-    observer.observe(desktopContainerRef.current)
-    return () => observer.disconnect()
-  }, [isMobile])
-
-  if (!isClient) {
-    return (
-      <div className="flex min-h-0 flex-1">
-        <aside className="border-border dark:bg-background hidden h-full w-72 shrink-0 flex-col border-r bg-white md:flex">
-          <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
-          </div>
-          <div className="min-h-0 flex-1 p-3">
-            <div className="border-border bg-muted/40 h-9 rounded-md border" />
-            <div className="mt-3 space-y-2">
-              <div className="bg-muted h-4 w-3/4 rounded" />
-              <div className="bg-muted h-4 w-2/3 rounded" />
-              <div className="bg-muted h-4 w-1/2 rounded" />
-            </div>
-          </div>
-        </aside>
-        <div className="dark:bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
-          {children}
-        </div>
-      </div>
-    )
+  const closeDrawer = () => onMobileOpenChange(false)
+  const sidebar = (
+    <SiteSidebar
+      siteId={props.siteId}
+      siteSelectorModal={isMobile}
+      onNavigate={props.onNavigate}
+      onAfterNavigate={closeDrawer}
+    >
+      <SiteSidebarDocuments
+        {...props}
+        onNavigate={(id) => {
+          closeDrawer()
+          props.onNavigate(id)
+        }}
+        onCreate={closeDrawer}
+      />
+    </SiteSidebar>
+  )
+  const updateOpen = (value: boolean) => {
+    if (isMobile) {
+      if (value) triggerRef.current = document.activeElement as HTMLElement | null
+      onMobileOpenChange(value)
+    } else setOpen(value)
   }
-
-  if (isMobile) {
-    return (
-      <SiteFileBrowserContext.Provider value={mobileControls}>
-        <div className="min-h-0 flex-1">{children}</div>
-        {mobileOpen
-          ? createPortal(
-              <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="File browser">
-                <aside className="dark:bg-background motion-safe:animate-in motion-safe:slide-in-from-left flex h-dvh w-[80dvw] max-w-[80dvw] shrink-0 flex-col bg-white shadow-2xl motion-safe:duration-200 motion-safe:ease-out">
-                  <div className="border-border flex shrink-0 items-center border-b px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">Files</p>
-                      <p className="text-muted-foreground truncate text-xs">{siteName}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Search documents"
-                      onClick={() => setSearchVisible(true)}
-                    >
-                      <Search className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Close file browser"
-                      onClick={() => onMobileOpenChange(false)}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
-                  <div className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">{browser}</div>
-                </aside>
-                <button
-                  type="button"
-                  aria-label="Close file browser"
-                  className="motion-safe:animate-in motion-safe:fade-in h-dvh flex-1 bg-black/45 motion-safe:duration-200"
-                  onClick={() => onMobileOpenChange(false)}
-                />
-              </div>,
-              document.body,
-            )
-          : null}
-      </SiteFileBrowserContext.Provider>
-    )
-  }
-
   return (
-    <SiteFileBrowserContext.Provider value={controls}>
-      <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
-        <PanelGroup direction="horizontal" className="min-h-0 flex-1">
-          {!collapsed ? (
-            <>
-              <Panel
-                id="site-file-browser"
-                ref={browserPanelRef}
-                order={1}
-                defaultSize={24}
-                minSize={minimumPercent}
-                maxSize={40}
+    <SiteSidebarProvider open={isMobile ? mobileOpen : open} setOpen={updateOpen}>
+      {!hydrated || isMobile ? (
+        <>
+          {children}
+          {hydrated && (
+            <Dialog open={mobileOpen} onOpenChange={onMobileOpenChange}>
+              <DialogContent
+                aria-describedby={undefined}
+                className="site-sidebar-drawer inset-y-0 left-0 h-dvh w-4/5 max-w-sm translate-x-0 translate-y-0 rounded-none"
+                contentClassName="gap-0 p-0"
+                showCloseButton={false}
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault()
+                  triggerRef.current?.focus()
+                }}
               >
-                <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
-                  <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
-                    {!searchVisible ? (
-                      <Tooltip content="Filter Document List">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Filter documents"
-                          onClick={() => setSearchVisible(true)}
-                        >
-                          <ListFilter className="size-4" />
-                        </Button>
-                      </Tooltip>
-                    ) : null}
-                    <Tooltip content="Hide file explorer">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Collapse file browser"
-                        onClick={() => setCollapsed(true)}
-                      >
-                        <PanelLeftClose className="size-4" />
-                      </Button>
-                    </Tooltip>
-                  </div>
-                  <div className="min-h-0 flex-1">{browser}</div>
-                </aside>
-              </Panel>
-              <PanelResizeHandle className="panel-resize-handle" />
-            </>
-          ) : null}
-          <Panel id="site-main-content" order={2} minSize={60}>
-            <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
-              {collapsed && revealClaims === 0 ? (
-                <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
-                  <Tooltip content="Show file explorer">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Open file browser"
-                      onClick={() => setCollapsed(false)}
-                    >
-                      <FileSearchCorner className="size-4" />
-                    </Button>
-                  </Tooltip>
-                </div>
-              ) : null}
-              {children}
-            </div>
+                <DialogTitle className="sr-only">{siteName} sidebar</DialogTitle>
+                {sidebar}
+              </DialogContent>
+            </Dialog>
+          )}
+        </>
+      ) : (
+        <Group
+          orientation="horizontal"
+          className="max-h-full min-h-0 flex-1"
+          // Override Group's inline 100% height; the web shell has no fixed parent height.
+          style={{height: '100dvh'}}
+          onLayoutChanged={(next, meta) => {
+            layout.onLayoutChanged(next, meta)
+            if (meta.isUserInteraction) setOpen(next['site-sidebar'] !== 0)
+          }}
+        >
+          <AnimatedPanel
+            open={open}
+            keepMounted
+            id="site-sidebar"
+            defaultSize={layout.expanded?.['site-sidebar'] ? `${layout.expanded['site-sidebar']}%` : 320}
+            minSize={240}
+            maxSize="40%"
+          >
+            {sidebar}
+          </AnimatedPanel>
+          <PanelSeparator open={open} />
+          <Panel id="site-main-content" minSize="60%">
+            {children}
           </Panel>
-        </PanelGroup>
-      </div>
-    </SiteFileBrowserContext.Provider>
+        </Group>
+      )}
+    </SiteSidebarProvider>
   )
 }

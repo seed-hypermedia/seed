@@ -5,9 +5,7 @@ import {
   HMComment,
   HMCommentGroup,
   HMDocument,
-  HMExternalCommentGroup,
   HMMetadata,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -16,21 +14,20 @@ import {
   getCommentTargetId,
   hmId,
   NavRoute,
-  useCommentGroups,
-  useCommentParents,
-  useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
 
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
+import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
 import {
   useCommentsServiceContext,
   useDeleteComment,
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {extractRefs} from '@shm/shared/content'
 import {commentToText} from '@shm/shared/content-to-text'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {
   useBlockDiscussions,
   useCommentReplyCount,
@@ -40,7 +37,6 @@ import {
 } from '@shm/shared/models/comments'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
-import {extractRefs} from '@shm/shared/content'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
@@ -48,17 +44,18 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
+import {AccountAvatar} from './account-avatar'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {AccountAvatar} from './account-avatar'
-import {BlockQuote, ReplyArrow} from './icons'
+import {ContentEmbed} from './content-embed'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
+import {useCommentsScroll} from './use-comments-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
 
@@ -67,18 +64,36 @@ export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Rea
   return commentToText({comment: {content}, resolvedNames, lineBreaks: false}).replace(/\s+/g, ' ').trim().slice(0, 50)
 }
 
+/**
+ * Scrolls `viewport` so that `element` sits at its top or is just fully visible, like `scrollIntoView`,
+ * but without scrolling anything outside `viewport`. `scrollIntoView` scrolls every ancestor that
+ * can scroll, the page itself included, and a scrolled page shifts the whole app up.
+ */
+function scrollWithinViewport(element: HTMLElement, viewport: HTMLElement, block: 'start' | 'nearest') {
+  const elementRect = element.getBoundingClientRect()
+  const viewportRect = viewport.getBoundingClientRect()
+  const aboveBy = viewportRect.top - elementRect.top
+  const belowBy = elementRect.bottom - viewportRect.bottom
+  if (block === 'start' || aboveBy > 0) {
+    viewport.scrollTop -= aboveBy
+  } else if (belowBy > 0) {
+    // Like scrollIntoView, keep the top in view when the element is taller than the viewport.
+    viewport.scrollTop += Math.min(belowBy, -aboveBy)
+  }
+}
+
+/** Shows a focused thread in the shared main-page and panel comments layout. */
 export function CommentDiscussions({
   targetId,
   isEntirelyHighlighted = false,
   commentId,
-  commentEditor,
+  replyCommentId,
   targetDomain,
   selection,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  commentEditor?: ReactNode
-  onStartDiscussion?: () => void
+  replyCommentId?: string
   isEntirelyHighlighted?: boolean
   targetDomain?: string
   selection?: {
@@ -87,32 +102,29 @@ export function CommentDiscussions({
   }
 }) {
   const focusedCommentRef = useRef<HTMLDivElement>(null)
-  const [showParents, setShowParents] = useState(false)
-  const parentsRef = useRef<HTMLDivElement>(null)
+  const currentRoute = useNavRoute()
+  // Document block navigation can retain this panel; only selecting the thread
+  // again should move its scroll position.
+  const navigationKey =
+    currentRoute.key === 'comments' ? currentRoute : 'panel' in currentRoute ? currentRoute.panel : null
 
   // Fetch all comments for the document
   const commentsService = useDocumentComments(targetId)
 
-  const parentThread = useCommentParents(commentsService.data?.comments, commentId ?? '')
-  const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
-
-  // Subscribe to all authors in this discussion
-  const allAuthorIds = useMemo(() => {
-    const authors = new Set<string>()
-    if (parentThread?.thread) {
-      parentThread.thread.forEach((c) => {
-        if (c.author) authors.add(c.author)
-      })
-    }
-    if (commentGroupReplies.data) {
-      commentGroupReplies.data.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
-    return Array.from(authors)
-  }, [parentThread?.thread, commentGroupReplies.data])
+  const thread = useMemo(
+    () => getCommentThread(commentsService.data?.comments, commentId ?? ''),
+    [commentsService.data?.comments, commentId],
+  )
+  const highlightedCommentId = replyCommentId || commentId
+  const allAuthorIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [thread?.root, ...(thread?.replies ?? [])].flatMap((comment) => (comment?.author ? [comment.author] : [])),
+        ),
+      ),
+    [thread],
+  )
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
@@ -134,48 +146,45 @@ export function CommentDiscussions({
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
   const deletedLastVersion = deletedVersions.data?.versions?.[0]
   // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
-  // flash "This comment was deleted." while peer sync is still in flight (issue #435).
+  // flash "Comment not found" while peer sync is still in flight (issue #435).
   const isFocusedCommentLoading =
-    commentResource.isFetching ||
-    commentResource.isLoading ||
-    commentResource.isDiscovering ||
-    (!commentResource.data && !commentResource.error)
+    !focusedComment &&
+    (commentResource.isFetching ||
+      commentResource.isLoading ||
+      commentResource.isDiscovering ||
+      (!commentResource.data && !commentResource.error))
   const isFocusedCommentDeleted = commentResource.data?.type === 'tombstone'
   const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
   const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
 
-  // Render parent thread after initial load and adjust scroll
+  const selectedCommentLoaded =
+    thread?.root.id === highlightedCommentId || thread?.replies.some((comment) => comment.id === highlightedCommentId)
   useLayoutEffect(() => {
-    // Only run once when we have parent thread data and haven't shown parents yet
-    if (!parentThread?.thread?.length || showParents) return
+    const focusedElement = focusedCommentRef.current
+    if (!focusedElement) return
+    const block = highlightedCommentId === thread?.root.id ? 'start' : 'nearest'
+    const viewport = focusedElement.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) {
+      focusedElement.scrollIntoView({behavior: 'instant', block})
+      return
+    }
+    // When the thread was too short to bring the comment to the top, scrollIntoView
+    // scrolled the page itself the rest of the way, shifting the whole app up.
+    const scrollToComment = () => scrollWithinViewport(focusedElement, viewport, block)
+    scrollToComment()
 
-    // Delay to ensure focused comment is rendered first
-    const timer = setTimeout(() => {
-      setShowParents(true)
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
-
-  useLayoutEffect(() => {
-    if (!showParents) return
-
-    focusedCommentRef.current?.scrollIntoView({behavior: 'instant', block: 'start'})
-  }, [showParents, commentId])
-
-  const commentEditorSlot = commentEditor ? (
-    <div className="relative max-h-1/2 py-4">
-      <div
-        className="bg-border absolute w-px"
-        style={{
-          height: isEntirelyHighlighted ? 40 : 56,
-          top: isEntirelyHighlighted ? -16 : -32,
-          left: 26,
-        }}
-      />
-      <div className="px-2 pr-4 pl-3">{commentEditor}</div>
-    </div>
-  ) : null
+    // The reply editor can grow after entry, reducing the thread's visible height.
+    const observer = new ResizeObserver(scrollToComment)
+    observer.observe(viewport)
+    const stopFollowing = () => observer.disconnect()
+    const interactionTarget = viewport.parentElement ?? viewport
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+    for (const event of events) interactionTarget.addEventListener(event, stopFollowing, {passive: true})
+    return () => {
+      observer.disconnect()
+      for (const event of events) interactionTarget.removeEventListener(event, stopFollowing)
+    }
+  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment, navigationKey])
 
   if (!commentId) return null
 
@@ -187,7 +196,6 @@ export function CommentDiscussions({
             Failed to load comment thread
           </SizableText>
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -198,7 +206,6 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -209,7 +216,6 @@ export function CommentDiscussions({
         <div className="p-2">
           <DeletedCommentPreview comment={deletedLastVersion!} />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -220,7 +226,6 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -231,10 +236,9 @@ export function CommentDiscussions({
         <SelectionContent>
           <div className="flex flex-col items-center gap-2 p-4">
             <SizableText color="muted" size="sm">
-              This comment was deleted.
+              Comment not found
             </SizableText>
           </div>
-          {commentEditorSlot}
         </SelectionContent>
       )
     }
@@ -242,69 +246,39 @@ export function CommentDiscussions({
       <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
-            This comment could not be found.
+            Comment not found
           </SizableText>
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
 
-  // Check if there are actual parent comments (more than just the focused comment itself)
-  const hasParents = parentThread?.thread && parentThread.thread.length > 1
-
   return (
     <SelectionContent>
-      {/* Render parent thread above focused comment when ready */}
-      {hasParents && showParents && (
-        <div ref={parentsRef}>
-          {parentThread.thread.slice(0, -1).map((comment, index, list) => (
-            <div key={comment.id} className={cn('p-2', index != list.length - 1 && 'border-border border-b')}>
-              <Comment
-                comment={comment}
-                authorId={comment.author}
-                authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
-                targetDomain={targetDomain}
-                isFirst={index === 0}
-                isLast={false}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Render the focused comment */}
-      {focusedComment && (
-        <div ref={focusedCommentRef} className={cn('p-2')}>
-          <Comment
-            comment={focusedComment}
-            authorId={focusedComment.author}
-            authorMetadata={commentsService.data?.authors?.[focusedComment.author]?.metadata}
-            targetDomain={targetDomain}
-            isFirst={!(hasParents && showParents)}
-            isLast={true}
-            highlight
-            selection={selection}
-          />
-        </div>
-      )}
-
-      {commentEditorSlot}
-
-      {commentGroupReplies.data?.length > 0
-        ? commentGroupReplies.data.map((cg) => {
-            return (
-              <div key={cg.id} className={cn('p-2')}>
-                <CommentGroup
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={commentsService.data?.authors}
+      <div className="border-border bg-card overflow-hidden rounded-lg border">
+        {[thread?.root ?? focusedComment, ...(thread?.replies ?? [])].map(
+          (comment, index) =>
+            comment && (
+              <div
+                key={comment.id}
+                ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined}
+                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4'}
+              >
+                <Comment
+                  comment={comment}
+                  authorId={comment.author}
+                  authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
                   targetDomain={targetDomain}
+                  highlight={isEntirelyHighlighted && comment.id === highlightedCommentId}
+                  selection={comment.id === highlightedCommentId ? selection : undefined}
+                  threadView
+                  threadRootId={thread?.root.id}
+                  enableReplies={index > 0}
                 />
               </div>
-            )
-          })
-        : null}
+            ),
+        )}
+      </div>
     </SelectionContent>
   )
 }
@@ -312,11 +286,21 @@ export function CommentDiscussions({
 export const Discussions = memo(function Discussions({
   targetId,
   commentId,
+  submittedRoots = [],
+  onCommentDeleted,
   targetDomain,
+  emptyState,
+  scrollKey,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
+  submittedRoots?: HMComment[]
+  onCommentDeleted?: (commentId: string) => void
   targetDomain?: string
+  /** Optional empty content for the document comments panel. */
+  emptyState?: ReactNode
+  /** Retain root reading position for this document and layout. */
+  scrollKey?: string
 }) {
   const discussionsService = useDocumentDiscussions(targetId, commentId)
 
@@ -330,26 +314,55 @@ export const Discussions = memo(function Discussions({
         })
       })
     }
-    if (discussionsService.data?.citingDiscussions) {
-      discussionsService.data.citingDiscussions.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
     return Array.from(authors)
-  }, [discussionsService.data?.discussions, discussionsService.data?.citingDiscussions])
+  }, [discussionsService.data?.discussions])
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
+  const acknowledgedRoots = useRef(new Set<string>())
+  useEffect(() => {
+    const listedIds = new Set(
+      discussionsService.data?.discussions.flatMap((group) => group.comments.map((comment) => comment.id)),
+    )
+    for (const root of submittedRoots) {
+      if (listedIds.has(root.id)) acknowledgedRoots.current.add(root.id)
+    }
+  }, [discussionsService.data?.discussions, submittedRoots])
+  const rootGroups = getSubmittedCommentGroups(
+    discussionsService.data?.discussions,
+    submittedRoots,
+    acknowledgedRoots.current,
+  )
+  const groups = sortCommentGroupsByCreation(rootGroups)
+  const {listRef, hasNewComments, scrollToBottom, heights} = useCommentsScroll(
+    scrollKey ?? targetId.id,
+    groups.map((group) => group.id),
+    !!scrollKey && (!!discussionsService.data || !!submittedRoots.length),
+    submittedRoots.at(-1)?.id,
+  )
+  const previousIds = useRef<Set<string>>()
+  const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set())
+  const groupIds = groups.map((group) => group.id).join('\n')
+  useEffect(() => {
+    if (!discussionsService.data && !submittedRoots.length) return
+    const ids = new Set(groups.map((group) => group.id))
+    const added = Array.from(ids).filter((id) => previousIds.current && !previousIds.current.has(id))
+    previousIds.current = ids
+    if (added.length) setNewCommentIds((current) => new Set([...Array.from(current), ...added]))
+  }, [groupIds, !!discussionsService.data])
+  useEffect(() => {
+    if (!newCommentIds.size) return
+    const timer = setTimeout(() => setNewCommentIds(new Set()), 3000)
+    return () => clearTimeout(timer)
+  }, [newCommentIds])
   let panelContent = null
-  if (discussionsService.isLoading && !discussionsService.data) {
+  if (!submittedRoots.length && discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
-  } else if (discussionsService.error) {
+  } else if (!submittedRoots.length && discussionsService.error) {
     panelContent = (
       <div className="flex flex-col items-center gap-2 p-4">
         <SizableText color="muted" size="sm" className="font-sans">
@@ -357,47 +370,61 @@ export const Discussions = memo(function Discussions({
         </SizableText>
       </div>
     )
-  } else if (discussionsService.data) {
-    const totalCount =
-      (discussionsService.data.discussions?.length ?? 0) + (discussionsService.data.citingDiscussions?.length ?? 0)
+  } else if (discussionsService.data || submittedRoots.length) {
+    const totalCount = rootGroups.length
     panelContent =
       totalCount > 0 ? (
         <>
-          {discussionsService.data.discussions?.map((cg) => {
+          {groups.map((group) => {
+            const comment = group.comments[0]
+            if (!comment) return null
+
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
-                <LazyCommentGroup>
+              <LazyCommentGroup
+                key={group.id}
+                commentId={group.id}
+                heights={heights}
+                className={!commentId ? 'border-border bg-card rounded-lg border' : undefined}
+              >
+                {commentId ? (
                   <CommentGroup
-                    commentGroup={cg}
-                    authors={discussionsService.data.authors}
-                    enableReplies
+                    commentGroup={group}
+                    highlightedCommentId={newCommentIds.has(group.id) ? group.id : undefined}
+                    onCommentDeleted={onCommentDeleted}
+                    authors={discussionsService.data?.authors}
                     targetDomain={targetDomain}
                   />
-                </LazyCommentGroup>
-              </div>
-            )
-          })}
-          {discussionsService.data.citingDiscussions?.map((cg) => {
-            return (
-              <div key={cg.id} className={cn('border-border border-b')}>
-                <LazyCommentGroup>
-                  <CommentGroup
-                    commentGroup={cg}
-                    authors={discussionsService.data.authors}
-                    enableReplies
+                ) : (
+                  <Comment
+                    comment={comment}
+                    authorId={comment.author}
+                    authorMetadata={discussionsService.data?.authors?.[comment.author]?.metadata}
+                    highlight={newCommentIds.has(group.id)}
+                    onCommentDeleted={onCommentDeleted}
                     targetDomain={targetDomain}
                   />
-                </LazyCommentGroup>
-              </div>
+                )}
+              </LazyCommentGroup>
             )
           })}
         </>
       ) : (
-        <NoComments />
+        emptyState ?? <NoComments />
       )
   }
 
-  return <SelectionContent>{panelContent}</SelectionContent>
+  return (
+    <div ref={listRef} className={cn('flex flex-col gap-2', emptyState && 'flex-1')}>
+      {panelContent}
+      {hasNewComments && (
+        <div className="sticky bottom-2 flex justify-center">
+          <Button size="sm" onClick={scrollToBottom}>
+            New comments
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 })
 
 export function BlockDiscussions({
@@ -466,8 +493,6 @@ export function BlockDiscussions({
           return (
             <div key={comment.id} className={cn('p-2')}>
               <Comment
-                isFirst
-                isLast
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}
@@ -498,10 +523,20 @@ const LAZY_COMMENT_PLACEHOLDER_HEIGHT = 80
  * Unmounts children when scrolled far away to keep memory low.
  * Preserves measured height as placeholder to prevent scroll jumps.
  */
-function LazyCommentGroup({children}: {children: ReactNode}) {
+function LazyCommentGroup({
+  children,
+  className,
+  commentId,
+  heights,
+}: {
+  children: ReactNode
+  className?: string
+  commentId: string
+  heights: Map<string, number>
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
-  const heightRef = useRef(LAZY_COMMENT_PLACEHOLDER_HEIGHT)
+  const heightRef = useRef(heights.get(commentId) ?? LAZY_COMMENT_PLACEHOLDER_HEIGHT)
 
   useEffect(() => {
     const el = ref.current
@@ -515,6 +550,7 @@ function LazyCommentGroup({children}: {children: ReactNode}) {
         } else {
           if (el.offsetHeight > 0) {
             heightRef.current = el.offsetHeight
+            heights.set(commentId, el.offsetHeight)
           }
           setIsNearViewport(false)
         }
@@ -522,11 +558,26 @@ function LazyCommentGroup({children}: {children: ReactNode}) {
       {rootMargin: '600px'},
     )
     observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+    const resize = new ResizeObserver(() => {
+      if (el.offsetHeight > 0) {
+        heightRef.current = el.offsetHeight
+        heights.set(commentId, el.offsetHeight)
+      }
+    })
+    resize.observe(el)
+    return () => {
+      observer.disconnect()
+      resize.disconnect()
+    }
+  }, [commentId, heights])
 
   return (
-    <div ref={ref} style={isNearViewport ? undefined : {minHeight: heightRef.current}}>
+    <div
+      ref={ref}
+      data-comment-id={commentId}
+      className={className}
+      style={isNearViewport ? undefined : {minHeight: heightRef.current}}
+    >
       {isNearViewport ? children : null}
     </div>
   )
@@ -537,46 +588,35 @@ export const CommentGroup = memo(function CommentGroup({
   authors,
   enableReplies = true,
   highlightLastComment = false,
+  highlightedCommentId,
+  onCommentDeleted,
   targetDomain,
 }: {
-  commentGroup: HMCommentGroup | HMExternalCommentGroup
+  commentGroup: HMCommentGroup
   authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
+  highlightedCommentId?: string
+  onCommentDeleted?: (commentId: string) => void
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
-  const firstComment = commentGroup.comments[0]
 
   return (
     <div className="relative flex flex-col gap-2 p-2">
-      {/* {commentGroup.comments.length > 1 && (
-        <div
-          className="absolute w-px bg-border"
-          style={{
-            height: `calc(100% - ${avatarSize * 2}px)`,
-            top: avatarSize + avatarSize / 2 - 1,
-            left: avatarSize + avatarSize / 2 - 1,
-          }}
-        />
-      )} */}
-
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
-        const isFirstCommentInGroup = !!lastComment && comment === firstComment
         return (
           <Comment
-            isLast={isLastCommentInGroup}
-            isFirst={isFirstCommentInGroup}
-            externalTarget={
-              isFirstCommentInGroup && commentGroup.type === 'externalCommentGroup' ? commentGroup.target : undefined
-            }
             key={comment.id}
             comment={comment}
+            onCommentDeleted={onCommentDeleted}
             authorMetadata={comment.author ? authors?.[comment.author]?.metadata : null}
             authorId={comment.author}
             enableReplies={enableReplies}
-            highlight={highlightLastComment && isLastCommentInGroup}
+            highlight={
+              highlightedCommentId ? comment.id === highlightedCommentId : highlightLastComment && isLastCommentInGroup
+            }
             targetDomain={targetDomain}
           />
         )
@@ -587,36 +627,35 @@ export const CommentGroup = memo(function CommentGroup({
 
 export const Comment = memo(function Comment({
   comment,
-  isFirst = true,
-  isLast = false,
+  onCommentDeleted,
   authorMetadata,
   authorId,
   enableReplies = true,
-  defaultExpandReplies = false,
   highlight = false,
+  threadView = false,
+  threadRootId,
   targetDomain,
   heading,
-  externalTarget,
   selection,
 }: {
   comment: HMComment
-  isFirst?: boolean
-  isLast?: boolean
+  onCommentDeleted?: (commentId: string) => void
   authorMetadata?: HMMetadata | null
   authorId?: string | null
   enableReplies?: boolean
-  defaultExpandReplies?: boolean
   highlight?: boolean
+  /** Show reply actions without reopening the current thread. */
+  threadView?: boolean
+  /** Resolved thread root, including replies that have not completed server sync. */
+  threadRootId?: string
   targetDomain?: string
   heading?: ReactNode
-  externalTarget?: HMMetadataPayload
   selection?: {
     blockId?: string
     blockRange?: BlockRange
   }
 }) {
   const tx = useTxString()
-  const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isEditing, setIsEditing] = useState(false)
   const [viewingVersion, setViewingVersion] = useState<HMComment | null>(null)
   const commentsContext = useCommentsServiceContext()
@@ -639,13 +678,6 @@ export const Comment = memo(function Comment({
   const isBookmarked = documentActions.isBookmarked?.(commentHmId) ?? false
   const copyHmLink = useCopyHmLink()
 
-  const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
-
-  useEffect(() => {
-    if (defaultExpandReplies !== showReplies) {
-      setShowReplies(defaultExpandReplies)
-    }
-  }, [defaultExpandReplies])
   const navigate = useNavigate('replace')
 
   // When this comment is the focused permalink comment (/:comments/UID/TSID),
@@ -701,11 +733,20 @@ export const Comment = memo(function Comment({
               {comment, signingAccountId: comment.author},
               {
                 onSuccess: () => {
+                  onCommentDeleted?.(comment.id)
                   if (!isFocusedComment) return
                   if (currentRoute.key === 'comments' && currentRoute.openComment) {
-                    navigate({...currentRoute, openComment: undefined, openCommentVersion: undefined})
+                    navigate({
+                      ...currentRoute,
+                      openComment: undefined,
+                      openCommentVersion: undefined,
+                      replyCommentId: undefined,
+                    })
                   } else if ('panel' in currentRoute && routePanel?.key === 'comments' && routePanel.openComment) {
-                    navigate({...currentRoute, panel: {...routePanel, openComment: undefined}} as NavRoute)
+                    navigate({
+                      ...currentRoute,
+                      panel: {...routePanel, openComment: undefined, replyCommentId: undefined},
+                    } as NavRoute)
                   }
                 },
               },
@@ -720,27 +761,27 @@ export const Comment = memo(function Comment({
   return (
     <>
       {deleteCommentDialog.content}
-      <div className={cn('group relative flex gap-1 rounded-lg p-2', isEntirelyHighlighted && 'bg-accent')}>
-        {heading ? null : (
-          <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
-            {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
-            {authorHmId && (
-              <div className="size-5">
-                <AccountAvatar
-                  id={authorHmId}
-                  name={authorMetadata?.name}
-                  icon={authorMetadata?.icon}
-                  size={20}
-                  siteUid={docId?.uid}
-                />
-              </div>
-            )}
-            {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
-          </div>
+      <div
+        data-resourceid={commentHmId.id}
+        className={cn(
+          'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
+          isEntirelyHighlighted && 'bg-highlight',
+          !!threadRootId && 'pb-4',
         )}
-
-        <div className="flex w-full flex-1 flex-col gap-1">
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          {!heading && authorHmId ? (
+            <div className="size-5 shrink-0">
+              <AccountAvatar
+                id={authorHmId}
+                name={authorMetadata?.name}
+                icon={authorMetadata?.icon}
+                size={20}
+                siteUid={docId?.uid}
+              />
+            </div>
+          ) : null}
+          <div className="group flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden pr-2">
             {heading ? (
               <div className="inline">{heading}</div>
             ) : (
@@ -756,17 +797,6 @@ export const Comment = memo(function Comment({
                 ) : (
                   <span>Someone</span>
                 )}{' '}
-                {externalTarget ? (
-                  <>
-                    <span>on</span>{' '}
-                    <button
-                      {...externalTargetLink}
-                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
-                    >
-                      {externalTarget.metadata?.name}
-                    </button>
-                  </>
-                ) : null}
                 <CommentDate comment={comment} />
                 {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
                   <EditedIndicator commentId={comment.id} onSelectVersion={selectViewingVersion} />
@@ -803,19 +833,22 @@ export const Comment = memo(function Comment({
                     className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                     onClick={() => {
                       if (!docId) return
-                      const routeLatest =
+                      const rootId = comment.threadRoot || threadRootId || comment.id
+                      const routeDocumentId =
                         currentRoute.key === 'document' ||
                         currentRoute.key === 'comments' ||
                         currentRoute.key === 'activity'
-                          ? currentRoute.id.latest
+                          ? currentRoute.id
                           : undefined
                       copyHmLink({
                         id: {
                           ...docId,
                           hostname: targetDomain ?? null,
-                          latest: routeLatest ?? null,
+                          latest: routeDocumentId?.latest ?? null,
+                          pageParams: routeDocumentId?.id === docId.id ? routeDocumentId.pageParams : undefined,
                         },
-                        commentId: commentIdToHmId(comment.id),
+                        commentId: commentIdToHmId(rootId),
+                        replyCommentId: rootId !== comment.id ? comment.id : undefined,
                         gatewayUrl: appOrigin ?? undefined,
                       })
                     }}
@@ -835,51 +868,55 @@ export const Comment = memo(function Comment({
               ) : null}
             </div>
           </div>
-
-          {isEditing ? (
-            <InlineCommentEditor
-              comment={comment}
-              onCancel={() => setIsEditing(false)}
-              onSave={(newContent) => {
-                updateCommentMutation.mutate(
-                  {comment, newContent, signingAccountId: comment.author},
-                  {onSuccess: () => setIsEditing(false)},
-                )
-              }}
-              isSaving={updateCommentMutation.isPending}
-            />
-          ) : activeViewingVersion ? (
-            <VersionPreview version={activeViewingVersion} onDismiss={() => selectViewingVersion(null)} />
-          ) : (
-            <CommentContent comment={comment} selection={selection} />
-          )}
-
-          {!isEntirelyHighlighted && !isEditing && (
-            <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
-              {enableReplies || commentsContext.onReplyClick ? (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn(
-                    'text-muted-foreground hover:text-muted-foreground active:text-muted-foreground',
-                    'plausible-event-name=Reply+Click',
-                  )}
-                  onClick={() => {
-                    if (commentsContext.onReplyClick) {
-                      commentsContext.onReplyClick(comment)
-                    } else if (replyCount && commentsContext.onReplyCountClick) {
-                      commentsContext.onReplyCountClick(comment)
-                    }
-                  }}
-                >
-                  <ReplyArrow className="size-3" />
-                  {tx('Reply')}
-                  {replyCount && replyCount > 0 ? ` (${replyCount})` : ''}
-                </Button>
-              ) : null}
-            </div>
-          )}
         </div>
+
+        {isEditing ? (
+          <InlineCommentEditor
+            comment={comment}
+            onCancel={() => setIsEditing(false)}
+            onSave={(newContent) => {
+              updateCommentMutation.mutate(
+                {comment, newContent, signingAccountId: comment.author},
+                {onSuccess: () => setIsEditing(false)},
+              )
+            }}
+            isSaving={updateCommentMutation.isPending}
+          />
+        ) : activeViewingVersion ? (
+          <VersionPreview
+            version={activeViewingVersion}
+            selection={selection}
+            onDismiss={() => selectViewingVersion(null)}
+          />
+        ) : (
+          <CommentContent comment={comment} selection={selection} />
+        )}
+
+        {!isEntirelyHighlighted && !isEditing && enableReplies && (
+          <div className="flex items-center gap-2 py-1">
+            {commentsContext.onReplyClick ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                className={cn(
+                  'text-brand hover:text-brand active:text-brand px-0 text-sm font-semibold',
+                  'plausible-event-name=Reply+Click',
+                )}
+                onClick={() => {
+                  if (!threadView && replyCount && commentsContext.onReplyCountClick) {
+                    commentsContext.onReplyCountClick(comment)
+                  } else if (commentsContext.onReplyClick) {
+                    commentsContext.onReplyClick(comment)
+                  }
+                }}
+              >
+                {!threadView && replyCount && replyCount > 0
+                  ? `${replyCount} ${tx(replyCount === 1 ? 'reply' : 'replies')}`
+                  : tx('Reply')}
+              </Button>
+            ) : null}
+          </div>
+        )}
       </div>
     </>
   )
@@ -919,15 +956,16 @@ export function CommentContent({
   const copyBlockUrl = useCallback(
     (blockId: string, blockRange?: BlockRange | null) => {
       if (!targetDocId) return
-      const routeLatest =
+      const routeDocumentId =
         currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
-          ? currentRoute.id.latest
+          ? currentRoute.id
           : undefined
       copyHmLink({
         id: {
           ...targetDocId,
           hostname: siteUrl ?? null,
-          latest: routeLatest ?? null,
+          latest: routeDocumentId?.latest ?? null,
+          pageParams: routeDocumentId?.id === targetDocId.id ? routeDocumentId.pageParams : undefined,
           blockRef: blockId,
           blockRange: blockRange ?? null,
         },
@@ -961,6 +999,8 @@ export function CommentContent({
       blocks={zoomedContent}
       resourceId={focusedId}
       resourceKind="comment"
+      focusBlockId={selection?.blockId}
+      blockRange={selection?.blockRange}
       commentStyle
       textUnit={textUnit}
       layoutUnit={layoutUnit}
@@ -973,18 +1013,19 @@ export function CommentContent({
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   // Same destination as "Copy Comment Link": the target document's comments
-  // view focused on this comment, staying within the site context. The id
+  // panel focused on this comment, staying within the site context. The id
   // drops the comment's targetVersion so the URL matches the copied link.
   const destRoute: NavRoute | null = targetId
     ? {
-        key: 'comments',
+        key: 'document',
         id: hmId(targetId.uid, {path: targetId.path}),
-        openComment: comment.id,
+        panel: {key: 'comments', id: hmId(targetId.uid, {path: targetId.path}), openComment: comment.id},
       }
     : null
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
+/** Shows the selected document fragment with optional source-block expansion. */
 export function QuotedDocBlock({
   docId,
   blockId,
@@ -996,34 +1037,12 @@ export function QuotedDocBlock({
   doc: HMDocument
   blockRange?: BlockRange
 }) {
-  const Viewer = useReadOnlyViewer()
-  const blockContent = useMemo(() => {
-    if (!doc.content) return null
-    return getBlockNodeById(doc.content, blockId)
-  }, [doc.content, blockId])
-
-  // Only forward a codepoint range — `{expanded: true}` blockRange variants
-  // should not trigger fragment highlighting.
-  const fragmentRange = blockRange && 'start' in blockRange ? blockRange : undefined
-
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
-        <div className="flex-shrink-0 py-1.5">
-          <BlockQuote size={23} />
-        </div>
-        <div className="min-w-0 flex-1">
-          {blockContent && Viewer && (
-            <Viewer
-              blocks={[blockContent]}
-              resourceId={{...docId, blockRef: blockId}}
-              focusBlockId={fragmentRange ? blockId : undefined}
-              blockRange={fragmentRange}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+    <ContentEmbed
+      id={{...docId, blockRef: blockId, blockRange: blockRange || null}}
+      blocks={doc.content}
+      route={{key: 'document', id: {...docId, blockRef: blockId, blockRange: blockRange || null}}}
+    />
   )
 }
 
@@ -1176,7 +1195,15 @@ function DeletedCommentPreview({comment}: {comment: HMComment}) {
 }
 
 /** Yellow inline banner showing a previous version of the comment in place of the current content. */
-function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: () => void}) {
+function VersionPreview({
+  version,
+  selection,
+  onDismiss,
+}: {
+  version: HMComment
+  selection?: {blockId?: string; blockRange?: BlockRange}
+  onDismiss: () => void
+}) {
   return (
     <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
       <div className="flex items-center justify-between px-3 py-1.5">
@@ -1195,6 +1222,7 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
       <div className="px-1 pb-2">
         <CommentContent
           comment={version}
+          selection={selection}
           size="sm"
           openOnClick={false}
           resourceId={commentIdToHmId(version.id, version.version)}

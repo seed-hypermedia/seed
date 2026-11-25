@@ -226,6 +226,7 @@ type FileType = {
     displaySrc: string
     url?: string
     name: string
+    mime?: string
     size: string
     fileBinary?: Uint8Array
     mediaRef?: {
@@ -246,6 +247,8 @@ export async function handleDragMedia(
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
     url?: string
+    mime?: string
+    name?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string
@@ -266,7 +269,7 @@ export async function handleDragMedia(
       const result = await handleFileAttachment(file)
 
       // Use metadata from mediaRef if available, otherwise fall back to file object
-      const name = result.mediaRef?.name || file.name
+      const name = result.mediaRef?.name || result.name || file.name
       const size = result.mediaRef?.size || file.size
 
       return {
@@ -275,6 +278,7 @@ export async function handleDragMedia(
         fileBinary: result.fileBinary,
         mediaRef: result.mediaRef,
         name: name,
+        mime: result.mediaRef?.mime || result.mime || file.type,
         size: size.toString(),
       } as FileType['props']
     } catch (error) {
@@ -316,8 +320,9 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
   const newId = generateBlockId()
   const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
 
+  const mime = props.mime || file.type
   if (props.url && !props.fileBinary && !props.mediaRef) {
-    if (chromiumSupportedImageMimeTypes.has(file.type)) {
+    if (chromiumSupportedImageMimeTypes.has(mime)) {
       return {
         id: newId,
         type: 'image',
@@ -329,7 +334,7 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
       }
     }
 
-    if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+    if (chromiumSupportedVideoMimeTypes.has(mime)) {
       return {
         id: newId,
         type: 'video',
@@ -352,7 +357,7 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
     }
   }
 
-  if (chromiumSupportedImageMimeTypes.has(file.type)) {
+  if (chromiumSupportedImageMimeTypes.has(mime)) {
     return {
       id: newId,
       type: 'image',
@@ -365,7 +370,7 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
     }
   }
 
-  if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+  if (chromiumSupportedVideoMimeTypes.has(mime)) {
     return {
       id: newId,
       type: 'video',

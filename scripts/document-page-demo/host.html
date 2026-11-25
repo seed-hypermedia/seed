@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Seed · Page workshop</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/host.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <a href="/" class="wordmark" aria-label="Seed page workshop">seed<span class="seed-mark">✳</span></a>
+      <span class="edition">Page workshop <span class="pill">Local prototype</span></span>
+      <label class="account"
+        >View as
+        <select id="viewer">
+          <option>Alice</option>
+          <option>Bob</option>
+          <option value="">Signed out</option>
+        </select></label
+      >
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">A small page. A clear boundary.</p>
+        <h1>Make something<br /><em>your own.</em></h1>
+        <p>Describe a page. An agent builds it.<br />Seed decides what it can access.</p>
+      </section>
+      <div class="workspace">
+        <aside class="workbench">
+          <section class="author">
+            <h2><span class="step">01</span> Ask the agent</h2>
+            <label for="prompt">What would you like to make?</label>
+            <textarea id="prompt" rows="6" maxlength="4000">
+Make a compact reading journal. Let me add a book, mark it finished, and save a one-line thought. Remember my books between visits. Include a button to read the shared project brief.</textarea
+            >
+            <div class="button-row">
+              <button id="generate" class="primary">Create page <span aria-hidden="true">↗</span></button
+              ><button id="cancel" hidden>Cancel</button>
+            </div>
+            <p class="hint">
+              Uses your signed-in Codex CLI. Only this prompt is sent; sample documents and notes stay here.
+            </p>
+            <p id="generation-status" role="status" aria-live="polite"></p>
+          </section>
+          <section>
+            <h2><span class="step">02</span> Open a page</h2>
+            <label for="page-select">Saved pages</label
+            ><select id="page-select"></select>
+            <p id="page-description" class="hint"></p>
+            <p id="provenance" class="provenance"></p>
+            <button id="reload">Reload page</button>
+          </section>
+          <section class="permission">
+            <h2><span class="step">03</span> Choose its access</h2>
+            <label class="check"><input id="grant" type="checkbox" /> Share sample project brief</label>
+            <p class="hint">Grants this page version one sample document. Turn it off to revoke access.</p>
+            <p class="private-note">Sharing private data means trusting the page’s code with it.</p>
+          </section>
+        </aside>
+        <section class="preview-area" aria-label="Page preview">
+          <div class="preview-heading">
+            <div>
+              <span class="eyebrow">Live sandbox</span>
+              <h2 id="page-title">Opening your page…</h2>
+            </div>
+            <span id="runtime-status" class="pill">Loading</span>
+          </div>
+          <div id="signed-out" hidden>
+            Choose Alice or Bob above to run a page. These are sample identities, not real sign-ins.
+          </div>
+          <div id="frames">
+            <div id="page-frame" class="frame-slot"></div>
+            <div id="copy-frame" class="frame-slot" hidden></div>
+          </div>
+          <div class="preview-footer">
+            <span id="storage-label">Notes belong to this account and this page.</span
+            ><label class="check"><input id="duplicate" type="checkbox" /> Open a separate copy</label>
+          </div>
+          <p id="runtime-error" role="alert"></p>
+        </section>
+      </div>
+      <section class="lab">
+        <div>
+          <p class="eyebrow">Try the boundary</p>
+          <h2>Trust is something<br />you can test.</h2>
+          <p>Change accounts, open a separate copy, or reload.<br />Your notes should stay in the right place.</p>
+        </div>
+        <div class="lab-actions">
+          <button id="run-checks" class="primary">Run boundary checks</button
+          ><button id="update-code">Simulate a code update</button>
+          <p class="hint">An update keeps page storage and drops its document grant.</p>
+          <ol id="check-results" aria-live="polite"></ol>
+        </div>
+      </section>
+      <details class="activity">
+        <summary>Bridge activity <span id="activity-count">0 requests</span></summary>
+        <ol id="activity-log"></ol>
+      </details>
+      <footer>Experimental runtime · Sample data only · No production integration</footer>
+    </main>
+  </body>
+</html>

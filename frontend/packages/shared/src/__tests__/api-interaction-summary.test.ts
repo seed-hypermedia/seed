@@ -7,7 +7,7 @@ const targetDocId = hmId('z6MkTestAccount', {path: ['test-doc']})
 
 function makeGrpcClient({
   getDocument = vi.fn().mockResolvedValue({version: 'v1'}),
-  getDocumentInfo = vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0}}),
+  getDocumentInfo = vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0, commentCount: 0}}),
   listDocumentChanges = vi.fn().mockResolvedValue({changes: []}),
   listCitations = vi.fn().mockResolvedValue({citations: []}),
 } = {}) {
@@ -82,5 +82,38 @@ describe('InteractionSummary.getData', () => {
 
     const result = await InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)
     expect(result).toEqual(emptySummary)
+  })
+
+  it('reports the daemon comment count, not the count of comment citations', async () => {
+    // The document has two comment citations from elsewhere, but its own
+    // comment count is 5 — the two must not be confused.
+    const grpcClient = makeGrpcClient({
+      getDocumentInfo: vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0, commentCount: 5}}),
+      listCitations: vi.fn().mockResolvedValue({
+        citations: [
+          {
+            source: 'hm://commenter-a/zComment1',
+            sourceType: 'Comment',
+            sourceBlob: {author: 'commenter-a', createTime: undefined, cid: ''},
+            targetVersion: 'v1',
+            targetFragment: '',
+            isExactVersion: false,
+          },
+          {
+            source: 'hm://commenter-b/zComment2',
+            sourceType: 'Comment',
+            sourceBlob: {author: 'commenter-b', createTime: undefined, cid: ''},
+            targetVersion: 'v1',
+            targetFragment: '',
+            isExactVersion: false,
+          },
+        ],
+      }),
+    })
+
+    const result = await InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)
+    expect(result.comments).toBe(5)
+    // Per-block comment counts stay citation-derived.
+    expect(result.blocks).toEqual({})
   })
 })

@@ -7,7 +7,7 @@
  *
  * - Pure decision logic: should a link be added?
  * - Operation builder: what DocumentOperations to emit
- * - Full I/O convenience: fetch parent, check, build ops, sign, publish
+ * - Full I/O convenience: fetch parent, check, build the change, sign, publish
  */
 
 import type {HMBlockNode, HMDocument, UnpackedHypermediaId} from './hm-types'
@@ -15,10 +15,8 @@ import type {AnySigner} from './signer'
 import {entityQueryPathToHmIdPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
 import type {DocumentOperation} from './change'
-import {createChangeOps, createChange} from './change'
-import {createVersionRef} from './ref'
 import {resolveDocumentState} from './document-state'
-import {CID} from 'multiformats/cid'
+import {documentUpdateBlobs} from './prepare-change'
 
 // ── Layer 1: Pure decision logic (no I/O) ────────────────────────────────────
 
@@ -109,6 +107,11 @@ export function shouldAutoLinkParent(
     if (documentHasSelfQuery(parentDocument, parentId)) {
       return false
     }
+    // A typed collection (its children follow a schema) lists its records itself; linking each
+    // record into its body would bury it.
+    if (parentDocument.metadata?.childAttributesSchema) {
+      return false
+    }
   }
 
   return true
@@ -123,6 +126,10 @@ export function shouldAutoLinkParent(
  * MoveBlocks that lists ALL root-level block IDs (existing + new) to ensure
  * correct ordering. The CBOR MoveBlocks format with no `ref` positions blocks
  * from the start, so we must re-specify the full ordering.
+ *
+ * Sent through `documentUpdateBlobs`, the daemon stores only the new block and
+ * its one placement after the last root block; a Change built from these ops
+ * directly stores the whole list.
  */
 export function createAutoLinkOps(
   parentDocument: HMDocument,
@@ -158,6 +165,8 @@ export type AutoLinkChildToParentOptions = {
   childHmUrl: string
   /** Signer for the parent document change. */
   signer: AnySigner
+  /** Writer capability CID, when the signer writes into another account's space. */
+  capability?: string
 }
 
 /**
@@ -165,12 +174,16 @@ export type AutoLinkChildToParentOptions = {
  *
  * Computes the parent path, fetches the parent document, decides whether a link
  * is needed (using `shouldAutoLinkParent`), and if so publishes an Embed Card
- * block to the parent document.
+ * block to the parent document. The parent's Change goes through
+ * `documentUpdateBlobs`: the daemon computes it on top of the version that was
+ * read, so it holds only the new block and its placement; when the daemon
+ * cannot be asked or does not give a usable answer, the Change is built here
+ * and lists every root block, as it always did.
  *
  * Returns true if a link was added, false otherwise. Throws on network errors.
  */
 export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions): Promise<boolean> {
-  const {client, account, path, childHmUrl, signer} = opts
+  const {client, account, path, childHmUrl, signer, capability} = opts
 
   // Compute parent path — skip if the document is at root level
   const segments = path.replace(/^\//, '').split('/')
@@ -209,37 +222,24 @@ export async function autoLinkChildToParent(opts: AutoLinkChildToParentOptions):
   // Generate a block ID for the embed
   const newBlockId = generateBlockId()
 
-  // Build the operations
-  const ops = createAutoLinkOps(parentDocument, childHmUrl, newBlockId)
-
-  // Resolve document state (genesis, heads, depth)
-  const hmUrl = `hm://${account}${parentPath}`
-  const state = await resolveDocumentState(client, hmUrl)
-  const genesisCid = CID.parse(state.genesis)
-  const depCids = state.heads.map((h: string) => CID.parse(h))
-  const newDepth = state.headDepth + 1
-
-  // Create and sign the change
-  const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
-  const changeBlock = await createChange(unsignedBytes, signer)
-  const generation = Number(ts)
-
-  // Create version ref
-  const refInput = await createVersionRef(
-    {
-      space: account,
-      path: parentPath,
-      genesis: state.genesis,
-      version: changeBlock.cid.toString(),
-      generation,
-    },
+  // The heads to build on. When they are not the version just read, the helper builds the
+  // Change itself rather than ask the daemon to place blocks against content that has moved on.
+  const state = await resolveDocumentState(client, `hm://${account}${parentPath}`)
+  const update = await documentUpdateBlobs({
+    client,
     signer,
-  )
-
-  // Publish
-  await client.publish({
-    blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
+    account,
+    path: parentPath,
+    state,
+    ops: createAutoLinkOps(parentDocument, childHmUrl, newBlockId),
+    content: parentDocument.content ?? [],
+    documentVersion: parentDocument.version,
+    capability,
+    currentGeneration: parentDocument.generationInfo?.generation,
   })
+  if (!update.changed) return false
+
+  await client.publish({blobs: update.blobs})
 
   return true
 }

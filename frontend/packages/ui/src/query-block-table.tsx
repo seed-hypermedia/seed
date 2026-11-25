@@ -10,9 +10,10 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, Grid3X3, MessageSquare, GitCompareArrows} from 'lucide-react'
+import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, MessageSquare, GitCompareArrows, Plus} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './components/table'
+import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {FacePile} from './face-pile'
 import {
   getDocumentTags,
@@ -32,6 +33,8 @@ export interface QueryBlockTableProps {
   items: HMDocumentInfo[]
   /** Drafts rendered before published rows, with actions in the last column. */
   tableDrafts?: QueryBlockDraftSlotData
+  /** Renders a "New document" row as the first body row. */
+  onCreateDocument?: () => void
   descriptors: QueryTableColumn[]
   context: QueryTableValueContext
   sorting?: SortingState
@@ -51,6 +54,7 @@ export interface QueryBlockTableProps {
 export function QueryBlockTable({
   items,
   tableDrafts,
+  onCreateDocument,
   descriptors,
   context,
   sorting,
@@ -186,6 +190,8 @@ export function QueryBlockTable({
       onColumnSizingChange?.(next)
     },
     columnResizeMode: 'onChange',
+    // Activity is a server sort, not a visible table column.
+    manualSorting: activeSorting[0]?.id === 'activity',
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
@@ -269,6 +275,23 @@ export function QueryBlockTable({
           ))}
         </TableHeader>
         <TableBody>
+          {onCreateDocument ? (
+            <TableRow className="hover:bg-muted/30">
+              <TableCell colSpan={table.getVisibleLeafColumns().length + (hasDrafts ? 1 : 0)} className="p-0">
+                <button
+                  type="button"
+                  onClick={onCreateDocument}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-full cursor-pointer items-center p-2 text-left font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                >
+                  {/* Sticky so the label stays in view while the columns scroll sideways. */}
+                  <span className="sticky left-2 flex items-center gap-2">
+                    <Plus className="size-4 shrink-0" />
+                    New document
+                  </span>
+                </button>
+              </TableCell>
+            </TableRow>
+          ) : null}
           {tableDrafts?.drafts.map(({draft, autoFocus}) => (
             <InlineDraftListItem
               key={`draft-${draft.id}`}
@@ -315,11 +338,7 @@ function TitleCell({item}: {item: HMDocumentInfo}) {
       className="flex items-center gap-2 font-medium hover:underline"
       title={getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
     >
-      {item.isCollection ? (
-        <Grid3X3 aria-label="Collection" className="size-4 shrink-0" />
-      ) : (
-        <FileText aria-label="Document" className="size-4 shrink-0" />
-      )}
+      <DocumentKindIcon kind={getDocumentKind(item)} className="size-4 shrink-0" />
       <span className="truncate">{getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}</span>
     </a>
   )

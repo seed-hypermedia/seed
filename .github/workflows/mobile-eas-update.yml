@@ -15,7 +15,7 @@ on:
       - "frontend/packages/client/**"
       - "frontend/packages/shared/**"
       - "frontend/packages/ui/src/agents/**"
-      - "agents/protocol/**"
+      - "apps/protocol/**"
       - ".github/workflows/mobile-eas-update.yml"
   workflow_dispatch:
 

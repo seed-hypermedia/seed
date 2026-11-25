@@ -1,3 +1,4 @@
+import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 // @vitest-environment jsdom
 import {createRoot, type Root} from 'react-dom/client'
 import {type HTMLAttributes} from 'react'
@@ -90,6 +91,7 @@ vi.mock('@shm/ui/embed-views', () => ({
 // is present so it can reveal on hover; stub its leaf data hooks so it renders a
 // closed dropdown without a QueryClient/route/actions provider.
 vi.mock('@shm/shared/models/entity', () => ({
+  useResolvedHmId: (url: string) => ({id: unpackHmId(url), isLoading: false, error: null}),
   useResource: () => ({data: undefined, isLoading: false, isInitialLoading: false}),
   useResources: () => [],
   useAccount: () => ({data: undefined}),
@@ -110,9 +112,13 @@ vi.mock('@shm/shared', async (importOriginal) => {
 })
 
 const resolveHypermediaUrlMock = vi.fn()
-vi.mock('@seed-hypermedia/client', () => ({
-  resolveHypermediaUrl: (...args: any[]) => resolveHypermediaUrlMock(...args),
-}))
+vi.mock('@seed-hypermedia/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@seed-hypermedia/client')>()
+  return {
+    ...actual,
+    resolveHypermediaUrl: (...args: any[]) => resolveHypermediaUrlMock(...args),
+  }
+})
 
 vi.mock('@shm/shared/utils/entity-id-url', async (importOriginal) => {
   return await importOriginal<typeof import('@shm/shared/utils/entity-id-url')>()
@@ -570,5 +576,13 @@ describe('resolveEmbedUrl', () => {
       'https://site.example/p',
       expect.objectContaining({domainResolver}),
     )
+  })
+
+  it('returns the selected reply as a direct embed for a comment permalink URL', async () => {
+    const url =
+      'https://seedteamtalks.hyper.media/tasks/something-s-wrong-with-navbar-alignment?panel=comments/z6Mkrootuid/z6FCroottsid&reply=z6Mkreplyuid/z6FCreplytsid'
+    const result = await resolveEmbedUrl(url)
+    expect(result).toEqual({kind: 'direct', url: 'hm://z6Mkreplyuid/z6FCreplytsid'})
+    expect(resolveHypermediaUrlMock).not.toHaveBeenCalled()
   })
 })

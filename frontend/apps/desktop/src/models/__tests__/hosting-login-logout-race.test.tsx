@@ -7,13 +7,18 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import {useHostSession} from '../host'
 
-const {getHostState, setHostState, getVaultEmailPrevalidation} = vi.hoisted(() => ({
+const {getHostState, setHostState, expireSession, getVaultEmailPrevalidation} = vi.hoisted(() => ({
   getHostState: vi.fn(),
   setHostState: vi.fn(),
+  expireSession: vi.fn(),
   getVaultEmailPrevalidation: vi.fn(),
 }))
 
-vi.mock('@/trpc', () => ({client: {host: {get: {query: getHostState}, set: {mutate: setHostState}}}}))
+vi.mock('@/trpc', () => ({
+  client: {
+    host: {get: {query: getHostState}, set: {mutate: setHostState}, expireSession: {mutate: expireSession}},
+  },
+}))
 vi.mock('@/grpc-client', () => ({grpcClient: {daemon: {getVaultEmailPrevalidation}}}))
 vi.mock('@shm/shared', async () => {
   const {invalidateQueries} = await import('@shm/shared/models/query-client')
@@ -31,7 +36,7 @@ describe('hosting login interrupted by logout', () => {
   let queryClient: QueryClient
   let host: ReturnType<typeof useHostSession>
   let finishLogin: (response: Response) => void
-  let currentState: typeof loggedOutState
+  let currentState: {authVersion: number; email: string | null; sessionToken: string | null; pendingSessionToken: null}
   let onAuthenticated: ReturnType<typeof vi.fn<() => void>>
 
   function HostingProbe() {
@@ -51,6 +56,12 @@ describe('hosting login interrupted by logout', () => {
     currentState = {...loggedOutState}
     onAuthenticated = vi.fn<() => void>()
     getHostState.mockReset().mockImplementation(async () => currentState)
+    expireSession.mockReset().mockImplementation(async ({sessionToken}: {sessionToken: string}) => {
+      if (sessionToken === currentState.sessionToken) {
+        currentState = {...currentState, authVersion: currentState.authVersion + 1, sessionToken: null}
+      }
+      return currentState
+    })
     setHostState.mockReset().mockImplementation(async (input: {expectedAuthVersion?: number}) => {
       if (input.expectedAuthVersion !== currentState.authVersion) throw changedSession
     })
@@ -142,4 +153,85 @@ describe('hosting login interrupted by logout', () => {
       expect(queryClient.getQueryData([queryKeys.HOST_STATE])).toEqual(currentState)
     },
   )
+
+  test.each([false, true])(
+    'a site creation 401 expires only its rejected session (new login: %s)',
+    async (newLogin) => {
+      currentState = {...loggedOutState, email: 'owner@example.com', sessionToken: 'rejected-token'}
+      await act(async () => {
+        queryClient.setQueryData([queryKeys.HOST_STATE], currentState)
+        render()
+      })
+      let outcome!: Promise<unknown>
+      await act(async () => {
+        outcome = host.createSite.mutateAsync({subdomain: 'my-space'}).catch((error: unknown) => error)
+      })
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/sites'),
+        expect.objectContaining({headers: expect.objectContaining({Authorization: 'Bearer rejected-token'})}),
+      )
+      if (newLogin) {
+        currentState = {...currentState, sessionToken: 'fresh-token'}
+        await act(async () => {
+          queryClient.setQueryData([queryKeys.HOST_STATE], currentState)
+          render()
+        })
+      }
+      await act(async () => {
+        finishLogin(new Response(JSON.stringify({error: 'Invalid authorization'}), {status: 401}))
+        expect(await outcome).toMatchObject({message: 'Invalid authorization', status: 401})
+      })
+      await vi.waitFor(() => expect(host.loggedIn).toBe(newLogin))
+      expect(expireSession).toHaveBeenCalledWith({sessionToken: 'rejected-token'})
+      expect(queryClient.getQueryData([queryKeys.HOST_STATE])).toMatchObject({
+        sessionToken: newLogin ? 'fresh-token' : null,
+      })
+    },
+  )
+
+  test.each([
+    [409, {message: 'Subdomain is already registered'}, 'Subdomain is already registered'],
+    [503, null, 'Hosting request failed (503)'],
+  ])('surfaces a %s failure without expiring the hosting session', async (status, body, message) => {
+    currentState = {...loggedOutState, email: 'owner@example.com', sessionToken: 'active-token'}
+    await act(async () => {
+      queryClient.setQueryData([queryKeys.HOST_STATE], currentState)
+      render()
+    })
+    let outcome!: Promise<unknown>
+    await act(async () => {
+      outcome = host.createSite.mutateAsync({subdomain: 'my-space'}).catch((error: unknown) => error)
+      finishLogin(
+        new Response(body === null ? 'Service unavailable' : JSON.stringify(body), {status: status as number}),
+      )
+      expect(await outcome).toMatchObject({message, status})
+    })
+    expect(expireSession).not.toHaveBeenCalled()
+    expect(host.loggedIn).toBe(true)
+  })
+
+  test('a delayed expiration reply cannot overwrite a fresh renderer login', async () => {
+    currentState = {...loggedOutState, email: 'owner@example.com', sessionToken: 'rejected-token'}
+    await act(async () => {
+      queryClient.setQueryData([queryKeys.HOST_STATE], currentState)
+      render()
+    })
+    let finishExpiration!: (state: typeof currentState) => void
+    expireSession.mockImplementation(() => new Promise((resolve) => (finishExpiration = resolve)))
+    let outcome!: Promise<unknown>
+    await act(async () => {
+      outcome = host.createSite.mutateAsync({subdomain: 'my-space'}).catch((error: unknown) => error)
+      finishLogin(new Response(JSON.stringify({error: 'Invalid authorization'}), {status: 401}))
+    })
+    await vi.waitFor(() => expect(expireSession).toHaveBeenCalled())
+    currentState = {...currentState, authVersion: 1, sessionToken: 'fresh-token'}
+    await act(async () => {
+      queryClient.setQueryData([queryKeys.HOST_STATE], currentState)
+      render()
+      finishExpiration({...currentState, sessionToken: null})
+      await outcome
+    })
+    expect(queryClient.getQueryData([queryKeys.HOST_STATE])).toMatchObject({sessionToken: 'fresh-token'})
+    expect(host.loggedIn).toBe(true)
+  })
 })

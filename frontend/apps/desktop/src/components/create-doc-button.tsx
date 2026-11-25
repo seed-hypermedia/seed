@@ -1,5 +1,8 @@
+import {isToolHostType} from '@seed-hypermedia/client/apps'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
+import {useSelectedAccountId} from '@/selected-account'
 import {useCreateDraft} from '@/models/documents'
 import {useChildDrafts} from '@/models/documents'
 import {useExperiments} from '@/models/experiments'
@@ -12,6 +15,11 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {CreateAppDialog, CreateToolDialog, CreateTriggerDialog} from '@shm/ui/apps/create-dialogs'
+import type {AppRef} from '@shm/ui/apps/publish'
+import {appResourceKind} from '@shm/ui/apps/tabs'
+import {useAgentServerOptions} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
 import {DocumentCreateButton} from '@shm/ui/document-create-button'
 import {toast} from '@shm/ui/toast'
@@ -25,7 +33,8 @@ import {
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
-import {FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {Blocks, Bot, FileCode2, FilePlus2, Grid3X3, Import, Wrench, Zap} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -55,6 +64,14 @@ export function useCreateDocumentMenuItem({
   const schemasEnabled = !!experiments?.hypermediaSchemas
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
+  const createAgent = useCreateAgentAtLocation(locationId, !locationId.path?.length)
+  // An app takes only tools from this menu (agents build its pages); a tool takes nothing.
+  const location = useResource(locationId)
+  const locationDocument = location.data?.type === 'document' ? location.data.document : undefined
+  const locationKind = appResourceKind(locationDocument?.metadata.type)
+  const createApp = useAppDialog(CreateAppDialog)
+  const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -70,6 +87,27 @@ export function useCreateDocumentMenuItem({
   const menuItem = useMemo<MenuItemType | null>(() => {
     if (!myAccountIds.data?.length) return null
     if (!canEdit || !canCreateChildren) return null
+    if (locationKind === 'tool' || locationKind === 'trigger') return null
+    if (locationKind === 'app')
+      return {
+        key: 'new',
+        label: 'New',
+        icon: <Add className="size-4" />,
+        children: [
+          {
+            key: 'new-tool',
+            label: 'Tool',
+            icon: <Wrench className="size-4" />,
+            onClick: () => locationDocument && createTool.open({app: {id: locationId, document: locationDocument}}),
+          },
+          {
+            key: 'new-trigger',
+            label: 'Trigger',
+            icon: <Zap className="size-4" />,
+            onClick: () => locationDocument && createTrigger.open({host: {id: locationId, document: locationDocument}}),
+          },
+        ],
+      }
 
     return {
       key: 'new',
@@ -107,6 +145,22 @@ export function useCreateDocumentMenuItem({
             void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
           },
         },
+        ...(createAgent.open
+          ? [
+              {
+                key: 'new-agent',
+                label: 'Agent',
+                icon: <Bot className="size-4" />,
+                onClick: createAgent.open,
+              },
+            ]
+          : []),
+        {
+          key: 'new-app',
+          label: 'App',
+          icon: <Blocks className="size-4" />,
+          onClick: () => createApp.open({location: locationId}),
+        },
         {
           key: 'import',
           label: 'Import',
@@ -115,7 +169,20 @@ export function useCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreateChildren, canEdit, createDraft, myAccountIds.data?.length, openImportDialog, schemasEnabled])
+  }, [
+    canCreateChildren,
+    canEdit,
+    createAgent.open,
+    createApp.open,
+    createTool.open,
+    locationDocument,
+    locationId,
+    locationKind,
+    createDraft,
+    myAccountIds.data?.length,
+    openImportDialog,
+    schemasEnabled,
+  ])
 
   return {
     menuItem,
@@ -123,9 +190,38 @@ export function useCreateDocumentMenuItem({
       <>
         {importDialog.content}
         {importing.content}
+        {createAgent.content}
+        {createApp.content}
+        {createTool.content}
+        {createTrigger.content}
       </>
     ),
   }
+}
+
+/**
+ * Agent creation under `locationId`, for the New menus: `open` is undefined while the known app
+ * environments are still loading or no account is selected, which hides the entry. The dialog offers
+ * those servers and takes any other by URL, so there need not be one to offer.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
+ */
+function useCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
+): {
+  open?: () => void
+  content: ReactNode
+} {
+  const dialog = useAppDialog(CreateAgentDialog)
+  const serverUrls = useAgentServerOptions()
+  const selectedAccountId = useSelectedAccountId()
+  const open = useMemo(() => {
+    if (!serverUrls || !selectedAccountId || !atHome || locationId.path?.length) return undefined
+    return () => dialog.open({serverUrls, selectedAccountId, location: locationId})
+  }, [atHome, dialog.open, locationId, selectedAccountId, serverUrls])
+  return {open, content: dialog.content}
 }
 
 function CreateDocumentButtonContent({locationId}: {locationId: UnpackedHypermediaId}) {
@@ -191,6 +287,8 @@ function DesktopActorButton({
     canEditParent,
   })
   const createDraft = useCreateDraft()
+  const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
+  const createApp = useAppDialog(CreateAppDialog)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -224,6 +322,8 @@ function DesktopActorButton({
     },
   })
   const snapshot = useSelector(actor, (state) => state)
+  const isHidden = JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'hidden'})
+  const isReady = JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'ready'})
 
   useEffect(() => {
     if (snapshot.value !== 'failedCreation') return
@@ -231,13 +331,28 @@ function DesktopActorButton({
     actor.send({type: 'retry.requested'})
   }, [actor, snapshot.context.error, snapshot.value])
 
+  // Cmd/Ctrl+Shift+N does what the primary "New" button does, with the same contextual gating.
+  useEffect(() => {
+    if (!isReady) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.code !== 'KeyN' || !(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey) return
+      event.preventDefault()
+      actor.send({type: 'create.requested', kind: 'document'})
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [actor, isReady])
+
   return (
     <>
       <DocumentCreateButton
-        hidden={JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'hidden'})}
-        disabled={JSON.stringify(snapshot.value) !== JSON.stringify({resolved: 'ready'})}
+        hidden={isHidden}
+        disabled={!isReady}
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onCreateAgent={createAgent.open}
+        onCreateApp={() => createApp.open({location: destination})}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -271,6 +386,8 @@ function DesktopActorButton({
       />
       {importDialog.content}
       {importing.content}
+      {createAgent.content}
+      {createApp.content}
     </>
   )
 }
@@ -278,6 +395,9 @@ function DesktopActorButton({
 /** Actor-backed document creation split button for the desktop document toolbar. */
 export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedHypermediaId}) {
   const client = useUniversalClient()
+  const route = useNavRoute()
+  const appView = route.key === 'document' ? route.appView : undefined
+  const agentView = route.key === 'document' ? route.agentView : undefined
   const current = useResource(locationId)
   const currentDocument = current.data?.type === 'document' ? current.data.document : undefined
   const currentCapability = useSelectedAccountCapability(locationId)
@@ -305,9 +425,17 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     ),
   )
   const drafts = useChildDrafts(schemaId)
+  // A collection that declares a real `childAttributesSchema` types its children itself: the new
+  // document starts from that schema's defaults and required fields. Guessing attributes from the
+  // siblings would pre-fill every key with an empty value, which hides the schema's defaults and
+  // is not a member of any literal union (so an enum shows a text box instead of its options).
+  const schemaDocument = currentIsCollection ? currentDocument : parentDocument
+  const declaresChildSchema =
+    typeof schemaDocument?.metadata?.childAttributesSchema === 'string' &&
+    schemaDocument.metadata.childAttributesSchema.length > 0
   const schema = useMemo(
     () =>
-      schemaId
+      schemaId && !declaresChildSchema
         ? inferDocumentSchema({
             collectionId: schemaId,
             publishedChildren: children.data?.results ?? [],
@@ -316,7 +444,7 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
             ),
           })
         : undefined,
-    [children.data?.results, drafts, schemaId],
+    [children.data?.results, drafts, schemaId, declaresChildSchema],
   )
   const [generation, setGeneration] = useState(0)
 
@@ -324,6 +452,26 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   }
   if (!currentDocument || !canEditCurrent) return null
+  const kind = appResourceKind(currentDocument.metadata?.type)
+  const isAgent = currentDocument.metadata?.type === 'hm://hyper.media/agent'
+  // On a tool or a trigger, New makes another one of the same kind in its app or agent.
+  if (kind === 'tool' || kind === 'trigger') {
+    if (!parentId || !parentDocument || !isToolHostType(parentDocument.metadata?.type) || !canEditParent) return null
+    return <NewHostChildButton host={{id: parentId, document: parentDocument}} first={kind} />
+  }
+  // An agent's page is the agent: New appears on its Triggers tab, and makes a trigger.
+  if (isAgent)
+    return agentView === 'triggers' ? (
+      <NewHostChildButton host={{id: locationId, document: currentDocument}} first="trigger" />
+    ) : null
+  // An app's New makes its tools and triggers: on its Triggers tab a trigger first, else a tool.
+  if (kind === 'app')
+    return (
+      <NewHostChildButton
+        host={{id: locationId, document: currentDocument}}
+        first={appView === 'triggers' ? 'trigger' : 'tool'}
+      />
+    )
 
   return (
     <DesktopActorButton
@@ -336,5 +484,37 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
       schema={schema}
       onImportFinished={() => setGeneration((value) => value + 1)}
     />
+  )
+}
+
+/**
+ * The New button in an app or agent (or on one of its tools or triggers): it makes tools and
+ * triggers (agents build pages). `first` is what New makes on a click; the menu lists both.
+ */
+function NewHostChildButton({host, first}: {host: AppRef; first: 'tool' | 'trigger'}) {
+  const createTool = useAppDialog(CreateToolDialog)
+  const createTrigger = useAppDialog(CreateTriggerDialog)
+  const tool = {
+    key: 'new-tool',
+    label: 'Tool',
+    icon: <Wrench className="size-4" />,
+    onSelect: () => createTool.open({app: host}),
+  }
+  const trigger = {
+    key: 'new-trigger',
+    label: 'Trigger',
+    icon: <Zap className="size-4" />,
+    onSelect: () => createTrigger.open({host}),
+  }
+  return (
+    <>
+      <DocumentCreateButton
+        onCreate={() => {}}
+        onImport={() => {}}
+        options={first === 'trigger' ? [trigger, tool] : [tool, trigger]}
+      />
+      {createTool.content}
+      {createTrigger.content}
+    </>
   )
 }

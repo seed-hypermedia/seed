@@ -10,7 +10,7 @@ This directory is the operational center of Seed's notification system, but the 
 - the email renderer/templates in [`../emails`](../emails)
 
 The published description of how the service, the clients and the read-state rules fit together is
-[`hypermedia/apps/notify.md`](../../../hypermedia/apps/notify.md). This README is the file-by-file map.
+[`hypermedia/software/notify.md`](../../../hypermedia/software/notify.md). This README is the file-by-file map.
 
 ## Current Mental Model
 

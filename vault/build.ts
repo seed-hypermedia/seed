@@ -1,4 +1,4 @@
-import {rm} from 'node:fs/promises'
+import {copyFile, rm} from 'node:fs/promises'
 import tailwind from 'bun-plugin-tailwind'
 import uglify from './uglify-js'
 import {reactSingletonPlugin} from './react-singleton-plugin'
@@ -35,6 +35,18 @@ if (!result.success) {
   }
   process.exit(1)
 }
+
+for (const output of result.outputs) {
+  if (!output.path.endsWith('.html')) continue
+  const html = await output.text()
+  for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
+    if (!new URL(match[1]!, 'https://vault.invalid').pathname.startsWith('/vault/')) {
+      throw new Error(`Built Vault asset URL escapes /vault/: ${match[1]} (${output.path})`)
+    }
+  }
+}
+
+await copyFile('../frontend/packages/ui/THIRD_PARTY_NOTICES.md', `${OUTDIR}/THIRD_PARTY_NOTICES.md`)
 
 console.log('Build succeeded!')
 for (const output of result.outputs) {

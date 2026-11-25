@@ -13,6 +13,9 @@ import {SchemaNavContext, SchemaByCid} from '../explorer'
 import {SchemaBrowserPage} from '../schema-browser'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
+/** A logged-in account: starting a blob needs one to publish with. */
+const signedIn = {get: () => 'z6MkSigner', subscribe: () => () => {}}
+
 const CUSTOM_CID = 'bafyreicustomschemaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 const CUSTOM = {
   name: 'Vote',
@@ -85,7 +88,12 @@ describe('SchemaByCid', () => {
     await act(() =>
       root.render(
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
+          <UniversalAppProvider
+            openUrl={() => {}}
+            openRoute={null}
+            universalClient={{request: vi.fn()} as any}
+            selectedIdentity={signedIn}
+          >
             <TooltipProvider>
               <SchemaBrowserPage cid={cid} navigate={navigate} openUrl={openUrl} />
             </TooltipProvider>
@@ -106,12 +114,33 @@ describe('SchemaByCid', () => {
     expect(container.textContent).not.toContain('browse the library')
   })
 
+  it('without an account (logged out) the page offers no New button', async () => {
+    await act(() =>
+      root.render(
+        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
+            <TooltipProvider>
+              <SchemaBrowserPage cid={schemaCid('example/person')!} navigate={vi.fn()} openUrl={vi.fn()} />
+            </TooltipProvider>
+          </UniversalAppProvider>
+        </QueryClientProvider>,
+      ),
+    )
+    expect(container.querySelector('[data-testid="schema-browser-header"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="schema-browser-new"]')).toBeNull()
+  })
+
   it('a union schema page has no New button (no single seed shape)', async () => {
     const navigate = vi.fn()
     await act(() =>
       root.render(
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
+          <UniversalAppProvider
+            openUrl={() => {}}
+            openRoute={null}
+            universalClient={{request: vi.fn()} as any}
+            selectedIdentity={signedIn}
+          >
             <TooltipProvider>
               <SchemaBrowserPage cid={schemaCid('blob/any')!} navigate={navigate} openUrl={vi.fn()} />
             </TooltipProvider>

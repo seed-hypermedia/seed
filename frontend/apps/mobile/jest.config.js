@@ -17,7 +17,7 @@ module.exports = {
     // The DOM-free half of the shared agents UI, and the dependency-free agents protocol.
     // Mirrors the scoped alias in metro.config.js (`.ts` only — no .tsx web components).
     '^@shm/ui/agents/(.*)$': '<rootDir>/../../packages/ui/src/agents/$1.ts',
-    '^@seed-hypermedia/agents-protocol$': '<rootDir>/../../../agents/protocol/src/index.ts',
+    '^@seed-hypermedia/apps-protocol$': '<rootDir>/../../../apps/protocol/src/index.ts',
     '^@tanstack/react-query$': '<rootDir>/node_modules/@tanstack/react-query',
     // ESM-only deps of the client package: their exports maps carry only the
     // "import" condition, which jest's CJS resolver never matches. Point jest

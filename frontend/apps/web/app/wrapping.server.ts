@@ -1,5 +1,6 @@
 import {json, TypedResponse} from '@remix-run/node'
-import {serialize, SuperJSONResult} from 'superjson'
+import {serializeSuperJSON} from '@shm/shared/fast-superjson'
+import type {SuperJSONResult} from 'superjson'
 
 // Re-export isomorphic functions.
 export {wrap, unwrap, type Wrapped} from './wrapping'
@@ -12,7 +13,7 @@ export function wrapJSON<T>(value: T, resp?: ResponseInit): WrappedResponse<T> {
   if (!headers.has('Cache-Control')) {
     headers.set('Cache-Control', 'private, no-cache')
   }
-  return json(serialize(value), {
+  return json(serializeSuperJSON(value), {
     ...resp,
     headers,
   })

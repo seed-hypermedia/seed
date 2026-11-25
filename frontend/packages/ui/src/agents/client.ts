@@ -1,9 +1,5 @@
-import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
-import {
-  AGENTS_PROTOCOL_HEADER,
-  AGENTS_PROTOCOL_VERSION,
-  declaredProtocolVersion,
-} from '@seed-hypermedia/agents-protocol'
+import type * as AgentsProtocol from '@seed-hypermedia/apps-protocol'
+import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION, declaredProtocolVersion} from '@seed-hypermedia/apps-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {getAgentsPlatform, type AgentsSignerDelegation} from './platform'
@@ -87,7 +83,7 @@ export type McpToolInfo = AgentsProtocol.McpToolInfo
 export type McpServerStatus = AgentsProtocol.McpServerStatus
 /** Every editable field submitted when creating or updating an authored tool. */
 export type AgentToolInput = AgentsProtocol.AgentToolInput
-/** One file or directory inside an agent's private memory filesystem. */
+/** One file or directory inside an agent's memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */
 export type AgentMemoryFile = AgentsProtocol.AgentMemoryFile
@@ -126,7 +122,7 @@ export type ModelProviderType =
 type AgentAction = AgentsProtocol.UnsignedAgentAction
 type AgentsResponse = AgentsProtocol.AgentResponse
 
-/** Health payload returned by the agent server status route. */
+/** Health payload returned by the app environment status route. */
 export type AgentServerHealth = {
   status: string
   uptime: number
@@ -146,26 +142,29 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
-  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
+  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see apps/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
   minClientProtocol?: number
 }
 
-/** Canonical path of the agents API, on a standalone agents host or on a site's own origin. */
+/** Canonical path of the app environment's API, on a standalone host or on a site's own origin. */
+export const APPS_API_PREFIX = '/hm/api/apps'
+
+/** The app environment's path for the same API; every environment still answers it, and published bindings still name it. */
 export const AGENTS_API_PREFIX = '/hm/api/agents'
 
 /**
- * Normalizes an agent server URL for storage and fetch calls. A canonical base (path ending in
- * `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
+ * Normalizes an app environment URL for storage and fetch calls. A canonical base (path ending in
+ * `/hm/api/apps` or `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
  * mount) is stripped back to the origin.
  */
 export function normalizeAgentServerUrl(input: string): string {
   const value = input.trim().replace(/\/+$/, '')
-  if (!value) throw new Error('Agent server URL is required')
+  if (!value) throw new Error('App environment URL is required')
   const url = new URL(value)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Agent server URL must start with http:// or https://')
+    throw new Error('App environment URL must start with http:// or https://')
   }
   if (url.pathname === '/agents' || url.pathname === '/agents/') {
     url.pathname = '/'
@@ -175,9 +174,10 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-/** True when the server URL names the canonical mount (`…/hm/api/agents`) rather than a legacy origin. */
+/** True when the server URL names the canonical API path (`…/hm/api/apps` or `…/hm/api/agents`) rather than a legacy origin. */
 export function isCanonicalAgentServerUrl(serverUrl: string): boolean {
-  return new URL(normalizeAgentServerUrl(serverUrl)).pathname.endsWith(AGENTS_API_PREFIX)
+  const {pathname} = new URL(normalizeAgentServerUrl(serverUrl))
+  return pathname.endsWith(APPS_API_PREFIX) || pathname.endsWith(AGENTS_API_PREFIX)
 }
 
 /** The agents service endpoints a client calls. `webhooks`, `perf/sessions` take a trailing path. */
@@ -221,11 +221,78 @@ export function isSafeAgentServerSecretTarget(serverUrl: string): boolean {
   return ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
 }
 
-/** Fetches agent server health from the built-in status endpoint. */
+/** Fetches app environment health from the built-in status endpoint. */
 export async function getAgentServerHealth(serverUrl: string): Promise<AgentServerHealth> {
   const res = await fetch(agentServerEndpoint(serverUrl, 'health'))
-  if (!res.ok) throw new Error(`Agent server health failed: HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`App environment health failed: HTTP ${res.status}`)
   return res.json()
+}
+
+/** True when `serverUrl` answers as an app environment: its health endpoint returns the JSON status. */
+async function answersAsAppServer(serverUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(agentServerEndpoint(serverUrl, 'health'), {signal: AbortSignal.timeout(8_000)})
+    // A site without an app environment answers every path with its web page, so 200 is not enough.
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') ?? '')) return false
+    const health = (await res.json()) as {status?: unknown}
+    return typeof health?.status === 'string'
+  } catch {
+    return false
+  }
+}
+
+/** A typed server as a URL: `hyper.media` means `https://hyper.media`, a local host means http. */
+function typedServerUrl(input: string): URL {
+  const text = input.trim()
+  if (!text) throw new Error('Type a server, such as hyper.media')
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(text)
+  let url: URL
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `${local ? 'http' : 'https'}://${text}`)
+  } catch {
+    throw new Error(`“${text}” is not a server name`)
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`“${text}” is not a server name`)
+  return url
+}
+
+/**
+ * Finds the app environment behind what someone typed: a host name (`hyper.media`), a site address,
+ * or a full server URL. Nobody has to know the API path: a typed URL that carries a path is tried
+ * as written, then the site's own `/hm/api/config` says where its app environment is (believed once that
+ * server answers), then the site's `/hm/api/apps`, then the bare origin (a server on its own host). Throws, in words, when
+ * nothing there answers as an app environment.
+ */
+export async function findAppServer(input: string): Promise<string> {
+  const typed = typedServerUrl(input)
+  const origin = typed.origin
+  if (typed.pathname.replace(/\/+$/, '')) {
+    const asTyped = normalizeAgentServerUrl(typed.toString())
+    if (await answersAsAppServer(asTyped)) return asTyped
+  }
+  let misnamed = ''
+  try {
+    const res = await fetch(`${origin}/hm/api/config`, {signal: AbortSignal.timeout(8_000)})
+    if (res.ok && /json/i.test(res.headers.get('content-type') ?? '')) {
+      const config = (await res.json()) as {appEnvironmentUrl?: unknown; agentServerUrl?: unknown}
+      const advertised = config.appEnvironmentUrl || config.agentServerUrl
+      if (typeof advertised === 'string' && advertised) {
+        // A site can name a server that is not there (a default left in its config): believe it
+        // only once that server answers, and otherwise keep looking at the site itself.
+        const named = normalizeAgentServerUrl(advertised)
+        if (await answersAsAppServer(named)) return named
+        misnamed = new URL(named).host
+      }
+    }
+  } catch {}
+  for (const candidate of [`${origin}${APPS_API_PREFIX}`, origin]) {
+    if (await answersAsAppServer(candidate)) return normalizeAgentServerUrl(candidate)
+  }
+  throw new Error(
+    misnamed && misnamed !== typed.host
+      ? `${typed.host} names ${misnamed} as its app server, which does not answer as one`
+      : `No app server answers at ${typed.host}`,
+  )
 }
 
 /** The agents service's live-update WebSocket URL. Keeps a path prefix (a server behind a reverse proxy). */
@@ -272,7 +339,7 @@ export async function signAgentActionWith(input: {
         }
       : {}),
     // Signed with the rest: the server answers in this protocol's shape, or refuses if it no
-    // longer serves it (see `agents/protocol/PROTOCOL.md`).
+    // longer serves it (see `apps/protocol/PROTOCOL.md`).
     protocol: AGENTS_PROTOCOL_VERSION,
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
@@ -293,7 +360,7 @@ function omitUndefined<T>(value: T): T {
 }
 
 /**
- * An error the agent server answered with (as opposed to a failed connection).
+ * An error the app environment answered with (as opposed to a failed connection).
  *
  * Callers that hold onto a remembered resource across transient outages use the distinction: a
  * server that replied "not found" or "forbidden" has settled the question, while a fetch that never
@@ -327,7 +394,7 @@ export class AgentProtocolError extends AgentServerError {
 /**
  * The protocol version a server advertised on a response, read from its header. Servers from
  * before protocol 2 send no header, which counts as protocol 1. For display and diagnostics: the
- * client does not refuse older servers (see `agents/protocol/src/version.ts`).
+ * client does not refuse older servers (see `apps/protocol/src/version.ts`).
  */
 export function serverProtocolOf(headers: Headers): number {
   return declaredProtocolVersion(Number(headers.get(AGENTS_PROTOCOL_HEADER)))
@@ -337,17 +404,24 @@ export async function sendAgentAction(input: {
   serverUrl: string
   accountUid: string
   action: AgentAction
+  /** Cancels a window-scoped request, such as a browser long-poll when its panel closes. */
+  signal?: AbortSignal
 }): Promise<AgentsResponse> {
   const envelope = await signAgentAction({accountUid: input.accountUid, action: input.action})
-  return postSignedAgentAction(input.serverUrl, envelope)
+  return postSignedAgentAction(input.serverUrl, envelope, input.signal)
 }
 
 /** Posts an already signed action envelope and decodes the reply, throwing on server errors. */
-export async function postSignedAgentAction(serverUrl: string, envelope: unknown): Promise<AgentsResponse> {
+export async function postSignedAgentAction(
+  serverUrl: string,
+  envelope: unknown,
+  signal?: AbortSignal,
+): Promise<AgentsResponse> {
   const res = await fetch(agentServerEndpoint(serverUrl, 'message'), {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor', Accept: 'application/cbor'},
     body: cbor.encode(envelope) as BodyInit,
+    signal,
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {
@@ -355,7 +429,7 @@ export async function postSignedAgentAction(serverUrl: string, envelope: unknown
       throw new AgentProtocolError(decoded.message, res.status)
     }
     throw new AgentServerError(
-      decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
+      decoded._ === 'Error' ? decoded.message : `App environment request failed: HTTP ${res.status}`,
       res.status,
       decoded._ === 'Error' ? decoded.code : undefined,
     )

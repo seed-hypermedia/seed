@@ -1,5 +1,8 @@
+import {defaultRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {describe, expect, it} from 'vitest'
 import {
+  getNewWindowRoute,
   getSelectedIdentityFromWindowState,
   mergeWindowNavState,
   resolveSelectedIdentityForWindow,
@@ -264,5 +267,46 @@ describe('mergeWindowNavState', () => {
     expect(result.assistantOpen).toBe(true)
     expect(result.assistantSessionId).toBe('session-2')
     expect(result.routes).toEqual(currentState.routes)
+  })
+})
+
+describe('getNewWindowRoute', () => {
+  it('routes to the sidebar space home document when a space is selected', () => {
+    expect(getNewWindowRoute('z6Mkabc')).toEqual({key: 'document', id: hmId('z6Mkabc')})
+  })
+
+  it('falls back to the default route when no space is selected', () => {
+    expect(getNewWindowRoute(null)).toEqual(defaultRoute)
+    expect(getNewWindowRoute(undefined)).toEqual(defaultRoute)
+  })
+})
+
+describe('mergeWindowNavState sidebarSpaceUid', () => {
+  it('preserves sidebarSpaceUid when the update omits it', () => {
+    const currentState: WindowNavState = {
+      routes: [],
+      routeIndex: 0,
+      sidebarLocked: true,
+      sidebarWidth: 15,
+      accessoryWidth: 20,
+      sidebarSpaceUid: 'space-1',
+    }
+
+    const result = mergeWindowNavState(currentState, {routes: [{key: 'library'}]})
+    expect(result.sidebarSpaceUid).toBe('space-1')
+  })
+
+  it('overwrites sidebarSpaceUid when provided, including with null', () => {
+    const currentState: WindowNavState = {
+      routes: [],
+      routeIndex: 0,
+      sidebarLocked: true,
+      sidebarWidth: 15,
+      accessoryWidth: 20,
+      sidebarSpaceUid: 'space-1',
+    }
+
+    expect(mergeWindowNavState(currentState, {sidebarSpaceUid: 'space-2'}).sidebarSpaceUid).toBe('space-2')
+    expect(mergeWindowNavState(currentState, {sidebarSpaceUid: null}).sidebarSpaceUid).toBe(null)
   })
 })

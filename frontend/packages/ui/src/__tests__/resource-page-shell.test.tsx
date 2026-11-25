@@ -8,7 +8,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {DocumentViewContent, PageWrapper} from '../resource-page-common'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
+const layoutState = vi.hoisted(() => ({route: null as any, mobile: false}))
+vi.mock('../use-media', () => ({useMedia: () => ({xs: layoutState.mobile})}))
 
 vi.mock('../site-header', () => ({
   SiteHeader: ({
@@ -53,13 +54,23 @@ vi.mock('../site-file-browser-layout', () => {
 
 vi.mock('@shm/shared/utils/navigation', async () => {
   const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
-  return {...actual, useNavigate: () => vi.fn()}
+  return {...actual, useNavigate: () => vi.fn(), useNavRouteOrNull: () => layoutState.route}
 })
 
 let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  layoutState.route = null
+  layoutState.mobile = false
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)

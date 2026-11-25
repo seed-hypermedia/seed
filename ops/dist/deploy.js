@@ -880,6 +880,7 @@ var DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
 var NOTIFY_SERVICE_HOST = "https://hyper.media/hm/api/notify";
 var DEFAULT_UPSTREAM_API_URL = "https://hyper.media";
 var AGENTS_API_PATH = "/hm/api/agents";
+var APPS_API_PATH = "/hm/api/apps";
 var NOTIFY_API_PATH = "/hm/api/notify";
 var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
@@ -1017,7 +1018,12 @@ function notifyHost(config) {
 function agentsHost(config) {
   if (!config.agents)
     return "";
-  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`;
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`;
+}
+function appsPublicUrl(config) {
+  if (!config.agents)
+    return "";
+  return `https://${extractDns(config.domain)}${APPS_API_PATH}`;
 }
 function enterpriseTestnetName(domain) {
   return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, "-")}`;
@@ -1613,7 +1619,7 @@ async function runFreshWizard(paths, existing, advanced = false) {
       initialValue: existing?.gateway ?? false
     }),
     agents: () => me({
-      message: "Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)",
+      message: "Run the agents service? (served at <your domain>/hm/api/apps; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
     email: () => ue({
@@ -1874,7 +1880,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       ]
     }),
     agents: () => me({
-      message: "Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)",
+      message: "Run the agents service? (served at <your domain>/hm/api/apps, members only; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
     email_relay_url: () => advanced ? ue({
@@ -2020,7 +2026,7 @@ function agentsWebhookBlock(config) {
     return "";
   return `	@agents_webhook {
 		method POST
-		path ${AGENTS_API_PATH}/webhooks/*
+		path ${AGENTS_API_PATH}/webhooks/* ${APPS_API_PATH}/webhooks/*
 	}
 	handle @agents_webhook {
 		reverse_proxy seed-agents:3050
@@ -2031,7 +2037,7 @@ function agentsGatedBlock(config) {
   if (!config.agents)
     return "";
   return `
-	@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+	@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 	handle @agents {
 		import gate
 		reverse_proxy seed-agents:3050
@@ -2130,7 +2136,7 @@ function generateCaddyfile(config) {
     return generateEnterpriseCaddyfile(config);
   const agents = config.agents ? `
 @agentsroute {
-	path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+	path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 }
 
 reverse_proxy @agentsroute seed-agents:3050
@@ -2386,6 +2392,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_NOTIFY_HOST = notifyHost(config);
     vars.SEED_AGENTS_HOST = agentsHost(config);
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config);
     vars.SEED_SMTP_HOST = config.smtp?.host ?? "";
     vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : "587";
     vars.SEED_SMTP_USER = config.smtp?.user ?? "";
@@ -2396,6 +2403,7 @@ function buildComposeEnv(config, paths) {
   } else if (config.agents) {
     vars.SEED_AGENTS_HOST = agentsHost(config);
     vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
+    vars.SEED_AGENTS_PUBLIC_URL = appsPublicUrl(config);
   }
   const profiles = composeProfiles(config);
   if (profiles.length > 0) {
@@ -2570,7 +2578,7 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
     step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`);
   }
   if (containersHealthy && !containersOnConfiguredTag) {
-    step(`Running containers do not match release channel '${config.release_channel}' \u2014 redeploying to reconcile.`);
+    step(`Running containers do not match the configured images (${expectedServiceImages(config).map((i) => `${i.container}=${i.expectedImage}`).join(", ")}) \u2014 redeploying to reconcile.`);
   }
   await ensureSeedDir(paths, shell);
   let finalCompose = composeContent;
@@ -2759,8 +2767,11 @@ function clearSeedCron(shell) {
     return;
   shell.runSafe(`echo '${removeSeedCronLines(existing)}' | crontab -`);
 }
+function resolveBunPath(shell) {
+  return shell.runSafe("command -v bun") || process.execPath;
+}
 async function setupCron(paths, shell) {
-  const bunPath = shell.runSafe("which bun") ?? "/usr/local/bin/bun";
+  const bunPath = resolveBunPath(shell);
   const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
   const newCrontab = buildCrontab(existing, paths, bunPath);
   try {
@@ -2773,6 +2784,53 @@ async function setupCron(paths, shell) {
   } catch (err) {
     log(`Warning: Failed to install cron job: ${err}`);
   }
+}
+async function migrateLegacyCron(paths, shell, scriptPath = process.argv[1] || "") {
+  const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
+  const deployLine = existing.split(`
+`).find((line) => line.includes("# seed-deploy"));
+  if (!deployLine)
+    return;
+  if (!deployLine.includes(`"${paths.seedDir}/deploy.js"`) && !deployLine.includes(` ${paths.seedDir}/deploy.js `) && !deployLine.includes(`--dir "${paths.seedDir}"`)) {
+    return;
+  }
+  const bunPath = resolveBunPath(shell);
+  const updated = buildCrontab(existing, paths, bunPath);
+  if (JSON.stringify(extractSeedCronLines(existing)) === JSON.stringify(extractSeedCronLines(updated)))
+    return;
+  let copyNeeded = false;
+  let copySucceeded = false;
+  if (scriptPath !== DEPLOY_SCRIPT_PATH) {
+    let source;
+    if (scriptPath.endsWith("deploy.js")) {
+      try {
+        source = await readFile(scriptPath, "utf-8");
+      } catch {}
+    }
+    if (source !== undefined) {
+      let targetMatches = false;
+      try {
+        targetMatches = sha256(await readFile(DEPLOY_SCRIPT_PATH, "utf-8")) === sha256(source);
+      } catch {}
+      if (!targetMatches) {
+        copyNeeded = true;
+        const dir = dirname(DEPLOY_SCRIPT_PATH);
+        copySucceeded = shell.runSafe(`mkdir -p "${dir}" && cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+        if (!copySucceeded) {
+          copySucceeded = shell.runSafe(`sudo mkdir -p "${dir}" && sudo cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && sudo chown "$(id -u):$(id -g)" "${dir}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+        }
+      }
+    }
+  }
+  const scriptExists = shell.runSafe(`test -f "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+  if (copyNeeded && !copySucceeded || !scriptExists) {
+    log(`WARNING: could not install deploy.js at ${DEPLOY_SCRIPT_PATH} \u2014 leaving the legacy cron untouched.`);
+    return;
+  }
+  const oldSchedule = deployLine.trim().split(/\s+/).slice(0, 5).join(" ");
+  await setupCron(paths, shell);
+  installWrapper(paths, shell);
+  log(`Migrated legacy cron (${oldSchedule} \u2192 */10) to ${DEPLOY_SCRIPT_PATH}.`);
 }
 var COMMANDS = [
   "deploy",
@@ -2965,7 +3023,7 @@ async function maybeStopOtherRunningNode(target, shell) {
   return true;
 }
 function installWrapper(paths, shell) {
-  const bunPath = shell.runSafe("command -v bun") ?? "/usr/local/bin/bun";
+  const bunPath = resolveBunPath(shell);
   const wrapper = "/usr/local/bin/seed-deploy";
   const content = `#!/bin/sh
 exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
@@ -3024,6 +3082,13 @@ ${MANAGE_HINT}`);
       return;
     }
     log(`Seed deploy v${VERSION} \u2014 config found at ${paths.configPath}, running headless.`);
+    if (autoUpdates(existing)) {
+      try {
+        await migrateLegacyCron(paths, shell);
+      } catch (err) {
+        log(`WARNING: cron migration failed: ${err}`);
+      }
+    }
     await deploy(existing, paths, shell, false, bootstrap);
     return;
   }
@@ -4146,6 +4211,7 @@ export {
   selfUpdate,
   rollbackTagRefs,
   rollbackImageTargets,
+  resolveBunPath,
   requiredContainers,
   removeSeedCronLines,
   removeLegacyHostCronLines,
@@ -4162,6 +4228,7 @@ export {
   parseArgs,
   ownerKeyPath,
   notifyHost,
+  migrateLegacyCron,
   makeShellRunner,
   makePaths,
   log,
@@ -4218,6 +4285,7 @@ export {
   backupMembers,
   autoUpdates,
   assertNoForeignStack,
+  appsPublicUrl,
   agentsHost,
   VERSION,
   VAULT_ADMIN_SECRET_LENGTH,
@@ -4252,5 +4320,6 @@ export {
   CLI_INSTALLED,
   BOOTSTRAP_RETRY_MS,
   BOOTSTRAP_ATTEMPTS,
+  APPS_API_PATH,
   AGENTS_API_PATH
 };

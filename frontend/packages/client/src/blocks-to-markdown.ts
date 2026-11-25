@@ -8,16 +8,19 @@
  *   - nesting by indentation, heading level by heading depth
  *   - annotations as markdown markers, split at boundaries so they nest
  *
- * This module is purely synchronous and does NOT resolve embeds, mentions,
- * or queries over the network. For resolved output, see the
- * `documentToResolvedMarkdown` family below, which is a display format and
- * not round-trip safe.
+ * `blocksToMarkdown` is synchronous and does not touch the network. The
+ * `documentToResolvedMarkdown` family below is the same writer with what the
+ * blocks point at added for the reader: the name behind a mention, and the
+ * content of an embed or the results of a query between
+ * `<!-- resolved: … -->` and `<!-- /resolved -->`, which the parser skips.
+ * Both outputs parse back to the document they were written from.
  *
  * Round-trip: `parseMarkdown(blocksToMarkdown(doc))` reproduces `doc`, and
  * exporting that parse reproduces the same markdown. Use
  * `{ipfsGateway: false}` to keep `ipfs://` links verbatim.
  */
 
+import {resolveId} from './hm-resolver'
 import {stringify as stringifyYaml} from 'yaml'
 import type {SeedClient} from './client'
 import type {
@@ -36,6 +39,21 @@ import {normalizeQuerySort, unpackHmId} from './hm-types'
 export type BlocksToMarkdownOptions = {
   /** Format ipfs:// URLs as https gateway URLs. Default: true. */
   ipfsGateway?: boolean
+  /**
+   * The name to print for an inline mention of `link`. When set, a mention is written
+   * `[@Name](hm://…)` instead of `<hm://…>`; the parser reads only the link, so any name
+   * (the empty string included) parses to the same mention.
+   */
+  mentionLabel?: (link: string, kind?: string) => string
+}
+
+/** What a block points at, shown under it for the reader and skipped by the parser. */
+type ResolvedLines = {label: string; lines: string[]}
+
+type RenderOptions = {
+  ipfsGateway: boolean
+  mentionLabel?: (link: string, kind?: string) => string
+  resolved?: (blockId: string) => ResolvedLines | undefined
 }
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
@@ -121,7 +139,7 @@ function blockComment(id: string, type?: string, attrs?: Record<string, unknown>
   return s + ' -->'
 }
 
-/** Kept for the table emitter and the resolved emitter. */
+/** Kept for the table emitter. */
 function idComment(id: string): string {
   return blockComment(id)
 }
@@ -151,10 +169,23 @@ function isNativeAttribute(type: string, key: string, value: unknown, hasChildre
  * as placeholder links (not resolved).
  */
 export function blocksToMarkdown(doc: HMDocument, options?: BlocksToMarkdownOptions): string {
-  const opts = {ipfsGateway: true, ...options}
+  const opts: RenderOptions = {ipfsGateway: true, ...options}
   const out: string[] = [emitFrontmatter(doc.metadata || {}).replace(/\n$/, '')]
   renderNodes(doc.content || [], '', undefined, 0, opts, out)
   return out.join('\n') + '\n'
+}
+
+/** The label of a resolved range: one line that cannot end the comment it sits in. */
+function resolvedLabel(label: string): string {
+  return label.replace(/\s+/g, ' ').replace(/-{2,}/g, '-').replace(/>/g, '').trim()
+}
+
+/** Lines shown under a block for the reader. The parser drops everything between the two markers. */
+function pushResolved(shown: ResolvedLines, ind: string, out: string[]): void {
+  const label = resolvedLabel(shown.label)
+  out.push(ind + `<!-- resolved${label ? `: ${label}` : ''} -->`)
+  for (const line of shown.lines) out.push(line ? ind + line : '')
+  out.push(ind + '<!-- /resolved -->')
 }
 
 type ChildrenType = string | undefined
@@ -177,7 +208,7 @@ function renderNodes(
   ind: string,
   childrenType: ChildrenType,
   headingDepth: number,
-  opts: Required<BlocksToMarkdownOptions>,
+  opts: RenderOptions,
   out: string[],
 ): void {
   const listy = LIST_TYPES.has(childrenType || '')
@@ -204,7 +235,7 @@ function renderNode(
   ind: string,
   marker: string,
   headingDepth: number,
-  opts: Required<BlocksToMarkdownOptions>,
+  opts: RenderOptions,
   out: string[],
 ): boolean {
   const block = node.block as {
@@ -227,7 +258,9 @@ function renderNode(
   if (type === 'Table') {
     const extra = extraAttributes(type, attributes, false)
     const contentInd = ind + ' '.repeat(marker.length)
-    const table = tableToMarkdown(node, contentInd, (t, a) => renderInline(t, a, {atLineStart: false}))
+    const table = tableToMarkdown(node, contentInd, (t, a) =>
+      renderInline(t, a, {atLineStart: false, leadingSpace: true, mentionLabel: opts.mentionLabel}),
+    )
     // A table with no columns has no GFM form; the comment alone carries it.
     out.push(ind + marker + blockComment(block.id, table ? undefined : 'Table', extra))
     if (table) out.push(...table.split('\n'))
@@ -253,7 +286,13 @@ function renderNode(
       } else if (!text) {
         out.push(ind + marker + comment)
       } else {
-        out.push(ind + marker + renderInline(text, block.annotations, {atLineStart: true}) + ' ' + comment)
+        out.push(
+          ind +
+            marker +
+            renderInline(text, block.annotations, {atLineStart: true, mentionLabel: opts.mentionLabel}) +
+            ' ' +
+            comment,
+        )
       }
       break
     }
@@ -264,7 +303,11 @@ function renderNode(
           marker +
           '#'.repeat(level) +
           ' ' +
-          renderInline(text, block.annotations, {atLineStart: false}) +
+          renderInline(text, block.annotations, {
+            atLineStart: false,
+            leadingSpace: true,
+            mentionLabel: opts.mentionLabel,
+          }) +
           ' ' +
           comment,
       )
@@ -296,7 +339,7 @@ function renderNode(
       break
     }
     case 'Image': {
-      const alt = renderInline(text, block.annotations, {atLineStart: false})
+      const alt = renderInline(text, block.annotations, {atLineStart: false, mentionLabel: opts.mentionLabel})
       out.push(ind + marker + `![${alt}](${renderUrl(formatMediaUrl(link, opts.ipfsGateway))}) ` + comment)
       break
     }
@@ -304,9 +347,14 @@ function renderNode(
       // A typed block: its visible form is whatever markdown can show.
       const url = renderUrl(formatMediaUrl(link, opts.ipfsGateway))
       let visible = ''
-      if (text && link) visible = `[${renderInline(text, block.annotations, {atLineStart: false})}](${url})`
+      if (text && link)
+        visible = `[${renderInline(text, block.annotations, {
+          atLineStart: false,
+          mentionLabel: opts.mentionLabel,
+        })}](${url})`
       else if (link) visible = `<${formatMediaUrl(link, opts.ipfsGateway)}>`
-      else if (text) visible = renderInline(text, block.annotations, {atLineStart: true})
+      else if (text)
+        visible = renderInline(text, block.annotations, {atLineStart: true, mentionLabel: opts.mentionLabel})
       out.push(ind + marker + (visible ? visible + ' ' : '') + comment)
       if (!visible && children.length && LIST_TYPES.has(childrenType || '') && !marker) {
         // Invisible container (e.g. a Slot holding a list): children follow
@@ -316,6 +364,9 @@ function renderNode(
       }
     }
   }
+
+  const shown = opts.resolved?.(block.id)
+  if (shown) pushResolved(shown, contentInd, out)
 
   if (children.length) {
     if (!shorthand && type !== 'Heading' && !LIST_TYPES.has(childrenType || '')) out.push('')
@@ -488,44 +539,6 @@ function tableToMarkdown(
   return assembleTableMarkdown(columns, {rowId: headerRow?.id, cellTexts: renderRowCells(headerRow)}, bodyRows, ind)
 }
 
-/** Async twin of tableToMarkdown for the resolved emitter. */
-async function tableToResolvedMarkdown(
-  node: HMBlockNode,
-  depth: number,
-  renderCell: (text: string, annotations: HMAnnotation[] | undefined) => Promise<string>,
-): Promise<string> {
-  const {columns, rows} = normalizeTableNode(node)
-  if (columns.length === 0) return ''
-
-  const renderRowCells = (row: NormalizedTableRow | undefined): Promise<string[]> =>
-    Promise.all(
-      columns.map(async (col) => {
-        const cell = row?.cells.get(col.id)
-        return cell ? escapeCellText(await renderCell(cell.text, cell.annotations)) : ''
-      }),
-    )
-
-  const headerRow = rows[0]?.isHeader ? rows[0] : undefined
-  const bodyRows = await Promise.all(
-    (headerRow ? rows.slice(1) : rows).map(async (row) => ({
-      rowId: row.id,
-      cellTexts: await renderRowCells(row),
-    })),
-  )
-
-  return (
-    resolvedIndent(depth) +
-    resolvedIdComment(node.block.id) +
-    '\n' +
-    assembleTableMarkdown(
-      columns,
-      {rowId: headerRow?.id, cellTexts: await renderRowCells(headerRow)},
-      bodyRows,
-      resolvedIndent(depth),
-    )
-  )
-}
-
 // ─── Inline rendering ────────────────────────────────────────────────────────
 //
 // Annotations become markdown markers. Because HM annotations may overlap
@@ -548,6 +561,18 @@ type Span = {
 type RenderInlineOptions = {
   /** Escape characters that would start a block (heading, list, table…) at position 0. */
   atLineStart: boolean
+  /**
+   * Escape whitespace at the start of the text. Set where the text follows other syntax on its
+   * line (`# `, `| `), which would swallow it.
+   */
+  leadingSpace?: boolean
+  /** See {@link BlocksToMarkdownOptions.mentionLabel}. */
+  mentionLabel?: (link: string, kind?: string) => string
+}
+
+/** The rendered text, with whitespace at its start kept when the options ask for it. */
+function keepLeadingSpace(out: string, options: RenderInlineOptions): string {
+  return options.leadingSpace && /^\s/.test(out) ? '\\' + out : out
 }
 
 const SPAN_STYLE: Record<string, string> = {
@@ -620,7 +645,8 @@ function spanPriority(s: Span): number {
 /** Render text + annotations as inline markdown. */
 function renderInline(text: string, annotations: HMAnnotation[] | undefined, options: RenderInlineOptions): string {
   const spans = spansFromAnnotations(text, annotations)
-  if (spans.length === 0) return escapeTrailingWhitespace(escapeInline(text, options.atLineStart))
+  if (spans.length === 0)
+    return keepLeadingSpace(escapeTrailingWhitespace(escapeInline(text, options.atLineStart)), options)
 
   const boundaries = new Set<number>([0, text.length])
   for (const s of spans) {
@@ -666,7 +692,7 @@ function renderInline(text: string, annotations: HMAnnotation[] | undefined, opt
     }
     for (const s of opening) {
       const chunk = text.slice(pos, next)
-      const [open, close] = markersFor(s, chunk, text)
+      const [open, close] = markersFor(s, chunk, text, options)
       out += open
       stack.push({span: s, close})
     }
@@ -682,11 +708,11 @@ function renderInline(text: string, annotations: HMAnnotation[] | undefined, opt
     }
   }
   while (stack.length) out += stack.pop()!.close
-  return escapeTrailingWhitespace(out)
+  return keepLeadingSpace(escapeTrailingWhitespace(out), options)
 }
 
 /** Open/close markers for a span, given the chunk it is about to wrap. */
-function markersFor(s: Span, chunk: string, fullText: string): [string, string] {
+function markersFor(s: Span, chunk: string, fullText: string, options: RenderInlineOptions): [string, string] {
   switch (s.type) {
     case 'Bold':
       return ['**', '**']
@@ -700,8 +726,15 @@ function markersFor(s: Span, chunk: string, fullText: string): [string, string] 
       return ['<mark>', '</mark>']
     case 'Link':
       return ['[', `](${renderUrl(s.link || '')})`]
-    case 'Embed':
-      return [`<${s.link || ''}>`, '']
+    case 'Embed': {
+      const link = s.link || ''
+      // The parser reads `[@…](hm://…)` as a mention of the link, whatever the name says.
+      if (options.mentionLabel && link.startsWith('hm://') && !/[\s()<>]/.test(link)) {
+        const name = options.mentionLabel(link, s.attributes?.mentionKind as string | undefined).replace(/^@/, '')
+        return [`[@${escapeInline(name, false)}](${link})`, '']
+      }
+      return [`<${link}>`, '']
+    }
     case 'Code': {
       // Fence longer than any backtick run in the whole span, and a space pad
       // when the chunk starts/ends with a backtick or a space.
@@ -785,37 +818,75 @@ export function parseDraftFilename(filename: string): {id: string; ext: string} 
   return {id: base, ext}
 }
 
-/** Options for Seed-client-backed markdown rendering that resolves embeds and mentions. */
+/** Options for Seed-client-backed markdown rendering that resolves embeds, queries and mentions. */
 export type ResolvedMarkdownOptions = {
   client: Pick<SeedClient, 'request'>
   maxDepth?: number
+  /** Format ipfs:// URLs as https gateway URLs. Default: true. */
+  ipfsGateway?: boolean
 }
 
 type ResolveContext = {
   client: Pick<SeedClient, 'request'>
   maxDepth: number
   currentDepth: number
-  cache: Map<string, ResolvedReference>
+  ipfsGateway: boolean
+  cache: Map<string, Promise<ResolvedReference>>
+  /** Bounds how many requests are in flight: a document's references are resolved together. */
+  limit: <T>(task: () => Promise<T>) => Promise<T>
 }
 
 type ResolvedReference = {
   label: string
   type: 'account' | 'document' | 'comment' | 'unknown'
   content?: HMBlockNode[]
+  /** Where a sole query with no source looks: the document that holds it. */
+  home?: QueryHome
   version?: string
   latestVersion?: string
   author?: string
 }
 
-/** Convert a document to markdown, resolving inline mentions and block embeds through a Seed client. */
-export async function documentToResolvedMarkdown(doc: HMDocument, options: ResolvedMarkdownOptions): Promise<string> {
-  const ctx: ResolveContext = {
+type QueryHome = {space: string; path: unknown}
+
+const MAX_RESOLVE_REQUESTS = 8
+
+function requestLimiter(max: number): ResolveContext['limit'] {
+  let active = 0
+  const waiting: Array<() => void> = []
+  return async (task) => {
+    if (active >= max) await new Promise<void>((resolve) => waiting.push(resolve))
+    active++
+    try {
+      return await task()
+    } finally {
+      active--
+      waiting.shift()?.()
+    }
+  }
+}
+
+function resolveContext(options: ResolvedMarkdownOptions): ResolveContext {
+  return {
     client: options.client,
     maxDepth: options.maxDepth ?? 2,
     currentDepth: 0,
+    ipfsGateway: options.ipfsGateway ?? true,
     cache: new Map(),
+    limit: requestLimiter(MAX_RESOLVE_REQUESTS),
   }
-  return documentToResolvedMarkdownWithContext(doc, ctx)
+}
+
+/**
+ * Convert a document to markdown with what its blocks point at shown beside them: mentions carry
+ * the name of their target, and each embed or query is followed by its content between
+ * `<!-- resolved: … -->` and `<!-- /resolved -->`. The blocks themselves are written exactly as
+ * `blocksToMarkdown` writes them, so the output parses back to the document.
+ */
+export async function documentToResolvedMarkdown(doc: HMDocument, options: ResolvedMarkdownOptions): Promise<string> {
+  const out = [emitFrontmatter(doc.metadata || {}).replace(/\n$/, '')]
+  out.push(...(await resolvedLines(doc.content || [], resolveContext(options), soleQueryHome(doc))))
+  return out.join('\n') + '\n'
 }
 
 /** Convert comment content to markdown, resolving inline mentions and block embeds through a Seed client. */
@@ -828,171 +899,104 @@ export async function contentToResolvedMarkdown(
   content: HMBlockNode[],
   options: ResolvedMarkdownOptions,
 ): Promise<string> {
-  const ctx: ResolveContext = {
-    client: options.client,
-    maxDepth: options.maxDepth ?? 2,
-    currentDepth: 0,
-    cache: new Map(),
-  }
-  return blockNodesToResolvedMarkdown(content, ctx)
+  return (await resolvedLines(content, resolveContext(options))).join('\n')
 }
 
-async function documentToResolvedMarkdownWithContext(doc: HMDocument, ctx: ResolveContext): Promise<string> {
-  const lines = [emitFrontmatter(doc.metadata || {})]
-  const body = await blockNodesToResolvedMarkdown(resolvedDocumentContent(doc), ctx)
-  if (body) lines.push(body)
-  return lines.join('\n')
-}
-
-function resolvedDocumentContent(doc: HMDocument): HMBlockNode[] {
+/** Like the collection view, a sole query with an empty source targets the document that holds it. */
+function soleQueryHome(doc: Pick<HMDocument, 'account' | 'path' | 'content'>): QueryHome | undefined {
   const content = doc.content || []
   const root = content[0]
-  if (!doc.account || content.length !== 1 || root?.block.type !== 'Query') return content
+  if (!doc.account || content.length !== 1 || root?.block.type !== 'Query') return undefined
   const query = root.block.attributes?.query
   const include = query?.includes?.[0]
-  if (query?.includes.length !== 1 || !include || include.space || include.path) return content
+  if (query?.includes.length !== 1 || !include || include.space || include.path) return undefined
+  return {space: doc.account, path: doc.path}
+}
 
-  // Like the collection view, a sole query with an empty source targets its containing document.
-  return [
+type ResolvableBlock = {
+  type: string
+  id: string
+  link?: string
+  annotations?: HMAnnotation[]
+  attributes?: Record<string, unknown>
+}
+
+/**
+ * The markdown lines of `nodes`, written by the lossless writer, with every reference in them
+ * resolved first (together, not one after another).
+ */
+async function resolvedLines(nodes: HMBlockNode[], ctx: ResolveContext, home?: QueryHome): Promise<string[]> {
+  const names = new Map<string, string>()
+  const shown = new Map<string, ResolvedLines>()
+  const tasks: Promise<void>[] = []
+  const show = (id: string, lines: Promise<ResolvedLines | undefined>) =>
+    tasks.push(
+      lines.then((result) => {
+        if (result) shown.set(id, result)
+      }),
+    )
+  const visit = (list: HMBlockNode[]) => {
+    for (const node of list) {
+      const block = node.block as ResolvableBlock
+      for (const ann of block.annotations || []) {
+        if (ann.type !== 'Embed' || !ann.link) continue
+        const link = ann.link
+        const kind = ann.attributes?.mentionKind
+        const key = `${kind} ${link}`
+        if (names.has(key)) continue
+        names.set(key, fallbackLabel(link))
+        tasks.push(
+          resolveReference(link, ctx, kind).then(
+            (resolved) => {
+              names.set(key, resolved.label)
+            },
+            () => {},
+          ),
+        )
+      }
+      if (block.type === 'Embed') show(block.id, embedLines(block, ctx))
+      else if (block.type === 'Query') show(block.id, queryLines(block, ctx, home))
+      visit(node.children || [])
+    }
+  }
+  visit(nodes)
+  await Promise.all(tasks)
+  const out: string[] = []
+  renderNodes(
+    nodes,
+    '',
+    undefined,
+    0,
     {
-      ...root,
-      block: {
-        ...root.block,
-        attributes: {
-          ...root.block.attributes,
-          query: {...query, includes: [{...include, space: doc.account, path: doc.path}]},
-        },
-      },
+      ipfsGateway: ctx.ipfsGateway,
+      mentionLabel: (link, kind) => names.get(`${kind} ${link}`) ?? fallbackLabel(link),
+      resolved: (id) => shown.get(id),
     },
-  ]
+    out,
+  )
+  return out
 }
 
-async function blockNodesToResolvedMarkdown(nodes: HMBlockNode[], ctx: ResolveContext): Promise<string> {
-  const lines: string[] = []
-  for (const node of nodes) {
-    const blockMd = await resolvedBlockNodeToMarkdown(node, 0, ctx)
-    if (blockMd) lines.push(blockMd)
-  }
-  return lines.join('\n\n')
-}
-
-async function resolvedBlockNodeToMarkdown(node: HMBlockNode, depth: number, ctx: ResolveContext): Promise<string> {
-  const block = node.block
-  const children = node.children || []
-
-  // Tables render their whole subtree as one GFM table (see tableToMarkdown).
-  if (block.type === 'Table') {
-    return tableToResolvedMarkdown(node, depth, (text, annotations) => applyResolvedAnnotations(text, annotations, ctx))
-  }
-
-  const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
-  const isListContainer =
-    block.type === 'Paragraph' &&
-    !block.text &&
-    (childrenType === 'Ordered' || childrenType === 'Unordered' || childrenType === 'Blockquote')
-
-  let result = isListContainer ? resolvedIdComment(block.id) : await resolvedBlockToMarkdown(block, depth, ctx)
-  for (const child of children) {
-    const childMd = await resolvedBlockNodeToMarkdown(child, depth + 1, ctx)
-    if (!childMd) continue
-    if (childrenType === 'Ordered') result += '\n' + resolvedIndent(depth + 1) + '1. ' + childMd.trim()
-    else if (childrenType === 'Unordered') result += '\n' + resolvedIndent(depth + 1) + '- ' + childMd.trim()
-    else if (childrenType === 'Blockquote') result += '\n' + resolvedIndent(depth + 1) + '> ' + childMd.trim()
-    else result += '\n\n' + childMd
-  }
-  return result
-}
-
-async function resolvedBlockToMarkdown(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
-  const ind = resolvedIndent(depth)
-  const b = block as {
-    type: string
-    id: string
-    text?: string
-    link?: string
-    annotations?: HMAnnotation[]
-    attributes?: Record<string, unknown>
-  }
-  const text = b.text || ''
-  const link = b.link || ''
-  const annotations = b.annotations
-  const id = b.id
-
-  switch (block.type) {
-    case 'Paragraph':
-      return appendResolvedIdToFirstLine(ind + (await applyResolvedAnnotations(text, annotations, ctx)), id)
-    case 'Heading': {
-      const hashes = '#'.repeat(Math.min(depth + 1, 6))
-      return appendResolvedIdToFirstLine(`${hashes} ${await applyResolvedAnnotations(text, annotations, ctx)}`, id)
-    }
-    case 'Code': {
-      const lang = (b.attributes?.language as string) || ''
-      return ind + '```' + lang + ' ' + resolvedIdComment(id) + '\n' + ind + text + '\n' + ind + '```'
-    }
-    case 'Math':
-      return ind + '$$ ' + resolvedIdComment(id) + '\n' + ind + text + '\n' + ind + '$$'
-    case 'Image':
-      return ind + `![${text || 'image'}](${formatResolvedMediaUrl(link)}) ${resolvedIdComment(id)}`
-    case 'Video':
-      return ind + `[Video](${formatResolvedMediaUrl(link)}) ${resolvedIdComment(id)}`
-    case 'File': {
-      const fileName = (b.attributes?.name as string) || 'file'
-      return ind + `[${fileName}](${formatResolvedMediaUrl(link)}) ${resolvedIdComment(id)}`
-    }
-    case 'Embed':
-      return appendResolvedIdToFirstLine(await resolveBlockEmbed(block, depth, ctx), id)
-    case 'WebEmbed':
-      return ind + `[Web Embed](${link}) ${resolvedIdComment(id)}`
-    case 'Button':
-      return ind + `[${text || 'Button'}](${link}) ${resolvedIdComment(id)}`
-    case 'Query':
-      return appendResolvedIdToFirstLine(await resolveQuery(block, depth, ctx), id)
-    case 'Nostr':
-      return ind + `[Nostr: ${link}](${link}) ${resolvedIdComment(id)}`
-    default:
-      return text ? appendResolvedIdToFirstLine(ind + text, id) : ''
-  }
-}
-
-async function resolveBlockEmbed(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
-  const ind = resolvedIndent(depth)
-  const link = (block as {link?: string}).link || ''
-  if (ctx.currentDepth >= ctx.maxDepth) return ind + `> [Embed: ${link}](${link})`
-
+/** What an embed shows: the content of its target, itself resolved, down to `maxDepth`. */
+async function embedLines(block: ResolvableBlock, ctx: ResolveContext): Promise<ResolvedLines | undefined> {
+  const link = block.link || ''
   const id = unpackHmId(link)
-  if (!id) return ind + `> [Embed: ${link}](${link})`
-
+  if (!id || ctx.currentDepth >= ctx.maxDepth) return undefined
   try {
     const resolved = await resolveEmbeddedResource(link, ctx)
-    if (!resolved.content?.length) return ind + `> [Embed: ${resolved.label}](${link})`
-
-    const content = selectEmbeddedContent(resolved.content, id)
-    if (!content.length) return ind + `> [Embed: ${resolved.label}](${link})`
-
-    const lines: string[] = []
-    const metadata = [`embed: ${link}`, `title: ${resolved.label}`]
-    if (id.version) metadata.push(`version: ${id.version}`)
-    if (id.blockRef) metadata.push(`block: ${id.blockRef}${formatBlockRange(id)}`)
-    lines.push(ind + `<!-- ${metadata.join('; ')} -->`)
-
-    const nestedCtx = {...ctx, currentDepth: ctx.currentDepth + 1}
-    for (const node of content) {
-      const blockMd = await resolvedBlockNodeToMarkdown(node, depth, nestedCtx)
-      if (!blockMd) continue
-      lines.push(blockMd)
-    }
-    lines.push(ind + `<!-- /embed: ${link} -->`)
-    return lines.join('\n')
+    const content = resolved.content?.length ? selectEmbeddedContent(resolved.content, id) : []
+    const nested = {...ctx, currentDepth: ctx.currentDepth + 1}
+    return {label: resolved.label, lines: content.length ? await resolvedLines(content, nested, resolved.home) : []}
   } catch {
-    return ind + `> [Embed: ${link}](${link})`
+    return {label: 'not available', lines: []}
   }
 }
 
-async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
-  const ind = resolvedIndent(depth)
-
+/** What a query shows: a link to each document it finds. */
+async function queryLines(block: ResolvableBlock, ctx: ResolveContext, home?: QueryHome): Promise<ResolvedLines> {
+  const note = (text: string): ResolvedLines => ({label: text, lines: []})
   try {
-    const attrs = (block as {attributes?: Record<string, unknown>}).attributes
+    const attrs = block.attributes
     const queryConfig = attrs?.query as
       | {
           includes?: Array<{space: string; path?: string; mode?: string}>
@@ -1008,8 +1012,12 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
     let limit: number | undefined
 
     if (queryConfig?.includes) {
-      if (!queryConfig.includes[0]?.space) return ind + '<!-- Query: no space specified -->'
-      includes = queryConfig.includes.map((inc) => ({
+      const sourced =
+        home && queryConfig.includes.length === 1 && !queryConfig.includes[0]?.space
+          ? [{...queryConfig.includes[0]!, space: home.space, path: home.path as string | undefined}]
+          : queryConfig.includes
+      if (!sourced[0]?.space) return note('query with no space')
+      includes = sourced.map((inc) => ({
         space: inc.space,
         path: inc.path,
         mode: (inc.mode as 'Children' | 'AllDescendants') || 'Children',
@@ -1019,7 +1027,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
       limit = queryConfig.limit
     } else {
       const space = (attrs?.space as string) || ''
-      if (!space) return ind + '<!-- Query: no space specified -->'
+      if (!space) return note('query with no space')
       limit = typeof attrs?.limit === 'number' ? attrs.limit : undefined
       includes = [
         {
@@ -1030,23 +1038,26 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
       ]
     }
 
-    const results = await ctx.client.request('Query', {
-      includes,
-      sort: sort?.length ? sort : [{term: 'updated', reverse: true}],
-      filters,
-      limit: limit || 10,
-    })
+    const results = await ctx.limit(() =>
+      ctx.client.request('Query', {
+        includes,
+        sort: sort?.length ? sort : [{term: 'updated', reverse: true}],
+        filters,
+        limit: limit || 10,
+      }),
+    )
 
-    if (!results?.results?.length) return ind + '<!-- Query: no results -->'
+    if (!results?.results?.length) return note('query results: none')
 
-    return results.results
-      .map((doc: {metadata?: HMMetadata | null; id: UnpackedHypermediaId}) => {
+    return {
+      label: 'query results',
+      lines: results.results.map((doc: {metadata?: HMMetadata | null; id: UnpackedHypermediaId}) => {
         const name = doc.metadata?.name || doc.id.path?.join('/') || doc.id.uid
-        return ind + `- [${name}](${doc.id.id})`
-      })
-      .join('\n')
+        return `- [${escapeInline(name, false)}](${doc.id.id})`
+      }),
+    }
   } catch (error) {
-    return ind + `<!-- Query error: ${error instanceof Error ? error.message : String(error)} -->`
+    return note(`query failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -1061,176 +1072,99 @@ function selectEmbeddedContent(content: HMBlockNode[], id: UnpackedHypermediaId)
   return [target]
 }
 
+/** The quoted part of a block's text. Annotations do not survive the cut: their offsets would not fit. */
 function sliceBlockText(node: HMBlockNode, start: number, end: number): HMBlockNode {
   const block = node.block as HMBlock & {text?: string}
   if (typeof block.text !== 'string') return {...node, children: []}
-  return {...node, block: {...block, text: block.text.slice(start, end)} as HMBlock, children: []}
+  return {...node, block: {...block, text: block.text.slice(start, end), annotations: []} as HMBlock, children: []}
 }
 
-async function applyResolvedAnnotations(
-  text: string,
-  annotations: HMAnnotation[] | undefined,
-  ctx: ResolveContext,
-): Promise<string> {
-  if (!annotations?.length) return text
-  type Marker = {pos: number; type: 'open' | 'close'; annotation: HMAnnotation}
-  const markers: Marker[] = []
-  for (const ann of annotations) {
-    const starts = ann.starts || []
-    const ends = ann.ends || []
-    for (let i = 0; i < starts.length; i++) {
-      markers.push({pos: starts[i]!, type: 'open', annotation: ann})
-      if (ends[i] !== undefined) markers.push({pos: ends[i]!, type: 'close', annotation: ann})
-    }
-  }
-  markers.sort((a, b) => (a.pos !== b.pos ? a.pos - b.pos : a.type === 'open' ? -1 : 1))
-
-  let result = ''
-  let lastPos = 0
-  for (const marker of markers) {
-    result += text.slice(lastPos, marker.pos)
-    lastPos = marker.pos
-    result += await getResolvedAnnotationMarker(marker.annotation, marker.type, ctx)
-  }
-  result += text.slice(lastPos)
-  return result.replace(/\uFFFC/g, '')
+async function resolveMarkdownReferenceId(link: string, ctx: ResolveContext) {
+  return resolveId(link, {
+    domainResolver: async (domain) => {
+      const info = await ctx.limit(() => ctx.client.request('GetDomain', {domain}))
+      return info.registeredAccountUid
+        ? {registeredAccountUid: info.registeredAccountUid, isGateway: info.isGateway}
+        : null
+    },
+  })
 }
 
-async function getResolvedAnnotationMarker(
-  ann: HMAnnotation,
-  type: 'open' | 'close',
-  ctx: ResolveContext,
-): Promise<string> {
-  switch (ann.type) {
-    case 'Bold':
-      return '**'
-    case 'Italic':
-      return '_'
-    case 'Strike':
-      return '~~'
-    case 'Code':
-      return '`'
-    case 'Underline':
-      return type === 'open' ? '<u>' : '</u>'
-    case 'Link':
-      return type === 'open' ? '[' : `](${ann.link || ''})`
-    case 'Embed':
-      return resolveInlineEmbed(ann, type, ctx)
-    default:
-      return ''
+/** One lookup per key, shared by everything in the document that names the same target. */
+function resolveOnce(ctx: ResolveContext, key: string, load: () => Promise<ResolvedReference>) {
+  let pending = ctx.cache.get(key)
+  if (!pending) {
+    pending = load()
+    ctx.cache.set(key, pending)
   }
+  return pending
 }
 
-async function resolveInlineEmbed(ann: HMAnnotation, type: 'open' | 'close', ctx: ResolveContext): Promise<string> {
-  const link = 'link' in ann ? (ann.link as string) || '' : ''
-  if (type === 'close') return `](${link})`
-  if (!link) return '[↗ embed'
-
+async function commentAuthorName(author: string, ctx: ResolveContext): Promise<string> {
   try {
-    const resolved = await resolveReference(link, ctx, ann.type === 'Embed' ? ann.attributes?.mentionKind : undefined)
-    const prefix = resolved.type === 'account' && !resolved.label.startsWith('@') ? '@' : ''
-    return `[${prefix}${resolved.label}`
+    const account = await ctx.limit(() => ctx.client.request('Account', author))
+    if (account.type === 'account' && account.metadata?.name) return account.metadata.name
   } catch {
-    return `[↗ ${fallbackLabel(link)}`
+    // The uid stands in for a name that cannot be read.
   }
+  return fallbackUid(author)
 }
 
-async function resolveEmbeddedResource(link: string, ctx: ResolveContext): Promise<ResolvedReference> {
-  const cacheKey = `embed:${link}`
-  const cached = ctx.cache.get(cacheKey)
-  if (cached) return cached
-  const id = unpackHmId(link)
-  if (!id) throw new Error('Invalid HM link')
-
-  const resource = await ctx.client.request('Resource', id)
-  let resolved: ResolvedReference
+async function referenceFromResource(
+  link: string,
+  id: UnpackedHypermediaId,
+  ctx: ResolveContext,
+): Promise<ResolvedReference> {
+  const resource = await ctx.limit(() => ctx.client.request('Resource', id))
   if (resource.type === 'document') {
-    resolved = {
+    return {
       label: resource.document.metadata?.name || fallbackDocLabel(id),
       type: 'document',
-      content: resolvedDocumentContent(resource.document),
+      content: resource.document.content || [],
+      home: soleQueryHome(resource.document),
       version: id.version || resource.document.version,
       latestVersion: resource.document.version,
     }
-  } else if (resource.type === 'comment') {
-    let authorName = fallbackUid(resource.comment.author)
-    try {
-      const account = await ctx.client.request('Account', resource.comment.author)
-      if (account.type === 'account' && account.metadata?.name) authorName = account.metadata.name
-    } catch {
-      // ignore
-    }
-    resolved = {
-      label: `Comment by ${authorName}`,
+  }
+  if (resource.type === 'comment') {
+    return {
+      label: `Comment by ${await commentAuthorName(resource.comment.author, ctx)}`,
       type: 'comment',
       content: resource.comment.content || [],
       version: id.version || resource.comment.version,
       latestVersion: resource.comment.version,
       author: resource.comment.author,
     }
-  } else {
-    resolved = {label: fallbackLabel(link), type: 'unknown'}
   }
-  ctx.cache.set(cacheKey, resolved)
-  return resolved
+  return {label: fallbackLabel(link), type: 'unknown'}
 }
 
-async function resolveReference(
+function resolveEmbeddedResource(link: string, ctx: ResolveContext): Promise<ResolvedReference> {
+  return resolveOnce(ctx, `embed:${link}`, async () =>
+    referenceFromResource(link, await resolveMarkdownReferenceId(link, ctx), ctx),
+  )
+}
+
+function resolveReference(
   link: string,
   ctx: ResolveContext,
   mentionKind?: 'account' | 'document',
 ): Promise<ResolvedReference> {
-  const cacheKey = `${mentionKind || 'legacy'}:${link}`
-  const cached = ctx.cache.get(cacheKey)
-  if (cached) return cached
-  const id = unpackHmId(link)
-  if (!id) throw new Error('Invalid HM link')
-
-  let resolved: ResolvedReference
-  const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : !id.path?.length ? id.uid : null
-  if (profileAccountUid && mentionKind !== 'document') {
-    try {
-      const account = await ctx.client.request('Account', profileAccountUid)
-      if (account.type === 'account') {
-        resolved = {label: account.metadata?.name || fallbackUid(profileAccountUid), type: 'account'}
-        ctx.cache.set(cacheKey, resolved)
-        return resolved
+  return resolveOnce(ctx, `${mentionKind || 'legacy'}:${link}`, async () => {
+    const id = await resolveMarkdownReferenceId(link, ctx)
+    const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : !id.path?.length ? id.uid : null
+    if (profileAccountUid && mentionKind !== 'document') {
+      try {
+        const account = await ctx.limit(() => ctx.client.request('Account', profileAccountUid))
+        if (account.type === 'account') {
+          return {label: account.metadata?.name || fallbackUid(profileAccountUid), type: 'account'}
+        }
+      } catch {
+        // fall through to Resource, because profiles may also be represented as documents
       }
-    } catch {
-      // fall through to Resource, because profiles may also be represented as documents
     }
-  }
-
-  const resource = await ctx.client.request('Resource', id)
-  if (resource.type === 'document') {
-    resolved = {
-      label: resource.document.metadata?.name || fallbackDocLabel(id),
-      type: 'document',
-      content: resource.document.content || [],
-      version: id.version || resource.document.version,
-      latestVersion: resource.document.version,
-    }
-  } else if (resource.type === 'comment') {
-    let authorName = fallbackUid(resource.comment.author)
-    try {
-      const account = await ctx.client.request('Account', resource.comment.author)
-      if (account.type === 'account' && account.metadata?.name) authorName = account.metadata.name
-    } catch {
-      // ignore
-    }
-    resolved = {
-      label: `Comment by ${authorName}`,
-      type: 'comment',
-      content: resource.comment.content || [],
-      version: id.version || resource.comment.version,
-      latestVersion: resource.comment.version,
-      author: resource.comment.author,
-    }
-  } else {
-    resolved = {label: fallbackLabel(link), type: 'unknown'}
-  }
-  ctx.cache.set(cacheKey, resolved)
-  return resolved
+    return referenceFromResource(link, id, ctx)
+  })
 }
 
 function findBlockById(content: HMBlockNode[], blockId: string): HMBlockNode | null {
@@ -1240,29 +1174,6 @@ function findBlockById(content: HMBlockNode[], blockId: string): HMBlockNode | n
     if (found) return found
   }
   return null
-}
-
-function resolvedIdComment(id: string): string {
-  return `<!-- id:${id} -->`
-}
-
-function appendResolvedIdToFirstLine(md: string, id: string): string {
-  const newline = md.indexOf('\n')
-  if (newline === -1) return md ? `${md} ${resolvedIdComment(id)}` : resolvedIdComment(id)
-  return `${md.slice(0, newline)} ${resolvedIdComment(id)}${md.slice(newline)}`
-}
-
-function formatResolvedMediaUrl(url: string): string {
-  if (url.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${url.slice(7)}`
-  return url
-}
-
-function formatBlockRange(id: UnpackedHypermediaId): string {
-  const range = id.blockRange
-  if (!range) return ''
-  if ('expanded' in range && range.expanded) return '+'
-  if ('start' in range) return `[${range.start}:${range.end}]`
-  return ''
 }
 
 function fallbackDocLabel(id: UnpackedHypermediaId): string {
@@ -1277,8 +1188,4 @@ function fallbackLabel(link: string): string {
 
 function fallbackUid(uid: string): string {
   return uid.length > 12 ? `${uid.slice(0, 12)}...` : uid
-}
-
-function resolvedIndent(depth: number): string {
-  return '  '.repeat(depth)
 }

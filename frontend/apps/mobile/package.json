@@ -61,7 +61,7 @@
     "superjson": "^2.2.6",
     "xstate": "^5.19.2",
     "yaml": "^2.9.0",
-    "zod": "3.25.76",
+    "zod": "4.6.6",
     "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {

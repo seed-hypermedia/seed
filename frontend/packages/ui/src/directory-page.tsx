@@ -331,7 +331,7 @@ function DraftListItem({draftId, metadata}: {draftId: string; metadata: HMMetada
     <Button
       asChild
       variant="ghost"
-      className="h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black"
+      className="h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm dark:bg-black"
     >
       <a {...linkProps}>
         <div className="flex flex-1 items-center gap-1.5 overflow-hidden">

@@ -20,6 +20,7 @@ vi.mock('@/providers', () => ({
   NavigationLoadingContent: ({children, ...props}: any) => <main {...props}>{children}</main>,
 }))
 vi.mock('@/web-site-header', () => ({
+  WebSidebarLayout: ({children}: any) => children,
   WebSiteHeader: (props: any) => {
     state.header(props)
     return <header>{props.rightActions}</header>

@@ -579,6 +579,9 @@ function tableNodeToBlock<BSchema extends BlockSchema>(blockNode: Node, id: stri
           : columnMeta[idx]?.id
       const cellProps: Record<string, any> = {}
       if (cellColumnId) cellProps.columnId = cellColumnId
+      // Cell alignment lives on the inner paragraph node; `left` is the default and is not carried.
+      const textAlignment = inner?.attrs?.textAlignment
+      if (textAlignment && textAlignment !== 'left') cellProps.textAlignment = textAlignment
       return {
         id: cellNode.attrs?.id || UniqueID.options.generateID(),
         type: 'paragraph',

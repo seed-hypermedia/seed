@@ -30,7 +30,7 @@ import {extractSchemaRouteFromPath, WebSchemaPage} from '@/web-schema'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
-import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
+import {type ClientLoaderFunctionArgs, MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
@@ -50,12 +50,15 @@ import {
   VIEW_TERMS,
   viewTermToRouteKey,
   ViewRouteKey,
+  extractAgentDocumentView,
+  type DocumentRoute,
 } from '@shm/shared'
 import {useNavigationState} from '@shm/shared/utils/navigation'
 import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+import {DocumentLoadErrorBoundary, loadDocumentRouteData} from '@/document-load'
 
 const WebSpaceSettingsScreen = lazy(() =>
   import('@/web-space-settings-page').then((module) => ({default: module.WebSpaceSettingsScreen})),
@@ -63,11 +66,18 @@ const WebSpaceSettingsScreen = lazy(() =>
 
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
+  agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
+  toolCallId?: string
+  agentSessionId?: string
+  agentTriggerId?: string
+  agentMemoryPath?: string
   isInspect?: boolean
   viewTerm?: ViewRouteKey | null
   exploreQ?: string | null
   exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  replyCommentId?: string | null
   openComment?: string | null
   commentVersion?: string | null
   accountUid?: string | null
@@ -124,13 +134,21 @@ function getInspectTab(value: string | null): InspectTab | null {
  * e.g., ['docs', ':activity'] -> {path: ['docs'], viewTerm: 'activity'}
  */
 function extractViewTermFromPath(pathParts: string[]): {
+  agentView?: DocumentRoute['agentView']
+  appView?: DocumentRoute['appView']
+  toolCallId?: string
+  agentSessionId?: string
+  agentTriggerId?: string
   path: string[]
   viewTerm: ViewRouteKey | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
+  const agentView = extractAgentDocumentView(pathParts)
+  if (agentView) return {...agentView, viewTerm: null}
 
   // Check for :comments/UID/TSID pattern (3 segments from end)
   if (pathParts.length >= 3) {
@@ -164,6 +182,14 @@ function extractViewTermFromPath(pathParts: string[]): {
         path: pathParts.slice(0, -2),
         viewTerm: 'activity',
         activityFilter: pathParts[pathParts.length - 1],
+      }
+    }
+    // :feed/<tab>, the Activity page on a specific tab
+    if (secondToLast === ':feed') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'feed',
+        feedTab: pathParts[pathParts.length - 1],
       }
     }
   }
@@ -251,7 +277,11 @@ export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): 
   })
 }
 
+const loadFailedMeta = defaultPageMeta("This page didn't load")
+
 export const meta: MetaFunction<typeof loader> = (args) => {
+  // No data means the loader failed and the route's error page is showing.
+  if (!args.data) return loadFailedMeta()
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
@@ -296,6 +326,13 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   return withDaemonAuthToken(authToken, () => loadRoute({params, request}))
 }
 
+/** Retries a failed data request on client-side navigation; see `loadDocumentRouteData`. */
+export function clientLoader({request, serverLoader}: ClientLoaderFunctionArgs) {
+  return loadDocumentRouteData(() => serverLoader(), request.signal)
+}
+
+export const ErrorBoundary = DocumentLoadErrorBoundary
+
 async function loadRoute({params, request}: {params: Params; request: Request}) {
   const parsedRequest = parseRequest(request)
   const ctx = createInstrumentationContext(parsedRequest.url.pathname, request.method)
@@ -314,6 +351,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
+  const replyCommentId = url.searchParams.get('reply')
   const inspectTab = url.searchParams.get('tab')
   const exploreQ = url.searchParams.get('q')
   const rawExploreSort = url.searchParams.get('sort')
@@ -353,7 +391,8 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (
       rawSitePath.length > settingsOffset + 3 ||
       (domain !== undefined && (section !== 'web-domain' || !!validateDomain(domain))) ||
-      (section !== undefined && !['identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
+      (section !== undefined &&
+        !['general', 'identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
     ) {
       throw new Response('Settings page not found', {status: 404})
     }
@@ -422,6 +461,11 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // target document resolves as not found.
   let isCommentPermalink = false
   let accountUid: string | null = null
+  let agentView: DocumentRoute['agentView']
+  let appView: DocumentRoute['appView']
+  let toolCallId: string | undefined
+  let agentSessionId: string | undefined
+  let agentTriggerId: string | undefined
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && isSiteProfileTab(pathParts[1])) {
@@ -440,9 +484,17 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     const targetPathParts = inspectResult.pathParts
     const docUid = targetPathParts[0]
     const extracted = extractViewTermFromPath(targetPathParts.slice(1))
+    agentView = extracted.agentView
+    appView = extracted.appView
+    toolCallId = extracted.toolCallId
+    agentSessionId = extracted.agentSessionId
+    agentTriggerId = extracted.agentTriggerId
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
@@ -451,8 +503,8 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     accountUid = extracted.accountUid || null
     documentId = hmId(docUid, {
       path: extracted.path,
-      version: isCommentPermalink ? null : version,
-      latest: isCommentPermalink ? true : latest,
+      version: isCommentPermalink || agentView || appView || toolCallId ? null : version,
+      latest: isCommentPermalink || agentView || appView || toolCallId ? true : latest,
     })
   } else {
     // Site document (regular path) or inspector document (/inspect/path...)
@@ -460,9 +512,17 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     const inspectResult = extractInspectPrefixFromPath(rawPath, false)
     isInspect = inspectResult.isInspect
     const extracted = extractViewTermFromPath(inspectResult.pathParts)
+    agentView = extracted.agentView
+    appView = extracted.appView
+    toolCallId = extracted.toolCallId
+    agentSessionId = extracted.agentSessionId
+    agentTriggerId = extracted.agentTriggerId
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
@@ -471,17 +531,24 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
-      version: isCommentPermalink ? null : version,
-      latest: isCommentPermalink ? true : latest,
+      version: isCommentPermalink || agentView || appView || toolCallId ? null : version,
+      latest: isCommentPermalink || agentView || appView || toolCallId ? true : latest,
     })
   }
 
   const siteResourceData = {
+    agentView,
+    appView,
+    toolCallId,
+    agentSessionId,
+    agentTriggerId: agentTriggerId || parsedRequest.url.searchParams.get('trigger') || undefined,
+    agentMemoryPath: parsedRequest.url.searchParams.get('file') || undefined,
     prefersLanguages: parsedRequest.prefersLanguages,
     viewTerm,
     exploreQ,
     exploreSort,
     panelParam: effectivePanelParam,
+    replyCommentId,
     openComment,
     commentVersion: isCommentPermalink ? version : null,
     accountUid,
@@ -577,6 +644,7 @@ export default function UnifiedDocumentPage() {
     siteData.openComment,
     siteData.accountUid,
     siteData.commentVersion,
+    siteData.replyCommentId,
   )
   const initialRouteWithExploreParams =
     initialRoute.key === 'explore'
@@ -585,7 +653,17 @@ export default function UnifiedDocumentPage() {
           q: siteData.exploreQ || undefined,
           sort: siteData.exploreSort || undefined,
         }
-      : initialRoute
+      : (siteData.agentView || siteData.appView || siteData.toolCallId) && initialRoute.key === 'document'
+        ? {
+            ...initialRoute,
+            appView: siteData.appView,
+            toolCallId: siteData.toolCallId,
+            agentView: siteData.agentView,
+            agentSessionId: siteData.agentSessionId,
+            agentTriggerId: siteData.agentTriggerId,
+            agentMemoryPath: siteData.agentMemoryPath,
+          }
+        : initialRoute
   const initialInspectRoute = createInspectNavRoute(
     siteData.id,
     siteData.viewTerm,

@@ -1,9 +1,9 @@
-import {createTipTapBlock} from './blocknote/core/extensions/Blocks/api/block'
-import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
-import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
+import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
+import {createTipTapBlock} from './blocknote/core/extensions/Blocks/api/block'
+import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 
 /**
  * Compute the visual heading level for a heading node at the given doc
@@ -109,8 +109,10 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
         // priority: 500,
       },
       {
+        // Pasted headings keep their tag's level until headingDepthNormalizer replaces it with the nesting depth.
+        // h1 parses as 1 so paste nesting puts an h2 under it instead of next to it.
         tag: 'h1',
-        attrs: {level: 2},
+        attrs: {level: 1},
         node: 'heading',
       },
       {

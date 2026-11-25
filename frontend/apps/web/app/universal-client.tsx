@@ -16,12 +16,14 @@ import {
   QueryDocumentsResponse,
   type QueryDocumentsRequest,
 } from '@shm/shared/client/grpc-types'
+import {createChangeStreamClient} from '@shm/shared/change-stream-client'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
 import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {peerIdFromString} from '@libp2p/peer-id'
 import {keyPairStore, type LocalWebIdentity} from './auth'
-import {preparePublicKey, signWithKeyPair} from './auth-utils'
+import {createWebIdentitySigner} from './auth-utils'
 import WebCommenting from './commenting'
 import {deleteRecent, getRecents} from './local-db-recents'
 
@@ -183,7 +185,34 @@ function isJsonValue(value: unknown): value is JsonValue {
   return Object.values(value).every(isJsonValue)
 }
 
+// The tab's one change stream. Created on first use, which only happens in a browser: nothing
+// watches during server rendering, so a stream is never opened for a crawler's page load.
+let changeStream: ReturnType<typeof createChangeStreamClient> | null = null
+
+function getChangeStream() {
+  if (typeof window === 'undefined' || typeof EventSource === 'undefined') return null
+  changeStream ??= createChangeStreamClient({
+    connect: (url) => new EventSource(url),
+    invalidate: (queryKey) => invalidateQueries(queryKey),
+    visibility: {
+      hidden: () => document.hidden,
+      subscribe: (changed) => {
+        document.addEventListener('visibilitychange', changed)
+        return () => document.removeEventListener('visibilitychange', changed)
+      },
+    },
+  })
+  return changeStream
+}
+
 export const webUniversalClient = createWebUniversalClient({
+  watchChanges: ({id, recursive}, onLive) =>
+    getChangeStream()?.watch({id: id.id, recursive: !!recursive}, onLive) ?? (() => {}),
+  listWritableLocations: async (accountUid) => {
+    const response = await fetch(`/hm/api/writable-locations?account=${encodeURIComponent(accountUid)}`)
+    if (!response.ok) throw new Error('Could not load writable locations')
+    return response.json()
+  },
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   queryDocuments: async (request: QueryDocumentsRequest, options) => {
@@ -223,16 +252,9 @@ export const webUniversalClient = createWebUniversalClient({
   },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,
-  getSigner: (): HMSigner => ({
-    getPublicKey: async () => {
-      const kp = keyPairStore.get()
-      if (!kp) throw new Error('No signing keys available')
-      return preparePublicKey(kp.publicKey)
-    },
-    sign: async (data: Uint8Array) => {
-      const kp = keyPairStore.get()
-      if (!kp) throw new Error('No signing keys available')
-      return signWithKeyPair(kp, new Uint8Array(data))
-    },
-  }),
+  getSigner: (accountUid): HMSigner => {
+    const identity = keyPairStore.get()
+    if (!identity) throw new Error('No signing keys available')
+    return createWebIdentitySigner(identity, accountUid)
+  },
 })

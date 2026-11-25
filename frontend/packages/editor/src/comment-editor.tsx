@@ -2,6 +2,7 @@ import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useCommentDraftReferences, type CommentDraftReference} from '@shm/shared/comments-service-provider'
 import {blocksHaveDraftContent} from './comment-editor-draft-content'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
@@ -63,6 +64,8 @@ export function useCommentEditor(
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
     url?: string
+    mime?: string
+    name?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string
@@ -79,6 +82,7 @@ export function useCommentEditor(
   domainResolver?: DomainResolverFn,
   disableTrailingNode?: boolean,
   submitOnEnter?: boolean,
+  getExtraSlashMenuItems?: () => CommentEditorSlashMenuItem[],
 ) {
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
@@ -93,6 +97,9 @@ export function useCommentEditor(
   const editorRef = useRef<BlockNoteEditor<typeof hmBlockSchema> | null>(null)
   const submitOnEnterRef = useRef(submitOnEnter)
   submitOnEnterRef.current = submitOnEnter
+  // The slash menu reads items on every keystroke, so a ref keeps host-provided items current.
+  const getExtraSlashMenuItemsRef = useRef(getExtraSlashMenuItems)
+  getExtraSlashMenuItemsRef.current = getExtraSlashMenuItems
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -124,7 +131,10 @@ export function useCommentEditor(
     //   initDraft();
     // },
     blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems(),
+    getSlashMenuItems: () => [
+      ...toBlockNoteSlashMenuItems(getExtraSlashMenuItemsRef.current?.() ?? []),
+      ...getSlashMenuItems(),
+    ],
     importWebFile,
     handleFileAttachment,
     _tiptapOptions: {
@@ -245,6 +255,21 @@ export interface CommentEditorProps {
  *
  */
 
+/** A host command in the comment editor's `/` menu. The typed `/query` is removed before
+ * {@link CommentEditorSlashMenuItem.onSelect} runs. */
+export type CommentEditorSlashMenuItem = {
+  name: string
+  aliases?: string[]
+  group: string
+  icon: JSX.Element
+  hint?: string
+  onSelect: () => void
+}
+
+function toBlockNoteSlashMenuItems(items: CommentEditorSlashMenuItem[]) {
+  return items.map(({onSelect, ...item}) => ({...item, execute: () => onSelect()}))
+}
+
 export type CommentEditorSubmitHandle = {
   submit: () => void
   reset: () => void
@@ -272,19 +297,25 @@ export function CommentEditor({
   siteUid,
   documentId,
   mentionThread,
+  referenceTarget,
   initialBlocks,
   onContentChange,
+  onEditorBlur,
+  readOnly,
   onAvatarPress,
   importWebFile,
   handleFileAttachment,
   universalClient,
   getDraftMediaBlob,
   hideAvatar,
+  compact = false,
   hideSubmitToolbar,
   submitHandleRef,
   disableTrailingNode,
   submitOnEnter,
   domainResolver,
+  getExtraSlashMenuItems,
+  collapsedLabel,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -320,8 +351,14 @@ export function CommentEditor({
   documentId?: UnpackedHypermediaId
   /** Loaded participants in the conversation being replied to. */
   mentionThread?: MentionThreadContext
+  /** Accept document references only for this active comment draft, never inline edits. */
+  referenceTarget?: {documentId: string; commentId?: string}
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
+  /** Called after the pending content change is flushed when the editor loses focus. */
+  onEditorBlur?: () => void
+  /** Makes the editor non-editable (e.g. while a submission is in flight). */
+  readOnly?: boolean
   onAvatarPress?: () => void
   importWebFile?: (url: string) => Promise<{
     displaySrc: string
@@ -342,6 +379,8 @@ export function CommentEditor({
     }
   }>
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
+  /** Render a compact field with its submit button outside the border. */
+  compact?: boolean
   /** Hide the leading avatar */
   hideAvatar?: boolean
   /** Hide the built-in footer toolbar when submit controls are rendered outside the editor. */
@@ -352,6 +391,12 @@ export function CommentEditor({
   disableTrailingNode?: boolean
   /** Submits on plain Enter while allowing mention/slash menus to handle Enter first. */
   submitOnEnter?: boolean
+  /** Host commands listed ahead of the block types in the `/` menu. Read on every query, so the
+   * list may change between renders. */
+  getExtraSlashMenuItems?: () => CommentEditorSlashMenuItem[]
+  /** Text on the collapsed field before it is first focused; "Start a Discussion" / "Write a
+   * Reply" otherwise. */
+  collapsedLabel?: string
   /** Optional resolver that maps a hostname to a Seed account UID, used when
    * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
   domainResolver?: DomainResolverFn
@@ -375,6 +420,7 @@ export function CommentEditor({
     domainResolver,
     disableTrailingNode,
     submitOnEnter,
+    getExtraSlashMenuItems,
   )
   // Check if we have non-empty draft content
   const hasDraftContent = blocksHaveDraftContent(initialBlocks)
@@ -383,6 +429,9 @@ export function CommentEditor({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
+  const [isDraftReady, setIsDraftReady] = useState(false)
+  const draftReferences = useCommentDraftReferences()
+  const insertedReferences = useRef(new WeakSet<CommentDraftReference>())
   const contentChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLocalEditsRef = useRef(false)
   const isApplyingInitialBlocksRef = useRef(false)
@@ -444,6 +493,9 @@ export function CommentEditor({
       console.error('Failed to emit content change:', error)
     }
   }
+
+  const flushContentChangeRef = useRef(flushContentChange)
+  flushContentChangeRef.current = flushContentChange
 
   const insertDroppedFiles = async ({
     files,
@@ -534,9 +586,14 @@ export function CommentEditor({
 
   // Initialize editor with draft content and rehydrate media
   useEffect(() => {
-    if (!initialBlocks || initialBlocks.length === 0 || isInitializedRef.current || !editor) return
+    if (!editor || isInitializedRef.current) return
+    if (!initialBlocks?.length) {
+      setIsDraftReady(true)
+      return
+    }
     if (hasLocalEditsRef.current) {
       isInitializedRef.current = true
+      setIsDraftReady(true)
       return
     }
 
@@ -603,6 +660,8 @@ export function CommentEditor({
       } catch (error) {
         isApplyingInitialBlocksRef.current = false
         console.error('Failed to initialize editor with draft content:', error)
+      } finally {
+        setIsDraftReady(true)
       }
     }
 
@@ -665,6 +724,74 @@ export function CommentEditor({
       flushContentChange()
     }
   }, [editor, onContentChange])
+
+  const onEditorBlurRef = useRef(onEditorBlur)
+  useEffect(() => {
+    onEditorBlurRef.current = onEditorBlur
+  }, [onEditorBlur])
+
+  useEffect(() => {
+    const handleBlur = () => {
+      flushContentChangeRef.current()
+      onEditorBlurRef.current?.()
+    }
+    editor._tiptapEditor.on('blur', handleBlur)
+    return () => {
+      editor._tiptapEditor.off('blur', handleBlur)
+    }
+  }, [editor])
+
+  useEffect(() => {
+    // Assigning isEditable dispatches an editor update even when the value is unchanged; on mount
+    // that read as a local edit before initialBlocks were applied, so a prompt editor reported its
+    // saved (embed-only) prompt as empty. Only toggle it when it actually changes.
+    if (editor.isEditable !== !readOnly) editor.isEditable = !readOnly
+  }, [editor, readOnly])
+
+  useEffect(() => {
+    if (!referenceTarget || !draftReferences || !isDraftReady) return
+    const pending = draftReferences.references.filter(
+      (reference) =>
+        reference.documentId === referenceTarget.documentId &&
+        reference.commentId === referenceTarget.commentId &&
+        !insertedReferences.current.has(reference),
+    )
+    if (!pending.length) return
+    if (!isExpanded) {
+      setIsExpanded(true)
+      return
+    }
+    let didInsert = false
+    for (const reference of pending) {
+      // A URL can be opened again after this editor remounts with its saved draft.
+      // Consume that request without duplicating an embed already in the content.
+      const existing = crawlEditorBlocks(
+        editor.topLevelBlocks as EditorBlock[],
+        (block) => block.type === 'embed' && block.props.url === reference.link,
+      )
+      if (existing.length) {
+        insertedReferences.current.add(reference)
+        draftReferences.consumeReference(reference)
+        continue
+      }
+      const lastBlock = editor.topLevelBlocks.at(-1)
+      if (!lastBlock) continue
+      const embed = {type: 'embed' as const, props: {url: reference.link, view: 'Content' as const}}
+      if (lastBlock.type === 'paragraph' && !lastBlock.content?.length && !lastBlock.children.length) {
+        // Reuse the editor's empty trailing paragraph as the new typing position.
+        editor.insertBlocks([embed], lastBlock, 'before')
+      } else {
+        editor.insertBlocks([embed, {type: 'paragraph', content: []}], lastBlock, 'after')
+      }
+      insertedReferences.current.add(reference)
+      draftReferences.consumeReference(reference)
+      didInsert = true
+    }
+    if (!didInsert) return
+    hasLocalEditsRef.current = true
+    flushContentChange()
+    editor._tiptapEditor.commands.focus('end')
+  }, [draftReferences, referenceTarget?.documentId, referenceTarget?.commentId, isDraftReady, isExpanded, editor])
 
   useEffect(() => {
     if (hasDraftContent && !isExpanded) {
@@ -854,7 +981,7 @@ export function CommentEditor({
   const handleImageClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*,video/*'
+    input.accept = 'image/*,.heic,.heif,image/heic,image/heif,video/*'
     input.multiple = true
 
     input.onchange = async (e) => {
@@ -951,7 +1078,7 @@ export function CommentEditor({
   return (
     <>
       <div className="flex w-full items-start gap-2">
-        {hideAvatar ? null : (
+        {hideAvatar || compact ? null : (
           <div className="flex shrink-0 grow-0">
             {account?.metadata ? (
               <LinkIcon id={account.id} metadata={account.metadata} size={32} />
@@ -963,6 +1090,7 @@ export function CommentEditor({
         <div
           className={cn(
             'bg-muted border-border dark:border-muted-foreground/20 focus-within:border-ring/60 w-full min-w-0 flex-1 rounded-lg border transition-[filter,border-color,background-color]',
+            compact && 'bg-card rounded-xl',
             isExpanded
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
@@ -1029,8 +1157,13 @@ export function CommentEditor({
         >
           <div
             className={cn(
-              'hm-prose is-comment comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
-              isExpanded ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
+              'hm-prose is-comment comment-editor w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto',
+              compact ? 'max-h-40 min-h-12' : 'max-h-[160px] min-h-20 md:max-h-full',
+              isExpanded
+                ? 'justify-start px-3 pt-1 pb-2'
+                : compact
+                  ? 'flex items-center justify-center'
+                  : 'justify-center',
             )}
             // marginTop="$1"
 
@@ -1072,11 +1205,11 @@ export function CommentEditor({
                 variant="ghost"
                 size="sm"
               >
-                {tx(isReplying ? 'Write a Reply' : 'Start a Discussion')}
+                {collapsedLabel ?? tx(isReplying ? 'Write a Reply' : 'Start a Discussion')}
               </Button>
             )}
           </div>
-          {!hideSubmitToolbar ? (
+          {!hideSubmitToolbar && (!compact || (isExpanded && isMobile)) ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isExpanded && isMobile && (
                 <div className="flex items-center gap-2">
@@ -1109,22 +1242,22 @@ export function CommentEditor({
                 </div>
               )}
 
-              <div className="flex gap-2">
-                {submitButton({
-                  reset,
-                  disabled: !isExpanded,
-                  getContent,
-                })}
-              </div>
+              {!compact && <div className="flex gap-2">{submitButton({reset, disabled: !isExpanded, getContent})}</div>}
             </div>
           ) : null}
         </div>
+        {compact && !hideSubmitToolbar && submitButton({reset, disabled: !isExpanded, getContent})}
       </div>
 
       {/* Mobile dialogs */}
       {isMobile && (
         <>
-          <MobileSlashDialog isOpen={isSlashDialogOpen} onClose={() => setIsSlashDialogOpen(false)} editor={editor} />
+          <MobileSlashDialog
+            isOpen={isSlashDialogOpen}
+            onClose={() => setIsSlashDialogOpen(false)}
+            editor={editor}
+            extraItems={toBlockNoteSlashMenuItems(getExtraSlashMenuItems?.() ?? [])}
+          />
         </>
       )}
     </>

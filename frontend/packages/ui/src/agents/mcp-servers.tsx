@@ -1,5 +1,5 @@
 /**
- * The Tools tab's MCP section: the account's connected MCP servers, each toggled per agent, with
+ * The MCP servers settings page: the account's connected MCP servers, each toggled per agent, with
  * the tools it advertises one click away. A server's tools reach the agent as `<server>__<tool>`
  * documents in its `~/tools/`, so what this section shows is exactly what the agent can `call`.
  */
@@ -71,6 +71,7 @@ export function AgentMcpServersSection({
   onToggleServer,
   readOnly,
   saving,
+  showTitle = true,
 }: {
   serverUrl: string | undefined
   accountUid: string | null
@@ -79,6 +80,8 @@ export function AgentMcpServersSection({
   onToggleServer: (name: string, enabled: boolean) => void
   readOnly: boolean
   saving: boolean
+  /** Off when the page header already says "MCP servers". */
+  showTitle?: boolean
 }) {
   const servers = useMcpServers(serverUrl, accountUid)
   const refreshServer = useRefreshMcpServer(serverUrl, accountUid)
@@ -103,9 +106,11 @@ export function AgentMcpServersSection({
 
   return (
     <>
-      <div className="pt-2">
-        <SizableText weight="bold">MCP servers</SizableText>
-      </div>
+      {showTitle ? (
+        <div className="pt-2">
+          <SizableText weight="bold">MCP servers</SizableText>
+        </div>
+      ) : null}
       <div className="grid gap-2">
         {list.map((server) => (
           <McpServerRow

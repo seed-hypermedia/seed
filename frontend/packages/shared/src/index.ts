@@ -1,3 +1,4 @@
+export * from './block-version'
 export * from './citation-deduplication'
 export * from './client'
 export * from './comments'

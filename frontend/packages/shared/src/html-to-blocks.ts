@@ -10,11 +10,19 @@ export async function htmlToBlocks(
   opts: {
     uploadLocalFile?: (path: string) => Promise<string | null>
     resolveHMLink?: (href: string) => Promise<string | null>
+    /** Resolves an image source to its final URL; useful for imports that must not publish media. */
+    resolveImage?: (src: string) => Promise<string | null>
   } = {},
 ): Promise<HMBlockNode[]> {
-  const {uploadLocalFile, resolveHMLink} = opts
+  const {uploadLocalFile, resolveHMLink, resolveImage} = opts
   const $ = cheerio.load(html)
   const blocks: HMBlockNode[] = []
+
+  async function imageUrl(src: string): Promise<string | null> {
+    if (resolveImage) return resolveImage(src)
+    const cid = await uploadLocalFile?.(resolve(htmlPath, '..', src))
+    return cid ? `ipfs://${cid}` : null
+  }
 
   // Helper function to get heading level from tag name
   function getHeadingLevel(tagName: string): number | null {
@@ -315,14 +323,13 @@ export async function htmlToBlocks(
       if (img.length) {
         const src = img.attr('src')
         if (src) {
-          const absoluteImageUrl = resolve(htmlPath, '..', src)
-          const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
-          if (uploadedCID) {
+          const url = await imageUrl(src)
+          if (url) {
             let imageBlockNode: HMBlockNode = {
               block: {
                 id: nanoid(8),
                 type: 'Image',
-                link: `ipfs://${uploadedCID}`,
+                link: url,
                 revision: nanoid(8),
                 text: '',
                 attributes: {},
@@ -357,16 +364,15 @@ export async function htmlToBlocks(
     } else if ($el.is('img')) {
       const src = $el.attr('src')
       if (src) {
-        const absoluteImageUrl = resolve(htmlPath, '..', src)
-        const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
-        if (uploadedCID) {
+        const url = await imageUrl(src)
+        if (url) {
           processedElements.push({
             type: 'content',
             blockNode: {
               block: {
                 id: nanoid(8),
                 type: 'Image',
-                link: `ipfs://${uploadedCID}`,
+                link: url,
                 revision: nanoid(8),
                 text: '',
                 attributes: {},
@@ -384,14 +390,13 @@ export async function htmlToBlocks(
       if (img.length) {
         const src = img.attr('src')
         if (src) {
-          const absoluteImageUrl = resolve(htmlPath, '..', src)
-          const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
-          if (uploadedCID) {
+          const url = await imageUrl(src)
+          if (url) {
             imageBlockNode = {
               block: {
                 id: nanoid(8),
                 type: 'Image',
-                link: `ipfs://${uploadedCID}`,
+                link: url,
                 revision: nanoid(8),
                 text: '',
                 attributes: {},

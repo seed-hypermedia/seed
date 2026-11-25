@@ -5,6 +5,7 @@ import {
   getNotificationReadState,
   initDatabase,
   mergeNotificationReadState,
+  replaceNotificationReadState,
   setNotificationConfig,
   setSubscription,
 } from './db'
@@ -58,11 +59,11 @@ describe('notification read redirect helpers', () => {
     expect(getSafeNotificationRedirectTarget('javascript:alert(1)')).toBeNull()
   })
 
-  it('marks read state when token and subscription are valid', () => {
+  it('marks read state when token and subscription are valid', async () => {
     const accountId = 'z-account-1'
     const token = createTokenForAccount(accountId, 'reader@example.com')
 
-    const result = applyNotificationReadFromEmailLink({
+    const result = await applyNotificationReadFromEmailLink({
       token,
       accountId,
       eventId: 'mention-event-id',
@@ -74,8 +75,8 @@ describe('notification read redirect helpers', () => {
     expect(state.readEvents).toEqual([{eventId: 'mention-event-id', eventAtMs: 12345}])
   })
 
-  it('does not mark read state when token is invalid', () => {
-    const result = applyNotificationReadFromEmailLink({
+  it('does not mark read state when token is invalid', async () => {
+    const result = await applyNotificationReadFromEmailLink({
       token: 'invalid',
       accountId: 'z-account-1',
       eventId: 'mention-event-id',
@@ -85,9 +86,9 @@ describe('notification read redirect helpers', () => {
     expect(result.reason).toBe('invalid-token')
   })
 
-  it('does not mark read state when account subscription is missing', () => {
+  it('does not mark read state when account subscription is missing', async () => {
     const token = createTokenForAccount('z-account-1', 'reader@example.com')
-    const result = applyNotificationReadFromEmailLink({
+    const result = await applyNotificationReadFromEmailLink({
       token,
       accountId: 'z-account-2',
       eventId: 'mention-event-id',
@@ -97,14 +98,14 @@ describe('notification read redirect helpers', () => {
     expect(result.reason).toBe('subscription-not-found')
   })
 
-  it('marks read state when token email matches notification config', () => {
+  it('marks read state when token email matches notification config', async () => {
     const accountId = 'z-account-config'
     const email = 'config-reader@example.com'
     setNotificationConfig(accountId, email)
     const token = getEmail(email)?.adminToken
     if (!token) throw new Error('Expected email token')
 
-    const result = applyNotificationReadFromEmailLink({
+    const result = await applyNotificationReadFromEmailLink({
       token,
       accountId,
       eventId: 'mention-event-id',
@@ -116,7 +117,7 @@ describe('notification read redirect helpers', () => {
     expect(state.readEvents).toEqual([{eventId: 'mention-event-id', eventAtMs: 67890}])
   })
 
-  it('preserves watermark and bumps stateUpdatedAtMs when applying redirect read', () => {
+  it('preserves watermark and bumps stateUpdatedAtMs when applying redirect read', async () => {
     const accountId = 'z-account-watermark'
     const token = createTokenForAccount(accountId, 'watermark@example.com')
     mergeNotificationReadState(accountId, {
@@ -126,7 +127,7 @@ describe('notification read redirect helpers', () => {
     })
     const before = getNotificationReadState(accountId)
 
-    const result = applyNotificationReadFromEmailLink({
+    const result = await applyNotificationReadFromEmailLink({
       token,
       accountId,
       eventId: 'new-mention-event',
@@ -138,5 +139,30 @@ describe('notification read redirect helpers', () => {
     expect(state.markAllReadAtMs).toBe(10_000)
     expect(state.stateUpdatedAtMs).toBeGreaterThan(before.stateUpdatedAtMs)
     expect(state.readEvents).toEqual([{eventId: 'new-mention-event', eventAtMs: 12_345}])
+  })
+
+  it('keeps the read marks the account already has', async () => {
+    const accountId = 'z-account-keeps-marks'
+    const token = createTokenForAccount(accountId, 'keeps@example.com')
+    // A space-scoped "mark all as read" leaves one mark per notification above the watermark.
+    replaceNotificationReadState(accountId, {
+      markAllReadAtMs: 10_000,
+      readEvents: [
+        {eventId: 'read-a', eventAtMs: 11_000},
+        {eventId: 'read-b', eventAtMs: 12_000},
+      ],
+    })
+
+    const result = await applyNotificationReadFromEmailLink({
+      token,
+      accountId,
+      eventId: 'new-mention-event',
+      eventAtMs: 13_000,
+    })
+
+    expect(result.applied).toBe(true)
+    const state = getNotificationReadState(accountId)
+    expect(state.markAllReadAtMs).toBe(10_000)
+    expect(state.readEvents.map((evt) => evt.eventId).sort()).toEqual(['new-mention-event', 'read-a', 'read-b'])
   })
 })

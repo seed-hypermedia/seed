@@ -1,6 +1,7 @@
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {Dialog, DialogSideContent, DialogTitle} from '@shm/ui/components/dialog'
@@ -47,9 +48,9 @@ export function CreateSpaceFlow({onClose}: {onClose: () => void}) {
       // Upload images to IPFS, then write a populated home draft for
       // the selected identity.
       const [coverCid, logoCid, faviconCid] = await Promise.all([
-        state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
-        state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
-        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
+        state.cover ? fileUpload(state.cover, COVER_IMAGE_POLICY) : Promise.resolve(undefined),
+        state.logo ? fileUpload(state.logo, AVATAR_IMAGE_POLICY) : Promise.resolve(undefined),
+        state.favicon ? fileUpload(state.favicon, AVATAR_IMAGE_POLICY) : Promise.resolve(undefined),
       ])
       const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
       await client.drafts.write.mutate({

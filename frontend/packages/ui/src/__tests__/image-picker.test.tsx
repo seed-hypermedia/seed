@@ -4,6 +4,7 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {ImagePickerPopover, type ImagePickerKind} from '../image-picker'
+import {AVATAR_IMAGE_POLICY, processImage} from '../image-processing'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -113,11 +114,14 @@ describe('ImagePickerPopover', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('accepts dropped images', async () => {
+  it.each([
+    ['cover.png', 'image/png'],
+    ['cover.heic', ''],
+  ])('accepts dropped %s images', async (name, type) => {
     const onFile = vi.fn()
     renderPicker('cover', onFile)
     click(bodyButton('Upload'))
-    const file = new File(['cover'], 'cover.png', {type: 'image/png'})
+    const file = new File(['cover'], name, {type})
     const dropzone = document.body.querySelector('input[type="file"]')!.closest('label')!
     await act(async () => {
       const drop = new Event('drop', {bubbles: true, cancelable: true})
@@ -222,6 +226,7 @@ describe('ImagePickerPopover', () => {
     const file = onFile.mock.calls[0]![0] as File
     expect(file.name).toBe('emoji-1f331.png')
     expect(file.type).toBe('image/png')
+    expect(await processImage(file, AVATAR_IMAGE_POLICY)).toBe(file)
     expect(context.fillText).toHaveBeenCalled()
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
   })

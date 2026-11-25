@@ -20,3 +20,24 @@
 .feed-item-container .embed-side-annotation {
   display: none !important;
 }
+
+/* Size previews from their panel, not the browser viewport. */
+.embed-media-container {
+  container-type: inline-size;
+  width: 100%;
+}
+
+.embed-media-preview {
+  width: fit-content;
+  max-width: min(100%, 400px);
+}
+
+.embed-media-video {
+  width: 100%;
+}
+
+@container (min-width: 480px) {
+  .embed-media-preview {
+    max-width: min(50%, 400px);
+  }
+}

@@ -52,12 +52,6 @@ export function ChatMessageComposer({
         placeholder={placeholder}
         className="border-border placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 max-h-48 min-h-10 w-full resize-none overflow-hidden rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
         onKeyDown={(event) => {
-          if (event.key.toLowerCase() === 'a' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            event.stopPropagation()
-            event.currentTarget.select()
-            return
-          }
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault()
             onSend()

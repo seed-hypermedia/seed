@@ -4,7 +4,7 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 /**
- * The agent composer names who a chat is with in its empty editor ("Chat with Alpha", "Start a chat
+ * The agent composer names who a chat is with in its empty editor ("Chat with Alpha", "New Chat
  * with Alpha"). The block editor draws that text from a CSS variable, so the composer's job is to
  * set it on the editor's wrapper, quoted as a CSS string.
  */
@@ -12,10 +12,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 vi.mock('@shm/ui/agents/platform', () => {
   const React = require('react')
   return {
-    getAgentsPlatform: () => ({CommentEditor: () => React.createElement('div', {'data-testid': 'editor'})}),
+    getAgentsPlatform: () => ({
+      CommentEditor: ({collapsedLabel}: {collapsedLabel?: string}) =>
+        React.createElement('div', {'data-testid': 'editor', 'data-collapsed-label': collapsedLabel}),
+    }),
     setAgentsPlatform: vi.fn(),
   }
 })
+vi.mock('@shm/ui/agents/models', () => ({
+  uploadFileToAgentServer: vi.fn(),
+  useInvokeSessionTool: () => ({mutateAsync: vi.fn(), isPending: false}),
+  useAgentServerHealth: () => ({data: undefined}),
+}))
 vi.mock('@shm/ui/tooltip', () => ({Tooltip: ({children}: {children: React.ReactNode}) => children}))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
@@ -60,6 +68,12 @@ describe('AgentRichMessageComposer placeholder', () => {
   it('hands the editor its empty-state text through the placeholder variable', () => {
     const wrapper = render('Chat with Alpha')
     expect(wrapper.style.getPropertyValue('--hm-editor-placeholder')).toBe('"Chat with Alpha"')
+  })
+
+  it('shows the same text on the field before it is first focused', () => {
+    render('Chat with Alpha')
+    const editor = container.querySelector('[data-testid="editor"]')
+    expect(editor?.getAttribute('data-collapsed-label')).toBe('Chat with Alpha')
   })
 
   it('quotes names that would break a bare CSS string', () => {

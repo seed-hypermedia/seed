@@ -1,47 +1,94 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {domainResolver} from '@/grpc-client'
+import {reconcileBrowserNavigation, type BrowserLocation} from '@/browser-navigation'
 import {ipc} from '@/ipc'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
+import {getParentRoute} from '@shm/shared/utils/parent-route'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/shared/use-stream'
 import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
 import {ReactNode, useRef} from 'react'
 import {useAppContext} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
+import {routeUsesWindowDedupe} from './route-window-identity'
 import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
+/** Records a committed browser location in the same history as native Seed pages. */
+export function commitBrowserLocation(location: BrowserLocation, requested: boolean) {
+  updateNavState(reconcileBrowserNavigation(navState.get(), location, requested))
+}
+
+/** Converts the active website to its resolved Seed route without losing forward history. */
+export function resolveBrowserRoute(url: string, route: NavRoute) {
+  const state = navState.get()
+  const current = state.routes[state.routeIndex]
+  if (current?.key !== 'web' || current.url !== url) return
+  const routes = [...state.routes]
+  routes[state.routeIndex] = route
+  updateNavState({...state, routes})
+}
+
 // Developer-only React Query devtools panel. Toggled from the DEVELOPERS section of the account dropdown.
 export const [setQueryDevtoolsOpen, queryDevtoolsOpen] = writeableStateStream<boolean>(false)
 
+function applyNavAction(action: NavAction) {
+  if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
+    reportRouteLinkClick(action.route)
+  }
+  const prevState = navState.get()
+  const newState = navStateReducer(prevState, action)
+  if (prevState !== newState) {
+    updateNavState(newState)
+  } else if (action.type === 'closeBack') {
+    // @ts-expect-error
+    client.closeAppWindow.mutate(window.windowId)
+  }
+}
+
+// Serializes the "is this route already open in another window?" checks so
+// queued pushes apply in dispatch order.
+let windowDedupeQueue: Promise<unknown> = Promise.resolve()
+
 const navigation = {
   dispatch(action: NavAction) {
-    if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
-      reportRouteLinkClick(action.route)
+    if (action.type === 'push' && routeUsesWindowDedupe(action.route)) {
+      windowDedupeQueue = windowDedupeQueue
+        .then(async () => {
+          let handled = false
+          try {
+            handled = await client.focusWindowForRoute.mutate({
+              windowId: window.windowId || '',
+              route: action.route,
+            })
+          } catch {
+            // The main process could not answer; navigate in this window below.
+          }
+          if (!handled) applyNavAction(action)
+        })
+        .catch((error) => {
+          // Keep the queue usable for later dispatches even if one fails.
+          console.error('Failed to dispatch navigation', error)
+        })
+      return
     }
-    const prevState = navState.get()
-    const newState = navStateReducer(prevState, action)
-    if (prevState !== newState) {
-      updateNavState(newState)
-    } else if (action.type === 'closeBack') {
-      // @ts-expect-error
-      client.closeAppWindow.mutate(window.windowId)
-    }
+    applyNavAction(action)
   },
   state: navState,
   selectedIdentity: streamSelector<NavState, string | null>(navState, (state) => state.selectedIdentity || null),
@@ -53,11 +100,24 @@ navigation.state.subscribe(() => {
 })
 
 window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
+  if (event.type === 'open_web_url') {
+    const route = hypermediaUrlToRoute(event.url) || {key: 'web' as const, url: event.url}
+    navigation.dispatch({type: 'push', route})
+  }
+  if (event.type === 'external_open_refused') {
+    toast.error('Seed could not open that link. Open it from the omnibar again.')
+  }
   if (event.type === 'back') {
     navigation.dispatch({type: 'pop'})
   }
   if (event.type === 'forward') {
     navigation.dispatch({type: 'forward'})
+  }
+  if (event.type === 'go_to_parent') {
+    const state = navigation.state.get()
+    const current = state.routes[state.routeIndex]
+    const parent = current ? getParentRoute(current) : null
+    if (parent) navigation.dispatch({type: 'push', route: parent})
   }
   if (event.type === 'selectedIdentityChanged') {
     // Update the navigation state with the new selected identity
@@ -127,7 +187,24 @@ export function NavigationContainer({children}: {children: ReactNode}) {
           return
         }
         if (isHttpUrl(url)) {
-          externalOpen(url)
+          // The main process decides, so the answer is never a stale cache from before a toggle.
+          void readWebBrowserEnabled().then((browserEnabled) => {
+            if (!browserEnabled) {
+              externalOpen(url)
+              return
+            }
+            const route: NavRoute = {key: 'web', url}
+            if (newWindow) {
+              const state = navigation.state.get()
+              ipc.invoke('plugin:window|open', {
+                path: encodeRouteToPath(route),
+                selectedIdentity: state.selectedIdentity,
+                accessoryWidth: state.accessoryWidth,
+              })
+            } else {
+              navigation.dispatch({type: 'push', route})
+            }
+          })
           return
         }
         console.warn(`[openUrl] Failed to resolve route for "${url}"`)

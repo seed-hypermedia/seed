@@ -1,6 +1,6 @@
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Buffer} from 'buffer'
 import {createContext, useCallback, useContext} from 'react'
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {defaultRoute, type NavRoute} from '../routes'
 import {UniversalAppContext} from '../routing'
 import {useStream, useStreamSelector} from '../use-stream'
@@ -84,6 +84,9 @@ export function getRouteKey(route: NavRoute): string {
 const NavContext = createContext<null | NavigationContext>(null)
 
 export function navStateReducer(state: NavState, action: NavAction): NavState {
+  if ('route' in action && action.route.key === 'comments' && action.route.panel?.key === 'comments') {
+    action = {...action, route: {...action.route, panel: null}}
+  }
   switch (action.type) {
     case 'push':
       return {
@@ -177,7 +180,8 @@ export function useNavRoute() {
   return navRoute
 }
 
-const NO_NAV_STATE: StateStream<NavState> = {
+/** An inert empty nav state for readers that may run before any page publishes its navigation. */
+export const NO_NAV_STATE: StateStream<NavState> = {
   get: () => ({routes: [], routeIndex: 0, lastAction: 'push'}),
   subscribe: () => () => {},
 }
@@ -206,6 +210,20 @@ export function useRouteDocId(): UnpackedHypermediaId | null {
         path: route.editPath,
       })
     }
+  }
+  return null
+}
+
+/**
+ * The most recent page in this window's history, before
+ * the current one, that belongs to a space.
+ */
+export function findLastRouteInSpace(state: NavState, spaceUid: string): {index: number; route: NavRoute} | null {
+  for (let index = state.routeIndex - 1; index >= 0; index--) {
+    const route = state.routes[index]
+    if (!route || route.key === 'site-settings') continue
+    const id = 'id' in route ? route.id : undefined
+    if (typeof id === 'object' && id?.uid === spaceUid) return {index, route}
   }
   return null
 }

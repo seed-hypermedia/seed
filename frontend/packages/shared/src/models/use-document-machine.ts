@@ -5,7 +5,8 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom, enqueueActions} from 'xstate'
-import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
+import {getBlockText} from '../content'
+import {applyRebasePlan, classifyRebase, collectChangedBlockIds} from '../utils/document-changes'
 import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
   documentMachine,
@@ -75,6 +76,8 @@ export interface DocumentMachineProviderProps {
   machine?: typeof documentMachine
   /** Optional XState inspect callback for debugging (from @statelyai/inspect). */
   inspect?: (inspectionEvent: any) => void
+  /** Show publication failures while the machine preserves the editable draft. */
+  onPublishError?: (error: unknown) => void
   children: ReactNode
 }
 
@@ -82,12 +85,20 @@ export interface DocumentMachineProviderProps {
  * Creates a document machine actor and provides it via React context.
  * The actor starts automatically via `useActorRef` and stops on unmount.
  */
-export function DocumentMachineProvider({input, machine, inspect, children}: DocumentMachineProviderProps) {
+export function DocumentMachineProvider({
+  input,
+  machine,
+  inspect,
+  onPublishError,
+  children,
+}: DocumentMachineProviderProps) {
   // Mutable ref populated by `DocumentEditor` with the imperative handlers the
   // machine needs to flip the editor's editable flag, replace blocks on entry,
   // and place the cursor. Read lazily inside provided actions so replacing the
   // handlers does not require recreating the actor.
   const editorHandlersRef = useRef<EditorHandlers | null>(null)
+  const onPublishErrorRef = useRef(onPublishError)
+  onPublishErrorRef.current = onPublishError
 
   // Compose the incoming machine (or the default) with React-layer action
   // implementations. The ref is stable, so this only runs once per mount.
@@ -95,6 +106,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
     () =>
       (machine ?? documentMachine).provide({
         actions: {
+          notifyPublishError: (_, {error}) => onPublishErrorRef.current?.(error),
           setEditorEditable: ({context}) => {
             documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor editable`, {
               documentId: context.documentId.id,
@@ -150,6 +162,16 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
           pushPublishedContentToEditor: ({context}) => {
             const publishedContent = hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
             editorHandlersRef.current?.replaceCurrentContent?.(publishedContent)
+          },
+          // After saving out of `editing`, restore what should be visible: the published
+          // document when the draft is hidden, otherwise the current baseline (used by the
+          // version.changed exit, where editorBaseline already tracks the target version).
+          pushExitContentToEditor: ({context}) => {
+            const blocks = context.draftHidden
+              ? hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
+              : context.editorBaseline
+            if (!blocks) return
+            editorHandlersRef.current?.replaceCurrentContent?.(blocks)
           },
           applyExternalDraftState: enqueueActions(({context, event, enqueue}) => {
             if (
@@ -746,9 +768,18 @@ export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): E
   return getCollectionEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
 }
 
+/** Whether the user has temporarily hidden the draft to preview the published version. */
+export function selectDraftHidden(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.draftHidden
+}
+
 /** Whether draft content is allowed to overlay the published document for the current route. */
 export function selectDraftOverlayAllowed(snapshot: DocumentMachineSnapshot): boolean {
-  return shouldAllowDraftOverlay(snapshot.context.isLatestVersion, snapshot.context.routeVersion)
+  return shouldAllowDraftOverlay(
+    snapshot.context.isLatestVersion,
+    snapshot.context.routeVersion,
+    snapshot.context.draftHidden,
+  )
 }
 
 /** Whether the current route can start or continue document edits. */
@@ -761,12 +792,30 @@ export function selectShouldUseDraftOverlay(snapshot: DocumentMachineSnapshot): 
   return selectDraftOverlayAllowed(snapshot) && !!snapshot.context.draftContent
 }
 
-/** Whether a brand-new reserved draft should initially focus the title field. */
+/**
+ * Whether an unpublished draft the user has not typed into yet should initially focus the title
+ * field. Applies to lazily reserved drafts and to drafts written up front (the New button and
+ * Cmd+Shift+N), so every fresh draft opens with the cursor in the title. Once the body has text the
+ * cursor belongs to the editor, so a remount of the title field no longer steals it.
+ */
 export function selectShouldFocusDraftTitle(snapshot: DocumentMachineSnapshot): boolean {
   const ctx = snapshot.context
   return (
-    snapshot.matches('editing') && !!ctx.draftId && !ctx.draftCreated && !ctx.document?.version && !ctx.metadata?.name
+    snapshot.matches('editing') &&
+    !!ctx.draftId &&
+    !ctx.document?.version &&
+    !ctx.metadata?.name &&
+    !blocksHaveText(ctx.draftContent)
   )
+}
+
+// Desktop draft snapshots store editor blocks, not published block nodes, so normalise first.
+function blocksHaveText(content: HMBlockNode[] | null | undefined): boolean {
+  if (!content?.length) return false
+  const nodes = 'block' in content[0]! ? content : editorBlocksToHMBlockNodes(content as unknown as EditorBlock[])
+  const hasText = (list: HMBlockNode[]): boolean =>
+    list.some((node) => (!!node.block && getBlockText(node.block).trim().length > 0) || hasText(node.children ?? []))
+  return hasText(nodes)
 }
 
 /** The blocks the editor should render from the document machine's current source of truth. */
@@ -1086,13 +1135,17 @@ export function useAutoRebase({
         mineNodes = baseBlocks
       }
 
-      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+      // Union persisted touch tracking with blocks the publish diff would
+      // write, so an incomplete mineTouchedIds list (e.g. a restored draft)
+      // does not let a remote change silently overwrite a user edit.
+      const mineTouchedUnion = Array.from(new Set([...mineTouched, ...collectChangedBlockIds(baseBlocks, mineNodes)]))
+      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouchedUnion, newCids)
       console.log('[Rebase hook] classification', {
         autoMergeable: classification.autoMergeable,
         conflictedBlockIds: classification.conflictedBlockIds,
         planMineBlocks: Array.from(classification.plan.mineBlocks),
         planTheirsBlocks: Array.from(classification.plan.theirsBlocks),
-        mineTouchedInput: mineTouched,
+        mineTouchedInput: mineTouchedUnion,
         baseBlockIds: baseBlocks.map((n) => n.block?.id),
         mineBlockIds: mineNodes.map((n) => n.block?.id),
         theirsBlockIds: (remoteDoc.content ?? []).map((n) => n.block?.id),
@@ -1128,7 +1181,7 @@ export function useAutoRebase({
           base: summarize(baseMap.get(id)),
           mine: summarize(mineMap.get(id)),
           theirs: summarize(theirsMap.get(id)),
-          mineTouched: mineTouched.includes(id),
+          mineTouched: mineTouchedUnion.includes(id),
           theirsRevisionInNewCids: (() => {
             const rev = (theirsMap.get(id)?.block as any)?.revision
             return typeof rev === 'string' ? newCids.has(rev) : null
@@ -1141,7 +1194,7 @@ export function useAutoRebase({
           newCidsCount: newCids.size,
           newCids: Array.from(newCids),
           remoteVersion: remoteDoc.version,
-          mineTouched,
+          mineTouched: mineTouchedUnion,
           baseBlockIdSet: Array.from(baseMap.keys()),
           mineBlockIdSet: Array.from(mineMap.keys()),
           theirsBlockIdSet: Array.from(theirsMap.keys()),

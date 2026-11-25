@@ -1,3 +1,5 @@
+import {documentChangesToPlain} from './utils/document-changes'
+import type {JSX} from 'react'
 import {
   createDocumentChange,
   createHomeGenesisChange,
@@ -18,6 +20,7 @@ import type {
 } from './client/grpc-types'
 
 export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'> & {
+  listWritableLocations?: UniversalClient['listWritableLocations']
   listUnreferencedDocuments?: UniversalClient['listUnreferencedDocuments']
   queryDocuments?: (request: QueryDocumentsRequest, options?: {signal?: AbortSignal}) => Promise<QueryDocumentsResponse>
   listAccounts?: (request: ListAccountsRequest, options?: {signal?: AbortSignal}) => Promise<ListAccountsResponse>
@@ -29,16 +32,18 @@ export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'>
     request: ListDocumentAttributeValuesRequest,
     options?: {signal?: AbortSignal},
   ) => Promise<ListDocumentAttributeValuesResponse>
-  CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
+  CommentEditor?: (props: {docId: UnpackedHypermediaId}) => JSX.Element
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
   getSigner?: (accountUid: string) => HMSigner
+  watchChanges?: UniversalClient['watchChanges']
 }
 
 export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
   async function publishDocument(input: PublishDocumentInput): Promise<void> {
     if (!deps.getSigner) throw new Error('getSigner is required for publishDocument')
     const signer = deps.getSigner(input.signerAccountUid)
+    const changes = documentChangesToPlain(input.changes)
 
     // Brand-new home documents need their deterministic genesis change created
     // and signed client-side. For metadata-only account creation we can create
@@ -51,7 +56,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       if (input.changes.every((change) => change.op?.case === 'setMetadata')) {
         const contentChange = await createDocumentChange(
           {
-            changes: input.changes,
+            changes,
             genesisCid: genesisChange.cid,
             deps: [genesisChange.cid],
             depth: 1,
@@ -107,7 +112,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       account: input.account,
       path: input.path,
       baseVersion: input.baseVersion,
-      changes: input.changes,
+      changes,
       capability: input.capability,
       visibility: input.visibility,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
@@ -127,11 +132,13 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
   }
 
   return {
+    listWritableLocations: deps.listWritableLocations,
     CommentEditor: deps.CommentEditor,
     fetchRecents: deps.fetchRecents,
     deleteRecent: deps.deleteRecent,
 
     getSigner: deps.getSigner,
+    watchChanges: deps.watchChanges,
 
     request: deps.request,
     publish: deps.publish,

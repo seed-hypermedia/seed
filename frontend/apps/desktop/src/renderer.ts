@@ -32,7 +32,6 @@ import {seedBrowserTracePropagationTargets} from '@shm/shared/sentry-tracing'
 import './root.tsx'
 
 // Inject Plausible analytics script when VITE_PLAUSIBLE_DOMAIN is set (production CI builds only)
-// @ts-expect-error
 const plausibleDomain = import.meta.env.VITE_PLAUSIBLE_DOMAIN
 if (plausibleDomain) {
   const script = document.createElement('script')

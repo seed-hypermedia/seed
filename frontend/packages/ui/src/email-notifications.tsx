@@ -35,7 +35,7 @@ export function UIEmailNotificationsForm({
     setFocus,
     formState: {errors},
   } = useForm<z.infer<typeof emailNotificationsSchema>>({
-    resolver: zodResolver(emailNotificationsSchema),
+    resolver: zodResolver(emailNotificationsSchema as any),
     defaultValues: {
       email: '',
       notifyOwnedDocChange: true,

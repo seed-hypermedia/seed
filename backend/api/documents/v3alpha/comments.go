@@ -163,10 +163,11 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		lookup := blob.NewLookupCache(conn)
 
 		q := qIterComments()
-		if publicOnly, err := srv.isPublicOnlyFor(ctx, acc, in.TargetPath); err != nil {
+
+		if filterPrivate, err := srv.shouldFilterPrivate(ctx, acc, in.TargetPath); err != nil {
 			return nil, err
-		} else if publicOnly {
-			q = qIterCommentsPublicOnly()
+		} else if filterPrivate {
+			q = qIterCommentsServerMode()
 		}
 		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, iri).All()
 		defer discard(&err)
@@ -216,8 +217,9 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 
 		q := qIterCommentsByAuthor()
 		args := []any{author, cursor.CommentID, in.PageSize + 1}
-		if srv.cfg.PublicOnly {
-			q = qIterCommentsByAuthorPublicOnly()
+
+		if srv.cfg.ServerMode {
+			q = qIterCommentsByAuthorServerMode()
 			if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
 				q = qIterCommentsByAuthorAuthenticated()
 				args = []any{author, []byte(caller), cursor.CommentID, in.PageSize + 1}
@@ -326,7 +328,7 @@ var qIterComments = dqb.Str(targetGenesisCTE + `
 	ORDER BY sb.ts
 `)
 
-var qIterCommentsPublicOnly = dqb.Str(targetGenesisCTE + `
+var qIterCommentsServerMode = dqb.Str(targetGenesisCTE + `
 	SELECT
 		sb.id,
 		b.codec,
@@ -364,7 +366,7 @@ var qIterCommentsByAuthor = dqb.Str(`
 	LIMIT :limit
 `)
 
-var qIterCommentsByAuthorPublicOnly = dqb.Str(`
+var qIterCommentsByAuthorServerMode = dqb.Str(`
 	SELECT
 		sb.id,
 		b.codec,
@@ -815,7 +817,7 @@ func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCo
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
 	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		if srv.cfg.PublicOnly {
+		if srv.cfg.ServerMode {
 			icmt, err := srv.getComment(conn, in.Id)
 			if err != nil {
 				return err

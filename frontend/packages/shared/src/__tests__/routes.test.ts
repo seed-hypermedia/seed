@@ -1,4 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, test, vi} from 'vitest'
+import {createElement, useContext, type MouseEvent} from 'react'
+import {renderToStaticMarkup} from 'react-dom/server'
 import {
   commentsRouteSchema,
   createDocumentNavRoute,
@@ -6,17 +8,88 @@ import {
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
   defaultRoute,
+  getActivityBellTarget,
+  getExpandedDocumentPanel,
   getRecentsRouteEntityUrl,
+  isActivityOpen,
   navRouteSchema,
   replaceRouteDocumentId,
   type NavRoute,
 } from '../routes'
-import {routeToHref} from '../routing'
+import {routeToHref, UniversalAppContext, useRouteLink} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
+describe('expanded document panels', () => {
+  const id = hmId('testuid123', {path: ['random', 'path'], version: 'version123'})
+
+  test.each([
+    ['comments', 'Comments'],
+    ['metadata', 'Attributes'],
+    ['collaborators', 'People'],
+  ] as const)('collapses %s onto the same document', (key, title) => {
+    const expanded = getExpandedDocumentPanel({key, id})
+    expect(expanded).toEqual({title, panel: {key, id}})
+    const collapsed: NavRoute = {key: 'document', id, panel: expanded!.panel}
+    expect(hypermediaUrlToRoute(routeToUrl(collapsed)!)).toMatchObject({
+      key: 'document',
+      id: {uid: id.uid, path: id.path, version: id.version},
+      panel: {key},
+    })
+  })
+
+  test('preserves the selected comment thread', () => {
+    expect(
+      getExpandedDocumentPanel({key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'}),
+    ).toEqual({
+      title: 'Comments',
+      panel: {key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'},
+    })
+  })
+
+  test('preserves the block selected in Connections', () => {
+    const filterEventType = ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link']
+    const blockId = {...id, blockRef: 'block123'}
+    expect(getExpandedDocumentPanel({key: 'activity', id: blockId, filterEventType})).toEqual({
+      title: 'Connections',
+      panel: {key: 'activity', id: blockId, filterEventType, targetBlockId: 'block123'},
+    })
+  })
+
+  test('does not replace tools on document and other activity views', () => {
+    expect(getExpandedDocumentPanel({key: 'document', id})).toBeNull()
+    expect(getExpandedDocumentPanel({key: 'activity', id})).toBeNull()
+  })
+})
+
+test('mounted agent links open the document route for clicks and new windows', () => {
+  const id = hmId('owner', {path: ['helper']})
+  const openRoute = vi.fn()
+  const openRouteNewWindow = vi.fn()
+  let link: ReturnType<typeof useRouteLink> | undefined
+  function Link() {
+    link = useRouteLink({key: 'agent-session', agentId: id.id, sessionId: 'conversation'})
+    return null
+  }
+  function Harness() {
+    const defaults = useContext(UniversalAppContext)
+    return createElement(
+      UniversalAppContext.Provider,
+      {value: {...defaults, openRoute, openRouteNewWindow}},
+      createElement(Link),
+    )
+  }
+  renderToStaticMarkup(createElement(Harness))
+  expect(link?.href).toBe('/hm/owner/helper/:session/conversation')
+  const event = {stopPropagation: vi.fn(), preventDefault: vi.fn()} as unknown as MouseEvent<HTMLElement>
+  link?.onClick?.(event)
+  link?.onClick?.({...event, metaKey: true})
+  const expected = {key: 'document', id: unpackHmId(id.id), agentView: 'session', agentSessionId: 'conversation'}
+  expect(openRoute).toHaveBeenCalledWith(expected, undefined)
+  expect(openRouteNewWindow).toHaveBeenCalledWith(expected)
+})
 
 test('defaults new windows to onboarding', () => {
   expect(defaultRoute).toEqual({key: 'onboarding'})
@@ -31,10 +104,14 @@ function assertDocumentRoute(route: NavRoute | undefined): Extract<NavRoute, {ke
 
 describe('settingsRouteSchema', () => {
   test('accepts a deep-linked settings tab', () => {
-    expect(navRouteSchema.parse({key: 'settings', tab: 'agent-servers'})).toEqual({
+    expect(navRouteSchema.parse({key: 'settings', tab: 'sync'})).toEqual({
       key: 'settings',
-      tab: 'agent-servers',
+      tab: 'sync',
     })
+  })
+
+  test('opens the default tab for one that no longer exists', () => {
+    expect(navRouteSchema.parse({key: 'settings', tab: 'agent-servers'})).toEqual({key: 'settings'})
   })
 })
 
@@ -108,6 +185,16 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('simple panel keys', () => {
+    test('attributes panel survives URL navigation', () => {
+      const route: NavRoute = {key: 'document', id: testDocId, panel: {key: 'metadata', id: testDocId}}
+      expect(createDocumentNavRoute(testDocId, null, 'metadata')).toEqual(route)
+      expect(hypermediaUrlToRoute(routeToUrl(route)!)).toMatchObject({
+        key: 'document',
+        id: {id: testDocId.id},
+        panel: {key: 'metadata', id: {id: testDocId.id}},
+      })
+    })
+
     test('collaborators panel', () => {
       const route = createDocumentNavRoute(testDocId, null, 'collaborators')
       expect(route).toEqual({
@@ -152,15 +239,6 @@ describe('createDocumentNavRoute', () => {
         panel: {key: 'directory', id: testDocId},
       })
     })
-
-    test('options panel', () => {
-      const route = createDocumentNavRoute(testDocId, null, 'options')
-      expect(route).toEqual({
-        key: 'document',
-        id: testDocId,
-        panel: {key: 'options'},
-      })
-    })
   })
 
   describe('extended panel formats', () => {
@@ -200,12 +278,12 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('comments viewTerm + comments panel → comments main + right panel', () => {
+    test('comments viewTerm + comments panel → comments main only', () => {
       const route = createDocumentNavRoute(testDocId, 'comments', 'comments/uid123/tsid456')
       expect(route).toEqual({
         key: 'comments',
         id: testDocId,
-        panel: {key: 'comments', id: testDocId, openComment: 'uid123/tsid456'},
+        panel: null,
       })
     })
 
@@ -245,7 +323,7 @@ describe('createDocumentNavRoute', () => {
         panel: {
           key: 'activity',
           id: testDocId,
-          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         },
       })
     })
@@ -277,7 +355,7 @@ describe('createDocumentNavRoute', () => {
       expect(route).toEqual({
         key: 'activity',
         id: testDocId,
-        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         panel: null,
       })
     })
@@ -407,7 +485,7 @@ describe('createRouteFromInspectNavRoute', () => {
     expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'citations')).toEqual({
       key: 'activity',
       id: testDocId,
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
   })
@@ -442,6 +520,41 @@ describe('createRouteFromInspectNavRoute', () => {
 
 describe('routeToHref', () => {
   const originHome = hmId('uid1')
+
+  test.each(['panel', 'expanded'] as const)('reply hrefs preserve selection in %s links', (layout) => {
+    const id = hmId('uid1', {path: ['doc']})
+    const thread = {key: 'comments' as const, id, openComment: 'author/root', replyCommentId: 'author/reply'}
+    const route = layout === 'expanded' ? thread : {key: 'document' as const, id, panel: thread}
+    expect(routeToHref(route, {originHomeId: originHome})).toBe(
+      layout === 'expanded'
+        ? '/doc/:comments/author/root?reply=author/reply'
+        : '/doc?panel=comments/author/root&reply=author/reply',
+    )
+  })
+
+  test.each(['panel', 'expanded'] as const)('retains page input and fragments in %s comment hrefs', (layout) => {
+    const id = hmId('uid1', {path: ['doc'], pageParams: {filter: '"active & recent"'}, blockRef: 'block'})
+    for (const replyCommentId of [undefined, 'author/reply']) {
+      const thread = {key: 'comments' as const, id, openComment: 'author/root', replyCommentId}
+      const route = layout === 'expanded' ? thread : {key: 'document' as const, id, panel: thread}
+      const url = new URL(routeToHref(route, {originHomeId: originHome})!, 'https://site.example')
+      expect(url.pathname).toBe(layout === 'expanded' ? '/doc/:comments/author/root' : '/doc')
+      expect(url.searchParams.get('panel')).toBe(layout === 'panel' ? 'comments/author/root' : null)
+      expect(url.searchParams.get('reply')).toBe(replyCommentId || null)
+      expect(url.searchParams.get('p.filter')).toBe(id.pageParams!.filter)
+      expect(url.hash).toBe('#block')
+    }
+  })
+
+  test('desktop hrefs retain the panel and selected reply', () => {
+    const id = hmId('uid1', {path: ['doc']})
+    expect(
+      routeToHref(
+        {key: 'document', id, panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'}},
+        {hmUrlHref: true},
+      ),
+    ).toBe('hm://uid1/doc?panel=comments/root&reply=reply')
+  })
 
   test('comments route generates view-term href', () => {
     const href = routeToHref({key: 'comments', id: hmId('uid1')}, {originHomeId: originHome})
@@ -480,7 +593,11 @@ describe('routeToHref', () => {
 
   test('activity route with citations filter generates view-term href', () => {
     const href = routeToHref(
-      {key: 'activity', id: hmId('uid1'), filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']},
+      {
+        key: 'activity',
+        id: hmId('uid1'),
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
+      },
       {originHomeId: originHome},
     )
     expect(href).toBe('/:activity/citations')
@@ -1103,4 +1220,123 @@ describe('space settings browser destinations', () => {
       )
     },
   )
+})
+
+describe('space Activity', () => {
+  const space = hmId('space1')
+  const doc = hmId('space1', {path: ['notes']})
+
+  describe('side panel URL', () => {
+    test('round-trips To you through the panel query param', () => {
+      const route: NavRoute = {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'to-you'}}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/notes?panel=feed/to-you')
+      expect(createDocumentNavRoute(doc, null, 'feed/to-you')).toMatchObject({
+        key: 'document',
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1', path: []}), tab: 'to-you'},
+      })
+    })
+
+    test('leaves All updates as the bare panel key', () => {
+      const route: NavRoute = {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'all-updates'}}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/notes?panel=feed')
+      const parsed = createDocumentNavRoute(doc, null, 'feed')
+      expect(parsed.key === 'document' && parsed.panel).toMatchObject({key: 'feed', tab: undefined})
+    })
+  })
+
+  describe('full page URL', () => {
+    test('puts To you in the view-term path', () => {
+      const route: NavRoute = {key: 'feed', id: space, tab: 'to-you'}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/:feed/to-you')
+      expect(routeToUrl(route, {hostname: 'https://site.example', originHomeId: space})).toBe(
+        'https://site.example/:feed/to-you',
+      )
+    })
+
+    test('keeps old /:feed links on All updates', () => {
+      expect(routeToHref({key: 'feed', id: space}, {originHomeId: space})).toBe('/:feed')
+      expect(createDocumentNavRoute(space, 'feed', null)).toEqual({key: 'feed', id: space, panel: null})
+    })
+
+    test('parses the To you tab from a pasted URL', () => {
+      const extracted = extractViewTermFromUrl('https://site.example/:feed/to-you')
+      expect(extracted).toMatchObject({url: 'https://site.example', viewTerm: ':feed', feedTab: 'to-you'})
+      expect(createDocumentNavRoute(space, 'feed', 'feed/to-you')).toEqual({
+        key: 'feed',
+        id: space,
+        tab: 'to-you',
+        panel: null,
+      })
+    })
+  })
+
+  describe('getActivityBellTarget', () => {
+    test('opens the panel on To you, replacing any other panel', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc, panel: {key: 'comments', id: doc}})).toEqual({
+        key: 'document',
+        id: doc,
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1', path: []}), tab: 'to-you'},
+      })
+    })
+
+    test('opens on All updates for a signed-out reader', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc}, 'all-updates')).toEqual({
+        key: 'document',
+        id: doc,
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1'}), tab: 'all-updates'},
+      })
+    })
+
+    test('closes the panel when it is already open', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc, panel: {key: 'feed', id: space}})).toEqual({
+        key: 'document',
+        id: doc,
+        panel: null,
+      })
+    })
+
+    test('collapses the full page', () => {
+      expect(getActivityBellTarget({key: 'feed', id: space})).toBe('collapse')
+    })
+
+    test('opens the full page on space pages without a right panel', () => {
+      expect(getActivityBellTarget({key: 'site-profile', id: space, tab: 'profile'})).toEqual({
+        key: 'feed',
+        id: expect.objectContaining({uid: 'space1'}),
+        tab: 'to-you',
+      })
+      expect(getActivityBellTarget({key: 'explore', context: {type: 'site', id: space}})).toMatchObject({
+        key: 'feed',
+        tab: 'to-you',
+      })
+    })
+
+    test('has nothing to open outside any space', () => {
+      expect(getActivityBellTarget({key: 'library'})).toBeNull()
+      expect(getActivityBellTarget({key: 'explore', context: {type: 'node'}})).toBeNull()
+    })
+  })
+
+  test('isActivityOpen covers the side panel and the full page', () => {
+    expect(isActivityOpen({key: 'document', id: doc, panel: {key: 'feed', id: space}})).toBe(true)
+    expect(isActivityOpen({key: 'feed', id: space})).toBe(true)
+    expect(isActivityOpen({key: 'document', id: doc, panel: {key: 'comments', id: doc}})).toBe(false)
+  })
+
+  test('the panel follows the space when the route moves to another document', () => {
+    const moved = replaceRouteDocumentId(
+      {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'to-you'}},
+      hmId('space2', {path: ['other']}),
+    )
+    expect(moved.key === 'document' && moved.panel).toEqual({
+      key: 'feed',
+      id: expect.objectContaining({uid: 'space2', path: []}),
+      tab: 'to-you',
+    })
+  })
+
+  test('removed the standalone Notifications and node-wide feed routes', () => {
+    expect(navRouteSchema.safeParse({key: 'notifications'}).success).toBe(false)
+    expect(navRouteSchema.safeParse({key: 'node-feed'}).success).toBe(false)
+  })
 })

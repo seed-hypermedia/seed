@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {UniversalAppProvider} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {CommentDraftReferenceProvider, useCommentDraftReferences} from '@shm/shared/comments-service-provider'
 import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
@@ -67,7 +68,14 @@ function createFakeEditor() {
     topLevelBlocks: [{id: 'b1', type: 'paragraph', props: {}, content: [], children: []}],
     removeBlocks: vi.fn(),
     replaceBlocks: vi.fn(),
-    insertBlocks: vi.fn(),
+    insertBlocks: (blocks: any[], target: any, placement: 'before' | 'after') => {
+      const index = editor.topLevelBlocks.indexOf(target) + (placement === 'after' ? 1 : 0)
+      editor.topLevelBlocks.splice(
+        index,
+        0,
+        ...blocks.map((block, i) => ({id: `inserted-${i}`, children: [], ...block})),
+      )
+    },
     _tiptapEditor: {
       on: (event: string, fn: () => void) => {
         if (!handlers.has(event)) handlers.set(event, new Set())
@@ -95,11 +103,22 @@ let root: Root
 let fake: ReturnType<typeof createFakeEditor>
 let onContentChange: ReturnType<typeof vi.fn>
 let submitHandleRef: {current: CommentEditorSubmitHandle | null}
+let references: ReturnType<typeof useCommentDraftReferences>
+function ReferenceControls() {
+  references = useCommentDraftReferences()
+  return null
+}
 
 function renderCommentEditor({
   submitButton = () => <></>,
+  referenceTarget,
+  readOnly,
+  onEditorBlur,
 }: {
   submitButton?: React.ComponentProps<typeof CommentEditor>['submitButton']
+  referenceTarget?: React.ComponentProps<typeof CommentEditor>['referenceTarget']
+  readOnly?: boolean
+  onEditorBlur?: () => void
 } = {}) {
   act(() => {
     root.render(
@@ -110,12 +129,18 @@ function renderCommentEditor({
         openRouteNewWindow={vi.fn()}
         universalClient={{request: vi.fn(), publish: vi.fn()} as any}
       >
-        <CommentEditor
-          handleSubmit={vi.fn()}
-          submitButton={submitButton}
-          onContentChange={onContentChange}
-          submitHandleRef={submitHandleRef as any}
-        />
+        <CommentDraftReferenceProvider>
+          <ReferenceControls />
+          <CommentEditor
+            referenceTarget={referenceTarget}
+            handleSubmit={vi.fn()}
+            submitButton={submitButton}
+            onContentChange={onContentChange}
+            readOnly={readOnly}
+            onEditorBlur={onEditorBlur}
+            submitHandleRef={submitHandleRef as any}
+          />
+        </CommentDraftReferenceProvider>
       </UniversalAppProvider>,
     )
   })
@@ -227,5 +252,80 @@ describe('CommentEditor content change emission (#884)', () => {
       root.unmount()
     })
     expect(onContentChange).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CommentEditor reply references', () => {
+  const reference = {documentId: 'hm://doc', commentId: 'alice/root', link: 'hm://alice/reply?v=version'}
+
+  it('adds a reply embed once while preserving the existing draft text', () => {
+    fake.editor.topLevelBlocks[0].content = [{type: 'text', text: 'Unsent reply', styles: {}}]
+    renderCommentEditor({referenceTarget: {documentId: 'hm://doc', commentId: 'alice/root'}})
+    act(() => references!.appendReference({...reference}))
+    act(() => references!.appendReference({...reference}))
+    expect(fake.editor.topLevelBlocks.map((block: any) => block.type)).toEqual(['paragraph', 'embed', 'paragraph'])
+    expect(fake.editor.topLevelBlocks[0].content[0].text).toBe('Unsent reply')
+    expect(fake.editor.topLevelBlocks[1].props.url).toBe(reference.link)
+    expect(references!.references).toEqual([])
+  })
+
+  it('does not duplicate an embed restored from a saved draft', () => {
+    fake.editor.topLevelBlocks.unshift({id: 'saved', type: 'embed', props: {url: reference.link}, children: []})
+    renderCommentEditor({referenceTarget: {documentId: 'hm://doc', commentId: 'alice/root'}})
+    act(() => references!.appendReference({...reference}))
+    expect(fake.editor.topLevelBlocks.map((block: any) => block.id)).toEqual(['saved', 'b1'])
+    expect(references!.references).toEqual([])
+  })
+
+  it('leaves references for a different root pending', () => {
+    renderCommentEditor({referenceTarget: {documentId: 'hm://doc', commentId: 'alice/other-root'}})
+    act(() => references!.appendReference({...reference}))
+    expect(fake.editor.topLevelBlocks).toHaveLength(1)
+    expect(references!.references).toEqual([reference])
+  })
+})
+
+describe('CommentEditor readOnly and blur callback', () => {
+  it('makes the editor non-editable when readOnly and calls onEditorBlur on blur', () => {
+    const onEditorBlur = vi.fn()
+    renderCommentEditor({readOnly: true, onEditorBlur})
+    expect(fake.editor.isEditable).toBe(false)
+
+    act(() => {
+      fake.emit('update')
+      fake.emit('blur')
+    })
+    expect(onContentChange).toHaveBeenCalledTimes(1)
+    expect(onEditorBlur).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays editable by default and calls onEditorBlur without onContentChange', () => {
+    const onEditorBlur = vi.fn()
+    act(() => {
+      root.render(
+        <UniversalAppProvider
+          originHomeId={hmId('uid1')}
+          openUrl={vi.fn()}
+          openRoute={vi.fn()}
+          openRouteNewWindow={vi.fn()}
+          universalClient={{request: vi.fn(), publish: vi.fn()} as any}
+        >
+          <CommentDraftReferenceProvider>
+            <CommentEditor
+              handleSubmit={vi.fn()}
+              submitButton={() => <></>}
+              onEditorBlur={onEditorBlur}
+              submitHandleRef={submitHandleRef as any}
+            />
+          </CommentDraftReferenceProvider>
+        </UniversalAppProvider>,
+      )
+    })
+    expect(fake.editor.isEditable).toBe(true)
+
+    act(() => {
+      fake.emit('blur')
+    })
+    expect(onEditorBlur).toHaveBeenCalledTimes(1)
   })
 })

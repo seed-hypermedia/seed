@@ -2,9 +2,9 @@
 name: List schema
 summary: The variant for a list value, where items types the elements.
 ---
-A list schema types a [list](./kind.md). `items` is the schema every element must match, and `minItems` and `maxItems` bound the length. <!-- id:EAi5aTCP -->
+A list schema describes a [list](../list.md). `items` is the schema that every element must match. `minItems` and `maxItems` set the shortest and the longest length allowed. For example, `{"type": "hm://hyper.media/list", "items": {"type": "hm://hyper.media/string"}}` is a list of strings. <!-- id:EAi5aTCP -->
 
-This document describes the **schema/list-schema** type, one [variant](./variant.md) of the [meta-schema](../schema.md). Its formal schema is attached as the `schemaDefinition` in this document's [metadata](../metadata.md), so the app can show it and create values of this type. [Typed documents](./typed-documents.md) explains how that works. <!-- id:HEpps2w- -->
+This page defines the **schema/list-schema** type, one [variant](./variant.md) of the [meta-schema](../schema.md). The type's formal schema is attached to this page as the `schemaDefinition` in its [metadata](../metadata.md). So the app can show the schema and create values of this type. [Typed documents](./typed-documents.md) explains how that works. <!-- id:HEpps2w- -->
 
 # See also <!-- id:pHhigo8i -->
 

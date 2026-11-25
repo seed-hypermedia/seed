@@ -201,6 +201,9 @@ message PrepareChangeRequest {
   // Can only be specified here when creating the document for the first time,
   // i.e. when `base_version` is empty.
   ResourceVisibility visibility = 6;
+
+  // Optional. Human-readable message describing the change, like a commit message.
+  string message = 7;
 }
 
 // Response with prepared change data for client-side signing.
@@ -1054,6 +1057,9 @@ message DocumentChangeInfo {
 
   // Time when the change was created (as claimed by the author).
   google.protobuf.Timestamp create_time = 4;
+
+  // Optional message describing the change, as written by its author.
+  string message = 5;
 }
 
 // Basic data about a document with some aggregations and metadata.

@@ -81,4 +81,22 @@ describe('Block Struct attributes round-trip', () => {
     expect(json.attributes.view).toBe('Card')
     expect(json.attributes.childrenType).toBe('Unordered')
   })
+
+  test('textAlignment survives a binary ReplaceBlock round trip', () => {
+    const change = new DocumentChange({
+      op: {
+        case: 'replaceBlock',
+        value: Block.fromJson({
+          id: 'aligned',
+          type: 'Paragraph',
+          text: 'Centered',
+          attributes: {textAlignment: 'center', childrenType: 'Ordered'},
+        }),
+      },
+    })
+    const restored = DocumentChange.fromBinary(change.toBinary())
+    if (restored.op.case !== 'replaceBlock') throw new Error('expected a replaceBlock op')
+    const json = restored.op.value.toJson({emitDefaultValues: true}) as Record<string, any>
+    expect(json.attributes).toEqual({textAlignment: 'center', childrenType: 'Ordered'})
+  })
 })

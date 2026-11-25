@@ -2,8 +2,6 @@ import {useCreateAccount, useLocalKeyPair, useLocalKeyPairLoaded} from '@/auth'
 import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import AgentDetailRoutePage from '@shm/ui/agents/detail'
-import AgentsListPage from '@shm/ui/agents/list'
-import AgentServerPage from '@shm/ui/agents/server'
 import AgentRunRoutePage from '@shm/ui/agents/run'
 import AgentSessionRoutePage from '@shm/ui/agents/session'
 import {Button} from '@shm/ui/button'
@@ -34,8 +32,6 @@ function SignedOutNotice() {
 function AgentsRouteSwitch() {
   const route = useNavRoute()
   switch (route.key) {
-    case 'agent-server':
-      return <AgentServerPage />
     case 'agent':
       return <AgentDetailRoutePage />
     case 'agent-session':
@@ -43,7 +39,8 @@ function AgentsRouteSwitch() {
     case 'agent-run':
       return <AgentRunRoutePage />
     default:
-      return <AgentsListPage />
+      // The route loaders redirect every other /hm/agents URL to the site home; nothing to show.
+      return null
   }
 }
 
