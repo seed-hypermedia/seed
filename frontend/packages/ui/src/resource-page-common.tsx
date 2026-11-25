@@ -207,7 +207,13 @@ import {FeedFilters} from './feed-filters'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {HMIcon} from './hm-icon'
-import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
+import {
+  AVATAR_IMAGE_POLICY,
+  CONTENT_IMAGE_POLICY,
+  COVER_IMAGE_POLICY,
+  processImage,
+  processImageIfSupported,
+} from './image-processing'
 import {useDocumentLayout} from './layout'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
@@ -3736,6 +3742,15 @@ function EditableDocumentHeader({
           ? () => {
               if (!isEditing) send({type: 'edit.start'})
               send({type: 'change', metadata: {icon: ''}})
+            }
+          : undefined
+      }
+      onChangeIcon={
+        fileUpload
+          ? async (file) => {
+              const cid = await fileUpload(await processImage(file, AVATAR_IMAGE_POLICY))
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: {icon: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
             }
           : undefined
       }
