@@ -90,6 +90,36 @@ describe('SchemaDataEditor', () => {
   })
 })
 
+describe('SchemaDataEditor (property defaults)', () => {
+  const task = HM_SCHEMAS['example/task-doc']
+  const click = (el: Element) => act(() => el.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+  it('a new value shows its defaults, and an optional field without one stays out', () => {
+    const value = seedValue(task) as Record<string, unknown>
+    expect(value).toEqual({status: 'todo', priority: 2, tags: [], checklist: {done: false, steps: []}})
+    act(() => root.render(<SchemaDataEditor schema={task} value={value} onValue={() => {}} />))
+    expect((container.querySelector('select[aria-label="status"]') as HTMLSelectElement).value).toBe('"todo"')
+    expect((container.querySelector('input[aria-label="priority"]') as HTMLInputElement).value).toBe('2')
+    expect(container.querySelector('[aria-label="Include priority"]')!.getAttribute('aria-checked')).toBe('true')
+    expect(container.querySelector('[aria-label="Include due"]')!.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('an optional field that is switched on starts from its default', () => {
+    let latest: unknown
+    act(() => root.render(<SchemaDataEditor schema={task} value={{status: 'done'}} onValue={(v) => (latest = v)} />))
+    click(container.querySelector('[aria-label="Include priority"]')!)
+    expect(latest).toMatchObject({status: 'done', priority: 2})
+  })
+
+  it('an existing value is shown as it is: a field it lacks is not filled in', () => {
+    let calls = 0
+    act(() => root.render(<SchemaDataEditor schema={task} value={{status: 'done'}} onValue={() => calls++} />))
+    expect(container.querySelector('[aria-label="Include priority"]')!.getAttribute('aria-checked')).toBe('false')
+    expect(container.querySelector('input[aria-label="priority"]')).toBeNull()
+    expect(calls).toBe(0)
+  })
+})
+
 describe('SchemaDataEditorPanel', () => {
   it('shows a live dag-json preview and a validation status', () => {
     const schema = HM_SCHEMAS['example/geo']

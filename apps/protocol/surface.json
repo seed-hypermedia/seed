@@ -1782,6 +1782,7 @@
         "accountId?": "string",
         "continuedFrom?": "{eventId: string; seq: number; sessionId: string}",
         "durationMs?": "number",
+        "ephemeralImageTokens?": "number",
         "model?": "string",
         "provider?": "string",
         "reasoningLevel?": "\"default\" | \"high\" | \"low\" | \"max\" | \"medium\" | \"minimal\" | \"off\" | \"xhigh\"",

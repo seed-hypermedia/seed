@@ -221,6 +221,7 @@ type FixtureName =
   | 'allBlocks'
   | 'queryAtEnd'
   | 'longText'
+  | 'headingSizes'
 
 const text = (text: string) =>
   ({
@@ -380,6 +381,31 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
   ],
 
   longText: Array.from({length: 30}, (_, i) => p(`p-long-${i + 1}`, [text(`Paragraph ${i + 1}`)])),
+
+  // Top-level and nested headings that share an explicit text size, so their rendered sizes can be compared.
+  headingSizes: (['small', 'medium', 'big'] as const).map((size) => ({
+    id: `h-top-${size}`,
+    type: 'heading',
+    props: {level: '2'},
+    content: [{type: 'text', text: `Top ${size}`, styles: {textSize: size}}],
+    children: [
+      {
+        id: `h-nested-${size}`,
+        type: 'heading',
+        props: {level: '3'},
+        content: [{type: 'text', text: `Nested ${size}`, styles: {textSize: size}}],
+        children: [
+          {
+            id: `h-deep-${size}`,
+            type: 'heading',
+            props: {level: '4'},
+            content: [{type: 'text', text: `Deep ${size}`, styles: {textSize: size}}],
+            children: [],
+          },
+        ],
+      },
+    ],
+  })) as any,
 }
 
 function getFixtureFromUrl(): FixtureName {

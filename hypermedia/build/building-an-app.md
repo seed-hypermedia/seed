@@ -111,7 +111,7 @@ If the trigger cannot fire, the write result says why.
 
 ## Keep a host's embeds when editing it
 
-Reading a document as markdown prints each embed with the embedded content between `<!-- embed: URL; title: …; view: … -->` and `<!-- /embed: URL -->`. Writing that markdown back turns each such range into the embed again. So an agent that reads a document and then writes it keeps the document's embeds, and with them the list of an app's children.
+Reading a document as markdown prints each embed as its own line, `<hm://…> <!-- id:X type:Embed attrs:{"view":"Card"} -->`, followed by the embedded content between `<!-- resolved: … -->` and `<!-- /resolved -->`. Writing that markdown back keeps the embed and skips the content shown under it. So an agent that reads a document and then writes it keeps the document's embeds, and with them the list of an app's children. Markdown in the earlier form, with the content between `<!-- embed: URL; … -->` and `<!-- /embed: URL -->`, is still read as the embed.
 
 # Reading what happened
 

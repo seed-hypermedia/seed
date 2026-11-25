@@ -30,7 +30,7 @@ import {extractSchemaRouteFromPath, WebSchemaPage} from '@/web-schema'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
-import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
+import {type ClientLoaderFunctionArgs, MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
@@ -58,6 +58,7 @@ import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+import {DocumentLoadErrorBoundary, loadDocumentRouteData} from '@/document-load'
 
 const WebSpaceSettingsScreen = lazy(() =>
   import('@/web-space-settings-page').then((module) => ({default: module.WebSpaceSettingsScreen})),
@@ -276,7 +277,11 @@ export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): 
   })
 }
 
+const loadFailedMeta = defaultPageMeta("This page didn't load")
+
 export const meta: MetaFunction<typeof loader> = (args) => {
+  // No data means the loader failed and the route's error page is showing.
+  if (!args.data) return loadFailedMeta()
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
@@ -320,6 +325,13 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, () => loadRoute({params, request}))
 }
+
+/** Retries a failed data request on client-side navigation; see `loadDocumentRouteData`. */
+export function clientLoader({request, serverLoader}: ClientLoaderFunctionArgs) {
+  return loadDocumentRouteData(() => serverLoader(), request.signal)
+}
+
+export const ErrorBoundary = DocumentLoadErrorBoundary
 
 async function loadRoute({params, request}: {params: Params; request: Request}) {
   const parsedRequest = parseRequest(request)

@@ -93,4 +93,35 @@ describe('RequiredAttributesEditor', () => {
     // no editing affordances
     expect(block.querySelector('input')).toBeNull()
   })
+
+  // A required field that picks from options and has no value shows the options with nothing
+  // selected, beside the "is required" warning; a value the document holds shows as selected.
+  const taskSchema: HypermediaSchema = {
+    type: 'hm://hyper.media/struct',
+    properties: {Priority: {value: {anyOf: ['High', 'Medium', 'Low']}, required: true}},
+  }
+
+  it('shows an unset required enum as an empty select, not as its first option', () => {
+    act(() => root.render(<Harness schema={taskSchema} initial={{name: 'X'}} />))
+    const trigger = container.querySelector('[role="combobox"]')
+    expect(trigger).not.toBeNull()
+    expect(trigger!.hasAttribute('data-unset')).toBe(true)
+    expect(trigger!.textContent).not.toContain('High')
+    expect(trigger!.textContent).toContain('Select')
+    expect(patches).toEqual([])
+  })
+
+  it('shows a held enum value as the selected option', () => {
+    act(() => root.render(<Harness schema={taskSchema} initial={{name: 'X', Priority: 'Medium'}} />))
+    const trigger = container.querySelector('[role="combobox"]')
+    expect(trigger!.hasAttribute('data-unset')).toBe(false)
+    expect(trigger!.textContent).toContain('Medium')
+  })
+
+  it('shows a blank enum value as an empty select rather than a text box', () => {
+    act(() => root.render(<Harness schema={taskSchema} initial={{name: 'X', Priority: ''}} />))
+    const trigger = container.querySelector('[role="combobox"]')
+    expect(trigger).not.toBeNull()
+    expect(trigger!.hasAttribute('data-unset')).toBe(true)
+  })
 })

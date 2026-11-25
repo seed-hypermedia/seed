@@ -24,7 +24,10 @@
   --brand-10: rgb(184, 239, 196);
   --brand-11: #d0f1d1;
   --brand-12: #e4f6e5;
-  --brand: var(--brand-5);
+  /* Single color for every primary action (Publish, Create, Save…). White text on it is 5.2:1 (WCAG AA). */
+  --brand: #237a66;
+  --brand-hover: #1b5f4f;
+  --brand-active: #164e41;
   --highlight: hsl(214, 100%, 97%);
   --highlight-fragment: hsl(214, 100%, 93%);
   --link: lch(44.196 70 286.91);
@@ -50,7 +53,7 @@
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.9276 0.0058 264.5313);
   --input: var(--muted);
-  --ring: oklch(0.5726 0.1056 177.0838);
+  --ring: var(--brand);
   --selection: color-mix(in oklab, var(--primary) 22%, transparent);
   --selection-strong: color-mix(in oklab, var(--primary) 30%, transparent);
   --chart-1: oklch(0.7686 0.1647 70.0804);
@@ -60,12 +63,12 @@
   --chart-5: oklch(0.4137 0.1054 45.9038);
   --sidebar: oklch(0.9846 0.0017 247.8389);
   --sidebar-foreground: oklch(0.2686 0 0);
-  --sidebar-primary: oklch(0.5726 0.1056 177.0838);
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.9552 0.0294 146.9093);
   --sidebar-accent-foreground: oklch(0 0 0);
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
-  --sidebar-ring: oklch(0.5726 0.1056 177.0838);
+  --sidebar-ring: var(--brand);
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-serif: Georgia, 'Times New Roman', Times, 'Source Serif 4', serif;
@@ -100,7 +103,9 @@
   --brand-10: hsl(166, 30%, 29%);
   --brand-11: hsl(180, 36%, 22%);
   --brand-12: hsl(180, 29%, 17%);
-  --brand: var(--brand-8);
+  --brand: #237a66;
+  --brand-hover: #1b5f4f;
+  --brand-active: #164e41;
   --highlight: hsl(214, 48%, 22%);
   --highlight-fragment: var(--highlight);
   --link: lch(59.472 70 288.421);
@@ -113,7 +118,7 @@
   --card-foreground: oklch(0.9219 0 0);
   --popover: oklch(0.2686 0 0);
   --popover-foreground: oklch(0.9219 0 0);
-  --primary: oklch(0.5726 0.1056 177.0838);
+  --primary: var(--brand);
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.9258 0.055 145.9246);
   --secondary-foreground: oklch(0 0 0);
@@ -136,7 +141,7 @@
   --chart-5: oklch(0.4732 0.1247 46.2007);
   --sidebar: oklch(0.1684 0 0);
   --sidebar-foreground: oklch(0.9219 0 0);
-  --sidebar-primary: oklch(0.5261 0.088 173.2501);
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.3876 0.0451 195.4511);
   --sidebar-accent-foreground: oklch(1 0 0);
@@ -165,6 +170,8 @@
 
 @theme inline {
   --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
   --color-brand-1: var(--brand-1);
   --color-brand-2: var(--brand-2);
   --color-brand-3: var(--brand-3);

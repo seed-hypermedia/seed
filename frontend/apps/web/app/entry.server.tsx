@@ -6,6 +6,7 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
+import {omitSSRContentHTML} from './ssr-content-handoff'
 import {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {commentIdToHmId, getCommentTargetId, hmId} from '@shm/shared'
 import {
@@ -292,6 +293,9 @@ export function handleFullRequest(
   loadContext: AppLoadContext,
   onComplete: (msg: string) => void,
 ) {
+  if (remixContext.serverHandoffString) {
+    remixContext.serverHandoffString = omitSSRContentHTML(remixContext.serverHandoffString)
+  }
   ensureByteServerHandoffStream(remixContext)
   let prohibitOutOfOrderStreaming = isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
 

@@ -19,7 +19,7 @@ git tag 2026.7.3
 git push origin 2026.7.3
 ```
 
-When you push a `*.*.*` tag, two release workflows start: `Release - Desktop App` and `Release - Docker Images`. The last job of the Docker workflow publishes the released `hypermedia/` folder to the docs on `hyper.media`. It does this with the `Repo HM sync (hypermedia)` workflow and the target `production`. A release is the only way the docs reach production. A merge to `main` publishes to `staging.hyper.media`. See [Editing these docs](./editing-these-docs.md). <!-- id:R6L7_vPz -->
+When you push a `*.*.*` tag, two release workflows start: `Release - Desktop App` and `Release - Docker Images`. The last job of the Docker workflow publishes the released `hypermedia/` folder to the docs on `hyper.media`. It does this with the `Repo HM sync (hypermedia)` workflow and the target `production`. A release is the only way the docs reach production. A merge to `main` publishes to `staging.hyper.media`. Both release workflows start with the `Check hypermedia` job, and they build nothing when the folder cannot be published. Before you tag, confirm that the last `Repo HM sync (hypermedia)` run on `main` is green: a red run means the production publish would fail in the same way. See [Editing these docs](./editing-these-docs.md). <!-- id:R6L7_vPz -->
 
 # 3. Wait for GitHub Actions to complete <!-- id:9y1YbuaV -->
 

@@ -15,7 +15,6 @@ The three nouns are Space, Log and Runs. The other entries here are the words bu
 - [thread](./session.md): another word for a session. It is the word the model sees, as in the address `thread:<id>`. <!-- id:hecPc4kk -->
 - [turn](./session.md#turns): one model run of a session, from a message or a wake to the reply. Each turn is a run of kind `agent`. <!-- id:lq1dZVzF -->
 - [agent definition](./space.md#self): the stored settings of an agent (name, model, reasoning level, thoroughness, grants, MCP servers, signing keys). The agent reads it at `~/self`.
-- [private memory](./memory.md#private-memory): the folder `~/memory/private/` of an agent's memory. Only the agent's owner can list, read or write it.
 - [memory](./memory.md): an agent's own tree of files, at `~/memory/` in its Space. All the sessions of the agent share it.
 
 # The verbs <!-- id:pLKGhf72 -->

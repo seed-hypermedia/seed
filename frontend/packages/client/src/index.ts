@@ -84,6 +84,8 @@ export {
   markdownBlockNodesToHMBlockNodes,
   hmAccountMentionUid,
   MarkdownFrontmatterError,
+  MarkdownResolvedRangeError,
+  stripResolvedRanges,
 } from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation, ParseMarkdownOptions} from './markdown-to-blocks'
 export {
@@ -113,8 +115,12 @@ export {
   hmBlockNodeToBlockNode,
   rebindTableIdentities,
   toAPIBlockNode,
+  markdownUpdateTree,
+  describeContentChange,
 } from './block-diff'
-export type {APIBlockNode, APIBlock} from './block-diff'
+export type {APIBlockNode, APIBlock, ContentChange} from './block-diff'
+export {applyBlockEdits, BlockEditError} from './block-edits'
+export type {BlockEditResult} from './block-edits'
 
 export {
   autoLinkChildToParent,
@@ -125,11 +131,38 @@ export {
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {
+  clientBuiltDocumentUpdateBlobs,
+  DEFAULT_MAX_PREPARED_CHANGE_BYTES,
+  DEFAULT_PREPARE_TIMEOUT_MS,
+  documentOperationsToChanges,
+  documentUpdateBlobs,
+  implausiblePreparedChange,
+  isEmptyPreparedChange,
+  nativeBlockToProtoBlock,
+  preparableDocumentChanges,
+  prepareDocumentUpdateBlobs,
+  UnpreparableDocumentUpdateError,
+} from './prepare-change'
+export type {
+  ClientBuiltDocumentUpdateInput,
+  DocumentContent,
+  DocumentChangeInput,
+  DocumentChanges,
+  DocumentUpdateBlobsInput,
+  DocumentUpdateBlobsResult,
+  PrepareDocumentUpdateInput,
+  PrepareDocumentUpdateResult,
+  ProtoAnnotationJson,
+  ProtoBlockJson,
+} from './prepare-change'
+export {
   describeRedirect,
   followRedirects,
   followToDocument,
+  editRefGeneration,
   resolveDocumentState,
   resolveEditableDocument,
+  sameDocumentVersion,
 } from './document-state'
 export type {
   DocumentState,

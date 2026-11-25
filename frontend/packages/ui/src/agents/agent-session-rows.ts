@@ -583,6 +583,9 @@ export function buildAgentSessionChatRows(
       runId?: string
       sessionId?: string
       title?: string
+      /** Set on the server's redaction stub (apps/src/browser-privacy.ts) for a reader the transcript is private to. */
+      redacted?: boolean
+      summary?: string
     }
 
     if (
@@ -606,7 +609,12 @@ export function buildAgentSessionChatRows(
       // Hide it from the bubble and surface a friendly trigger card instead; the full text stays
       // available through the raw-markdown dialog.
       const hasTriggerBlock = payload.role === 'user' && payload.content.includes('<trigger_context>')
-      const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
+      // A transcript private to this reader arrives as the server's redaction stub; older servers
+      // put the stub itself, as JSON, in `content`. Show its summary, never the JSON.
+      const redactedSummary =
+        payload.redacted === true && typeof payload.summary === 'string' ? payload.summary : undefined
+      const displayContent =
+        redactedSummary ?? (hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content)
       if (hasTriggerBlock && triggerRow && !triggerInstructionsRead) {
         triggerRow.instructions = extractTriggerInstructions(payload.content)
         triggerInstructionsRead = true
@@ -640,7 +648,8 @@ export function buildAgentSessionChatRows(
           meta: payload.meta,
           createdAt: event.createdAt,
           content: displayContent,
-          rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
+          rawMarkdown:
+            redactedSummary ?? (typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content),
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
           contextLines: contextLines?.length ? contextLines : undefined,
           attachments: Array.isArray(payload.attachments)

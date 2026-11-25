@@ -3248,6 +3248,7 @@ Containers:`);
       { container: "seed-daemon", envVar: "SEED_LOG_LEVEL", expected: config.compose_envs.LOG_LEVEL },
       { container: "seed-web", envVar: "SEED_BASE_URL", expected: config.domain },
       { container: "seed-web", envVar: "SEED_IS_GATEWAY", expected: String(config.gateway) },
+      { container: "seed-web", envVar: "SEED_ASSET_HOST", expected: config.domain },
       { container: "seed-web", envVar: "SEED_ENABLE_STATISTICS", expected: String(config.analytics) }
     ];
     const daemonEnvs = getContainerEnvs(shell, "seed-daemon");

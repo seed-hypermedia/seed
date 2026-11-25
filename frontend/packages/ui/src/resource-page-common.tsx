@@ -83,7 +83,6 @@ import {
   useIsLatest,
   useResource,
   useResources,
-  useSiteMembers,
 } from '@shm/shared/models/entity'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
@@ -208,9 +207,14 @@ import {FeedFilters} from './feed-filters'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {HMIcon} from './hm-icon'
-import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
+import {
+  AVATAR_IMAGE_POLICY,
+  CONTENT_IMAGE_POLICY,
+  COVER_IMAGE_POLICY,
+  processImage,
+  processImageIfSupported,
+} from './image-processing'
 import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
@@ -223,7 +227,7 @@ import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
 import {buildSlotItems} from './query-block-draft-items'
 import {RequiredAttributesEditor} from './required-attributes-editor'
-import {HM_SCHEMAS, nameForCid, nameToUrl} from './schema/engine'
+import {HM_SCHEMAS, missingPropertyDefaults, nameForCid, nameToUrl} from './schema/engine'
 import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
 import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
@@ -2175,6 +2179,7 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  useNewDocumentSchemaDefaults(docId, document)
   const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
   const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
   const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
@@ -2427,10 +2432,8 @@ function DocumentBody({
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const versionHeadCount = getVersionHeads(document.version).length
-  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
-  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
   const commentsPanelSummary = useInteractionSummary(
@@ -2441,12 +2444,6 @@ function DocumentBody({
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
-  const showMembersFacepile =
-    isHomeDoc &&
-    showDocumentChrome &&
-    activeView !== 'all-documents' &&
-    !siteMembers.isInitialLoading &&
-    siteMembers.members.length > 0
   const citationsTargetId = useMemo(
     () => getCitationsTargetId({docId, documentVersion: document.version}),
     [docId, document.version],
@@ -3249,11 +3246,6 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
             style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {showMembersFacepile && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
             {!isHomeDoc &&
               !isAgentDocument &&
               !appKind &&
@@ -3287,11 +3279,6 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
           style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
-          {showMembersFacepile && (
-            <div className="pt-4">
-              <MembersFacepile members={siteMembers.members} siteId={siteId} />
-            </div>
-          )}
           {!isHomeDoc &&
             !isAgentDocument &&
             !appKind &&
@@ -3758,6 +3745,15 @@ function EditableDocumentHeader({
             }
           : undefined
       }
+      onChangeIcon={
+        fileUpload
+          ? async (file) => {
+              const cid = await fileUpload(await processImage(file, AVATAR_IMAGE_POLICY))
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: {icon: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
+            }
+          : undefined
+      }
     >
       <EditableDocumentMetadataFields
         name={name}
@@ -4109,6 +4105,43 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
       {librarySlug && !bundled && <DepLists name={librarySlug} nav={navLibrary} />}
     </>
   )
+}
+
+/**
+ * A NEW document starts from its schema's property defaults. While the document has never been
+ * published, every attribute its effective schema gives a default and the draft has never held is
+ * written into the draft once, as ordinary data the author can then edit or remove. A removed
+ * attribute stays a `null` tombstone in the draft, so it is not brought back. A published
+ * document is never touched: a schema that gains a default changes no existing value.
+ */
+function useNewDocumentSchemaDefaults(docId: UnpackedHypermediaId, document: HMDocument) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const isNew = useDocumentSelector(selectIsUnpublishedDraft)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const canEdit = useDocumentSelector(selectCanEditCurrentRoute)
+  const active = isNew && isEditing && !!canEdit
+  const metadata = useMemo(
+    () => ({...(document.metadata || {}), ...ctx.metadata}) as Record<string, unknown>,
+    [document.metadata, ctx.metadata],
+  )
+  // An attributes schema being authored on this very draft is still changing under the author's
+  // hands; its defaults are for the documents that will follow it, not a moving target for this one.
+  const authoringOwnSchema = !!ctx.bindingSchemaDrafts?.attributesSchema
+  const {schema, registry, isLoading} = useConformanceSchema(
+    active && !authoringOwnSchema ? docId : null,
+    metadata,
+    null,
+  )
+  const defaults = useMemo(
+    () =>
+      active && !authoringOwnSchema && schema && !isLoading ? missingPropertyDefaults(schema, metadata, registry) : {},
+    [active, authoringOwnSchema, schema, isLoading, metadata, registry],
+  )
+  const pending = Object.keys(defaults).length ? JSON.stringify(defaults) : ''
+  useEffect(() => {
+    if (pending) send({type: 'change', metadata: JSON.parse(pending)})
+  }, [pending, send])
 }
 
 /**
@@ -4653,7 +4686,7 @@ export function DocumentCollection({
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner)
     return (
       <QueryBlockContent
         showControls={showCollectionControls}

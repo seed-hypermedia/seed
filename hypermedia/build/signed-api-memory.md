@@ -13,8 +13,6 @@ Each [agent](../agent.md) has its own folder of files, called its memory. The ag
 - Paths are always relative to the memory folder: no leading `/`, no `..`, and no symlinks.
 - Files can be UTF-8 text or binary.
 
-One folder is different: `private/`. Only the agent's owner can list, read or write it. Everyone else gets a `403`, even a writer. The server stores it in `<stateDir>/private-memory`, outside the folder that code sandboxes can see.
-
 ```ts <!-- id:igtkULLY -->
 type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string; entryCount?: number}
 type AgentMemoryFile = {

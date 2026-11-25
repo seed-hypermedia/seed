@@ -66,7 +66,7 @@ Most triggers are trigger documents, published with an `hm://` write and `option
 | `options.action` | what it does | its options |
 | --- | --- | --- |
 | `document` (the default) | creates a document (`document.create`) | `name`, `metadata`, `page`, `pageTarget`, `pageData`, `tool`, `trigger` |
-| `update` | publishes a new version of the document at the address | the same as `document` |
+| `update` | publishes a new version of the document at the address | the same as `document`, and `edits` |
 | `comment` | comments on the document at the address | `target`, `replyTo`, `allowPlainMentions` |
 | `move` | moves the document | `toPath` |
 | `redirect` | makes the address redirect | `toUrl` |
@@ -85,7 +85,27 @@ On `document` and `update`, three options turn the document into something more.
 
 Read `~/tools/write/pages`, `~/tools/write/apps` and `~/tools/write/triggers` before using them.
 
-For `update`, the write address **is** the document to edit. There is no separate option to name it. An update with `content` replaces the whole document body. An update with no `content` changes only metadata and leaves the body as it is. It never compares against an empty body, which would delete every [block](../protocol/blocks.md). <!-- id:QUdlrjMK -->
+For `update`, the write address **is** the document to edit. There is no separate option to name it. An update with no `content` and no `edits` changes only metadata and leaves the body as it is. It never compares against an empty body, which would delete every [block](../protocol/blocks.md). <!-- id:QUdlrjMK -->
+
+The body changes in one of two ways:
+
+- **`options.edits`** changes [blocks](../protocol/blocks.md) by id and leaves every other block as it is stored. An edit is `{replace: ID, content}`, `{after | before | into: ID, content}`, `{move: ID, after | before | into: ID}` or `{delete: ID}`. The cost follows the size of the change, and one page of a long document is enough to edit it. Edits apply in order, all or none.
+- **`content`** replaces the whole body. It is the markdown a [`read`](./read.md) returned, with the agent's changes. A block that is left out is deleted.
+
+Three rules keep a whole-body write from changing what the agent did not mean to change:
+
+- A block whose markdown is what the stored block reads as is the stored block. Nothing about it is stored again, even where markdown spells an annotation or a default differently. A block that lost its id comment gets its id back when its markdown matches a stored block.
+- A body that would delete more than half of the document's blocks (and at least six) is refused unless the write passes `options.force: true`.
+- A body that holds the `<!-- page: … -->` line of a paged read is refused.
+
+The result of a content update, and of a dry run, carries `changes: {added, rewritten, moved, deleted}`, counted in blocks. Links and diagrams are checked only in the blocks the write stores.
+
+An update stores only what differs. The runtime compares the new body with the document and asks the site to compute the change (`PrepareDocumentChange`, through the SDK's [`documentUpdateBlobs`](../build/sdk.md)). A block that did not change is not written again, and a block that did not move is not moved again. The runtime signs what the site prepared and publishes it.
+
+- When nothing differs, nothing is published. The result carries `unchanged: true`, a message saying the document is already up to date, and the document's current `version`. A dry run reports the same.
+- Files the write refers to (a page bundle, a code folder) are still stored.
+- A metadata map is sent as its entries, plus a null for each entry that went away. Values the site's API cannot carry (lists, fractions, [IPLD](../schema/ipld.md) links, keys with a dot or a leading `$`) go in a second change the runtime builds on top of the prepared one, only when they differ from the document.
+- The runtime builds the whole change itself, stored as written, when the site's answer cannot be used: the site does not answer within 15 seconds, refuses the request as too large (413), fails to apply it, or returns a change that does not fit the request. The service logs the reason. A refusal for lack of permission is still an error.
 
 An action with a dot in its name is passed through as a raw command: `draft.create`, `profile.update`, `contact.create`, `capability.grant`, and the rest. The address fills in the account and path. Extra command fields go **only** in `options.input`, never as loose option keys. The commands accept other spellings (`reply`, `commentId`, `name`, …), so a loose key could change the operation without anyone noticing. <!-- id:OVZd6Zcp -->
 

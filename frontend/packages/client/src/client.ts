@@ -97,6 +97,8 @@ export type PublishDocumentInput = {
   generation?: number | bigint
   capability?: string
   visibility?: number
+  /** Optional human-readable description of the change, like a commit message. */
+  message?: string
 }
 
 export type SeedClientOptions = {
@@ -414,6 +416,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       changes: input.changes,
       capability: input.capability,
       visibility: input.visibility,
+      message: input.message,
     }
     const {unsignedChange} = (await request('PrepareDocumentChange', prepareInput)) as Extract<
       HMRequest,

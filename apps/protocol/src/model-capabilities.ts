@@ -52,37 +52,83 @@ export function modelSupportsImageInput(providerType: string, modelId: string): 
   }
 }
 
-/** Default assumed for models no heuristic recognizes; conservative on purpose. */
+/** Default assumed for hosted models no heuristic recognizes. */
 export const DEFAULT_MODEL_CONTEXT_WINDOW = 128_000
+/** Assumed for a local or custom server until it reports what the model is actually loaded with. */
+export const DEFAULT_LOCAL_CONTEXT_WINDOW = 32_000
 
 /**
- * The context window (tokens) of a model, by the same provider-id heuristics as the input
- * capabilities above. Used to tell the model — and show the user — how full its context is, so
- * continuation can be decided while there is still room to write a careful handoff. Errs low
- * for unknown ids: a meter that reads a little high is a safer failure than one that reads
- * "plenty of room" as the provider starts rejecting requests.
+ * The most prompt tokens a model accepts, by the same provider-id heuristics as the input
+ * capabilities above: the input limit, not a combined input-plus-output figure. Used to tell the
+ * model and the user how full its context is, so continuation can be decided while there is still
+ * room to write a careful handoff. Errs low: a meter that reads a little high is a safer failure
+ * than one that reads "plenty of room" as the provider starts rejecting requests.
  */
 export function modelContextWindow(providerType: string, modelId: string): number {
   switch (providerType) {
     case 'anthropic': {
-      // Every current Claude generation is 200k; the [1m] beta suffix marks the million-token tier.
       if (/\[1m\]|-1m\b/.test(modelId)) return 1_000_000
+      if (
+        /claude-(fable|mythos)|claude-opus-(4-[6-9]|[5-9])|claude-sonnet-(4-[6-9]|[5-9])|claude-haiku-[5-9]/.test(
+          modelId,
+        )
+      ) {
+        return 1_000_000
+      }
       return 200_000
     }
     case 'openai': {
-      if (/^gpt-4\.1/.test(modelId)) return 1_047_576
+      if (/codex/.test(modelId)) return 272_000
+      if (/^gpt-4\.1/.test(modelId)) return 1_014_808
       const gpt = modelId.match(/^gpt-(\d+)/)
-      if (gpt && Number(gpt[1]) >= 5) return 400_000
+      if (gpt && Number(gpt[1]) >= 5) return 272_000
       if (/^gpt-4o|^chatgpt-4o|^gpt-4-turbo/.test(modelId)) return 128_000
       if (/^o[134]/.test(modelId)) return 200_000
-      if (/^codex|^gpt-5.*codex/.test(modelId)) return 272_000
       return DEFAULT_MODEL_CONTEXT_WINDOW
     }
     case 'google': {
       if (/^gemini-/.test(modelId)) return 1_048_576
       return DEFAULT_MODEL_CONTEXT_WINDOW
     }
+    case 'ollama':
+    case 'custom':
+      return DEFAULT_LOCAL_CONTEXT_WINDOW
     default:
       return DEFAULT_MODEL_CONTEXT_WINDOW
   }
+}
+
+/** What a session event says about the size of the prompt behind it. */
+export type EventContextReading = {
+  /** The whole prompt as the provider counted it. */
+  promptTokens: number
+  /** The part of it that was images shown for that turn only, which later prompts do not carry. */
+  ephemeralImageTokens: number
+}
+
+/**
+ * The context measurement on a session event. Model responses are recorded as an assistant message
+ * when they contain text and as tool calls when they do not, and both carry the response's usage.
+ * Tool results are excluded: a delegation's result carries the child run's summed spend.
+ */
+export function eventContextReading(event: unknown): EventContextReading | undefined {
+  const payload = event as {
+    type?: string
+    role?: string
+    meta?: {
+      usage?: {input: number; cacheRead: number; cacheWrite: number}
+      ephemeralImageTokens?: number
+    }
+  }
+  const isResponse = payload?.type === 'tool_call' || (payload?.type === 'message' && payload.role === 'assistant')
+  const usage = isResponse ? payload.meta?.usage : undefined
+  if (!usage) return undefined
+  const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
+  if (promptTokens <= 0) return undefined
+  return {promptTokens, ephemeralImageTokens: payload.meta?.ephemeralImageTokens ?? 0}
+}
+
+/** The conversation's size as of a reading: the measured prompt without its turn-only images. */
+export function contextTokensOfReading(reading: EventContextReading): number {
+  return Math.max(0, reading.promptTokens - reading.ephemeralImageTokens)
 }

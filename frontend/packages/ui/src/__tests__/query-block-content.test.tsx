@@ -594,6 +594,34 @@ describe('QueryBlockContent Card attribute layout', () => {
   })
 })
 
+describe('QueryBlockContent Attributes popover saved attribute keys', () => {
+  it('lists saved keys including empty-on-all keys, omits schema-binding keys', () => {
+    const items = makeItems(2)
+    items[0].metadata.Priority = 'High'
+    items[0].metadata.childAttributesSchema = 'hm://hyper.media/example/article'
+    // Assignee is empty on every item
+    items[0].metadata.Assignee = ''
+    items[1].metadata.Assignee = ''
+
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} />
+        </TooltipProvider>,
+      )
+    })
+
+    const attributesButton = container.querySelector('button[aria-label="Attributes"]') as HTMLButtonElement
+    expect(attributesButton).toBeTruthy()
+    act(() => attributesButton.click())
+
+    const popoverText = document.body.textContent ?? ''
+    expect(popoverText).toContain('Priority')
+    expect(popoverText).toContain('Assignee')
+    expect(popoverText).not.toContain('Child Attributes Schema')
+  })
+})
+
 describe('QueryBlockContent list view with prepended draft items', () => {
   it('renders prepended draft items even when no published documents match the query', () => {
     act(() => {
@@ -610,6 +638,75 @@ describe('QueryBlockContent list view with prepended draft items', () => {
     expect(container.querySelector('[data-testid="draft-slot"]')).toBeTruthy()
     expect(container.textContent).not.toContain('No documents found.')
     expect(container.textContent).not.toContain('No documents match the current search and filters.')
+  })
+})
+
+describe('QueryBlockContent new document entry', () => {
+  function getNewDocumentButtons() {
+    return Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === 'New document')
+  }
+
+  it.each(['Table', 'List', 'Card'] as const)(
+    'shows one "New document" entry before the results in the %s view',
+    (style) => {
+      const onCreateDocument = vi.fn()
+      act(() => {
+        root.render(
+          <QueryBlockContent
+            items={makeItems(2)}
+            style={style}
+            banner={style === 'Card'}
+            accountsMetadata={{}}
+            prependItems={[<div key="draft">Draft item</div>]}
+            onCreateDocument={onCreateDocument}
+          />,
+        )
+      })
+
+      const buttons = getNewDocumentButtons()
+      expect(buttons).toHaveLength(1)
+      const text = container.textContent ?? ''
+      expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Item 0'))
+      if (style !== 'Table') expect(text.indexOf('New document')).toBeLessThan(text.indexOf('Draft item'))
+
+      act(() => {
+        buttons[0]!.click()
+      })
+      expect(onCreateDocument).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('places the table entry above draft rows', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(1)}
+          style="Table"
+          accountsMetadata={{}}
+          onCreateDocument={vi.fn()}
+          tableDrafts={{
+            drafts: [{draft: {id: 'd1', metadata: {name: 'Draft one'}} as any}],
+            onOpenDraft: vi.fn(),
+            onDeleteDraft: vi.fn(),
+            onUpdateDraftName: vi.fn(),
+          }}
+        />,
+      )
+    })
+
+    const rows = Array.from(container.querySelectorAll('tbody tr'))
+    expect(rows[0]?.textContent).toBe('New document')
+    expect(rows[1]?.querySelector('input')?.value ?? rows[1]?.textContent).toContain('Draft one')
+    // Spans every column, including the draft actions column.
+    expect(rows[0]?.querySelector('td')?.colSpan).toBe(rows[1]?.querySelectorAll('td').length)
+  })
+
+  it('hides the entry for readers who cannot create documents', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(2)} style="Table" accountsMetadata={{}} />)
+    })
+
+    expect(getNewDocumentButtons()).toHaveLength(0)
   })
 })
 
@@ -875,6 +972,62 @@ describe('QueryBlockContent filter value labels', () => {
     expect(onViewerFiltersChange).toHaveBeenCalledWith([
       {columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'},
     ])
+  })
+
+  it('shows the resolved name instead of the raw URL in the applied filter pill', () => {
+    const items = makeItems(1)
+    items[0].metadata.owner = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: items[0].metadata.owner as string}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{
+            'metadata:owner': {
+              type: 'text',
+              values: [items[0].metadata.owner as string],
+              labels: {[items[0].metadata.owner as string]: 'horacio'},
+            },
+          }}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector('button[aria-label="Remove filter: Owner IS horacio"]') as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe('Owner IS horacio')
+  })
+
+  it('truncates long applied filter values to 18 characters with an ellipsis', () => {
+    const items = makeItems(1)
+    const url = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+    items[0].metadata.owner = url
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: url}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{'metadata:owner': {type: 'text', values: [url]}}}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector(`button[aria-label="Remove filter: Owner IS ${url}"]`) as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe(`Owner IS ${url.slice(0, 17)}…`)
+    expect(pill.title).toBe(`Owner IS ${url}`)
   })
 })
 

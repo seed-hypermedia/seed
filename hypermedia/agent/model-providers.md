@@ -115,7 +115,7 @@ Errors: a missing key on a `requireApiKey` provider fails with 400 before any fe
 Each run uses exactly one model, set up from the agent's definition.
 
   - **Image input.** Whether a model takes images decides whether an attached image reaches it as an image or as a line of metadata. <!-- id:KxXI7lQq -->
-  - **Context window.** It is known per model family, for example 400k tokens for gpt-5 and later, 200k or 1M for Claude, and 128k for gpt-4o. The context meter and the `<context_usage>` text sent to the model use it; see [session continuation](./session-continuation.md). A model the server does not know gets 128k. The reply is limited to 16384 tokens, except on a ChatGPT-plan provider. <!-- id:jgZ3Sgim -->
+  - **Context window.** It is the most prompt tokens the model accepts, taken from the model catalog: for example 272k for gpt-5.5 and later, 200k or 1M for Claude, and 128k for gpt-4o. Ollama reports the context a model is actually loaded with and OpenRouter reports each route's limit, and those values win. The context meter and the `<context_usage>` text sent to the model use it; see [session continuation](./session-continuation.md). A hosted model the server does not know gets 128k, and a local or custom one gets 32k until its server reports more. The reply is limited to 16384 tokens, except on a ChatGPT-plan provider. <!-- id:jgZ3Sgim -->
   - **Usage.** Token counts are real. Cost is recorded as zero, so usage is counted in tokens and never in money.
   - **Reasoning.** See [reasoning levels](./reasoning-levels.md).
 

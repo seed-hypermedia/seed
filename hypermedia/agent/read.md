@@ -75,7 +75,7 @@ A bare `hm://` address is read from the server the [app environment](../software
 - The result keeps both `requestedId` (what was asked for) and `id` (the canonical hm:// URL).
 - The agent never runs `seed-cli` for a read.
 
-The markdown that comes back is ready to read. Seed [embeds](../protocol/blocks.md) are resolved first: an inline `Embed` becomes a readable account or document label, and a block `Embed` is replaced by the embedded markdown, including a zoom on one block. <!-- id:bmrXx1wm -->
+The markdown that comes back is ready to read, and it can be written back. Every block is in the [markdown dialect](../build/markdown-dialect.md), which loses nothing. Seed [embeds](../protocol/blocks.md) are resolved beside the blocks: an inline `Embed` carries a readable account or document label, and a block `Embed` or a query is followed by what it shows, between `<!-- resolved: … -->` and `<!-- /resolved -->`, including a zoom on one block. Those lines are not part of the document, and a [write](./write.md) skips them. Media links stay `ipfs://`. <!-- id:bmrXx1wm -->
 
 A link to one block must quote an exact `<!-- id:BLOCK_ID -->` marker copied from a read result. The shared assistant prompt says this. The agent must read again after a write, because block ids may change.
 
@@ -104,6 +104,7 @@ A long text result comes back one page at a time. So the model's `read` never re
 - It looks at the result's text field: `markdown`, `content`, `transcript` or `text`.
 - If the text is longer than one page (`READ_PAGE_BYTES`, 24 KiB), the result carries one page. The page starts at `options.offset` (a character offset, default 0) and is cut at a line break.
 - The result also carries `page: {field, offset, end, total, nextOffset}`.
+- A page of a document's markdown ends with a `<!-- page: … -->` line. `write` refuses a body that holds one, because a page written as the whole body would delete the rest of the document. To change a long document, the agent sends edits, which need only the page that holds the block.
 - Read the same address with `options.offset: nextOffset` to get the next page. The last page has no `nextOffset`.
 - A page shrinks until the whole serialized result fits under `MAX_MODEL_TOOL_RESULT_BYTES`.
 - The session event stores the paged result.

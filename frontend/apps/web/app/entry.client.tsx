@@ -11,6 +11,7 @@ import {seedBrowserTracePropagationTargets} from '@shm/shared/sentry-tracing'
 import {startTransition, StrictMode, useEffect} from 'react'
 import {hydrateRoot} from 'react-dom/client'
 import {sentryTokenScrubOptions} from './sentry-scrub.mjs'
+import {restoreSSRContentHTML} from './ssr-content-handoff'
 
 if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
   Sentry.init({
@@ -54,6 +55,8 @@ function HydratedRemixBrowser() {
 
   return <RemixBrowser />
 }
+
+restoreSSRContentHTML(window.__remixContext.state.loaderData ?? {}, document)
 
 startTransition(() => {
   hydrateRoot(

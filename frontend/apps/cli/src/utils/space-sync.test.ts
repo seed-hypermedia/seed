@@ -161,6 +161,29 @@ describe('metadataDiffOp', () => {
       ],
     })
   })
+
+  test('a map is rewritten entry by entry, never cleared and set again', () => {
+    expect(metadataDiffOp({labels: {red: 'r', green: 'g'}}, {labels: {green: 'g', blue: 'b'}})).toEqual({
+      type: 'SetAttributes',
+      attrs: [
+        {key: ['labels', 'blue'], value: 'b'},
+        {key: ['labels', 'red'], value: null},
+      ],
+    })
+  })
+
+  test('a leaf that becomes a map, or a map that becomes a leaf, gets no null', () => {
+    // A write at a key removes what was stored above and below it; a null there would remove
+    // the new value as well.
+    expect(metadataDiffOp({kind: 'plain'}, {kind: {of: 'map'}})).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['kind', 'of'], value: 'map'}],
+    })
+    expect(metadataDiffOp({kind: {of: 'map', and: 'more'}}, {kind: 'plain'})).toEqual({
+      type: 'SetAttributes',
+      attrs: [{key: ['kind'], value: 'plain'}],
+    })
+  })
 })
 
 describe('importSpace file links', () => {
@@ -407,6 +430,29 @@ describe('the tree rule (requireChildCards)', () => {
     expect(docsLayout.requireChildCards).toBe(true)
     const dir = resolve(import.meta.dir, '../../../../../hypermedia')
     expect(checkTree({...opts(dir), layout: docsLayout})).toEqual([])
+  })
+
+  test('the checked-in documentation passes the offline preflight of a push', async () => {
+    const {preflightProblems} = await import('../sync-hypermedia')
+    expect(await preflightProblems()).toEqual([])
+  })
+
+  test('the preflight reports a link to a page the folder does not publish', async () => {
+    const {preflightProblems} = await import('../sync-hypermedia')
+    const dir = mkdtempSync(join(tmpdir(), 'preflight-'))
+    try {
+      await write(dir, {
+        'index.md': page('Home', card('./a.md', 'card000a')),
+        'a.md': page('A', 'See [the removed page](./gone.md) and [home](hm://hyper.media).'),
+      })
+      const problems = await preflightProblems(dir)
+      const links = problems.filter((p) => p.includes('broken link'))
+      expect(links).toHaveLength(1)
+      expect(links[0]).toContain('a.md: broken link')
+      expect(links[0]).toContain('gone')
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
   })
 
   test('a Grid of cards written in attrs survives parsing', () => {

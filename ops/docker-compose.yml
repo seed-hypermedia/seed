@@ -40,6 +40,7 @@ services:
       - ${SEED_SITE_WORKSPACE}/web:/data:rw,z
     environment:
       - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
+      - 'SEED_ASSET_HOST=${SEED_SITE_HOSTNAME}'
       - 'NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST}'
       # The site's own agents service (`<site>/hm/api/agents`) when the
       # `agents` profile is on; the hosted one otherwise.

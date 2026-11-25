@@ -15,6 +15,7 @@ import {code as rawCodec} from 'multiformats/codecs/raw'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
+import * as accountMnemonic from './account-mnemonic'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
@@ -663,6 +664,92 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
   async function reloadVaultAfterConflict() {
     const freshVaultResponse = await client.getVault({})
     await ensureVaultLoaded(freshVaultResponse)
+  }
+
+  async function importAccount(loadKey: () => Promise<{publicKey: string; seed: Uint8Array}>) {
+    if (!state.decryptedDEK) {
+      state.error = 'Vault must be unlocked first'
+      throw new Error(state.error)
+    }
+
+    state.loading = true
+    state.error = ''
+
+    if (!state.vaultLoaded) {
+      try {
+        await ensureVaultLoaded()
+      } catch (e) {
+        state.error = state.error || getErrorMessage(e, 'Failed to load vault')
+        state.loading = false
+        throw e
+      }
+    }
+
+    const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+    const previousSelectedAccountIndex = state.selectedAccountIndex
+    let insertedAccount = false
+
+    try {
+      const loaded = await loadKey()
+      const alreadyExists = vaultData.accounts.some((candidate) => {
+        return vault.getAccountName(candidate) === loaded.publicKey
+      })
+
+      if (alreadyExists) {
+        throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+      }
+
+      const importedAccount: vault.Account = {
+        name: loaded.publicKey,
+        seed: loaded.seed,
+        createTime: Date.now(),
+        delegations: [],
+      }
+
+      vaultData.accounts.push(importedAccount)
+      insertedAccount = true
+      state.selectedAccountIndex = vaultData.accounts.length - 1
+
+      try {
+        await actions.saveVaultData()
+      } catch (error) {
+        if (!(error instanceof APIError) || error.statusCode !== 409) {
+          throw error
+        }
+
+        // Discard our optimistic insertion before loading the remote accounts.
+        vaultData.accounts.pop()
+        insertedAccount = false
+        state.selectedAccountIndex = previousSelectedAccountIndex
+        await reloadVaultAfterConflict()
+        const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+        const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
+          return vault.getAccountName(candidate) === loaded.publicKey
+        })
+
+        if (existingAccountIndex !== -1) {
+          throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+        }
+
+        refreshedVaultData.accounts.push(importedAccount)
+        insertedAccount = true
+        state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
+        await actions.saveVaultData()
+      }
+      return loaded.publicKey
+    } catch (e) {
+      if (insertedAccount) {
+        state.vaultData.accounts.pop()
+        state.selectedAccountIndex = previousSelectedAccountIndex
+      }
+
+      // Error is surfaced to the user via state.error; no console.error
+      // to avoid noisy output in tests that intentionally trigger failures.
+      state.error = state.error || getErrorMessage(e, 'Failed to import account')
+      throw e
+    } finally {
+      state.loading = false
+    }
   }
 
   const actions = {
@@ -1371,18 +1458,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
      */
     async handleConditionalLogin() {
       if (!localCrypto.isWebAuthnSupported()) {
-        console.log('Webauthn not supported')
         return
       }
 
       try {
         const available = await webauthn.browserSupportsWebAuthnAutofill()
         if (!available) {
-          console.log('Webauthn autofill not supported')
           return
         }
       } catch (err) {
-        console.log('Webauthn autfill error', err)
         return
       }
 
@@ -1827,85 +1911,18 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /** Import an exported account key file into the unlocked vault. */
     async importAccount(keyFileJSON: string, password?: string) {
-      if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        throw new Error(state.error)
-      }
+      return importAccount(() => keyfile.load(keyFileJSON, password))
+    },
 
-      state.loading = true
-      state.error = ''
-
-      if (!state.vaultLoaded) {
-        try {
-          await ensureVaultLoaded()
-        } catch (e) {
-          state.error = state.error || getErrorMessage(e, 'Failed to load vault')
-          state.loading = false
-          throw e
-        }
-      }
-
-      const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
-      const previousSelectedAccountIndex = state.selectedAccountIndex
-      let insertedAccount = false
-
-      try {
-        const loaded = await keyfile.load(keyFileJSON, password)
-        const alreadyExists = vaultData.accounts.some((candidate) => {
-          return vault.getAccountName(candidate) === loaded.publicKey
-        })
-
-        if (alreadyExists) {
-          throw new Error(`Account ${loaded.publicKey} already exists in vault`)
-        }
-
-        const importedAccount: vault.Account = {
-          name: loaded.publicKey,
-          seed: loaded.seed,
-          createTime: Date.now(),
-          delegations: [],
-        }
-
-        vaultData.accounts.push(importedAccount)
-        insertedAccount = true
-        state.selectedAccountIndex = vaultData.accounts.length - 1
-
-        try {
-          await actions.saveVaultData()
-        } catch (error) {
-          if (!(error instanceof APIError) || error.statusCode !== 409) {
-            throw error
-          }
-
-          await reloadVaultAfterConflict()
-          const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
-          const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
-            return vault.getAccountName(candidate) === loaded.publicKey
-          })
-
-          if (existingAccountIndex !== -1) {
-            throw new Error(`Account ${loaded.publicKey} already exists in vault`)
-          }
-
-          refreshedVaultData.accounts.push(importedAccount)
-          state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
-          await actions.saveVaultData()
-        }
-        return loaded.publicKey
-      } catch (e) {
-        if (insertedAccount) {
-          state.vaultData.accounts.pop()
-          state.selectedAccountIndex = previousSelectedAccountIndex
-        }
-
-        // Error is surfaced to the user via state.error; no console.error
-        // to avoid noisy output in tests that intentionally trigger failures.
-        state.error = state.error || getErrorMessage(e, 'Failed to import account')
-        throw e
-      } finally {
-        state.loading = false
-      }
+    /** Restore an account from its original mnemonic and optional passphrase. */
+    async importAccountFromMnemonic(phrase: string, passphrase = '') {
+      return importAccount(async () => {
+        const seed = await accountMnemonic.deriveAccountSeed(phrase, passphrase)
+        const publicKey = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
+        return {seed, publicKey}
+      })
     },
 
     selectAccount(index: number) {

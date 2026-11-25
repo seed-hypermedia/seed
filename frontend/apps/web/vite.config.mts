@@ -96,7 +96,13 @@ export default defineConfig(({isSsrBuild}) => {
           v3_fetcherPersist: true,
           v3_relativeSplatPath: true,
           v3_throwAbortReason: true,
-          v3_lazyRouteDiscovery: true,
+          // Off on purpose. With it on, the catch-all document route makes Remix fetch
+          // `/__manifest` before the first client-side navigation to each path, and a failed
+          // fetch (the proxy answers 429 when a page has too many requests in flight) throws
+          // into the root error page. Publishing a comment navigates right after a burst of
+          // refetches, so that request was the one rejected. The route table is small enough
+          // to ship whole.
+          v3_lazyRouteDiscovery: false,
         },
       }),
       envOnlyMacros(),

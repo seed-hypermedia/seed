@@ -1049,6 +1049,26 @@ export const documentMachine = setup({
         return null
       },
     }),
+    // A draft restored against a newer published version arrived as
+    // `document.loaded` (not `document.remoteUpdate`), so it never queued a
+    // rebase via setPendingRemoteDocument. Treat the loaded document as the
+    // pending remote so useAutoRebase runs the same DAG walk + classify/apply
+    // path a live remote update would. Only fires when the draft's deps are a
+    // different version set than the loaded published version.
+    queueStaleDraftRebase: assign({
+      pendingRemoteDocument: ({context}) => {
+        if (context.pendingRemoteDocument) return context.pendingRemoteDocument
+        if (!context.draftId || !context.deps.length) return context.pendingRemoteDocument
+        const doc = context.document
+        if (!doc?.version || !context.isLatestVersion) return context.pendingRemoteDocument
+        const publishedHeads = new Set(doc.version.split('.'))
+        const draftHeads = new Set(context.deps)
+        if (publishedHeads.size === draftHeads.size && Array.from(publishedHeads).every((h) => draftHeads.has(h))) {
+          return context.pendingRemoteDocument
+        }
+        return doc
+      },
+    }),
     applyRebaseMerge: assign({
       document: ({context, event}) => {
         if (event.type !== 'rebase.apply') return context.document
@@ -1692,6 +1712,7 @@ export const documentMachine = setup({
       type: 'parallel',
       entry: [
         'logEnterEditing',
+        'queueStaleDraftRebase',
         {type: 'setEditorEditable'},
         enqueueActions(({event, enqueue}) => {
           // Canceled or failed publication resumes the same live editing session.

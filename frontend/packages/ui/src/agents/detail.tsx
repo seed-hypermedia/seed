@@ -1141,7 +1141,9 @@ function sameModelRefs(a: AgentModelRef[], b: AgentModelRef[]): boolean {
 function agentPromptToBlocks(prompt: AgentDefinition['systemPrompt']): HMBlockNode[] {
   if (Array.isArray(prompt)) return prompt as HMBlockNode[]
   // Display path: a prompt that happens to start with a broken `---` block still has to render.
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '', {strictFrontmatter: false}).tree)
+  return markdownBlockNodesToHMBlockNodes(
+    parseMarkdown(prompt || '', {strictFrontmatter: false, strictResolvedRanges: false}).tree,
+  )
 }
 
 /**

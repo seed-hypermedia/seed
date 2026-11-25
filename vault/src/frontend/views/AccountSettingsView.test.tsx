@@ -121,4 +121,25 @@ describe('AccountSettingsView', () => {
       global.fetch = originalFetch
     }
   })
+  test('imports a recovery phrase from Import identity and selects the restored account', async () => {
+    const {store} = createVaultStore()
+    store.state.vaultLoaded = true
+    const principal = 'z6MkqqiSjqcT9NasDUXiymyB8kpgz6h3CNQaghGAoXsaYJ2f'
+    renderAt('/settings', store)
+    fireEvent.click(screen.getByRole('button', {name: 'Import identity'}))
+    fireEvent.mouseDown(screen.getByRole('tab', {name: 'Recovery phrase'}), {button: 0, ctrlKey: false})
+    fireEvent.paste(screen.getByLabelText('Recovery word 1'), {
+      clipboardData: {
+        getData: () => 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', {name: 'Import account'}))
+    await waitFor(() => {
+      expect(document.querySelector('h2')?.textContent).toBe('Connected Devices')
+    })
+    expect(store.state.vaultData!.accounts).toHaveLength(3)
+    expect(store.state.selectedAccountIndex).toBe(2)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(store.state.vaultData!.accounts[2]!.name).toBe(principal)
+  })
 })

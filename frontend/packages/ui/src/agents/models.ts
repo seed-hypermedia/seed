@@ -662,14 +662,25 @@ export function useMountedSiteAgents(accountUid: string | null | undefined): {
   // to load contributes no rows. The cache key extends the agent's paginated-list key so the same
   // invalidations and optimistic patches reach it, without colliding with the infinite query the
   // agent page owns.
+  //
+  // Trigger-started sessions are dropped on the server, before the page is cut: the panel hides
+  // them anyway, and an agent whose triggers fire often has a newest page made only of them, which
+  // left "All agents" saying "No chats yet" while the agent's own filter (already server-filtered)
+  // listed its chats.
   const sessionQueries = useQueries({
     queries: targets.map((mount) => ({
-      queryKey: [...agentSessionsKey(mount.serverUrl, accountUid, mount.agentId), 'sidebar'],
+      queryKey: [...agentSessionsKey(mount.serverUrl, accountUid, mount.agentId), 'chats', 'sidebar'],
       queryFn: async (): Promise<AgentSessionsPage> => {
         const res = await sendAgentAction({
           serverUrl: mount.serverUrl,
           accountUid: accountUid!,
-          action: {_: 'ListSessions', agentId: mount.agentId, includeChildren: false, limit: AGENT_SESSIONS_PAGE_SIZE},
+          action: {
+            _: 'ListSessions',
+            agentId: mount.agentId,
+            includeChildren: false,
+            limit: AGENT_SESSIONS_PAGE_SIZE,
+            excludeTriggered: true,
+          },
         })
         if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
         return {sessions: res.sessions.filter((session) => !session.parentSessionId), nextCursor: res.nextCursor}
@@ -2097,7 +2108,7 @@ export function useAgentTrigger(
 }
 
 /**
- * Lists directory levels of one agent's private memory — one query per path, so the Memory tab
+ * Lists directory levels of one agent's memory — one query per path, so the Memory tab
  * loads the tree lazily as directories are expanded and a huge memory never forces a full
  * recursive walk on the server (one agent's imported 192k-file tree used to freeze it).
  *
@@ -2338,7 +2349,7 @@ export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: st
   })
 }
 
-/** Reads one file from an agent's private memory. */
+/** Reads one file from an agent's memory. */
 export function useAgentMemoryFile(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -2363,7 +2374,7 @@ export function useAgentMemoryFile(
   })
 }
 
-/** Writes one file (UTF-8 text or binary bytes) into an agent's private memory. */
+/** Writes one file (UTF-8 text or binary bytes) into an agent's memory. */
 export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path, content}: {agentId: string; path: string; content: string | Uint8Array}) => {
@@ -2398,7 +2409,7 @@ export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUi
   })
 }
 
-/** Downloads a web URL into an agent's private memory on the server. */
+/** Downloads a web URL into an agent's memory on the server. */
 export function useDownloadAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, url, path}: {agentId: string; url: string; path?: string}) => {
@@ -2436,7 +2447,7 @@ export function useUploadAgentMemoryFileToIpfs(serverUrl: string | undefined, ac
   })
 }
 
-/** Deletes one file or directory from an agent's private memory, dropping its rows immediately. */
+/** Deletes one file or directory from an agent's memory, dropping its rows immediately. */
 export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {

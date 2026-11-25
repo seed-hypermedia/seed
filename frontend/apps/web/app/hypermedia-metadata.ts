@@ -94,7 +94,7 @@ export function metadataToPageMeta(
   // Change the cache key when the image layout changes: image responses are immutable.
   const imageUrl = `${display.origin}/hm/api/content-image?space=${display.id.uid}&path=${hmIdPathToEntityQueryPath(
     display.id.path,
-  )}&version=${metadata.version}&layout=2`
+  )}&version=${metadata.version}&layout=3`
   const currentUrl = `${display.origin}${display.id.path?.length ? '/' + display.id.path.join('/') : ''}`
   const domain = hostnameStripProtocol(display.origin)
   const description = ''

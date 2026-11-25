@@ -492,6 +492,13 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
    */
   visibility = ResourceVisibility.UNSPECIFIED;
 
+  /**
+   * Optional. Human-readable message describing the change, like a commit message.
+   *
+   * @generated from field: string message = 7;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<PrepareChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -506,6 +513,7 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
     { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+    { no: 7, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PrepareChangeRequest {
@@ -4021,6 +4029,13 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
    */
   createTime?: Timestamp;
 
+  /**
+   * Optional message describing the change, as written by its author.
+   *
+   * @generated from field: string message = 5;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<DocumentChangeInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4033,6 +4048,7 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
     { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "deps", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "create_time", kind: "message", T: Timestamp },
+    { no: 5, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChangeInfo {

@@ -1,5 +1,6 @@
 import {
   BUILTIN_METADATA_KEYS,
+  SCHEMA_BINDING_METADATA_KEYS,
   type HMAccountsMetadata,
   type HMDocumentInfo,
   type HMQueryBlockFilterOptions,
@@ -43,8 +44,6 @@ export function getQueryTableAccountIds(value: unknown, context?: QueryTableValu
   })
 }
 
-const RESERVED_METADATA_KEYS = BUILTIN_METADATA_KEYS
-
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   const present = values.filter((value) => value !== null && value !== undefined && value !== '')
@@ -63,7 +62,11 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   return 'text'
 }
 
-/** Builds the stable core columns and discovered metadata columns for Query table rows. */
+/**
+ * Builds the stable core columns and discovered metadata columns for Query table rows.
+ * Metadata columns are every key saved on any result document, empty or not, plus the
+ * filter options' keys, except built-in and schema-binding keys.
+ */
 export function buildQueryTableColumns(
   items: HMDocumentInfo[] = [],
   filterOptions?: HMQueryBlockFilterOptions,
@@ -81,12 +84,14 @@ export function buildQueryTableColumns(
   ]
   const metadataKeys = Array.from(
     new Set([
-      ...items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key))),
+      ...items.flatMap((item) => Object.keys(item.metadata)),
       ...Object.keys(filterOptions ?? {})
         .filter((id) => id.startsWith('metadata:'))
         .map((id) => id.slice('metadata:'.length)),
     ]),
-  ).sort()
+  )
+    .filter((key) => !BUILTIN_METADATA_KEYS.has(key) && !SCHEMA_BINDING_METADATA_KEYS.has(key))
+    .sort()
 
   return coreColumns.concat(
     metadataKeys.map((key) => ({

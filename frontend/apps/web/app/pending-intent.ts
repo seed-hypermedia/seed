@@ -1,6 +1,7 @@
 import {createComment, createContact, updateContact} from '@seed-hypermedia/client'
 import type {HMComment, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
+import {invalidateAfterCommentPublish} from '@shm/shared/comment-invalidation'
 import {invalidateQueries, getQueryClient} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
 import {applyOptimisticComment, buildOptimisticComment, getCommentSubmissionRoute} from '@shm/shared/optimistic-comment'
@@ -289,14 +290,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       comment.version = version
       applyOptimisticComment(getQueryClient(), docId, comment)
 
-      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
-      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
-      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
-      invalidateQueries([queryKeys.DOC_CITATIONS])
-      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-      invalidateQueries([queryKeys.ACTIVITY_FEED])
+      invalidateAfterCommentPublish(getQueryClient(), {targetId: docId, comment})
 
       const originalRoute: NavRoute = intent.commentRoute || {
         key: 'comments',

@@ -61,7 +61,7 @@ A new session has no real title. A title that a client sends when it creates the
 
 - **A person** types one (`UpdateSession`). Nothing automatic overwrites it.
 - **The agent** sets it with the `status` verb, described under [tools](./tools.md). The agent sets the title once, early, and updates the description as the work moves on. When the topic changes a lot, the agent should [continue the session](./session-continuation.md), not rename it.
-- **The server** names a session that still has no real title. It starts as soon as the turn is running, and tries again when the turn parks or ends, three times at most. It makes one small model call with no tools, on the session's own provider, and stores the first line of the reply. It does not name a session that used the browser or [private memory](./memory.md#private-memory). An operator can turn this off (`SEED_APPS_SESSION_TITLE_GENERATION`).
+- **The server** names a session that still has no real title. It starts as soon as the turn is running, and tries again when the turn parks or ends, three times at most. It makes one small model call with no tools, on the session's own provider, and stores the first line of the reply. It does not name a session that used the browser. An operator can turn this off (`SEED_APPS_SESSION_TITLE_GENERATION`).
 
 A session created by `continue_session`, and a child with a title, are named by the agent that created them.
 

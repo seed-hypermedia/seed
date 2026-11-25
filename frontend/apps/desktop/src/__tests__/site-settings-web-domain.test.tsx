@@ -10,10 +10,19 @@ const mockState = vi.hoisted(() => ({
   pendingDomains: [] as Array<{siteUid: string; hostname: string}>,
   openPublish: vi.fn(),
   openRemove: vi.fn(),
+  publishDialogMounts: 0,
 }))
 
+// Stands in for the open publish dialog, whose step state is lost if React remounts it.
+function PublishDialogStub() {
+  React.useEffect(() => {
+    mockState.publishDialogMounts += 1
+  }, [])
+  return null
+}
+
 vi.mock('@/components/publish-site', () => ({
-  usePublishSite: () => ({open: mockState.openPublish, content: null}),
+  usePublishSite: () => ({open: mockState.openPublish, content: <PublishDialogStub />}),
   useRemoveSiteDialog: () => ({open: mockState.openRemove, content: null}),
 }))
 
@@ -80,6 +89,7 @@ describe('WebDomainSettings', () => {
     mockState.pendingDomains = []
     mockState.openPublish.mockReset()
     mockState.openRemove.mockReset()
+    mockState.publishDialogMounts = 0
   })
 
   afterEach(() => {
@@ -95,6 +105,19 @@ describe('WebDomainSettings', () => {
     expect(container.textContent).not.toContain('Remove Domain from Publication')
     click('Publish to Web Domain')
     expect(mockState.openPublish).toHaveBeenCalledWith({id: siteId})
+  })
+
+  it('keeps the publish dialog mounted when publishing sets the site URL', () => {
+    render()
+    expect(mockState.publishDialogMounts).toBe(1)
+
+    mockState.siteUrl = 'https://myspace.hyper.media'
+    act(() => {
+      root.render(<WebDomainSettings siteId={siteId} />)
+    })
+
+    expect(container.textContent).toContain('myspace.hyper.media')
+    expect(mockState.publishDialogMounts).toBe(1)
   })
 
   it('removes the domain of a published space', () => {

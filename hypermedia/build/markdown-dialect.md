@@ -8,7 +8,7 @@ Several programs use it:
 
 - The [Seed CLI](./cli.md) prints it and accepts it.
 - [Folder sync](./publish-a-folder.md) stores a whole [space](../protocol/spaces.md) in it.
-- A [site](../protocol/sites.md)'s `.md` export and the [`read`](../agent/read.md) tool of [Seed Agents](../agent.md) return a form of it made for reading.
+- A [site](../protocol/sites.md)'s `.md` export and the [`read`](../agent/read.md) tool of [Seed Agents](../agent.md) return it with what the blocks point at shown beside them.
 
 The code exists once, in the [SDK](./sdk.md).
 
@@ -21,6 +21,7 @@ The code exists once, in the [SDK](./sdk.md).
 - **Nesting.** A block's children sit two spaces deeper, or at the content column of a list marker. A heading's children follow it at the same indentation, and `<!-- end:X -->` closes a heading when a non-heading sibling follows.
 - **Text.** Markdown syntax characters in text are escaped. A newline inside a block is `<br>`. Styles markdown lacks, such as underline, highlight and colors, are inline HTML tags.
 - **Diagrams.** A `mermaid` code fence is a diagram and must parse.
+- **Shown for the reader.** Lines between `<!-- resolved: … -->` and `<!-- /resolved -->` show what the block above them points at: the content of an embed, or the results of a query. They are not part of the document, and the parser skips them.
 - **Files without ids.** A file you write by hand needs no markers. Its blocks are matched to an existing document by position.
 
 # Functions <!-- id:ZwTWCrBr -->
@@ -34,12 +35,15 @@ The code exists once, in the [SDK](./sdk.md).
 **Errors.**
 
 - `parseMarkdown` throws `MarkdownFrontmatterError` when the YAML in the frontmatter does not parse. Pass `{strictFrontmatter: false}` where the code only shows the text and must accept anything.
+- `parseMarkdown` throws `MarkdownResolvedRangeError` when a `resolved` range is never closed. Pass `{strictResolvedRanges: false}` to drop what follows it.
 - `assertValidMermaid(nodes, parser)` rejects with `InvalidMermaidError` when a mermaid Code block does not parse.
 - `loadMermaidParser()` from `@seed-hypermedia/client/mermaid-parser` gives you the parser in a browser, Node or Bun. You install `mermaid` yourself, and also `linkedom` when you are not in a browser.
 
 [Publish a folder](./publish-a-folder.md) describes the dialect from a writer's side.
 
-**For reading.** `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/links-and-citations.md) and [query blocks](../block/query.md) over the network and put their content in the text. `commentToResolvedMarkdown` does this for a [comment](../protocol/comments.md). The web `.md` export and the `read` tool of Seed Agents return this form. <!-- id:60n-DBmo -->
+**For reading.** `documentToResolvedMarkdown(doc, {client, maxDepth?, ipfsGateway?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/links-and-citations.md) and [query blocks](../block/query.md) over the network. Every block is written as `blocksToMarkdown` writes it. A mention gets the name of its target (`[@Name](hm://…)`), and an embed or a query is followed by a `resolved` range holding what it shows. So this form parses back to the same document too. `commentToResolvedMarkdown` does this for a [comment](../protocol/comments.md). The web `.md` export and the `read` tool of Seed Agents return this form. <!-- id:60n-DBmo -->
+
+**Updating from markdown.** `markdownUpdateTree(storedContent, parsedTree)` prepares a parsed body for `computeReplaceOps`. A block that reads the same as the stored block is kept as stored, and a block that lost its id marker gets the id back when its text matches a stored block. `applyBlockEdits(tree, edits, parse)` changes blocks by id (`replace`, `after`, `before`, `into`, `move`, `delete`) and leaves the others alone. `describeContentChange` counts the blocks an update adds, rewrites, moves and deletes.
 
 **Drafts.** `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the [desktop app](../software/desktop.md) do. <!-- id:wxZ_H1P7 -->
 

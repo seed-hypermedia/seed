@@ -8,6 +8,7 @@ import {
 } from '../../core/extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
 import {getReferenceableRevisionByBlockId} from '../../core/extensions/BlockRevision/BlockRevisionInvalidation'
+import {observeEditorLayout} from '../observeEditorLayout'
 
 const HOVER_BG_CLASS = 'bn-block-hover-highlight'
 const CARD_OVERLAP_PX = 0
@@ -137,7 +138,8 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   // Follow the block on scroll/resize instead of hiding: the card's
   // visibility derives from selection state alone; scrolling only moves it.
   // Capture-phase listener catches scrolls of any inner scroll container
-  // (e.g. the desktop ScrollArea viewport), rAF-throttled.
+  // (e.g. the desktop ScrollArea viewport), rAF-throttled. Content above that
+  // grows moves the block without firing either event, so watch layout too.
   useEffect(() => {
     if (!hoverState.show) return
 
@@ -151,7 +153,9 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     }
     window.addEventListener('scroll', reposition, {capture: true, passive: true})
     window.addEventListener('resize', reposition)
+    const stopObservingLayout = observeEditorLayout(editor.prosemirrorView?.dom, reposition)
     return () => {
+      stopObservingLayout()
       if (raf) cancelAnimationFrame(raf)
       window.removeEventListener('scroll', reposition, {capture: true})
       window.removeEventListener('resize', reposition)

@@ -427,7 +427,7 @@ Deleting a session deletes its store. A backup of the database includes every st
 
 ## `transcript_privacy`
 
-Reader privacy per transcript, keyed by `(kind, id)` where `kind` is `session` or `run`. `private` is set once any event or journal entry up to `scanned_seq` carried browser or private-memory data. `sessions_json` and `runs_json` list the sessions and runs the scanned entries read from, whose privacy the transcript inherits.
+Reader privacy per transcript, keyed by `(kind, id)` where `kind` is `session` or `run`. `private` is set once any event or journal entry up to `scanned_seq` carried browser data. `sessions_json` and `runs_json` list the sessions and runs the scanned entries read from, whose privacy the transcript inherits.
 
 ## `action_idempotency` <!-- id:wyE61ixJ -->
 

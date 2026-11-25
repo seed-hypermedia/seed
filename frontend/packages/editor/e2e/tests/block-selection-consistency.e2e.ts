@@ -81,6 +81,18 @@ async function clickBlockBody(page: Page, blockId: string) {
     }
   }
   if (!box) throw new Error(`could not measure block ${blockId}`)
+  // A block above can still be growing (embed, KaTeX, media) when we measure.
+  // Clicking then lands on the block above, so wait until two measures 100 ms
+  // apart agree. (The editor itself must also follow a shift AFTER the click;
+  // see "block tools follow the block when content above it grows".)
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await page.waitForTimeout(100)
+    const next = await content.boundingBox({timeout: 5000})
+    if (!next) break
+    const stable = Math.abs(next.y - box.y) < 0.5 && Math.abs(next.height - box.height) < 0.5
+    box = next
+    if (stable) break
+  }
   // Some styled atomic blocks put interactive controls or links at their
   // center. Select those blocks via the frame/body gutter instead, and leave
   // link/control-specific behavior to the dedicated tests below.
@@ -228,6 +240,28 @@ test.describe('Block selection consistency across block types (real editor)', ()
     const s = await snapshot(page)
     expect(s.pm.kind, 'block above must be node-selected').toBe('NodeSelection')
     expect(s.fullBlockIds).toEqual(['blk-button'])
+  })
+
+  test('block tools follow the block when content above it grows', async ({page}) => {
+    await setupAllBlocks(page)
+    await page.mouse.move(5, 5)
+    await clickBlockBody(page, 'blk-math')
+    await expect.poll(async () => (await snapshot(page)).tools).toBe('blk-math')
+    const topBefore = (await snapshot(page)).toolsTop!
+
+    // A late render above (embed, KaTeX, media) fires no scroll, resize or
+    // editor transaction; only the layout moves.
+    await page.evaluate(() => {
+      const above = document.querySelector('[data-id="blk-button"] [data-content-type]') as HTMLElement
+      above.style.minHeight = `${above.getBoundingClientRect().height + 120}px`
+    })
+
+    await expect.poll(async () => (await snapshot(page)).toolsTop).toBeGreaterThan(topBefore + 100)
+    const s = await snapshot(page)
+    expect(s.tools, 'block tools must stay on the block').toBe('blk-math')
+    await expect
+      .poll(async () => (await snapshot(page)).sideMenuBlock, {message: 'side menu must stay on the block'})
+      .toBe('blk-math')
   })
 
   test('scrolling repositions the block tools instead of hiding them', async ({page}) => {

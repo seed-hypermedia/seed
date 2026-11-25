@@ -39,7 +39,7 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {seedValue} from './schema/data-editor'
-import {subschemaAt, useSchemaContext, useSubschema} from './schema/schema-context'
+import {propertyDefaultAt, subschemaAt, useSchemaContext, useSubschema} from './schema/schema-context'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {DateValueField, type DateFieldMode} from './schema/date-field'
 
@@ -1143,8 +1143,14 @@ export function ValueEditor({
   // A scalar that is a member of the schema's literal union renders as a
   // dropdown of the options (mixed types supported).
   const allLiteralOptions = resolvedSchema ? literalOptionsOf(resolvedSchema) : null
-  const literalOptions =
-    allLiteralOptions && allLiteralOptions.some((option) => option.value === value) ? allLiteralOptions : undefined
+  const isLiteralMember = !!allLiteralOptions && allLiteralOptions.some((option) => option.value === value)
+  // An empty string is what a blank text field holds: on a field that picks from options it means
+  // "nothing chosen yet", so it gets the options too (with the text escape hatch).
+  const literalOptions = allLiteralOptions && (isLiteralMember || value === '') ? allLiteralOptions : undefined
+  // A field that picks from options and holds no value shows the options with none selected.
+  if (allLiteralOptions && (value === undefined || value === null) && !isLiteralMember) {
+    return <LiteralValueSelect value={undefined} options={allLiteralOptions} onValue={onValue} />
+  }
   if (typeof value === 'boolean') {
     return (
       <ScalarLeafEditor
@@ -2601,7 +2607,8 @@ function SuggestionPopover<T>({
 }
 
 /**
- * Builds the value for a newly-added field/item: a schema-instantiated starter
+ * Builds the value for a newly-added field/item: the field's property default when its struct
+ * declares one, else a schema-instantiated starter
  * when the target path declares one and it matches the chosen type (so an enum
  * lands on a member, a required-nested object comes pre-populated), else the
  * plain default for the type. Respects an explicit type override — if the user
@@ -2613,7 +2620,10 @@ function useCreateFieldValue() {
     (targetPath: ValuePath, type: NewFieldType, rules: ValueEditorRules): unknown => {
       if (ctx) {
         const sub = subschemaAt(ctx.rootSchema, targetPath, ctx.registry)
-        const starter = sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
+        // A field its struct gives a default starts from it; any other starts from a seed of its type.
+        const declared = propertyDefaultAt(ctx.rootSchema, targetPath, ctx.registry)
+        const starter =
+          declared !== undefined ? declared : sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
         if (starter !== undefined && valueToFieldType(starter) === type && findInvalidValue(starter, rules) === null) {
           return starter
         }

@@ -685,7 +685,9 @@ type PrepareChangeRequest struct {
 	// Optional. Visibility of the document.
 	// Can only be specified here when creating the document for the first time,
 	// i.e. when `base_version` is empty.
-	Visibility    ResourceVisibility `protobuf:"varint,6,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	Visibility ResourceVisibility `protobuf:"varint,6,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	// Optional. Human-readable message describing the change, like a commit message.
+	Message       string `protobuf:"bytes,7,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -760,6 +762,13 @@ func (x *PrepareChangeRequest) GetVisibility() ResourceVisibility {
 		return x.Visibility
 	}
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
+}
+
+func (x *PrepareChangeRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Response with prepared change data for client-side signing.
@@ -4099,7 +4108,9 @@ type DocumentChangeInfo struct {
 	// List of change IDs that this change depends on.
 	Deps []string `protobuf:"bytes,3,rep,name=deps,proto3" json:"deps,omitempty"`
 	// Time when the change was created (as claimed by the author).
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// Optional message describing the change, as written by its author.
+	Message       string `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4160,6 +4171,13 @@ func (x *DocumentChangeInfo) GetCreateTime() *timestamppb.Timestamp {
 		return x.CreateTime
 	}
 	return nil
+}
+
+func (x *DocumentChangeInfo) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Basic data about a document with some aggregations and metadata.
@@ -6358,7 +6376,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x1bBatchGetDocumentInfoRequest\x12N\n" +
 	"\brequests\x18\x01 \x03(\v22.com.seed.documents.v3alpha.GetDocumentInfoRequestR\brequests\"f\n" +
 	"\x1cBatchGetDocumentInfoResponse\x12F\n" +
-	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\x9d\x02\n" +
+	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\xb7\x02\n" +
 	"\x14PrepareChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
@@ -6369,7 +6387,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"capability\x12N\n" +
 	"\n" +
 	"visibility\x18\x06 \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\"@\n" +
+	"visibility\x12\x18\n" +
+	"\amessage\x18\a \x01(\tR\amessage\"@\n" +
 	"\x15PrepareChangeResponse\x12'\n" +
 	"\x0funsigned_change\x18\x01 \x01(\fR\x0eunsignedChange\"E\n" +
 	"\x15DeleteDocumentRequest\x12\x18\n" +
@@ -6653,13 +6672,14 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"o\n" +
 	"\x10ListRefsResponse\x123\n" +
 	"\x04refs\x18\x01 \x03(\v2\x1f.com.seed.documents.v3alpha.RefR\x04refs\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8d\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xa7\x01\n" +
 	"\x12DocumentChangeInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xe6\x06\n" +
+	"createTime\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\xe6\x06\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +

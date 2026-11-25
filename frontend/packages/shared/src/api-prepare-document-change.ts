@@ -10,6 +10,7 @@ export const PrepareDocumentChange: HMRequestImplementation<HMPrepareDocumentCha
       baseVersion: input.baseVersion ?? '',
       capability: input.capability ?? '',
       visibility: input.visibility ?? 0,
+      message: input.message ?? '',
       changes: input.changes.map(
         ({op}) =>
           new DocumentChange({

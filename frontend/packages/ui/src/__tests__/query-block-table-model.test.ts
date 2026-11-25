@@ -215,6 +215,38 @@ describe('query block table model', () => {
   })
 })
 
+describe('buildQueryTableColumns attribute key discovery', () => {
+  it('lists keys saved on any item, including keys empty on every item', () => {
+    const columns = buildQueryTableColumns([
+      item('One', {Priority: 'High', Assignee: '', Empty: null, Blank: []}),
+      item('Two', {Priority: 'Low', Assignee: '', Empty: '', Blank: []}),
+      item('Three', {Object: {id: 'x'}, Assignee: ''}),
+    ])
+    expect(
+      columns
+        .filter((c) => c.id.startsWith('metadata:'))
+        .map((c) => c.label)
+        .sort(),
+    ).toEqual(['Assignee', 'Blank', 'Empty', 'Object', 'Priority'].sort())
+  })
+
+  it('never lists schema-binding keys, whether they come from items or from filterOptions metadata keys', () => {
+    const columns = buildQueryTableColumns(
+      [
+        item('One', {
+          attributesSchema: 'hm://hyper.media/example/article',
+          childAttributesSchema: 'hm://hyper.media/example/article',
+        }),
+      ],
+      {
+        'metadata:attributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+        'metadata:childAttributesSchema': {type: 'text', values: ['hm://hyper.media/example/article']},
+      },
+    )
+    expect(columns.filter((c) => c.id.startsWith('metadata:')).map((c) => c.label)).toEqual([])
+  })
+})
+
 describe('account reference fallback matching', () => {
   const context = {
     accountsMetadata: {owneruid: {id: hmId('owneruid'), metadata: {name: 'horacio'}}},

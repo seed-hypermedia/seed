@@ -30,7 +30,8 @@ import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {getMentionThreadContext, useDocumentComments} from '@shm/shared/models/comments'
 import {useAccount, useResource} from '@shm/shared/models/entity'
-import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
+import {invalidateAfterCommentPublish} from '@shm/shared/comment-invalidation'
+import {useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
@@ -243,15 +244,7 @@ export default function WebCommenting({
         }
         const publishedComment = {...optimisticComment, version: response.cids[0]!}
         applyOptimisticComment(queryClient, docId, publishedComment, undefined, quoting)
-        invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
-        invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
-        invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
-        invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
-        if (publishedComment.replyParent) invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
-        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
-        invalidateQueries([queryKeys.DOC_CITATIONS], {refetchType: 'all'})
-        invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
-        invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
+        invalidateAfterCommentPublish(queryClient, {targetId: docId, comment: publishedComment})
         latestRef.current.onSuccess?.({response, commentPayload, id: recordId})
         return publishedComment
       },

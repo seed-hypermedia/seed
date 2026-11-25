@@ -8,7 +8,7 @@ This page defines the **change** blob type. A Change is a [blob](./protocol/blob
 
 # Fields
 
-A Change adds four fields to the signed [blob](./blob.md) envelope:
+A Change adds these fields to the signed [blob](./blob.md) envelope:
 
 <!-- id:HnE1cME2 -->
 | key <!-- col:jyGiAoPG --> | meaning <!-- col:5bfVXhR3 --> <!-- id:Qpaz2gbv --> |
@@ -17,6 +17,7 @@ A Change adds four fields to the signed [blob](./blob.md) envelope:
 | `deps` | the parent changes: the heads the author saw when editing. The [daemon](./software/daemon.md) sorts them by CID bytes. Ingest does not check the order. <!-- id:LdORluuw --> |
 | `depth` | one more than the largest depth among the deps; zero for the genesis. <!-- id:TXe9UZwa --> |
 | `body` | `{opCount?, ops}`: the operations. `opCount` is an advisory count that nothing reads. <!-- id:v8tQmkjv --> |
+| `message` | optional human-readable description of the Change, like a commit message. Absent when empty. |
 
 The daemon checks one rule when it indexes a Change. Either all three of these are present, or none of them: `genesis`, a non-empty `deps`, and a positive `depth`. The daemon rejects anything else. <!-- id:lpmLMobZ -->
 
