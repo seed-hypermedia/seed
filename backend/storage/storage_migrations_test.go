@@ -170,6 +170,38 @@ func TestRBSRRepairMigrationDoesNotScheduleReindex(t *testing.T) {
 	}
 }
 
+func TestCheckMigrations(t *testing.T) {
+	dir := t.TempDir()
+
+	status, err := CheckMigrations(dir)
+	require.NoError(t, err)
+	require.Equal(t, "", status.CurrentVersion, "uninitialized data dir must report empty version")
+	require.Empty(t, status.Pending)
+
+	require.NoError(t, copyDir(snapshotDataDir, dir))
+
+	status, err = CheckMigrations(dir)
+	require.NoError(t, err)
+	require.Equal(t, "2024-10-19.01", status.CurrentVersion)
+	require.Equal(t, desiredVersion(), status.DesiredVersion)
+	require.Len(t, status.Pending, len(migrations)-1, "every migration after the snapshot version must be pending")
+	require.Equal(t, desiredVersion(), status.Pending[len(status.Pending)-1])
+
+	alice := coretest.NewTester("alice")
+	store, err := Open(dir, alice.Device.Libp2pKey(), keystore.NewMemory(), "warn")
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+
+	status, err = CheckMigrations(dir)
+	require.NoError(t, err)
+	require.Equal(t, desiredVersion(), status.CurrentVersion)
+	require.Empty(t, status.Pending, "nothing must be pending after Open migrates the data dir")
+
+	require.NoError(t, writeVersionFile(dir, "9999-01-01.01"))
+	_, err = CheckMigrations(dir)
+	require.ErrorContains(t, err, "OLD VERSION")
+}
+
 func TestMigrationListSorted(t *testing.T) {
 	require.True(t, slices.IsSortedFunc(migrations, func(a, b migration) int {
 		return strings.Compare(a.Version, b.Version)

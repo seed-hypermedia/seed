@@ -61,7 +61,7 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 	// only files created after the flag is set inherit it.
 	maybeDisableCOW(filepath.Join(dataDir, dbDir), log)
 
-	db, err := newSQLite(sqlitePath(dataDir))
+	db, err := newSQLite(SQLitePath(dataDir))
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 	// readers yet, so a one-shot blocking TRUNCATE drains it cleanly: a brief boot
 	// delay proportional to the inherited WAL, instead of a persistent live stall.
 	var walBytesBefore int64
-	if fi, statErr := os.Stat(sqlitePath(dataDir) + "-wal"); statErr == nil {
+	if fi, statErr := os.Stat(SQLitePath(dataDir) + "-wal"); statErr == nil {
 		walBytesBefore = fi.Size()
 	}
 	if err := db.ForWrite(func(conn *sqlite.Conn) error {
@@ -105,7 +105,8 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 	}); err != nil {
 		return nil, fmt.Errorf("failed to disable wal autocheckpoint: %w", err)
 	}
-	ckpt, err := newWALCheckpointer(sqlitePath(dataDir), defaultCheckpointInterval, log)
+
+	ckpt, err := newWALCheckpointer(SQLitePath(dataDir), defaultCheckpointInterval, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start wal checkpointer: %w", err)
 	}
@@ -244,6 +245,7 @@ func newSQLite(path string) (*sqlitex.Pool, error) {
 	return db, nil
 }
 
-func sqlitePath(baseDir string) string {
+// SQLitePath returns the path of the SQLite database file inside the data directory.
+func SQLitePath(baseDir string) string {
 	return filepath.Join(baseDir, dbDir, "db.sqlite")
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -9,52 +10,95 @@ import (
 	"strings"
 
 	"github.com/abiosoft/ishell/v2"
+	"github.com/peterbourgon/ff/v4"
 
+	"seed/backend/config"
 	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 )
 
-func main() {
-	flag.Parse()
+const sqlLongHelp = `Opens an interactive SQL shell with all of our custom SQLite extensions loaded, for quick testing and prototyping. It's much more limited than the official sqlite3 shell.
 
-	args := flag.Args()
-	if len(args) > 1 {
-		fmt.Fprintf(os.Stderr, "usage: seed-sqlite [database-path]\n")
-		os.Exit(1)
+Without arguments it opens an in-memory database. If the data directory is given explicitly (with -data-dir, SEED_DATA_DIR, or SEED_DAEMON_FLAGS), it opens the daemon database in that directory. A DATABASE argument opens that file instead, and ":memory:" opens an in-memory database.
+
+It doesn't run migrations or check the schema, and it executes every statement as typed, writes included. Be careful with the database of a running daemon.
+
+Type .tables to list the tables, and .quit to exit.`
+
+// newSQLCmd creates the sql subcommand. It inherits the daemon flags from parent,
+// and opens the data directory from cfg only if it was set explicitly.
+func newSQLCmd(cfg *config.Config, parent *ff.FlagSet) *ff.Command {
+	dataDirFlag, ok := parent.GetFlag("data-dir")
+	if !ok {
+		panic("BUG: daemon flags must define -data-dir")
 	}
 
-	var dbPath string
-	if len(args) == 0 {
-		dbPath = ":memory:"
-	} else {
-		dbPath = args[0]
-	}
+	// Standard flag package for single-dash flags, like the daemon ones.
+	stdfs := flag.NewFlagSet("sql", flag.ContinueOnError)
 
-	// Convert to URI format
+	return &ff.Command{
+		Name:      "sql",
+		Usage:     "seed-daemon sql [FLAGS] [DATABASE]",
+		ShortHelp: "Open an interactive SQL shell with our custom SQLite extensions.",
+		LongHelp:  sqlLongHelp,
+		Flags:     ff.NewFlagSetFrom(stdfs.Name(), stdfs).SetParent(parent),
+		Exec: func(_ context.Context, args []string) error {
+			dbPath, err := sqlDatabasePath(args, cfg.Base, dataDirFlag.IsSet())
+			if err != nil {
+				return err
+			}
+
+			return runSQL(dbPath)
+		},
+	}
+}
+
+// sqlDatabasePath decides which database the sql subcommand opens.
+func sqlDatabasePath(args []string, base config.Base, dataDirSet bool) (string, error) {
+	switch {
+	case len(args) > 1:
+		return "", fmt.Errorf("sql: expected at most one DATABASE argument, got %q", args)
+	case len(args) == 1 && dataDirSet:
+		return "", errors.New("sql: give either a DATABASE argument or a data directory, not both")
+	case len(args) == 1:
+		return args[0], nil
+	case dataDirSet:
+		if err := base.ExpandDataDir(); err != nil {
+			return "", err
+		}
+
+		// Opening a missing file would silently create an empty database.
+		dbPath := storage.SQLitePath(base.DataDir)
+		if _, err := os.Stat(dbPath); err != nil {
+			return "", fmt.Errorf("sql: no database in data directory %q: %w", base.DataDir, err)
+		}
+
+		return dbPath, nil
+	default:
+		return ":memory:", nil
+	}
+}
+
+// runSQL opens the database and runs the interactive shell until the user quits.
+func runSQL(dbPath string) error {
 	uri := pathToURI(dbPath)
 	if uri == "" {
-		// Need to convert relative path to absolute
 		absPath, err := filepath.Abs(dbPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
+
 		uri = "file:" + absPath
 	}
 
-	// Open the database with pool size 1 using storage.OpenSQLite
 	pool, err := storage.OpenSQLite(uri, 0, 1)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer pool.Close()
 
-	if err := runREPL(context.Background(), pool); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	return runREPL(context.Background(), pool)
 }
 
 func runREPL(ctx context.Context, pool *sqlitex.Pool) error {

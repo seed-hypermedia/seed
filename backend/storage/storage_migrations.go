@@ -7,13 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"seed/backend/core"
+	"slices"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
-
-	"golang.org/x/exp/slices"
 )
 
 /*
@@ -755,30 +754,77 @@ const (
 	versionFilename = "VERSION"
 )
 
-func (s *Store) migrate(currentVersion string) error {
-	desiredVersion := migrations[len(migrations)-1].Version
-	if currentVersion > desiredVersion {
-		return fmt.Errorf("OLD VERSION: you are running an old version of Seed: your data dir version is %q and it can't be downgraded to %q", currentVersion, desiredVersion)
+// MigrationStatus describes the schema version of a data directory relative to this build.
+type MigrationStatus struct {
+	// CurrentVersion is the version of the data directory. Empty if the directory is not initialized.
+	CurrentVersion string
+	// DesiredVersion is the latest version this build knows about.
+	DesiredVersion string
+	// Pending lists the versions of the migrations that [Open] would apply, in order.
+	Pending []string
+}
+
+// CheckMigrations reports which migrations [Open] would apply to the data directory, without modifying anything.
+// An uninitialized data directory reports no pending migrations.
+func CheckMigrations(dataDir string) (MigrationStatus, error) {
+	ver, err := readVersionFile(dataDir)
+	if err != nil {
+		return MigrationStatus{}, fmt.Errorf("failed to read version file: %w", err)
 	}
 
-	// Running migrations if necessary.
-	{
-		idx, ok := slices.BinarySearchFunc(migrations, currentVersion, func(m migration, target string) int {
-			if m.Version == target {
-				return 0
-			}
+	status := MigrationStatus{
+		CurrentVersion: ver,
+		DesiredVersion: desiredVersion(),
+	}
 
-			if m.Version < target {
-				return -1
-			}
+	if ver == "" {
+		return status, nil
+	}
 
-			return +1
-		})
-		if !ok {
-			return fmt.Errorf("BREAKING CHANGE: this version of Seed is incompatible with your existing data: remove your data directory located in %q", s.path)
+	pending, err := pendingMigrations(dataDir, ver)
+	if err != nil {
+		return status, err
+	}
+
+	for _, m := range pending {
+		status.Pending = append(status.Pending, m.Version)
+	}
+
+	return status, nil
+}
+
+// pendingMigrations returns the migrations needed to bring the data directory from currentVersion to the desired version.
+func pendingMigrations(dataDir, currentVersion string) ([]migration, error) {
+	desiredVersion := desiredVersion()
+	if currentVersion > desiredVersion {
+		return nil, fmt.Errorf("OLD VERSION: you are running an old version of Seed: your data dir version is %q and it can't be downgraded to %q", currentVersion, desiredVersion)
+	}
+
+	idx, ok := slices.BinarySearchFunc(migrations, currentVersion, func(m migration, target string) int {
+		if m.Version == target {
+			return 0
 		}
 
-		pending := migrations[idx+1:]
+		if m.Version < target {
+			return -1
+		}
+
+		return +1
+	})
+	if !ok {
+		return nil, fmt.Errorf("BREAKING CHANGE: this version of Seed is incompatible with your existing data: remove your data directory located in %q", dataDir)
+	}
+
+	return migrations[idx+1:], nil
+}
+
+func (s *Store) migrate(currentVersion string) error {
+	// Running migrations if necessary.
+	{
+		pending, err := pendingMigrations(s.path, currentVersion)
+		if err != nil {
+			return err
+		}
 
 		conn, release, err := s.db.WriteConn(context.Background())
 		if err != nil {

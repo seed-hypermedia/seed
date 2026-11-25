@@ -27,7 +27,7 @@ The daemon is in `backend/`, written in Go. The entry point is `backend/cmd/seed
 
 The protobuf definitions are in `proto/`. They generate both the Go server and the TypeScript clients. Run `./dev gen` after you change them.
 
-`backend/cmd` holds other binaries beside the daemon: `monitord` (health checks of sites), `relayd` (a libp2p [relay](../protocol/network.md), a server that forwards connections for peers behind NAT), `pingp2p` (a connectivity test), and `seed-sqlite` and `mkdb` (database tools). <!-- id:XR_ivu-Q -->
+`backend/cmd` holds other binaries beside the daemon: `monitord` (health checks of sites), `relayd` (a libp2p [relay](../protocol/network.md), a server that forwards connections for peers behind NAT), `pingp2p` (a connectivity test), and `mkdb` (a database tool). The `seed-daemon` binary also has maintenance subcommands. `seed-daemon -help` lists them. <!-- id:XR_ivu-Q -->
 
 # How programs talk to it <!-- id:Xn2Taszv -->
 
@@ -99,6 +99,10 @@ The data directory holds three things. <!-- id:sBs3fgUk -->
   - `db/db.sqlite` is the SQLite database. It holds every [blob](../protocol/blobs.md), the index derived from them, full-text search, and the domain store. <!-- id:EFYA2PwL -->
 
 The schema in `backend/storage/schema.sql` is the source of truth, and migrations only go forward. A reindex rebuilds everything the daemon derives from the blobs. It can take a long time on a large node. A debug flag forces a reindex with profiling. <!-- id:VHdZ4OXj -->
+
+To reindex without starting the daemon, stop it and run `seed-daemon reindex -data-dir <dir>`. The subcommand reads the daemon flags and their `SEED_*` environment variables, so the data directory can come from the same configuration as the daemon. The data directory must be set explicitly in one of those ways: the default one is never reindexed by accident. It runs the same reindex as the daemon and prints its progress every 15 seconds. If the data directory needs a migration, it says so and asks before it migrates. `-allow-migrations` skips that question. `-profile-dir <dir>` writes CPU, trace, heap and other runtime profiles of the run. The reindex is one transaction, so an interrupted run leaves the old index in place.
+
+`seed-daemon sql` opens an interactive SQL shell with our custom SQLite extensions loaded. Without arguments it opens an in-memory database. With an explicit data directory (`-data-dir`, `SEED_DATA_DIR` or `SEED_DAEMON_FLAGS`) it opens that directory's database, and a path argument opens that file. It doesn't migrate or check the schema, and it runs writes too.
 
 # Running it
 
