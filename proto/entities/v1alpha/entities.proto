@@ -264,6 +264,11 @@ message Entity {
 
   // Metadata of the document containing that entity.
   string metadata = 10;
+
+  // True when the name that matched is no longer the entity's current one:
+  // a Profile name the account has since changed, or a document title a
+  // later version replaced. Such hits sort after every current-name hit.
+  bool is_former_name = 11;
 }
 
 // Publication that has been deleted
