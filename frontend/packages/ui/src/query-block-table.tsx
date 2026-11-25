@@ -1,7 +1,7 @@
 import {type QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
 import {InlineDraftListItem} from './inline-draft-list-item'
 import {HMDocumentInfo, type HMQueryTableConfig} from '@seed-hypermedia/client/hm-types'
-import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
+import {formattedDate, getDocumentTitle, useRouteLink} from '@shm/shared'
 import {
   flexRender,
   getCoreRowModel,
@@ -336,10 +336,10 @@ function TitleCell({item}: {item: HMDocumentInfo}) {
     <a
       {...linkProps}
       className="flex items-center gap-2 font-medium hover:underline"
-      title={getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
+      title={getDocumentTitle(item, 'Untitled')}
     >
       <DocumentKindIcon kind={getDocumentKind(item)} className="size-4 shrink-0" />
-      <span className="truncate">{getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}</span>
+      <span className="truncate">{getDocumentTitle(item, 'Untitled')}</span>
     </a>
   )
 }
