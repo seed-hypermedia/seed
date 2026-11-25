@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type {HMDocumentInfo, HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {DocumentActionsProvider, type DocumentActionsContextValue} from '@shm/shared/document-actions-context'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import type {ReactNode} from 'react'
 import {act} from 'react-dom/test-utils'
@@ -406,5 +407,129 @@ describe('SiteFileBrowser', () => {
     expect(items).toEqual(['Document', 'Agent'])
     act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
     expect(createAgent).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Pins must live in the same browser as the sidebar's document tree.
+describe('sidebar pins', () => {
+  const pin = {siteUid: 'site', path: ['guide'], title: 'Saved guide', seenVersion: 'v1', createdAt: '2026-01-01'}
+  const guide = {...makeDoc(['guide'], 'Guide'), version: 'v2'}
+
+  function renderBrowser(
+    actions: DocumentActionsContextValue,
+    props: Partial<React.ComponentProps<typeof SiteFileBrowser>> = {},
+  ) {
+    act(() =>
+      root.render(
+        <DocumentActionsProvider {...actions}>
+          <SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} {...props} />
+        </DocumentActionsProvider>,
+      ),
+    )
+  }
+
+  it('pins a published tree row without navigating and excludes unpublished drafts', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [guide],
+      drafts: [{id: 'draft', metadata: {name: 'Draft'}, locationId: hmId('site')}],
+      isLoading: false,
+    })
+    const pinDocument = vi.fn()
+    const onNavigate = vi.fn()
+    renderBrowser({pinDocument}, {onNavigate})
+    const button = container.querySelector<HTMLButtonElement>('[aria-label="Pin Guide"]')
+    expect(button).not.toBeNull()
+    act(() => button!.click())
+    expect(pinDocument).toHaveBeenCalledWith(latestId(guide.id), 'Guide', 'v2')
+    expect(onNavigate).not.toHaveBeenCalled()
+    expect(container.querySelector('[aria-label="Pin Draft"]')).toBeNull()
+  })
+
+  it('shows compact pins above the tree and opens the latest document', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide], drafts: [], isLoading: false})
+    const getPinsForSite = vi.fn(() => [pin])
+    const onNavigate = vi.fn()
+    renderBrowser({getPinsForSite}, {onNavigate})
+    const section = container.querySelector('[aria-label="Pinned documents"]')!
+    expect(section).not.toBeNull()
+    expect(section.compareDocumentPosition(container.querySelector('[aria-label="Space documents"]')!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    expect(section.querySelector('[aria-label="Document updated"]')).not.toBeNull()
+    act(() =>
+      Array.from(section.querySelectorAll('button'))
+        .find((b) => b.textContent === 'Guide')!
+        .click(),
+    )
+    expect(onNavigate).toHaveBeenCalledWith(latestId(guide.id))
+    expect(getPinsForSite).toHaveBeenCalledWith('site')
+  })
+
+  it('does not mark pins missing while the directory is unavailable', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: undefined, drafts: [], isLoading: false})
+    renderBrowser({getPinsForSite: () => [pin]})
+    expect(container.textContent).toContain('Saved guide')
+    expect(container.querySelector('[aria-label="Document unavailable"]')).toBeNull()
+  })
+
+  it('retains the saved title for missing documents and supports collapsing pins', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    renderBrowser({getPinsForSite: () => [pin], unpinDocument: vi.fn()})
+    expect(container.querySelector('[aria-label="Document unavailable"]')).not.toBeNull()
+    const heading = container.querySelector<HTMLButtonElement>('[aria-label="Collapse pinned documents"]')!
+    expect(heading).not.toBeNull()
+    act(() => heading.click())
+    expect(container.textContent).not.toContain('Saved guide')
+    expect(container.querySelector('[aria-label="Expand pinned documents"]')).not.toBeNull()
+  })
+
+  it('hides pins while filtering and scopes pins to the selected site', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide], drafts: [], isLoading: false})
+    const getPinsForSite = (uid: string) => (uid === 'site' ? [pin] : [])
+    renderBrowser({getPinsForSite}, {searchVisible: true})
+    const input = container.querySelector<HTMLInputElement>('input')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Guide')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    expect(container.querySelector('[aria-label="Pinned documents"]')).toBeNull()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    expect(container.querySelector('[aria-label="Pinned documents"]')).not.toBeNull()
+    renderBrowser({getPinsForSite}, {siteId: hmId('other')})
+    expect(container.querySelector('[aria-label="Pinned documents"]')).toBeNull()
+  })
+
+  it('reorders, acknowledges updates, and unpins through the pin menu', () => {
+    const second = {...makeDoc(['notes'], 'Notes'), version: 'v1'}
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [guide, second], drafts: [], isLoading: false})
+    const movePin = vi.fn()
+    const acknowledgePin = vi.fn()
+    const unpinDocument = vi.fn()
+    renderBrowser({
+      getPinsForSite: () => [pin, {...pin, path: ['notes'], title: 'Notes'}],
+      movePin,
+      acknowledgePin,
+      unpinDocument,
+    })
+    function select(title: string, label: string) {
+      const trigger = container.querySelector(`[aria-label="Pin options for ${title}"]`)!
+      act(() => trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0})))
+      const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+        (item) => item.textContent === label,
+      )!
+      expect(item).toBeDefined()
+      act(() => item.click())
+    }
+    select('Guide', 'Move down')
+    expect(movePin).toHaveBeenCalledWith('site', 0, 1)
+    select('Notes', 'Move to top')
+    expect(movePin).toHaveBeenCalledWith('site', 1, 0)
+    select('Guide', 'Mark as up to date')
+    expect(acknowledgePin).toHaveBeenCalledWith(latestId(guide.id), 'v2', 'Guide')
+    select('Guide', 'Unpin')
+    expect(unpinDocument).toHaveBeenCalledWith(latestId(guide.id))
   })
 })
