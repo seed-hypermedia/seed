@@ -376,7 +376,7 @@ export function getFocusedWindowNewWindowRoute(): NavRoute {
   const route = getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
   // A window already showing the space home would absorb the request (one
   // document per window), so open the welcome page instead.
-  return findWindowForRoute(route) ? defaultRoute : route
+  return windowNavigation.owner(route) ? defaultRoute : route
 }
 
 let isExpectingQuit = false
