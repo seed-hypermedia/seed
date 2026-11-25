@@ -1,3 +1,4 @@
+import {getNavigationResourceKey, NavigationRouteBoundary} from '../utils/navigation-route-boundary'
 import {ActivityPanelProvider, ActivityPanelOutlet} from '@shm/ui/activity-panel-layout'
 import {useAppContext, useListen} from '@/app-context'
 
@@ -199,10 +200,10 @@ export default function Main({className}: {className?: string}) {
   useEffect(() => {
     if (navR.key === 'web') setBrowserMounted(true)
   }, [navR.key])
-  // Reset route-scoped crashes on navigation without forcing the entire page tree
-  // to unmount. Document routes share a single page component and rely on staying
-  // mounted so the site header and editor state do not flash between navigations.
+  // A resource boundary stops the outgoing document before navigation is acknowledged.
+  // Version changes keep the same boundary, preserving the editor and its state.
   const routeKey = useMemo(() => getRouteKey(navR), [navR])
+  const resourceKey = getNavigationResourceKey(navR)
   useListen<NavRoute>(
     'open_route',
     (event) => {
@@ -248,9 +249,9 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <Suspense fallback={<Fallback />}>
+          <NavigationRouteBoundary routeKey={resourceKey} fallback={<Fallback />}>
             <PageComponent />
-          </Suspense>
+          </NavigationRouteBoundary>
         </ErrorBoundary>
       </div>
     )
@@ -267,9 +268,9 @@ export default function Main({className}: {className?: string}) {
             window.location.reload()
           }}
         >
-          <Suspense fallback={<Fallback />}>
+          <NavigationRouteBoundary routeKey={resourceKey} fallback={<Fallback />}>
             <PageComponent />
-          </Suspense>
+          </NavigationRouteBoundary>
         </ErrorBoundary>
       </div>
     )
@@ -303,14 +304,16 @@ export default function Main({className}: {className?: string}) {
                         root boundary and the whole window — chrome included — becomes a spinner. */}
                               <Suspense fallback={<Fallback />}>
                                 {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                                {navR.key !== 'web' && (
+                              </Suspense>
+                              {navR.key !== 'web' && (
+                                <NavigationRouteBoundary routeKey={resourceKey} fallback={<Fallback />}>
                                   <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
                                     <NotificationInboxProvider value={DesktopNotificationInbox}>
                                       <PageComponent />
                                     </NotificationInboxProvider>
                                   </AssistantPanelToggleContext.Provider>
-                                )}
-                              </Suspense>
+                                </NavigationRouteBoundary>
+                              )}
                             </ErrorBoundary>
                           </div>
                         </div>

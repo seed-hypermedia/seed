@@ -1,3 +1,5 @@
+import {createWindowNavigation} from './window-navigation-machine'
+import {windowNavigationActionSchema} from './window-navigation-protocol'
 import appError from '@/errors'
 import {getPageWebContents, setupWebBrowser} from './app-web-browser'
 import {createBrowserArchiveDraft, getListedDraft} from './app-drafts'
@@ -8,7 +10,6 @@ import {API_HTTP_URL, DAEMON_FILE_URL, DAEMON_HTTP_URL, DEFAULT_DESKTOP_AGENTS_U
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
 import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen} from 'electron'
-import isEqual from 'lodash/isEqual'
 import path from 'node:path'
 import {z} from 'zod'
 import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
@@ -26,7 +27,6 @@ import {
   resolveSelectedIdentityForWindow,
   type WindowNavState,
 } from './utils/account-selection'
-import {getRouteWindowResourceKeys} from './utils/route-window-identity'
 
 /** Resolve the app's exact origin after its local server has started. */
 export function getAppWindowPolicy(): AppWindowPolicy {
@@ -100,78 +100,37 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
   return BrowserWindow.getFocusedWindow()
 }
 
-// Find an existing window (other than `excludeWindowId`) whose active route
-// already shows the requested route's resource.
-function findWindowForRoute(
-  route: NavRoute,
-  excludeWindowId?: string,
-): {windowId: string; window: BrowserWindow} | null {
-  const keys = getRouteWindowResourceKeys(route, getListedDraft)
-  if (!keys) return null
-  const windowEntries = Array.from(allWindows.entries())
-  for (const [windowId, browserWindow] of windowEntries) {
-    if (windowId === excludeWindowId) continue
-    const navState = windowNavState[windowId]
-
-    if (navState && navState.routes.length > 0) {
-      const activeRoute = navState.routes[navState.routeIndex]
-      const activeKeys = activeRoute && getRouteWindowResourceKeys(activeRoute, getListedDraft)
-      if (activeKeys && Array.from(keys).some((key) => activeKeys.has(key))) {
-        return {windowId, window: browserWindow}
-      }
-    }
-  }
-  return null
-}
-
-// Focus an existing window and restore it if minimized.
+// Focus changes never release resource ownership.
 function focusExistingWindow(browserWindow: BrowserWindow): void {
-  if (browserWindow.isMinimized()) {
-    browserWindow.restore()
-  }
-  browserWindow.focus()
+  if (browserWindow.isMinimized()) browserWindow.restore()
   browserWindow.show()
+  browserWindow.focus()
 }
 
-// Focus an existing window and route it to the requested location. When the
-// window already shows the exact route it is only focused, so reopening a
-// document does not pile duplicate entries onto its history.
-function openRouteInExistingWindow(windowId: string, browserWindow: BrowserWindow, route: NavRoute): void {
-  focusExistingWindow(browserWindow)
-  const navState = windowNavState[windowId]
-  const activeRoute = navState?.routes?.[navState.routeIndex]
-  if (!activeRoute || !isEqual(activeRoute, route)) {
-    browserWindow.webContents.send('open_route', route)
-  }
+/** Route to the existing owner, or the specified source, through the navigation coordinator. */
+export function openRouteInWindow(route: NavRoute, source?: BrowserWindow): boolean {
+  const ownerId = windowNavigation.owner(route)
+  const sourceId = ownerId ?? Array.from(allWindows).find(([, window]) => window === source)?.[0]
+  if (!sourceId) return false
+  windowNavigation.request(sourceId, {type: 'push', route})
+  return true
 }
 
-/**
- * Focus the window already showing `route`'s resource and navigate it to the
- * requested route. Used when a window tries to open a document another window
- * has open, so the document stays in one window. Returns false when no window
- * shows the resource and the caller should navigate normally.
- */
+/** Focus an existing resource owner through the navigation coordinator. */
 export function focusWindowForRoute(route: NavRoute, excludeWindowId?: string): boolean {
-  const found = findWindowForRoute(route, excludeWindowId)
-  if (!found) return false
-  openRouteInExistingWindow(found.windowId, found.window, route)
+  const ownerId = windowNavigation.owner(route)
+  if (!ownerId || ownerId === excludeWindowId) return false
+  windowNavigation.request(ownerId, {type: 'push', route})
   return true
 }
 
 export function closeAppWindow(windowId: string) {
   const window = allWindows.get(windowId)
   if (!window) return null
+  window.once('closed', () => {
+    if (!isExpectingQuit && allWindows.size === 0) createAppWindow({routes: [defaultRoute]})
+  })
   window.close()
-  allWindows.delete(windowId)
-  if (allWindows.size === 0) {
-    createAppWindow({
-      routes: [defaultRoute],
-      routeIndex: 0,
-      sidebarLocked: true,
-      sidebarWidth: 22,
-      accessoryWidth: 20,
-    })
-  }
 }
 
 function windowFocused(windowId: string) {
@@ -227,6 +186,7 @@ const appWindowSchema = z.object({
   selectedIdentity: z.string().nullable().optional(),
   assistantOpen: z.boolean().optional(),
   assistantSessionId: z.string().nullable().optional(),
+  lastFocusedAt: z.number().optional(),
 })
 
 /** Window creation input leaves layout values unset so the focused window can supply them. */
@@ -239,6 +199,11 @@ export const createAppWindowInputSchema = appWindowSchema.partial().extend({
 export type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
+const WINDOW_RESTORE_CHECKPOINT_KEY = 'WindowRestoreCheckpoint-v001'
+let restoringSession = false
+let restoreWindowIds = new Set<string>()
+let restorePrepared = false
+
 const LAST_SELECTED_IDENTITY_STORAGE_KEY = 'LastSelectedIdentity-v001'
 
 const initalizedWindows = new Set<string>()
@@ -342,6 +307,32 @@ let lastFocusedWindowId: string | null = null
 
 const windowNavState: Record<string, WindowNavState> = {}
 
+const windowNavigation = createWindowNavigation({
+  getDraft: getListedDraft,
+  apply: (windowId, requestId, state) => {
+    const window = allWindows.get(windowId)
+    if (!window || window.isDestroyed()) throw new Error('Navigation target is unavailable')
+    window.webContents.send('navigation_commit', {requestId, state})
+  },
+  focus: (windowId) => {
+    const window = allWindows.get(windowId)
+    if (window && !window.isDestroyed()) focusExistingWindow(window)
+  },
+  commit: (windowId, state) => {
+    windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
+      routes: state.routes,
+      routeIndex: state.routeIndex,
+    })
+    updateWindowState(windowId, (window) => ({...window, routes: state.routes, routeIndex: state.routeIndex}))
+    updateRecentRoute(state.routes[state.routeIndex])
+  },
+  close: closeAppWindow,
+  error: (windowId, error) => {
+    warn('Window navigation could not complete', {windowId, error: String(error)})
+    allWindows.get(windowId)?.webContents.send('navigation_error', String(error))
+  },
+})
+
 export function getWindowNavState() {
   return windowNavState
 }
@@ -395,7 +386,36 @@ app.addListener('before-quit', () => {
 
 function setWindowsState(newWindows: Record<string, AppWindow>) {
   windowsState = newWindows
-  appStore.set(WINDOW_STATE_STORAGE_KEY, newWindows)
+  if (!restoringSession) appStore.set(WINDOW_STATE_STORAGE_KEY, newWindows)
+}
+
+/** Preserve the original session on disk while restored renderers start. */
+export function beginWindowSessionRestore() {
+  if (restoringSession) return
+  appStore.set(WINDOW_RESTORE_CHECKPOINT_KEY, windowsState)
+  restoringSession = true
+  restorePrepared = false
+  windowsState = {}
+}
+
+/** Finish only after every survivor has installed its navigation listener. */
+export function finishWindowSessionRestore(windowIds: string[]) {
+  restoreWindowIds = new Set(windowIds)
+  restorePrepared = true
+  completeWindowSessionRestore()
+}
+
+function completeWindowSessionRestore() {
+  if (!restoringSession || !restorePrepared || isExpectingQuit) return
+  if (
+    Array.from(restoreWindowIds).some(
+      (id) => !windowNavigation.actor.getSnapshot().context.windows[id]?.ready || !initalizedWindows.has(id),
+    )
+  )
+    return
+  restoringSession = false
+  setWindowsState(windowsState)
+  appStore.delete(WINDOW_RESTORE_CHECKPOINT_KEY)
 }
 
 export function deleteWindowsState() {
@@ -455,10 +475,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const targetRoute = initRoutes[initRouteIndex]
 
   if (targetRoute) {
-    const existingWindow = findWindowForRoute(targetRoute)
-    if (existingWindow) {
-      openRouteInExistingWindow(existingWindow.windowId, existingWindow.window, targetRoute)
-      return existingWindow.window
+    const ownerId = windowNavigation.owner(targetRoute)
+    const existing = ownerId && allWindows.get(ownerId)
+    if (existing) {
+      windowNavigation.request(ownerId, {type: 'push', route: targetRoute})
+      return existing
     }
   }
 
@@ -607,6 +628,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   }
 
   windowNavState[windowId] = initNavState
+  windowNavigation.register(windowId, {...initNavState, lastAction: 'push'})
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
     e.returnValue = {
@@ -625,6 +647,25 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (initalizedWindows.has(windowId)) return
     browserWindow.show()
     initalizedWindows.add(windowId)
+    completeWindowSessionRestore()
+  })
+
+  browserWindow.webContents.ipc.on('navigation_ready', () => {
+    windowNavigation.ready(windowId)
+    completeWindowSessionRestore()
+  })
+  browserWindow.webContents.ipc.on('navigation_request', (_event, input: unknown) => {
+    const action = windowNavigationActionSchema.safeParse(input)
+    if (action.success) windowNavigation.request(windowId, action.data, action.data.type !== 'browserLocation')
+    else browserWindow.webContents.send('navigation_error', 'Invalid navigation request')
+  })
+  browserWindow.webContents.ipc.on('navigation_ack', (_event, requestId: unknown) => {
+    if (typeof requestId === 'number' && Number.isSafeInteger(requestId))
+      windowNavigation.acknowledge(windowId, requestId)
+  })
+  browserWindow.webContents.on('render-process-gone', () => windowNavigation.disconnected(windowId))
+  browserWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) windowNavigation.disconnected(windowId)
   })
 
   function saveWindowPosition() {
@@ -659,17 +700,16 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   // Set the persistent window state - this should match the windValue above
   setWindowState(windowId, {
     ...initNavState,
-    bounds: null,
+    bounds: input.bounds ?? null,
+    lastFocusedAt: input.lastFocusedAt,
   })
 
   // IPC handler for window nav state - defined as const for cleanup reference
   const windowNavStateHandler = (
     info: any,
-    {routes, routeIndex, sidebarLocked, sidebarWidth, accessoryWidth, selectedIdentity}: NavState,
+    {sidebarLocked, sidebarWidth, accessoryWidth, selectedIdentity}: NavState,
   ) => {
     windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
-      routes,
-      routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
       sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
@@ -678,14 +718,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (selectedIdentity) setLastSelectedIdentity(selectedIdentity)
     updateWindowState(windowId, (window) => ({
       ...window,
-      routes,
-      routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
       sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     }))
-    updateRecentRoute(routes[routeIndex])
   }
 
   // IPC handler for assistant panel state
@@ -731,7 +768,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     browserWindow.webContents.send('window-state-change', {isMaximized: false})
   })
 
-  browserWindow.on('close', () => {
+  browserWindow.on('closed', () => {
     destroyFindView(browserWindow)
 
     // Clean up daemon listener
@@ -743,13 +780,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       windowPositionSaveTimeout = null
     }
 
-    // Remove IPC listeners to prevent memory leak
-    browserWindow.webContents.ipc.removeListener('windowNavState', windowNavStateHandler)
-    browserWindow.webContents.ipc.removeListener('windowAssistantState', windowAssistantStateHandler)
-    browserWindow.webContents.ipc.removeListener('windowSidebarSpace', windowSidebarSpaceHandler)
+    // Per-webContents IPC listeners are disposed with the destroyed webContents.
 
     // Clean up window state
     allWindows.delete(windowId)
+    windowNavigation.closed(windowId)
     delete windowNavState[windowId]
     initalizedWindows.delete(windowId)
     logWindowClose(windowId)
@@ -760,12 +795,15 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (!isExpectingQuit) {
       deleteWindowState(windowId)
     }
+    restoreWindowIds.delete(windowId)
+    completeWindowSessionRestore()
   })
   browserWindow.on('show', () => {
     lastFocusedWindowId = windowId
     windowFocused(windowId)
   })
   browserWindow.on('focus', () => {
+    updateWindowState(windowId, (window) => ({...window, lastFocusedAt: Date.now()}))
     lastFocusedWindowId = windowId
     windowFocused(windowId)
     const navState = windowNavState[windowId]

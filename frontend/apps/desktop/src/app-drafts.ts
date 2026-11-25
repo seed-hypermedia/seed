@@ -526,9 +526,10 @@ export function createBrowserArchiveDraft(
   )
 }
 
-/** The index entry for a draft, used to resolve bare draft routes to their publish target. */
+/** Resolve window resource aliases only after the draft index has been loaded. */
 export function getListedDraft(draftId: string): HMListedDraft | undefined {
-  return draftIndex?.find((draft) => draft.id === draftId)
+  if (!draftIndex) throw new Error('Draft index is not ready')
+  return draftIndex.find((draft) => draft.id === draftId)
 }
 
 async function getDraft(draftId: string): Promise<HMDraft | null> {
