@@ -57,11 +57,12 @@ function HMIconImpl({
       label={name || ''}
       url={icon ? imageUrl(icon, 'S') : undefined}
       className={cn(
-        'flex-none bg-white',
+        'flex-none',
         // We want home documents and profiles to have round icons,
         // and normal documents to have square icons.
         // This should help differentiate between "people" and "documents".
-        isHomeDocument || isProfileDocument ? 'rounded-full' : 'rounded-sm',
+        // Document icons also preserve image transparency when overlapping a cover.
+        isHomeDocument || isProfileDocument ? 'rounded-full bg-white' : 'rounded-sm bg-transparent',
         className,
       )}
       {...props}
