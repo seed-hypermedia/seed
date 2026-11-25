@@ -582,7 +582,8 @@ func oraclesAgree(t *testing.T, set certSet) {
 	}
 }
 
-// runLaws runs every ported law on one generated input.
+// runLaws runs every ported law, then the Go-only laws from extensions.go, on
+// one generated input.
 func runLaws(t *testing.T, newStore NewStore, set certSet, seed uint64) {
 	st := &stores{parent: t, newStore: newStore, built: map[string]keyline.Store{}}
 	t.Run("oracles_agree", func(t *testing.T) { oraclesAgree(t, set) })
@@ -607,8 +608,10 @@ func runLaws(t *testing.T, newStore NewStore, set certSet, seed uint64) {
 		{"members_for_subset_answers_as_the_subset", membersForSubsetAnswersAsTheSubset},
 		{"batches_equal_singles", batchesEqualSingles},
 		{"interleaving_is_invisible", interleavingIsInvisible},
+		// Go-only laws (extensions.go).
 		{"members_of_matches_members", membersOfMatchesMembers},
-		{"computed_parents_match_stored_edges", computedParentsMatchStoredEdges},
+		{"edges_compose_to_members", edgesComposeToMembers},
+		{"stored_edges_match_conveyed", storedEdgesMatchConveyed},
 	} {
 		t.Run(law.name, func(t *testing.T) { law.run(t, st, set, seed) })
 	}

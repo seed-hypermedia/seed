@@ -2,7 +2,7 @@
 // and oracles (keyline/src/test_utils/conformance in keyhive) to any
 // keyline.Store. It mirrors upstream's layout: gen.go ports gen.rs, oracle.go
 // ports oracle/naive.rs and oracle/threshold.rs, and laws.go ports laws.rs one
-// law per function.
+// law per function. extensions.go adds laws for Go-only API upstream lacks.
 //
 // A store package calls Run from its tests, and FuzzEvaluation and
 // FuzzStructuredEvaluation from its fuzz targets.

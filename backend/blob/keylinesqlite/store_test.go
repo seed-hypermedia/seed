@@ -15,12 +15,8 @@ import (
 
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
-	db, err := sqlitex.Open(filepath.Join(t.TempDir(), "authority.db"), 0, 4)
-	require.NoError(t, err)
+	db := OpenTestDB(t, filepath.Join(t.TempDir(), "authority.db"), 4)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return Init(t.Context(), conn)
-	}))
 	return &Store{Pool: db}
 }
 
@@ -31,6 +27,7 @@ func TestSQLiteNodeInterning(t *testing.T) {
 	require.NoError(t, err)
 	defer release()
 	require.NoError(t, sqlitex.Exec(conn, dqb.Str(`PRAGMA foreign_keys = ON`)(), nil))
+	storeTestBlobs(t, conn, 1, 2, 3, 4, 5, 6, 7, 8, 9, 99)
 	require.NoError(t, sqlitex.WithTx(conn, func() error {
 		tx := Tx{Conn: conn}
 		batch := keyline.Batch{
@@ -179,12 +176,16 @@ func TestSQLiteEnumerationQueryPlans(t *testing.T) {
 			{sqliteBySubject, []any{"doc"}, []string{"SEARCH d USING INDEX keyline_outgoing (subject=?)"}, false},
 			{sqliteToAudience, []any{"doc", "alice"}, []string{
 				"SEARCH d USING INDEX keyline_outgoing (subject=?)",
-				"SEARCH d USING INDEX keyline_delegations_by_audience (audience=?)",
+				"SEARCH d USING INDEX keyline_delegations_by_audience (audience=? AND subject=?)",
 			}, false},
-			{sqliteSubjects, nil, []string{"SCAN d USING COVERING INDEX keyline_outgoing"}, true},
+			// Either index holds every subject; Subjects sorts resolved names anyway.
+			{sqliteSubjects, nil, []string{
+				"SCAN d USING COVERING INDEX keyline_outgoing",
+				"SCAN d USING COVERING INDEX keyline_delegations_by_audience",
+			}, true},
 			{sqliteAllNodes, nil, []string{"SCAN keyline_nodes USING INDEX sqlite_autoindex_keyline_nodes_1"}, false},
-			{sqliteAllDelegations, nil, []string{"SCAN d"}, false},
-			{sqliteAllRevocations, nil, []string{"SCAN r"}, false},
+			{sqliteAllDelegations, nil, []string{"SCAN d USING INDEX sqlite_autoindex_keyline_delegations_1"}, false},
+			{sqliteAllRevocations, nil, []string{"SCAN r USING INDEX sqlite_autoindex_keyline_revocations_1"}, false},
 		} {
 			var plans []string
 
@@ -218,12 +219,14 @@ func TestSQLiteSchemaConstraints(t *testing.T) {
 	require.NoError(t, err)
 	defer release()
 	require.NoError(t, sqlitex.Exec(conn, dqb.Str(`PRAGMA foreign_keys = ON`)(), nil))
+	storeTestBlobs(t, conn, 1, 2)
 	require.NoError(t, sqlitex.WithTx(conn, func() error {
 		for _, values := range [][]any{
 			{"", 1, 0, "blob"}, {"n", 0, 0, "blob"}, {"n", -1, 0, "blob"},
 			{"n", 1, 0, ""}, {"n", 1, 1.5, "blob"}, {"n", 1, 0, []byte("blob")},
 			{"n", 1, nil, nil}, {"n", nil, 0, nil}, {"n", nil, nil, "blob"},
 			{"n", nil, 0, "blob"}, {"n", 1, nil, "blob"}, {"n", 1, 0, nil},
+			{"n", 99, 0, "blob"},
 		} {
 			require.Error(t, sqlitex.Exec(conn, sqliteInsertNode(), nil, values...), "%v", values)
 		}
@@ -236,27 +239,27 @@ func TestSQLiteSchemaConstraints(t *testing.T) {
 		require.Error(t, sqlitex.Exec(conn, dqb.Str(`INSERT INTO keyline_nodes(name) VALUES ('i')`)(), nil), "names are unique")
 		require.Error(t, sqlitex.Exec(conn, sqliteInternNode(), nil, ""))
 		require.Error(t, sqlitex.Exec(conn, sqliteInternNode(), nil, nil))
-		require.NoError(t, sqlitex.Exec(conn, sqliteInsertDelegation(), nil, "valid", 1, 2, 3, "r", 1))
+		require.NoError(t, sqlitex.Exec(conn, sqliteInsertDelegation(), nil, "valid", 1, 2, 3, 2, 1))
+		require.NoError(t, sqlitex.Exec(conn, sqliteInsertDelegation(), nil, "implied", 1, 2, 3, 2, nil))
 		require.NoError(t, sqlitex.Exec(conn, sqliteInsertRevocation(), nil, "valid", 1, "missing target", 2))
 		for _, values := range [][]any{
-			{"", 1, 2, 3, "s", 1}, {"d", "i", 2, 3, "s", 1},
-			{"d", 1, "a", 3, "s", 1}, {"d", 1, 2, "s", "s", 1},
-			{"d", 99, 2, 3, "s", 1}, {"d", 1, 99, 3, "s", 1}, {"d", 1, 2, 99, "s", 1},
-			{"d", 1, 2, 3, 0, 1}, {"d", 1, 2, 3, 257, 1},
-			{"d", 1, 2, 3, "s", 0}, {"d", 1, 2, 3, "s", -1},
-			{"d", 1, 2, 3, 1.5, 1}, {"d", 1, 2, 3, "s", 1.5},
-			{"d", 1, 2, 3, "", 1}, {"d", 1, 2, 3, "e", 1},
-			{"d", 1, 2, 3, "R", 1}, {"d", 1, 2, 3, " r", 1},
+			{"", 1, 2, 3, 1, 1}, {"d", "i", 2, 3, 1, 1},
+			{"d", 1, "a", 3, 1, 1}, {"d", 1, 2, "s", 1, 1},
+			{"d", 99, 2, 3, 1, 1}, {"d", 1, 99, 3, 1, 1}, {"d", 1, 2, 99, 1, 1},
+			{"d", 1, 2, 3, 0, 1}, {"d", 1, 2, 3, 5, 1}, {"d", 1, 2, 3, 257, 1}, {"d", 1, 2, 3, -1, 1},
+			{"d", 1, 2, 3, 1, 0}, {"d", 1, 2, 3, 1, -1}, {"d", 1, 2, 3, 1, 99},
+			{"d", 1, 2, 3, 1.5, 1}, {"d", 1, 2, 3, 1, 1.5},
+			{"d", 1, 2, 3, "", 1}, {"d", 1, 2, 3, "r", 1},
 			{"d", 1, 2, 3, "read", 1}, {"d", 1, 2, 3, []byte("r"), 1},
-			{nil, 1, 2, 3, "s", 1}, {"d", nil, 2, 3, "s", 1},
-			{"d", 1, nil, 3, "s", 1}, {"d", 1, 2, nil, "s", 1},
-			{"d", 1, 2, 3, nil, 1}, {"d", 1, 2, 3, "s", nil},
+			{nil, 1, 2, 3, 1, 1}, {"d", nil, 2, 3, 1, 1},
+			{"d", 1, nil, 3, 1, 1}, {"d", 1, 2, nil, 1, 1},
+			{"d", 1, 2, 3, nil, 1},
 		} {
 			require.Error(t, sqlitex.Exec(conn, sqliteInsertDelegation(), nil, values...), "%v", values)
 		}
 
 		for _, values := range [][]any{
-			{"", 1, "t", 1}, {"r", "i", "t", 1}, {"r", 99, "t", 1}, {"r", 1, "", 1}, {"r", 1, "t", 0},
+			{"", 1, "t", 1}, {"r", "i", "t", 1}, {"r", 99, "t", 1}, {"r", 1, "", 1}, {"r", 1, "t", 0}, {"r", 1, "t", 99},
 			{nil, 1, "t", 1}, {"r", nil, "t", 1}, {"r", 1, nil, 1}, {"r", 1, "t", nil},
 		} {
 			require.Error(t, sqlitex.Exec(conn, sqliteInsertRevocation(), nil, values...), "%v", values)
@@ -269,23 +272,23 @@ func TestSQLiteSchemaConstraints(t *testing.T) {
 func TestSQLitePowerEncoding(t *testing.T) {
 	store := newTestStore(t)
 	for _, tc := range []struct {
-		power keyline.Power
-		code  string
+		power  keyline.Power
+		stored string
 	}{
-		{keyline.Sync, "s"}, {keyline.Read, "r"}, {keyline.Write, "w"}, {keyline.Admin, "a"},
+		{keyline.Sync, "integer:1"}, {keyline.Read, "integer:2"}, {keyline.Write, "integer:3"}, {keyline.Admin, "integer:4"},
 	} {
-		t.Run(tc.code, func(t *testing.T) {
+		t.Run(tc.power.String(), func(t *testing.T) {
 			ctx := t.Context()
 			require.NoError(t, store.Pool.WithTx(ctx, func(conn *sqlite.Conn) error {
 				tx := Tx{Conn: conn}
-				d := keyline.Delegation{ID: keyline.ID(tc.code), Issuer: "doc", Audience: "alice", Subject: "doc", Power: tc.power, BlobID: 1}
+				d := keyline.Delegation{ID: keyline.ID(tc.power.String()), Issuer: "doc", Audience: "alice", Subject: "doc", Power: tc.power, BlobID: 1}
 				batch := keyline.Batch{Delegations: []keyline.Delegation{d}}
 				changed, err := tx.Apply(ctx, batch)
 				require.NoError(t, err)
 				require.True(t, changed)
 				stored, err := sqlitex.QueryOne[string](conn, dqb.Str(`SELECT typeof(power) || ':' || power FROM keyline_delegations WHERE id = ?`)(), d.ID)
 				require.NoError(t, err)
-				require.Equal(t, "text:"+tc.code, stored)
+				require.Equal(t, tc.stored, stored)
 				got, found, err := tx.Delegation(ctx, d.ID)
 				require.NoError(t, err)
 				require.True(t, found)
@@ -309,8 +312,8 @@ func TestSQLiteIndexedQueries(t *testing.T) {
 		}{
 			{sqliteNode, []any{"n"}, "sqlite_autoindex_keyline_nodes_1"},
 			{sqliteNodeID, []any{"n"}, "sqlite_autoindex_keyline_nodes_1"},
-			{sqliteDelegation, []any{"d"}, "PRIMARY KEY"},
-			{sqliteRevocation, []any{"r"}, "PRIMARY KEY"},
+			{sqliteDelegation, []any{"d"}, "sqlite_autoindex_keyline_delegations_1"},
+			{sqliteRevocation, []any{"r"}, "sqlite_autoindex_keyline_revocations_1"},
 			{sqliteOutgoing, []any{"doc", "doc"}, "keyline_outgoing"},
 			{sqliteTargeting, []any{"d"}, "keyline_targeting"},
 		} {

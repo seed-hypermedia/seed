@@ -68,6 +68,34 @@ func testBatchContract(t *testing.T, newStore NewStore) {
 		assertBatchState(t, store, base, keyline.Batch{})
 	})
 
+	t.Run("implied delegation", func(t *testing.T) {
+		store := newStore(t)
+		ctx := t.Context()
+		implied := keyline.Batch{Delegations: []keyline.Delegation{
+			{"owner", "doc", "space", "doc", keyline.Admin, 0},
+			{"grant", "space", "bob", "doc", keyline.Write, 1},
+		}}
+		require.True(t, implied.Delegations[0].Implied())
+		require.False(t, implied.Delegations[1].Implied())
+
+		changed, err := store.Apply(ctx, implied)
+		require.NoError(t, err)
+		require.True(t, changed)
+		assertBatchState(t, store, implied, keyline.Batch{})
+		q := testQueries{t, store}
+		require.Equal(t, keyline.Write, q.EffectivePower("doc", "bob"), "implied delegations ground grants")
+
+		// Every record that derives an implied delegation repeats it exactly.
+		changed, err = store.Apply(ctx, keyline.Batch{Delegations: implied.Delegations[:1]})
+		require.NoError(t, err)
+		require.False(t, changed)
+
+		// Implied and blob-defined delegations are different contents.
+		_, err = store.Apply(ctx, keyline.Batch{Delegations: []keyline.Delegation{{"owner", "doc", "space", "doc", keyline.Admin, 2}}})
+		require.ErrorIs(t, err, keyline.ErrConflict)
+		assertBatchState(t, store, implied, keyline.Batch{})
+	})
+
 	base := keyline.Batch{
 		Nodes:       []keyline.NodeRecord{{"old-n", 1, 0, "old-blob"}},
 		Delegations: []keyline.Delegation{{"old-d", "doc", "alice", "doc", keyline.Read, 2}},
@@ -95,7 +123,6 @@ func testBatchContract(t *testing.T, newStore NewStore) {
 		{"zero node blob", keyline.Batch{Nodes: []keyline.NodeRecord{{"bad", 0, 0, "blob"}}}, false},
 		{"negative node blob", keyline.Batch{Nodes: []keyline.NodeRecord{{"bad", -1, 0, "blob"}}}, false},
 		{"empty node blob key", keyline.Batch{Nodes: []keyline.NodeRecord{{"bad", 9, 0, ""}}}, false},
-		{"zero delegation blob", keyline.Batch{Delegations: []keyline.Delegation{{"bad", "doc", "bob", "doc", keyline.Write, 0}}}, false},
 		{"negative delegation blob", keyline.Batch{Delegations: []keyline.Delegation{{"bad", "doc", "bob", "doc", keyline.Write, -1}}}, false},
 		{"zero revocation blob", keyline.Batch{Revocations: []keyline.Revocation{{"bad", "bob", "missing", 0}}}, false},
 		{"negative revocation blob", keyline.Batch{Revocations: []keyline.Revocation{{"bad", "bob", "missing", -1}}}, false},

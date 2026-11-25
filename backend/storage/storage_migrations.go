@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"seed/backend/core"
-	"seed/backend/keyline/keylinesqlite"
 	"slices"
 
 	"seed/backend/util/sqlite"
@@ -118,26 +117,58 @@ var migrations = []migration{
 		return scheduleReindex(conn)
 	}},
 
-	// Initialize the derived authority graph with earliest-mention provenance
-	// and its membership cache. MaybeReindex backfills them from validated
-	// structural blobs before startup completes, without a full reindex or
-	// recomputing embeddings.
+	// Create Keyline's authority graph. Its tables are derived from Capability
+	// blobs, so a full reindex fills them, and sync scopes are rebuilt under the
+	// authority they now enforce.
 	{Version: "2026-11-03.104504", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := keylinesqlite.Init(context.Background(), conn); err != nil {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS keyline_edges;
+			DROP TABLE IF EXISTS keyline_revocations;
+			DROP TABLE IF EXISTS keyline_delegations;
+			DROP TABLE IF EXISTS keyline_nodes;
+			CREATE TABLE keyline_nodes (
+				id INTEGER PRIMARY KEY,
+				name TEXT UNIQUE NOT NULL CHECK (name != ''),
+				blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0),
+				ts INTEGER,
+				blob_key TEXT CHECK (blob_key != ''),
+				CHECK ((blob_id IS NULL AND ts IS NULL AND blob_key IS NULL) OR (blob_id IS NOT NULL AND ts IS NOT NULL AND blob_key IS NOT NULL))
+			) STRICT;
+			CREATE INDEX keyline_nodes_by_blob ON keyline_nodes (blob_id) WHERE blob_id IS NOT NULL;
+			CREATE TABLE keyline_delegations (
+				id TEXT UNIQUE NOT NULL CHECK (id != ''),
+				issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				power INTEGER NOT NULL CHECK (power BETWEEN 1 AND 4),
+				blob_id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0)
+			) STRICT;
+			CREATE TABLE keyline_revocations (
+				id TEXT UNIQUE NOT NULL CHECK (id != ''),
+				issuer INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				target TEXT NOT NULL CHECK (target != ''),
+				blob_id INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE CHECK (blob_id > 0)
+			) STRICT;
+			CREATE INDEX keyline_outgoing ON keyline_delegations (subject, issuer, audience);
+			CREATE INDEX keyline_delegations_by_issuer ON keyline_delegations (issuer);
+			CREATE INDEX keyline_delegations_by_audience ON keyline_delegations (audience, subject);
+			CREATE INDEX keyline_delegations_by_blob ON keyline_delegations (blob_id) WHERE blob_id IS NOT NULL;
+			CREATE INDEX keyline_targeting ON keyline_revocations (target);
+			CREATE INDEX keyline_revocations_by_issuer ON keyline_revocations (issuer);
+			CREATE INDEX keyline_revocations_by_blob ON keyline_revocations (blob_id);
+			CREATE TABLE keyline_edges (
+				subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				audience INTEGER NOT NULL REFERENCES keyline_nodes (id),
+				power INTEGER NOT NULL CHECK (power BETWEEN 1 AND 4),
+				PRIMARY KEY (subject, audience)
+			) STRICT, WITHOUT ROWID;
+			CREATE INDEX keyline_edges_by_audience ON keyline_edges (audience, subject);
+			UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;
+		`)); err != nil {
 			return err
 		}
 
-		return sqlitex.ExecScript(conn, sqlfmt(`
-			CREATE TABLE IF NOT EXISTS keyline_members (
-				subject INTEGER NOT NULL REFERENCES keyline_nodes (id),
-				member INTEGER NOT NULL REFERENCES keyline_nodes (id),
-				power TEXT NOT NULL CHECK (power IN ('s', 'r', 'w', 'a')),
-				PRIMARY KEY (subject, member)
-			) WITHOUT ROWID;
-			CREATE INDEX IF NOT EXISTS keyline_members_by_member ON keyline_members (member, subject);
-			UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;
-			DELETE FROM kv WHERE key = 'keyline_projection_version';
-		`))
+		return scheduleReindex(conn)
 	}},
 
 	// Give the feed an index holding only redirecting Refs, so resolving moved

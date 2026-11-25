@@ -504,20 +504,20 @@ const (
 	C_KeylineDelegationsSubject  = "keyline_delegations.subject"
 )
 
-// Table keyline_members.
+// Table keyline_edges.
 const (
-	KeylineMembers        sqlitegen.Table  = "keyline_members"
-	KeylineMembersMember  sqlitegen.Column = "keyline_members.member"
-	KeylineMembersPower   sqlitegen.Column = "keyline_members.power"
-	KeylineMembersSubject sqlitegen.Column = "keyline_members.subject"
+	KeylineEdges         sqlitegen.Table  = "keyline_edges"
+	KeylineEdgesAudience sqlitegen.Column = "keyline_edges.audience"
+	KeylineEdgesPower    sqlitegen.Column = "keyline_edges.power"
+	KeylineEdgesSubject  sqlitegen.Column = "keyline_edges.subject"
 )
 
-// Table keyline_members. Plain strings.
+// Table keyline_edges. Plain strings.
 const (
-	T_KeylineMembers        = "keyline_members"
-	C_KeylineMembersMember  = "keyline_members.member"
-	C_KeylineMembersPower   = "keyline_members.power"
-	C_KeylineMembersSubject = "keyline_members.subject"
+	T_KeylineEdges         = "keyline_edges"
+	C_KeylineEdgesAudience = "keyline_edges.audience"
+	C_KeylineEdgesPower    = "keyline_edges.power"
+	C_KeylineEdgesSubject  = "keyline_edges.subject"
 )
 
 // Table keyline_nodes.
@@ -946,11 +946,11 @@ var Schema = sqlitegen.Schema{
 		KeylineDelegationsBlobID:                {Table: KeylineDelegations, SQLType: "INTEGER"},
 		KeylineDelegationsID:                    {Table: KeylineDelegations, SQLType: "TEXT"},
 		KeylineDelegationsIssuer:                {Table: KeylineDelegations, SQLType: "INTEGER"},
-		KeylineDelegationsPower:                 {Table: KeylineDelegations, SQLType: "TEXT"},
+		KeylineDelegationsPower:                 {Table: KeylineDelegations, SQLType: "INTEGER"},
 		KeylineDelegationsSubject:               {Table: KeylineDelegations, SQLType: "INTEGER"},
-		KeylineMembersMember:                    {Table: KeylineMembers, SQLType: "INTEGER"},
-		KeylineMembersPower:                     {Table: KeylineMembers, SQLType: "TEXT"},
-		KeylineMembersSubject:                   {Table: KeylineMembers, SQLType: "INTEGER"},
+		KeylineEdgesAudience:                    {Table: KeylineEdges, SQLType: "INTEGER"},
+		KeylineEdgesPower:                       {Table: KeylineEdges, SQLType: "INTEGER"},
+		KeylineEdgesSubject:                     {Table: KeylineEdges, SQLType: "INTEGER"},
 		KeylineNodesBlobID:                      {Table: KeylineNodes, SQLType: "INTEGER"},
 		KeylineNodesBlobKey:                     {Table: KeylineNodes, SQLType: "TEXT"},
 		KeylineNodesID:                          {Table: KeylineNodes, SQLType: "INTEGER"},

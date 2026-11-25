@@ -9,6 +9,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -101,4 +102,42 @@ func blobIDForCID(t *testing.T, db *sqlitex.Pool, c cid.Cid) int64 {
 	id, err := sqlitex.QueryOnePool[int64](t.Context(), db, "SELECT id FROM blobs WHERE multihash = ?", []byte(c.Hash()))
 	require.NoError(t, err)
 	return id
+}
+
+// TestPutManyUnstashedBlobsPropagateVisibility guards that blobs a capability
+// unstashes in a later PutMany batch propagate their visibility. PutMany defers
+// propagation to one pass over the blobs it indexed directly, so the unstash
+// cascade must propagate on its own.
+func TestPutManyUnstashedBlobsPropagateVisibility(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(bob, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			must.Do2(NewOpSetKey("name", "Hello")),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	ref, err := NewRef(bob, 0, change.CID, alice.Principal(), "", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+
+	cpb, err := NewCapability(alice, bob.Principal(), alice.Principal(), "", "WRITER", "", clock.MustNow())
+	require.NoError(t, err)
+
+	// The ref arrives before the capability that authorizes bob, so it is stashed.
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+	require.NotZero(t, countStashedBlobs(t, db), "ref must be stashed before the capability arrives")
+
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{cpb}))
+	require.Equal(t, 0, countStashedBlobs(t, db), "capability must unstash the ref")
+
+	public, err := sqlitex.QueryOnePool[int](t.Context(), db,
+		"SELECT count() FROM blob_visibility WHERE id = :id AND space = 0", blobIDForCID(t, db, change.CID))
+	require.NoError(t, err)
+	require.Equal(t, 1, public, "the change of an unstashed public ref must be public")
 }

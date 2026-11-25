@@ -44,7 +44,7 @@ var tableSpecs = []TableSpec{
 	// Comment activity is derived from Comment blobs, so reindex rebuilds it.
 	{Name: T_CommentsLive, Kind: TableKindDerived},
 	{Name: T_DocumentCommentStats, Kind: TableKindDerived},
-	{Name: T_KeylineMembers, Kind: TableKindDerived},
+	{Name: T_KeylineEdges, Kind: TableKindDerived},
 	{Name: T_KeylineRevocations, Kind: TableKindDerived},
 	{Name: T_KeylineDelegations, Kind: TableKindDerived},
 	{Name: T_KeylineNodes, Kind: TableKindDerived},

@@ -23,17 +23,8 @@ import (
 // other peer has additional facts. New facts can enlarge it, so replicas must
 // continue synchronizing. Blob IDs remain local to the exporting store.
 func Closure(ctx context.Context, tx ReadTx, subject Node) iter.Seq2[Record, error] {
-	return (Evaluator{}).Closure(ctx, tx, subject)
-}
-
-// Closure enumerates a subject's replication closure with e's optional budgets.
-func (e Evaluator) Closure(ctx context.Context, tx ReadTx, subject Node) iter.Seq2[Record, error] {
 	return func(yield func(Record, error) bool) {
-		g, err := newGraph(tx, e)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
+		g := newGraph(tx)
 
 		if err := ctx.Err(); err != nil {
 			yield(nil, err)
@@ -59,7 +50,7 @@ func (e Evaluator) Closure(ctx context.Context, tx ReadTx, subject Node) iter.Se
 			targets := make(map[ID]bool)
 			for d, err := range tx.DelegationsBySubject(ctx, scope) {
 				if err == nil {
-					err = g.record(ctx, d)
+					err = ctx.Err()
 				}
 
 				if err != nil {
@@ -85,7 +76,7 @@ func (e Evaluator) Closure(ctx context.Context, tx ReadTx, subject Node) iter.Se
 				seen := make(map[ID]bool)
 				for r, err := range tx.Revocations(ctx, target) {
 					if err == nil {
-						err = g.record(ctx, r)
+						err = ctx.Err()
 					}
 
 					if err != nil {
@@ -110,7 +101,7 @@ func (e Evaluator) Closure(ctx context.Context, tx ReadTx, subject Node) iter.Se
 		for node := range nodes {
 			n, found, err := tx.Node(ctx, node)
 			if err == nil && found {
-				err = g.record(ctx, n)
+				err = ctx.Err()
 			}
 
 			if err != nil {
@@ -161,16 +152,6 @@ func Collect(records iter.Seq2[Record, error]) (Batch, error) {
 // and semantic fields. This is a comparison fingerprint, not a wire encoding,
 // authorization proof, or proof that the replica has every relevant revocation.
 func Digest(ctx context.Context, tx ReadTx) ([sha256.Size]byte, error) {
-	return (Evaluator{}).Digest(ctx, tx)
-}
-
-// Digest fingerprints the fact set with e's optional resource budgets.
-func (e Evaluator) Digest(ctx context.Context, tx ReadTx) ([sha256.Size]byte, error) {
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return [sha256.Size]byte{}, err
-	}
-
 	h := sha256.New()
 	_, _ = io.WriteString(h, "keyline-authority-set-v1\x00")
 	write := func(fields ...string) {
@@ -186,7 +167,7 @@ func (e Evaluator) Digest(ctx context.Context, tx ReadTx) ([sha256.Size]byte, er
 	// complete fact set. Length framing preserves arbitrary identifier bytes.
 	for record, err := range tx.Records(ctx) {
 		if err == nil {
-			err = g.record(ctx, record)
+			err = ctx.Err()
 		}
 
 		if err != nil {
@@ -194,12 +175,15 @@ func (e Evaluator) Digest(ctx context.Context, tx ReadTx) ([sha256.Size]byte, er
 		}
 
 		switch r := record.(type) {
+		case NodeRecord:
 		case Delegation:
 			_, _ = h.Write([]byte{1, byte(r.Power)})
 			write(string(r.ID), string(r.Issuer), string(r.Audience), string(r.Subject))
 		case Revocation:
 			_, _ = h.Write([]byte{2})
 			write(string(r.ID), string(r.Issuer), string(r.Target))
+		default:
+			return [sha256.Size]byte{}, fmt.Errorf("keyline: unexpected record type %T", record)
 		}
 	}
 
@@ -208,17 +192,4 @@ func (e Evaluator) Digest(ctx context.Context, tx ReadTx) ([sha256.Size]byte, er
 	}
 
 	return [sha256.Size]byte(h.Sum(nil)), nil
-}
-
-func (g *graph) record(ctx context.Context, record Record) error {
-	switch r := record.(type) {
-	case NodeRecord:
-		return g.fact(ctx, string(r.ID), r.BlobKey)
-	case Delegation:
-		return g.fact(ctx, string(r.ID), string(r.Issuer), string(r.Audience), string(r.Subject))
-	case Revocation:
-		return g.fact(ctx, string(r.ID), string(r.Issuer), string(r.Target))
-	default:
-		return fmt.Errorf("keyline: unexpected record type %T", record)
-	}
 }

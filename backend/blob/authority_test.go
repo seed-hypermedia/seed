@@ -1,10 +1,11 @@
 package blob
 
 import (
+	"fmt"
+	"seed/backend/blob/keylinesqlite"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/keyline"
-	"seed/backend/keyline/keylinesqlite"
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
@@ -19,7 +20,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestAuthorityDeleteAndReinsert(t *testing.T) {
+// TestAuthorityDeleteCited checks that a capability Keyline cites can't be
+// deleted out from under the authority it grants.
+func TestAuthorityDeleteCited(t *testing.T) {
 	ctx := t.Context()
 	alice := coretest.NewTester("alice").Account
 	bob := coretest.NewTester("bob").Account
@@ -29,29 +32,13 @@ func TestAuthorityDeleteAndReinsert(t *testing.T) {
 	grant, err := NewCapability(alice, bob.Principal(), alice.Principal(), "/team", RoleWriter, "", time.UnixMilli(10))
 	require.NoError(t, err)
 	require.NoError(t, idx.Put(ctx, grant))
-	originalID := blobIDForCID(t, db, grant.CID)
-	require.NoError(t, idx.DeleteBlock(ctx, grant.CID))
+	require.Error(t, idx.DeleteBlock(ctx, grant.CID))
 	has, err := idx.Has(ctx, grant.CID)
 	require.NoError(t, err)
-	require.False(t, has)
+	require.True(t, has)
 	allowed, err := idx.IsValidWriter(ctx, alice.Principal(), "/team/child", bob.Principal())
 	require.NoError(t, err)
-	require.False(t, allowed, "deleted capabilities must not leave cached authority")
-	require.NoError(t, (keylinesqlite.Store{Pool: db}).View(ctx, func(tx keyline.ReadTx) error {
-		_, found, err := tx.Delegation(ctx, keyline.ID(grant.CID.String()))
-		require.NoError(t, err)
-		require.False(t, found)
-		return nil
-	}))
-	require.NoError(t, idx.DeleteBlock(ctx, grant.CID), "repeated deletion is a no-op")
-	require.NoError(t, idx.Put(ctx, grant), "identical signed bytes can acquire a new local blob ID")
-	require.NotEqual(t, originalID, blobIDForCID(t, db, grant.CID))
-	allowed, err = idx.IsValidWriter(ctx, alice.Principal(), "/team/child", bob.Principal())
-	require.NoError(t, err)
 	require.True(t, allowed)
-	stored, err := idx.Get(ctx, grant.CID)
-	require.NoError(t, err)
-	require.Equal(t, grant.RawData(), stored.RawData())
 }
 
 func TestAuthorityPowerThresholds(t *testing.T) {
@@ -86,13 +73,7 @@ func TestAuthorityPowerThresholds(t *testing.T) {
 					Audience: keyNode(bob.Principal()), Subject: keyNode(alice.Principal()),
 					Power: tc.power, BlobID: 1,
 				}}})
-				if err != nil {
-					return err
-				}
-
-				batch := newIndexBatch()
-				batch.authoritySubjects[keyNode(alice.Principal())] = true
-				return batch.flush(indexOpts{}, conn, idx.bs, idx.log, nil)
+				return err
 			}))
 			for _, path := range []string{"", "/new/child"} {
 				allowed, err := idx.IsValidWriter(ctx, alice.Principal(), path, bob.Principal())
@@ -166,6 +147,17 @@ func TestAuthorityAgentComposition(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, allowed)
 
+			require.NoError(t, (keylinesqlite.Store{Pool: db}).View(t.Context(), func(tx keyline.ReadTx) error {
+				team := resourceNode(must.Do2(NewIRI(alice.Principal(), "/team")))
+				power, err := keyline.EffectivePower(t.Context(), tx, team, keyNode(alice.Principal()))
+				require.NoError(t, err)
+				require.Equal(t, keyline.Admin, power, "root edges give the owner Admin over a granted scope")
+				power, err = keyline.EffectivePower(t.Context(), tx, team, keyNode(dave.Principal()))
+				require.NoError(t, err)
+				require.Equal(t, keyline.Write, power)
+				return nil
+			}))
+
 			incremental := authorityTables(t, db)
 			require.NoError(t, idx.Reindex(t.Context()))
 			require.Equal(t, incremental, authorityTables(t, db), "a full reindex rebuilds the same projection")
@@ -173,7 +165,9 @@ func TestAuthorityAgentComposition(t *testing.T) {
 	}
 }
 
-func TestAuthorityProjectionBackfill(t *testing.T) {
+// TestAuthorityReindex covers rebuilding Keyline as ordinary derived data: a
+// full reindex repopulates an empty projection and retries blobs it denied.
+func TestAuthorityReindex(t *testing.T) {
 	ctx := t.Context()
 	alice := coretest.NewTester("alice").Account
 	bob := coretest.NewTester("bob").Account
@@ -227,30 +221,23 @@ func TestAuthorityProjectionBackfill(t *testing.T) {
 	}
 	check()
 
-	var before string
-
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		before = must.Do2(dbGetReindexTime(conn))
-		// Simulate an upgraded database: the validated legacy index and blobs
-		// exist, but the new disposable projection is empty.
+		// Lose the projection, so the next blobs are denied permission.
 		return sqlitex.ExecScript(conn, `
-			DELETE FROM keyline_members;
+			DELETE FROM keyline_edges;
 			DELETE FROM keyline_revocations;
 			DELETE FROM keyline_delegations;
 			DELETE FROM keyline_nodes;
-			DELETE FROM kv WHERE key = 'keyline_projection_version';
 		`)
 	}))
-	// Simulate a document the previous authority implementation could not
-	// ground. Backfill must retry pending records as well as populate answers.
 	pendingChange, err := NewChange(carol, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
 	require.NoError(t, err)
 	pendingRef, err := NewRef(carol, 0, pendingChange.CID, alice.Principal(), "/literal%2Fsegment/child", []cid.Cid{pendingChange.CID}, clock.MustNow(), VisibilityPublic)
 	require.NoError(t, err)
 	require.NoError(t, idx.PutMany(ctx, []blocks.Block{pendingChange, pendingRef}))
 	require.Equal(t, 1, countStashedBlobs(t, db))
-	require.NoError(t, idx.MaybeReindex(ctx))
-	require.Equal(t, 0, countStashedBlobs(t, db), "backfill recovers formerly ungrounded documents")
+	require.NoError(t, idx.Reindex(ctx))
+	require.Equal(t, 0, countStashedBlobs(t, db), "reindex recovers blobs the lost projection denied")
 	changes, checkChanges := idx.iterChangesLatest(ctx, must.Do2(NewIRI(alice.Principal(), "/literal%2Fsegment/child")))
 	var heads []cid.Cid
 
@@ -260,16 +247,6 @@ func TestAuthorityProjectionBackfill(t *testing.T) {
 
 	require.NoError(t, checkChanges())
 	require.Equal(t, []cid.Cid{pendingChange.CID}, heads)
-	check()
-	conn, release, err := db.ReadConn(ctx)
-	require.NoError(t, err)
-	after, err := dbGetReindexTime(conn)
-	release()
-	require.NoError(t, err)
-	require.Equal(t, before, after, "authority backfill must not schedule full reindex/embedding work")
-	require.NoError(t, idx.Reindex(ctx))
-	check()
-	require.NoError(t, idx.MaybeReindex(ctx))
 	check()
 }
 
@@ -306,8 +283,8 @@ func TestAuthorityBatchRollback(t *testing.T) {
 	require.True(t, allowed)
 }
 
-// authorityTables dumps the stored delegations and the members cache by node
-// name, independent of local node and blob IDs.
+// authorityTables dumps the stored delegations and edges by node name,
+// independent of local node and blob IDs.
 func authorityTables(t *testing.T, db *sqlitex.Pool) []string {
 	t.Helper()
 	conn, release, err := db.ReadConn(t.Context())
@@ -322,10 +299,10 @@ func authorityTables(t *testing.T, db *sqlitex.Pool) []string {
 		JOIN keyline_nodes a ON a.id = d.audience
 		JOIN keyline_nodes s ON s.id = d.subject
 		UNION ALL
-		SELECT 'member ' || s.name || ' ' || m.name || ' ' || km.power
-		FROM keyline_members km
-		JOIN keyline_nodes s ON s.id = km.subject
-		JOIN keyline_nodes m ON m.id = km.member
+		SELECT 'edge ' || s.name || ' ' || a.name || ' ' || e.power
+		FROM keyline_edges e
+		JOIN keyline_nodes s ON s.id = e.subject
+		JOIN keyline_nodes a ON a.id = e.audience
 		ORDER BY 1`, func(row *sqlite.Stmt) error {
 		rows = append(rows, row.ColumnText(0))
 		return nil
@@ -336,28 +313,90 @@ func authorityTables(t *testing.T, db *sqlitex.Pool) []string {
 func TestAuthorityNodeNames(t *testing.T) {
 	alice := coretest.NewTester("alice").Account.Principal()
 	a := alice.String()
+	key, space := keyline.Node("key:"+a), keyline.Node("space:"+a)
+	team := keyline.Node("resource:" + a + "/team")
 	for _, tc := range []struct {
 		path   string
 		node   keyline.Node
-		parent keyline.Node
+		scopes []keyline.Node
 	}{
-		{"", keyline.Node("space:" + a), keyline.Node("key:" + a)},
-		{"/team", keyline.Node("resource:" + a + "/team"), keyline.Node("space:" + a)},
-		{"/team/notes", keyline.Node("resource:" + a + "/team/notes"), keyline.Node("resource:" + a + "/team")},
-		{"/100%complete", keyline.Node("resource:" + a + "/100%complete"), keyline.Node("space:" + a)},
+		{"", space, []keyline.Node{key, space}},
+		{"/team", team, []keyline.Node{key, space, team}},
+		{"/team/notes", keyline.Node("resource:" + a + "/team/notes"), []keyline.Node{key, space, team, keyline.Node("resource:" + a + "/team/notes")}},
+		{"/100%complete", keyline.Node("resource:" + a + "/100%complete"), []keyline.Node{key, space, keyline.Node("resource:" + a + "/100%complete")}},
 	} {
 		iri := must.Do2(NewIRI(alice, tc.path))
 		require.Equal(t, tc.node, resourceNode(iri), tc.path)
-		parent, ok := authorityParent(tc.node)
-		require.True(t, ok)
-		require.Equal(t, tc.parent, parent, tc.path)
+		require.Equal(t, tc.scopes, authorityScopes(iri), tc.path)
 		node, err := sqlitex.QueryOnePool[string](t.Context(), storage.MakeTestDB(t), "SELECT "+sqlAuthorityNode("?1"), string(iri))
 		require.NoError(t, err)
 		require.Equal(t, string(tc.node), node, "SQL naming matches Go for %q", tc.path)
 	}
+}
 
-	_, ok := authorityParent(keyNode(alice))
-	require.False(t, ok, "keys have no parent")
+// TestAuthorityEdgesStayLinear guards against the quadratic membership cache:
+// stored edges grow with capabilities, not with documents times the members
+// of the keys they name.
+func TestAuthorityEdgesStayLinear(t *testing.T) {
+	ctx := t.Context()
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+	clock := cclock.New()
+	const docs, agents = 12, 8
+
+	var (
+		caps []blocks.Block
+		keys []*core.KeyPair
+	)
+
+	for range agents {
+		key, err := core.GenerateKeyPair(core.Ed25519, nil)
+		require.NoError(t, err)
+		keys = append(keys, key)
+		agent, err := NewCapability(bob, key.Principal(), bob.Principal(), "", RoleAgent, "", clock.MustNow())
+		require.NoError(t, err)
+		caps = append(caps, agent)
+	}
+
+	for i := range docs {
+		writer, err := NewCapability(alice, bob.Principal(), alice.Principal(), fmt.Sprintf("/doc%d", i), RoleWriter, "", clock.MustNow())
+		require.NoError(t, err)
+		caps = append(caps, writer)
+	}
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(ctx, caps))
+
+	edges, err := sqlitex.QueryOnePool[int](ctx, db, "SELECT count(*) FROM keyline_edges")
+	require.NoError(t, err)
+	// Each document has edges to Bob and to Alice's space; Alice's space has
+	// one to her key, and Bob's key one to each agent.
+	require.Equal(t, 2*docs+1+agents, edges)
+
+	// Root edges are implied and named after their scope, so Alice's space
+	// has one edge to her key however many documents she shares.
+	for query, want := range map[string]int{
+		"SELECT count(*) FROM keyline_delegations WHERE blob_id IS NOT NULL": docs + agents,
+		"SELECT count(*) FROM keyline_delegations WHERE blob_id IS NULL":     docs + 1,
+	} {
+		got, err := sqlitex.QueryOnePool[int](ctx, db, query)
+		require.NoError(t, err)
+		require.Equal(t, want, got, query)
+	}
+
+	for _, key := range keys {
+		for i := range docs {
+			allowed, err := idx.IsValidWriter(ctx, alice.Principal(), fmt.Sprintf("/doc%d/child", i), key.Principal())
+			require.NoError(t, err)
+			require.True(t, allowed, "agents of a writer write its documents")
+		}
+
+		allowed, err := idx.IsValidWriter(ctx, alice.Principal(), "", key.Principal())
+		require.NoError(t, err)
+		require.False(t, allowed, "a document grant is not a space grant")
+	}
 }
 
 // TestAuthorityAgents covers the web sign-in shape: an account and its session
@@ -412,14 +451,11 @@ func TestAuthorityAgents(t *testing.T) {
 
 	require.NoError(t, (keylinesqlite.Store{Pool: db}).View(ctx, func(tx keyline.ReadTx) error {
 		for _, pair := range [][2]*core.KeyPair{{alice, laptop}, {laptop, alice}, {laptop, phone}, {alice, tablet}} {
-			power, err := authority.EffectivePower(ctx, tx, keyNode(pair[0].Principal()), keyNode(pair[1].Principal()))
+			power, err := keyline.EffectivePower(ctx, tx, keyNode(pair[0].Principal()), keyNode(pair[1].Principal()))
 			require.NoError(t, err)
 			require.Equal(t, keyline.Write, power, "AGENT never grants Admin over another key")
 		}
 
-		power, err := authority.EffectivePower(ctx, tx, resourceNode(must.Do2(NewIRI(alice.Principal(), "/notes"))), keyNode(alice.Principal()))
-		require.NoError(t, err)
-		require.Equal(t, keyline.Admin, power, "the owner administers every document in its space")
 		return nil
 	}))
 

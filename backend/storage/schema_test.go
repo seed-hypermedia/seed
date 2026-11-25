@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	"seed/backend/keyline/keylinesqlite"
 	"seed/backend/storage"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
@@ -19,21 +18,8 @@ import (
 // against their own temporary tables in dqb.GlobalQueries.
 var schemaQueries = dqb.GlobalQueries
 
-func TestSchemaKeylineCompatibility(t *testing.T) {
-	db := storage.MakeTestMemoryDB(t)
-	require.NoError(t, db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		objects, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM sqlite_schema WHERE name GLOB 'keyline_*'")
-		require.NoError(t, err)
-		require.Equal(t, 10, objects, "the Seed schema must initialize Keyline and its membership cache")
-		require.NoError(t, keylinesqlite.Init(t.Context(), conn))
-		return nil
-	}))
-}
-
 func TestSchemaQueries(t *testing.T) {
 	db := storage.MakeTestMemoryDB(t)
-	// Importing Keyline must leave its ordinary queries testable without
-	// registering CREATE statements that conflict with the existing schema.
 	require.NoError(t, schemaQueries.Test(db))
 }
 
@@ -69,49 +55,60 @@ func TestDerivedTablesReferencedOnlyByDerivedTables(t *testing.T) {
 	require.Positive(t, checked)
 }
 
-// Keyline's tables are derived, and Keyline must reinitialize on top of them
-// once reindex has emptied them.
-func TestKeylineReindexTables(t *testing.T) {
-	keyline := []string{storage.T_KeylineNodes, storage.T_KeylineDelegations, storage.T_KeylineRevocations, storage.T_KeylineMembers}
+// Keyline's tables are derived, so a reindex empties and refills them.
+func TestKeylineTablesAreDerived(t *testing.T) {
 	specs := storage.TableSpecs()
-	for _, name := range keyline {
+	for _, name := range []string{storage.T_KeylineNodes, storage.T_KeylineDelegations, storage.T_KeylineRevocations, storage.T_KeylineEdges} {
 		idx := slices.IndexFunc(specs, func(spec storage.TableSpec) bool {
 			return spec.Name == name
 		})
 		require.NotEqual(t, -1, idx)
 		require.Equal(t, storage.TableKindDerived, specs[idx].Kind)
 	}
+}
 
+// A blob that Keyline cites cannot be deleted: deletion would leave authority
+// derived from a blob that is gone.
+func TestKeylineBlobReferences(t *testing.T) {
+	for table, insert := range map[string]string{
+		storage.T_KeylineNodes:       "INSERT INTO keyline_nodes (id, name, blob_id, ts, blob_key) VALUES (3, 'mentioned', 1, 0, 'key')",
+		storage.T_KeylineDelegations: "INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES ('d', 1, 2, 1, 3, 1)",
+		storage.T_KeylineRevocations: "INSERT INTO keyline_revocations (id, issuer, target, blob_id) VALUES ('r', 1, 'd', 1)",
+	} {
+		t.Run(table, func(t *testing.T) {
+			db := storage.MakeTestMemoryDB(t)
+			conn, release, err := db.WriteConn(t.Context())
+			require.NoError(t, err)
+			defer release()
+
+			require.NoError(t, sqlitex.ExecScript(conn, `INSERT INTO keyline_nodes (id, name) VALUES (1, 'subject'), (2, 'audience');`))
+			require.Error(t, sqlitex.ExecTransient(conn, insert, nil), "a fact must cite a stored blob")
+			require.NoError(t, sqlitex.ExecScript(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (1, x'01', 85, 0);`))
+			require.NoError(t, sqlitex.ExecTransient(conn, insert, nil))
+			require.Error(t, sqlitex.ExecTransient(conn, "DELETE FROM blobs WHERE id = 1", nil), "a cited blob cannot be deleted")
+		})
+	}
+}
+
+// TestKeylineImpliedDelegations checks that only delegations may omit their
+// blob: implied ones follow from naming rules, but revocations always come
+// from a blob.
+func TestKeylineImpliedDelegations(t *testing.T) {
 	db := storage.MakeTestMemoryDB(t)
 	conn, release, err := db.WriteConn(t.Context())
 	require.NoError(t, err)
 	defer release()
 
-	require.NoError(t, sqlitex.ExecScript(conn, `
-		INSERT INTO keyline_nodes (id, name, blob_id, ts, blob_key)
-		VALUES (1, 'opaque-subject', 1, 0, 'opaque-blob'), (2, 'opaque-member', NULL, NULL, NULL);
-		INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id)
-		VALUES ('delegation', 1, 2, 1, 'a', 2);
-		INSERT INTO keyline_revocations (id, issuer, target, blob_id)
-		VALUES ('revocation', 1, 'delegation', 3);
-		INSERT INTO keyline_members (subject, member, power) VALUES (1, 2, 'a');
-	`))
-
-	// Reindex empties derived tables with foreign keys off, in no particular order.
-	require.NoError(t, sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = OFF", nil))
-	for _, name := range keyline {
-		require.NoError(t, sqlitex.ExecTransient(conn, "DELETE FROM "+name, nil))
-	}
-
-	require.NoError(t, sqlitex.ExecTransient(conn, "PRAGMA foreign_keys = ON", nil))
-
-	require.NoError(t, keylinesqlite.Init(t.Context(), conn))
+	require.NoError(t, sqlitex.ExecScript(conn, `INSERT INTO keyline_nodes (id, name) VALUES (1, 'subject'), (2, 'audience');`))
+	require.NoError(t, sqlitex.ExecTransient(conn, "INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES ('implied', 1, 2, 1, 4, NULL)", nil))
+	require.Error(t, sqlitex.ExecTransient(conn, "INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES ('zero', 1, 2, 1, 4, 0)", nil), "zero is not a blob ID")
+	require.Error(t, sqlitex.ExecTransient(conn, "INSERT INTO keyline_revocations (id, issuer, target, blob_id) VALUES ('r', 1, 'implied', NULL)", nil), "revocations need a blob")
 }
 
 func TestKeylinePowerConstraints(t *testing.T) {
 	for table, insert := range map[string]string{
 		storage.T_KeylineDelegations: "INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES (?, 1, 2, 1, ?, 1)",
-		storage.T_KeylineMembers:     "INSERT INTO keyline_members (subject, member, power) VALUES (1, ?, ?)",
+		storage.T_KeylineEdges:       "INSERT INTO keyline_edges (subject, audience, power) VALUES (1, ?, ?)",
 	} {
 		t.Run(table, func(t *testing.T) {
 			db := storage.MakeTestMemoryDB(t)
@@ -120,20 +117,20 @@ func TestKeylinePowerConstraints(t *testing.T) {
 			defer release()
 
 			require.NoError(t, sqlitex.ExecScript(conn, `
+				INSERT INTO blobs (id, multihash, codec, size) VALUES (1, x'01', 85, 0);
 				INSERT INTO keyline_nodes (id, name) VALUES
-					(1, 'subject'), (2, 's'), (3, 'r'), (4, 'w'), (5, 'a'), (6, 'invalid');
+					(1, 'subject'), (2, 'sync'), (3, 'read'), (4, 'write'), (5, 'admin'), (6, 'invalid');
 			`))
-			for i, power := range []string{"s", "r", "w", "a"} {
-				require.NoError(t, sqlitex.Exec(conn, insert, nil, i+2, power))
+			for power := 1; power <= 4; power++ {
+				require.NoError(t, sqlitex.Exec(conn, insert, nil, power+1, power))
 			}
 
-			count, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM "+table+" WHERE typeof(power) = 'text'")
+			count, err := sqlitex.QueryOne[int](conn, "SELECT count(*) FROM "+table+" WHERE typeof(power) = 'integer'")
 			require.NoError(t, err)
 			require.Equal(t, 4, count)
 
 			for _, power := range []any{
-				nil, -1, 0, 1, 2, 3, 4, 5,
-				"1", "2", "3", "4", "", " ", " a", "a ", "a\n", "A", "admin", "x", []byte("a"),
+				nil, -1, 0, 5, 255, 1.5, "", " ", "a", "w", "admin", []byte("a"),
 			} {
 				require.Error(t, sqlitex.Exec(conn, insert, nil, 6, power), "power %v (%T)", power, power)
 			}
@@ -141,21 +138,21 @@ func TestKeylinePowerConstraints(t *testing.T) {
 	}
 }
 
-func TestKeylineMembersConstraints(t *testing.T) {
+func TestKeylineEdgesConstraints(t *testing.T) {
 	db := storage.MakeTestMemoryDB(t)
 	conn, release, err := db.WriteConn(t.Context())
 	require.NoError(t, err)
 	defer release()
 
-	const insert = "INSERT INTO keyline_members (subject, member, power) VALUES (?, ?, ?)"
+	const insert = "INSERT INTO keyline_edges (subject, audience, power) VALUES (?, ?, ?)"
 
-	require.NoError(t, sqlitex.Exec(conn, "INSERT INTO keyline_nodes (id, name) VALUES (1, 'subject'), (2, 'member')", nil))
-	require.NoError(t, sqlitex.Exec(conn, insert, nil, 1, 2, "s"))
+	require.NoError(t, sqlitex.Exec(conn, "INSERT INTO keyline_nodes (id, name) VALUES (1, 'subject'), (2, 'audience')", nil))
+	require.NoError(t, sqlitex.Exec(conn, insert, nil, 1, 2, 1))
 
 	for _, args := range [][]any{
-		{nil, 2, "s"},
-		{1, nil, "s"},
-		{1, 2, "a"}, // Duplicate membership even with a different power.
+		{nil, 2, 1},
+		{1, nil, 1},
+		{1, 2, 4}, // Duplicate edge even with a different power.
 	} {
 		require.Error(t, sqlitex.Exec(conn, insert, nil, args...))
 	}
@@ -168,6 +165,7 @@ func TestKeylineNodesConstraints(t *testing.T) {
 	defer release()
 
 	insert := dqb.Str("INSERT INTO keyline_nodes (name, blob_id, ts, blob_key) VALUES (?, ?, ?, ?)")
+	require.NoError(t, sqlitex.ExecScript(conn, "INSERT INTO blobs (id, multihash, codec, size) VALUES (1, x'01', 85, 0), (2, x'02', 85, 0);"))
 
 	require.NoError(t, sqlitex.Exec(conn, insert(), nil, "unknown-provenance", nil, nil, nil))
 	require.NoError(t, sqlitex.Exec(conn, insert(), nil, "known-provenance", 1, 1, "opaque-blob"))
@@ -212,9 +210,9 @@ func TestKeylineNodeReferences(t *testing.T) {
 		insert string
 		refs   int
 	}{
-		storage.T_KeylineDelegations: {"INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES ('delegation', ?, ?, ?, 'a', 1)", 3},
+		storage.T_KeylineDelegations: {"INSERT INTO keyline_delegations (id, issuer, audience, subject, power, blob_id) VALUES ('delegation', ?, ?, ?, 4, 1)", 3},
 		storage.T_KeylineRevocations: {"INSERT INTO keyline_revocations (id, issuer, target, blob_id) VALUES ('revocation', ?, 'missing-target', 1)", 1},
-		storage.T_KeylineMembers:     {"INSERT INTO keyline_members (subject, member, power) VALUES (?, ?, 'a')", 2},
+		storage.T_KeylineEdges:       {"INSERT INTO keyline_edges (subject, audience, power) VALUES (?, ?, 4)", 2},
 	} {
 		t.Run(table, func(t *testing.T) {
 			db := storage.MakeTestMemoryDB(t)
@@ -222,6 +220,7 @@ func TestKeylineNodeReferences(t *testing.T) {
 			require.NoError(t, err)
 			defer release()
 
+			require.NoError(t, sqlitex.ExecScript(conn, "INSERT INTO blobs (id, multihash, codec, size) VALUES (1, x'01', 85, 0);"))
 			require.NoError(t, sqlitex.Exec(conn, "INSERT INTO keyline_nodes (id, name) VALUES (1, 'one'), (2, 'two'), (3, 'three')", nil))
 			args := make([]any, tc.refs)
 			for i := range args {

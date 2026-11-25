@@ -16,7 +16,6 @@
 package keyline
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -85,94 +84,68 @@ func (NodeRecord) keylineRecord() {}
 func (Delegation) keylineRecord() {}
 func (Revocation) keylineRecord() {}
 
-// Power is a totally ordered authority level. Each level implies lower levels.
-// Values are single-character mnemonics, not Seed blob roles. Use Compare for
-// authority ordering; byte order does not express authority.
-type Power byte
+// Power is a totally ordered authority level. Each level implies lower levels,
+// and the numbers order them, so powers compare as integers. The numbers are
+// stored, as in keyline_edges, so they never change.
+type Power uint8
 
 // Powers follow the authority ladder Sync < Read < Write < Admin.
 const (
-	// None represents no derivation, not a delegated power or requirement.
+	// None (0) represents no derivation, not a delegated power or requirement.
 	None Power = 0
-	// Sync is the lowest level of standing.
-	Sync Power = 's'
-	// Read includes Sync authority.
-	Read Power = 'r'
-	// Write includes Read authority.
-	Write Power = 'w'
-	// Admin includes Write authority and grants revocation reach over the subject.
-	Admin Power = 'a'
+	// Sync (1) is the lowest level of standing.
+	Sync Power = 1
+	// Read (2) includes Sync authority.
+	Read Power = 2
+	// Write (3) includes Read authority.
+	Write Power = 3
+	// Admin (4) includes Write authority and grants revocation reach over the subject.
+	Admin Power = 4
 )
 
-// Compare returns -1, 0, or +1 according to the authority order
-// None < Sync < Read < Write < Admin. It panics if either power is unknown.
-func (p Power) Compare(other Power) int {
-	a, b := p.rank(), other.rank()
-	if a < 0 || b < 0 {
-		panic("keyline: cannot compare unknown powers")
-	}
-
-	return cmp.Compare(a, b)
+// Valid reports whether p is a delegable power: Sync, Read, Write, or Admin.
+func (p Power) Valid() bool {
+	return p >= Sync && p <= Admin
 }
 
-func (p Power) rank() int {
-	switch p {
-	case None:
-		return 0
-	case Sync:
-		return 1
-	case Read:
-		return 2
-	case Write:
-		return 3
-	case Admin:
-		return 4
-	default:
-		return -1
-	}
-}
-
-func (p Power) min(other Power) Power {
-	if p.Compare(other) <= 0 {
-		return p
-	}
-
-	return other
-}
-
-// String returns the power's mnemonic: s, r, w, or a. None and invalid
-// powers return diagnostic strings that ParsePower rejects.
+// String returns the power's name, such as "write".
 func (p Power) String() string {
 	switch p {
 	case None:
 		return "none"
-	case Sync, Read, Write, Admin:
-		return string(p)
+	case Sync:
+		return "sync"
+	case Read:
+		return "read"
+	case Write:
+		return "write"
+	case Admin:
+		return "admin"
 	default:
-		return fmt.Sprintf("Power(%d)", p)
+		return fmt.Sprintf("Power(%d)", uint8(p))
 	}
-}
-
-// ParsePower parses exactly one of s, r, w, or a. It rejects None, numeric
-// ranks, and unknown mnemonics rather than treating them as authority.
-func ParsePower(s string) (Power, error) {
-	if len(s) == 1 && Power(s[0]).rank() > 0 {
-		return Power(s[0]), nil
-	}
-
-	return None, fmt.Errorf("keyline: invalid power %q", s)
 }
 
 // Delegation grants Audience at most Power over Subject through Issuer's
 // authority. An issuer needs standing, not necessarily Admin. Delegations with
 // missing standing are stored and may become live when other facts arrive.
+//
+// A delegation with a zero BlobID is implied: the caller derives it from its
+// own rules, such as how nodes are named, rather than from a signed blob.
+// Evaluation treats it like any other delegation. Callers that transfer
+// records by their blobs skip implied ones, which each replica derives itself.
 type Delegation struct {
 	ID       ID
 	Issuer   Node
 	Audience Node
 	Subject  Node
 	Power    Power
-	BlobID   int64 // The positive, opaque ID of the defining blob.
+	BlobID   int64 // The opaque ID of the defining blob, or zero if implied.
+}
+
+// Implied reports whether no blob defines d.
+func (d Delegation) Implied() bool {
+	return d.BlobID == 0
 }
 
 // Validate checks required fields and the power at an ingestion boundary.
@@ -182,12 +155,12 @@ func (d Delegation) Validate() error {
 		return fmt.Errorf("keyline: delegation %q requires an ID, issuer, audience, and subject", d.ID)
 	}
 
-	if d.Power.rank() <= 0 {
+	if !d.Power.Valid() {
 		return fmt.Errorf("keyline: delegation %q has invalid power %d", d.ID, d.Power)
 	}
 
-	if d.BlobID <= 0 {
-		return fmt.Errorf("keyline: delegation %q requires a positive blob ID", d.ID)
+	if d.BlobID < 0 {
+		return fmt.Errorf("keyline: delegation %q has a negative blob ID", d.ID)
 	}
 
 	return nil
@@ -271,62 +244,15 @@ type ReadTx interface {
 	Records(ctx context.Context) iter.Seq2[Record, error]
 }
 
-// Limits bounds one query's storage rows, identifier bytes read or encoded, derived
-// relations (including intermediate passes), and work. Zero fields are unlimited;
-// negative fields are invalid. Limits do not bound memory already owned by the
-// caller or storage driver. Use a context deadline as well to bound IO latency.
-type Limits struct {
-	MaxFacts     int
-	MaxBytes     int
-	MaxRelations int
-	MaxWork      int
-}
-
-// DefaultLimits returns suggested, opt-in per-query resource budgets. These are
-// operational safeguards, not authority rules or bounds on valid graph sizes.
-func DefaultLimits() Limits {
-	return Limits{MaxFacts: 10000, MaxBytes: 16 << 20, MaxRelations: 1000000, MaxWork: 10000000}
-}
-
-// ErrLimit indicates incomplete evaluation caused by an exhausted resource
-// budget. It must be handled as an error, never as an authorization result.
-var ErrLimit = errors.New("keyline: evaluation limit exceeded")
-
-// Evaluator configures optional resource budgets and computed edges. Its zero
-// value has no quotas and no computed edges. It retains no graph or transaction
-// between calls and is safe to share without mutation. Use Members for several
-// checks on one subject, and MembersOf for several subjects.
-type Evaluator struct {
-	Limits Limits
-
-	// Parent, when set, names a node's parent. The parent holds Admin over
-	// the node exactly as if the node had stored an unrevoked Admin delegation
-	// to it, so callers can derive a naming hierarchy, such as documents inside
-	// a space, without storing one edge per node. Computed edges have no ID,
-	// cannot be revoked, apply to subset evaluation, and never appear in
-	// enumerations, Closure, or Digest. Parent must be deterministic, and
-	// following it must terminate; a node that is its own parent is ignored.
-	Parent func(Node) (Node, bool)
-}
-
 // EffectivePower returns audience's greatest authority over subject, or None if
 // no grounded derivation exists. A nonempty node always has Admin over itself,
 // including nodes absent from storage. Errors return None, never a partial answer.
-// Use Evaluator to opt into resource budgets.
 func EffectivePower(ctx context.Context, tx ReadTx, subject, audience Node) (Power, error) {
-	return (Evaluator{}).EffectivePower(ctx, tx, subject, audience)
-}
-
-// EffectivePower evaluates authority using e's per-query limits.
-func (e Evaluator) EffectivePower(ctx context.Context, tx ReadTx, subject, audience Node) (Power, error) {
 	if err := ctx.Err(); err != nil {
 		return None, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return None, err
-	}
+	g := newGraph(tx)
 
 	if subject == "" || audience == "" {
 		return None, nil
@@ -348,39 +274,30 @@ func (e Evaluator) EffectivePower(ctx context.Context, tx ReadTx, subject, audie
 // Invalid requirements, including None, are denied. Errors return false and must
 // be handled as failed authorization, not as an answer from a partial graph.
 func Allows(ctx context.Context, tx ReadTx, subject, audience Node, required Power) (bool, error) {
-	return (Evaluator{}).Allows(ctx, tx, subject, audience, required)
-}
-
-// Allows checks a required power using e's per-query limits.
-func (e Evaluator) Allows(ctx context.Context, tx ReadTx, subject, audience Node, required Power) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
 
-	if required.rank() <= 0 {
+	if !required.Valid() || subject == "" || audience == "" {
 		return false, nil
 	}
 
-	power, err := e.EffectivePower(ctx, tx, subject, audience)
-	return err == nil && power.Compare(required) >= 0, err
+	if subject == audience {
+		return true, nil
+	}
+
+	power, err := EffectivePower(ctx, tx, subject, audience)
+	return err == nil && power >= required, err
 }
 
 // Members returns the effective powers of all nodes with standing over subject,
 // excluding subject itself. The caller owns the map. Errors return a nil map.
 func Members(ctx context.Context, tx ReadTx, subject Node) (map[Node]Power, error) {
-	return (Evaluator{}).Members(ctx, tx, subject)
-}
-
-// Members returns subject's members using e's per-query limits.
-func (e Evaluator) Members(ctx context.Context, tx ReadTx, subject Node) (map[Node]Power, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return nil, err
-	}
+	g := newGraph(tx)
 
 	if subject == "" {
 		return map[Node]Power{}, nil
@@ -397,31 +314,15 @@ func (e Evaluator) Members(ctx context.Context, tx ReadTx, subject Node) (map[No
 
 // MembersOf returns Members for each distinct nonempty subject, from one
 // evaluation of the facts they share. Each result equals a separate Members
-// call; resource limits apply to the combined evaluation. The caller owns
-// the maps. Errors return a nil map.
+// call. The caller owns the maps. Errors return a nil map.
 func MembersOf(ctx context.Context, tx ReadTx, subjects []Node) (map[Node]map[Node]Power, error) {
-	return (Evaluator{}).MembersOf(ctx, tx, subjects)
-}
-
-// MembersOf returns several subjects' members using e's per-query limits.
-func (e Evaluator) MembersOf(ctx context.Context, tx ReadTx, subjects []Node) (map[Node]map[Node]Power, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return nil, err
-	}
+	g := newGraph(tx)
 
-	roots := make([]Node, 0, len(subjects))
-	seen := make(map[Node]bool, len(subjects))
-	for _, s := range subjects {
-		if s != "" && !seen[s] {
-			seen[s] = true
-			roots = append(roots, s)
-		}
-	}
+	roots := distinctNodes(subjects)
 
 	out := make(map[Node]map[Node]Power, len(roots))
 	if len(roots) == 0 {
@@ -446,12 +347,7 @@ func (e Evaluator) MembersOf(ctx context.Context, tx ReadTx, subjects []Node) (m
 // its own subject's graph. A role's roster can stay live after the role loses
 // access to a different subject. Unknown IDs and errors return false.
 func IsLive(ctx context.Context, tx ReadTx, id ID) (bool, error) {
-	return (Evaluator{}).IsLive(ctx, tx, id)
-}
-
-// IsLive checks a delegation's liveness using e's per-query limits.
-func (e Evaluator) IsLive(ctx context.Context, tx ReadTx, id ID) (bool, error) {
-	power, err := e.Conveyed(ctx, tx, id)
+	power, err := Conveyed(ctx, tx, id)
 	return err == nil && power != None, err
 }
 
@@ -462,19 +358,11 @@ func (e Evaluator) IsLive(ctx context.Context, tx ReadTx, id ID) (bool, error) {
 // power, which may include independent routes. Errors return None.
 // Use it before removal when preserving an individual grant's contribution.
 func Conveyed(ctx context.Context, tx ReadTx, id ID) (Power, error) {
-	return (Evaluator{}).Conveyed(ctx, tx, id)
-}
-
-// Conveyed queries a delegation's contribution using e's per-query limits.
-func (e Evaluator) Conveyed(ctx context.Context, tx ReadTx, id ID) (Power, error) {
 	if err := ctx.Err(); err != nil {
 		return None, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return None, err
-	}
+	g := newGraph(tx)
 
 	d, found, err := tx.Delegation(ctx, id)
 	if err != nil {
@@ -483,10 +371,6 @@ func (e Evaluator) Conveyed(ctx context.Context, tx ReadTx, id ID) (Power, error
 
 	if !found {
 		return None, ctx.Err()
-	}
-
-	if err := g.fact(ctx, string(d.ID), string(d.Issuer), string(d.Audience), string(d.Subject)); err != nil {
-		return None, err
 	}
 
 	_, conveyed, err := g.evaluate(ctx, []Node{d.Subject})
@@ -500,19 +384,11 @@ func (e Evaluator) Conveyed(ctx context.Context, tx ReadTx, id ID) (Power, error
 // PositivePower returns authority with all revocations ignored. It is useful
 // for replication scope and historical reach, never for granting current access.
 func PositivePower(ctx context.Context, tx ReadTx, subject, audience Node) (Power, error) {
-	return (Evaluator{}).PositivePower(ctx, tx, subject, audience)
-}
-
-// PositivePower queries positive standing with e's optional resource budgets.
-func (e Evaluator) PositivePower(ctx context.Context, tx ReadTx, subject, audience Node) (Power, error) {
 	if err := ctx.Err(); err != nil {
 		return None, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return None, err
-	}
+	g := newGraph(tx)
 
 	if subject == "" || audience == "" {
 		return None, nil
@@ -533,19 +409,11 @@ func (e Evaluator) PositivePower(ctx context.Context, tx ReadTx, subject, audien
 // PositiveMembers returns historical standing with revocations ignored,
 // excluding subject itself. Use it for rotation analysis, not authorization.
 func PositiveMembers(ctx context.Context, tx ReadTx, subject Node) (map[Node]Power, error) {
-	return (Evaluator{}).PositiveMembers(ctx, tx, subject)
-}
-
-// PositiveMembers queries historical standing with e's optional budgets.
-func (e Evaluator) PositiveMembers(ctx context.Context, tx ReadTx, subject Node) (map[Node]Power, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return nil, err
-	}
+	g := newGraph(tx)
 
 	if subject == "" {
 		return map[Node]Power{}, nil
@@ -566,19 +434,11 @@ func (e Evaluator) PositiveMembers(ctx context.Context, tx ReadTx, subject Node)
 // a fuller set revokes. Neither the selection nor its result proves completeness.
 // Node metadata has no effect. An empty selection has no members.
 func MembersForSubset(ctx context.Context, tx ReadTx, subject Node, ids []ID) (map[Node]Power, error) {
-	return (Evaluator{}).MembersForSubset(ctx, tx, subject, ids)
-}
-
-// MembersForSubset evaluates a selected fact set with e's optional budgets.
-func (e Evaluator) MembersForSubset(ctx context.Context, tx ReadTx, subject Node, ids []ID) (map[Node]Power, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	g, err := newGraph(tx, e)
-	if err != nil {
-		return nil, err
-	}
+	g := newGraph(tx)
 
 	if subject == "" || len(ids) == 0 {
 		return map[Node]Power{}, nil
@@ -586,14 +446,6 @@ func (e Evaluator) MembersForSubset(ctx context.Context, tx ReadTx, subject Node
 
 	g.subset = make(map[ID]bool)
 	for _, id := range ids {
-		if err := g.work(ctx, 1); err != nil {
-			return nil, err
-		}
-
-		if err := consume(&g.budget.MaxBytes, len(id), "bytes"); err != nil {
-			return nil, err
-		}
-
 		g.subset[id] = true
 	}
 
@@ -604,4 +456,18 @@ func (e Evaluator) MembersForSubset(ctx context.Context, tx ReadTx, subject Node
 
 	delete(levels[subject], subject)
 	return levels[subject], nil
+}
+
+// distinctNodes returns the distinct nonempty nodes in order of first mention.
+func distinctNodes(nodes []Node) []Node {
+	out := make([]Node, 0, len(nodes))
+	seen := make(map[Node]bool, len(nodes))
+	for _, n := range nodes {
+		if n != "" && !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+
+	return out
 }
