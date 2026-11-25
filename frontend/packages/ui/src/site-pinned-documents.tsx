@@ -227,32 +227,27 @@ function PinnedRow({
             </Button>
           </Tooltip>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              aria-label={`Pin options for ${title}`}
-              className="text-icon shrink-0"
-            >
-              <MoreHorizontal className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {status === 'outdated' && actions.acknowledgePin && (
+        {status === 'outdated' && actions.acknowledgePin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label={`Pin options for ${title}`}
+                className="text-icon shrink-0"
+              >
+                <MoreHorizontal className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onSelect={() => actions.acknowledgePin?.(id, item?.version ?? null, item?.metadata?.name)}
               >
                 Mark as up to date
               </DropdownMenuItem>
-            )}
-            {actions.unpinDocument && (
-              <DropdownMenuItem onSelect={() => actions.unpinDocument?.(id)}>
-                {status === 'deleted' ? 'Remove pin' : 'Unpin'}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   )

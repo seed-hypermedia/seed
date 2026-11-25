@@ -576,6 +576,32 @@ describe('sidebar pins', () => {
     }
   })
 
+  it.each(['current', 'missing', 'unavailable', 'outdated-without-action'])(
+    'hides redundant menus for %s pins and keeps direct Unpin',
+    (state) => {
+      useDirectoryWithDraftsMock.mockReturnValue({
+        directory:
+          state === 'missing'
+            ? []
+            : state === 'unavailable'
+              ? undefined
+              : [{...guide, version: state === 'current' ? 'v1' : 'v2'}],
+        drafts: [],
+        isLoading: false,
+      })
+      const unpinDocument = vi.fn()
+      const onNavigate = vi.fn()
+      renderBrowser({getPinsForSite: () => [pin], unpinDocument}, {onNavigate})
+      const section = container.querySelector('[aria-label="Pinned documents"]')!
+      expect(section.querySelector('[aria-label^="Pin options"]')).toBeNull()
+      const unpin = section.querySelector<HTMLButtonElement>('[aria-label^="Unpin "]')!
+      expect(unpin).not.toBeNull()
+      act(() => unpin.click())
+      expect(unpinDocument).toHaveBeenCalledWith(latestId(guide.id))
+      expect(onNavigate).not.toHaveBeenCalled()
+    },
+  )
+
   it('keeps status and removal actions without ordering menu items', () => {
     const second = {...makeDoc(['notes'], 'Notes'), version: 'v1'}
     useDirectoryWithDraftsMock.mockReturnValue({directory: [guide, second], drafts: [], isLoading: false})
@@ -601,12 +627,13 @@ describe('sidebar pins', () => {
     act(() => trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0})))
     expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
       'Mark as up to date',
-      'Unpin',
     ])
     act(() => (document.querySelector('[role="menuitem"]') as HTMLElement).click())
     select('Guide', 'Mark as up to date')
     expect(acknowledgePin).toHaveBeenCalledWith(latestId(guide.id), 'v2', 'Guide')
-    select('Guide', 'Unpin')
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-pin-id="site:guide"] [aria-label="Unpin Guide"]')!.click(),
+    )
     expect(unpinDocument).toHaveBeenCalledWith(latestId(guide.id))
   })
 })
