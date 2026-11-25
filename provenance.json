@@ -1,0 +1,10 @@
+{
+  "headAtCapture": "5d3f298d97e02227b5c8a3c58124458387acdd88",
+  "baseline": "2573847c0737634034479e46b1f89e16fc10b1e8",
+  "rebasedHead": "a47ea86205530eb22f21c2696fe2e87f084878dc",
+  "surface": "Actual production React components in an isolated fixture harness; not full application flows",
+  "viewportCSS": [
+    1280,
+    900
+  ]
+}
