@@ -73,6 +73,12 @@ If you switch to an [account](../protocol/identity.md) without [edit access](../
 
 The editor itself is the shared `@shm/editor` package. [The shared packages](./packages.md) describes its schema, its typography and how embeds are rendered.
 
+# Pinned documents
+
+Pin a published document from its row in the sidebar's space browser. It appears in a compact **Pinned** section above the document tree. Pins belong to the selected space and stay on this device across app restarts; they do not sync between devices.
+
+Open a pin to navigate to the latest version. A divider separates pins from the document tree. Hover a pin to reveal its drag handle and Unpin action. Drag the handle to reorder pins, or focus it and press **Alt + Up/Down**. A line shows where a dragged pin will land. The three-dot menu appears only when **Mark as up to date** is available; unpinning uses the row’s Unpin button. An update indicator means the published version differs from the version saved with the pin; choose **Mark as up to date** to acknowledge it. A document missing from the loaded space listing keeps its saved title and shows an unavailable indicator so you can remove the pin. Filtering the document tree temporarily hides the pinned section.
+
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 
 Two screens, which only the desktop app has, show the protocol data directly. <!-- id:SHBUOTJL -->

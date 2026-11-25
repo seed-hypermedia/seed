@@ -1,5 +1,6 @@
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {HMDocument, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {PinnedDocument} from './models/pins'
 import type {DocumentCardActionOrigin} from './utils/document-actions'
 
 export type DocumentActionsContextValue = {
@@ -14,6 +15,14 @@ export type DocumentActionsContextValue = {
     id: UnpackedHypermediaId,
     metadata?: {title: string; commentId: string; targetUrl: string; authorAccountId: string},
   ) => void
+
+  // Pinned documents (desktop app store)
+  getPinsForSite?: (siteUid: string) => PinnedDocument[]
+  isPinned?: (id: UnpackedHypermediaId) => boolean
+  pinDocument?: (id: UnpackedHypermediaId, title: string, seenVersion: string | null) => void
+  unpinDocument?: (id: UnpackedHypermediaId) => void
+  movePin?: (siteUid: string, fromIndex: number, toIndex: number) => void
+  acknowledgePin?: (id: UnpackedHypermediaId, seenVersion: string | null, title?: string) => void
 
   // Document actions — dialogs hoisted to provider
   onEditDocument?: (id: UnpackedHypermediaId, existingDraftId?: string) => void
@@ -41,6 +50,12 @@ export function DocumentActionsProvider({children, ...value}: PropsWithChildren<
       value.canWriteDocument,
       value.isBookmarked,
       value.onBookmarkToggle,
+      value.getPinsForSite,
+      value.isPinned,
+      value.pinDocument,
+      value.unpinDocument,
+      value.movePin,
+      value.acknowledgePin,
       value.onEditDocument,
       value.onMoveDocument,
       value.onDeleteDocument,

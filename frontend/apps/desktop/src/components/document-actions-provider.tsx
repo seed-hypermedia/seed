@@ -2,6 +2,7 @@ import {useAppContext} from '@/app-context'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {useBookmarks} from '@/models/bookmarks'
+import {useAcknowledgePin, useAllPins, usePinDocument, useReorderPins, useUnpinDocument} from '@/models/pins'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList} from '@/models/documents'
 import {useSelectedAccountWritableDocuments} from '@/models/access-control'
@@ -36,6 +37,11 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const navigate = useNavigate()
   const currentRoute = useNavRoute()
   const {exportDocument, openDirectory} = useAppContext()
+  const pins = useAllPins()
+  const pinDocument = usePinDocument()
+  const unpinDocument = useUnpinDocument()
+  const reorderPins = useReorderPins()
+  const acknowledgePin = useAcknowledgePin()
   const {onCopyReference} = useUniversalAppContext()
   const universalClient = useUniversalClient()
   const drafts = useAccountDraftList(selectedAccountId ?? undefined)
@@ -83,6 +89,43 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       setBookmark.mutate({url: id.id, isBookmark: !bookmarked, metadata})
     },
     [bookmarks, setBookmark],
+  )
+
+  const getPinsForSite = useCallback((siteUid: string) => pins.filter((pin) => pin.siteUid === siteUid), [pins])
+
+  const isPinned = useCallback(
+    (id: UnpackedHypermediaId) => {
+      return pins.some((pin) => pin.siteUid === id.uid && pathMatches(pin.path, id.path))
+    },
+    [pins],
+  )
+
+  const onPinDocument = useCallback(
+    (id: UnpackedHypermediaId, title: string, seenVersion: string | null) => {
+      pinDocument.mutate({id, title, seenVersion})
+    },
+    [pinDocument],
+  )
+
+  const onUnpinDocument = useCallback(
+    (id: UnpackedHypermediaId) => {
+      unpinDocument.mutate(id)
+    },
+    [unpinDocument],
+  )
+
+  const onMovePin = useCallback(
+    (siteUid: string, fromIndex: number, toIndex: number) => {
+      reorderPins.mutate({siteUid, fromIndex, toIndex})
+    },
+    [reorderPins],
+  )
+
+  const onAcknowledgePin = useCallback(
+    (id: UnpackedHypermediaId, seenVersion: string | null, title?: string) => {
+      acknowledgePin.mutate({id, seenVersion, title})
+    },
+    [acknowledgePin],
   )
 
   const onEditDocument = useCallback(
@@ -308,6 +351,12 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       canWriteDocument,
       isBookmarked,
       onBookmarkToggle,
+      getPinsForSite,
+      isPinned,
+      pinDocument: onPinDocument,
+      unpinDocument: onUnpinDocument,
+      movePin: onMovePin,
+      acknowledgePin: onAcknowledgePin,
       onEditDocument,
       onMoveDocument,
       onDeleteDocument,
@@ -325,6 +374,12 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       canWriteDocument,
       isBookmarked,
       onBookmarkToggle,
+      getPinsForSite,
+      isPinned,
+      onPinDocument,
+      onUnpinDocument,
+      onMovePin,
+      onAcknowledgePin,
       onEditDocument,
       onMoveDocument,
       onDeleteDocument,

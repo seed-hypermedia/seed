@@ -23,6 +23,7 @@ import {documentCardCleanupApi, startDocumentCardCleanupCoordinator} from './app
 import {draftsApi, getListedDraft} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
+import {pinsApi} from './app-pins'
 import {notificationConfigApi} from './app-notification-config'
 import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
 import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
@@ -314,6 +315,7 @@ export const router = t.router({
       }),
   }),
   bookmarks: bookmarksApi,
+  pins: pinsApi,
   notificationConfig: notificationConfigApi,
   notificationRead: notificationReadApi,
   notificationInbox: notificationInboxApi,

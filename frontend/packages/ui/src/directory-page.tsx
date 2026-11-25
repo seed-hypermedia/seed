@@ -5,22 +5,36 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, useRouteLink} from '@shm/shared'
+import {
+  getMetadataName,
+  hmId,
+  pinnedDocumentId,
+  pinnedDocumentToUnpackedId,
+  resolvePins,
+  useRouteLink,
+  useUniversalClient,
+  type ResolvedPin,
+} from '@shm/shared'
+import {useDocumentActions, type DocumentActionsContextValue} from '@shm/shared/document-actions-context'
+import {queryDirectory} from '@shm/shared/models/queries'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search} from 'lucide-react'
+import {useQuery} from '@tanstack/react-query'
+import {ChevronRight, Folder, History, Pin, Search, Trash} from 'lucide-react'
 import {ChangeEvent, ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
 import {DraftBadge} from './draft-badge'
 import {getSiteNavDirectory} from './navigation'
+import {MenuItemType} from './options-dropdown'
 import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {useScrollRestoration} from './use-scroll-restoration'
+import {cn} from './utils'
 
 /**
  * Full-page directory content component.
@@ -97,6 +111,7 @@ export function DirectoryPageContent({
 
       {/* Content */}
       <div className="py-6" ref={scrollRef}>
+        <DirectoryPinnedDocuments docId={docId} searchQuery={searchQuery} />
         {items.length === 0 ? (
           <DirectoryEmpty canCreate={canCreate} />
         ) : filteredItems.length === 0 ? (
@@ -139,6 +154,123 @@ export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
       )}
     </div>
   )
+}
+
+/**
+ * Renders a collapsible "Pinned" section at the top of a directory panel/page.
+ * Pinned documents are resolved against the whole site so pins from any
+ * sub-folder are recognised, and the section stays in a neutral state while
+ * the site directory is still loading to avoid a flash of deleted items.
+ */
+export function DirectoryPinnedDocuments({
+  docId,
+  searchQuery = '',
+}: {
+  docId: UnpackedHypermediaId
+  searchQuery?: string
+}) {
+  const actions = useDocumentActions()
+  const [expanded, setExpanded] = useState(true)
+  const pins = actions.getPinsForSite?.(docId.uid) ?? []
+  const client = useUniversalClient()
+  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
+  const allDescendants = useQuery({
+    ...queryDirectory(client, siteId, 'AllDescendants'),
+    enabled: pins.length > 0,
+  })
+  const resolvedPins = useMemo(() => {
+    if (!allDescendants.isSuccess) {
+      return pins.map((pin) => ({pin, item: undefined, status: 'ok' as const}))
+    }
+    return resolvePins(pins, allDescendants.data)
+  }, [pins, allDescendants.isSuccess, allDescendants.data])
+
+  if (searchQuery) return null
+  if (!resolvedPins.length) return null
+
+  return (
+    <div className="flex flex-col gap-1 pb-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex items-center gap-2 px-4 py-2"
+      >
+        <ChevronRight
+          className={cn('text-muted-foreground size-4 transition-transform duration-150', expanded && 'rotate-90')}
+        />
+        <SizableText size="xs" color="muted" weight="medium" className="tracking-wide uppercase">
+          Pinned
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          ({resolvedPins.length})
+        </SizableText>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-1">
+          {resolvedPins.map((resolved) => {
+            const item =
+              resolved.item ??
+              ({
+                id: pinnedDocumentToUnpackedId(resolved.pin),
+                metadata: {name: resolved.pin.title || 'Untitled'},
+              } as HMDocumentInfo)
+            return (
+              <DocumentListItem
+                key={pinnedDocumentId(resolved.pin)}
+                item={item}
+                pinState={{
+                  isPinned: true,
+                  isOutdated: resolved.status === 'outdated',
+                  isDeleted: resolved.status === 'deleted',
+                }}
+                extraMenuItems={createPinMenuItems(resolved, actions)}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function createPinMenuItems(resolved: ResolvedPin, actions: DocumentActionsContextValue): MenuItemType[] {
+  const id = pinnedDocumentToUnpackedId(resolved.pin)
+  const items: MenuItemType[] = []
+  if (resolved.status === 'outdated' && actions.acknowledgePin) {
+    items.push({
+      key: 'acknowledge',
+      label: 'Mark as up to date',
+      icon: <History className="size-3.5" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.acknowledgePin?.(id, resolved.item?.version ?? null, resolved.item?.metadata?.name)
+      },
+    })
+  }
+  if (resolved.status === 'deleted' && actions.unpinDocument) {
+    items.push({
+      key: 'remove',
+      label: 'Remove pin',
+      icon: <Trash className="size-3.5" />,
+      variant: 'destructive' as const,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.unpinDocument?.(id)
+      },
+    })
+  }
+  if (actions.unpinDocument) {
+    items.push({
+      key: 'unpin',
+      label: 'Unpin',
+      icon: <Pin className="size-3.5" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.unpinDocument?.(id)
+      },
+    })
+  }
+  return items
 }
 
 /** Hook to fetch directory data with drafts */

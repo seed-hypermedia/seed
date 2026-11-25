@@ -13,6 +13,7 @@ import {SiteSidebar, SiteSidebarDocuments} from '@shm/ui/site-sidebar'
 import {useSiteSidebar} from '@shm/ui/site-sidebar-context'
 import {useEffect, useState} from 'react'
 import {useCreateDocumentMenuItem} from './create-doc-button'
+import {DesktopDocumentActionsProvider} from './document-actions-provider'
 import {GenericSidebarContainer} from './sidebar-base'
 import {ExploreButton} from './titlebar-common'
 
@@ -64,7 +65,11 @@ export function AppSidebar() {
         explore={<ExploreButton />}
       >
         <div className="h-full min-h-0" ref={sidebar?.setTarget}>
-          {!sidebar?.hasPageContent && <FallbackDocuments siteId={siteId} />}
+          {!sidebar?.hasPageContent && (
+            <DesktopDocumentActionsProvider>
+              <FallbackDocuments siteId={siteId} />
+            </DesktopDocumentActionsProvider>
+          )}
         </div>
       </SiteSidebar>
     </GenericSidebarContainer>

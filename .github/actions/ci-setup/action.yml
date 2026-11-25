@@ -26,9 +26,8 @@ runs:
     - name: 'Install native packages'
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y software-properties-common
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        # GCC 12 is available in Ubuntu's repositories. Adding the toolchain test PPA
+        # also upgrades runtime libraries, making setup depend on its availability.
         sudo apt-get update
         sudo apt-get install -y gcc-12 g++-12
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100

@@ -1,5 +1,6 @@
 import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDocumentTitle, hmId} from '@shm/shared'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
@@ -10,7 +11,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
+import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Pin, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
@@ -19,6 +20,7 @@ import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
 import type {MenuItemType} from './options-dropdown'
 import {Spinner} from './spinner'
+import {SitePinnedDocuments} from './site-pinned-documents'
 import {cn} from './utils'
 
 /** Props for the shared site document browser. */
@@ -60,6 +62,7 @@ export function SiteFileBrowser({
   onCreate,
 }: SiteFileBrowserProps) {
   const {directory, drafts, isLoading} = useDirectoryWithDrafts(siteId, {mode: 'AllDescendants'})
+  const actions = useDocumentActions()
   const [query, setQuery] = useState('')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -226,6 +229,15 @@ export function SiteFileBrowser({
 
       <ScrollArea className="scroll-area-full-height min-h-0 flex-1" viewportClassName="[&>div]:!block">
         <div className="px-2 pb-4">
+          {!query.trim() && (
+            <SitePinnedDocuments
+              key={siteId.uid}
+              siteId={siteId}
+              directory={isLoading ? undefined : directory}
+              activeDocumentId={activeDocumentId}
+              onNavigate={onNavigate}
+            />
+          )}
           <div
             className={cn('flex min-w-0 items-center rounded-md', isHomeActive && 'bg-accent text-accent-foreground')}
           >
@@ -264,7 +276,7 @@ export function SiteFileBrowser({
                     aria-expanded={!isFiltered && row?.hasChildren ? isExpanded : undefined}
                     style={{paddingLeft: isFiltered ? 0 : (row?.depth ?? 0) * 16}}
                     className={cn(
-                      'flex min-w-0 items-center rounded-md',
+                      'group flex min-w-0 items-center rounded-md',
                       isActive && 'bg-accent text-accent-foreground',
                     )}
                   >
@@ -295,6 +307,20 @@ export function SiteFileBrowser({
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>
+                    {!unpublishedDraftIds.has(doc.id.id) && actions.pinDocument && (
+                      <Button
+                        variant="ghost"
+                        size="iconSm"
+                        aria-label={`${actions.isPinned?.(doc.id) ? 'Unpin' : 'Pin'} ${titleOf(doc)}`}
+                        className="text-icon shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={() => {
+                          if (actions.isPinned?.(doc.id)) actions.unpinDocument?.(navigationId)
+                          else actions.pinDocument?.(navigationId, titleOf(doc), doc.version ?? null)
+                        }}
+                      >
+                        <Pin className={cn('size-3.5', actions.isPinned?.(doc.id) && 'fill-current')} />
+                      </Button>
+                    )}
                   </div>
                 )
               })}
