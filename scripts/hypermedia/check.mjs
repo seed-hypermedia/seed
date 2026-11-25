@@ -20,6 +20,7 @@
 //   9. tables        every table row has as many cells as its header (a raw `|` inside inline code splits a row)
 //  10. tree          every page has a parent page, and every parent shows a Card embed of each child (tree.mjs)
 //  11. concepts      a page that names a glossary term links the page that defines it (concepts.mjs)
+//  12. publishable   the sync's own offline refusals: broken links, tree, schema and icon CIDs (sync-hypermedia.ts preflight)
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
@@ -266,6 +267,30 @@ section('Every concept a page names links the page that defines it')
   for (const p of problems)
     fail(p.file, `line ${p.line + 1}: "${p.term}" is used but ${p.page} is not linked (node scripts/hypermedia/concepts.mjs --fix links it)`)
   if (!problems.length) ok(`${loadRegistry().length} glossary terms are linked wherever they are used`)
+}
+
+// 12. Publishable ───────────────────────────────────────────────────────────
+// The sync refuses to publish a tree with a broken link, and it finds links its own way: it parses each page
+// into blocks and resolves every link against the paths the folder publishes. The checks above do not read
+// links, so this runs the sync's own code (frontend/apps/cli/src/sync-hypermedia.ts preflight), offline and
+// with no key. Without it a broken link passes every pull request check and is first refused by the publish
+// at the end of a release, after the release has been built (2026.11.6).
+section('The sync would publish the folder (links, tree, CIDs)')
+{
+  const cli = resolve(HM_DIR, '..', 'frontend/apps/cli')
+  try {
+    execFileSync('bun', ['run', 'src/sync-hypermedia.ts', 'preflight'], {cwd: cli, stdio: 'pipe'})
+    ok('no broken links; the sync has nothing to refuse')
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      fail('sync-hypermedia.ts preflight', 'bun is not installed, so the links were not checked; install bun and rerun')
+    } else {
+      const out = ((err.stdout?.toString() ?? '') + (err.stderr?.toString() ?? '')).trim() || err.message
+      const lines = out.split('\n').filter((line) => line.startsWith('  '))
+      if (lines.length) for (const line of lines) failures.push(line.trim())
+      else fail('sync-hypermedia.ts preflight', `failed:\n${out}`)
+    }
+  }
 }
 
 if (failures.length) {
