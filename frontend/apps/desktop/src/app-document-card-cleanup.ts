@@ -35,6 +35,7 @@ import {
   CLEANUP_STORAGE_KEY,
   cleanupJobId,
   createDocumentCardCleanupCoordinatorMachine,
+  DocumentContentMutationDeclinedError,
   DocumentCardCleanupJob,
   DocumentCardCleanupOperation,
   DocumentCardCleanupStore,
@@ -43,6 +44,8 @@ import {
   normalizeDocumentCardCleanupStore,
 } from './app-document-card-cleanup-machine'
 import {nanoid} from 'nanoid'
+import {discoverDocument} from './app-sync'
+import {MAX_REDIRECT_HOPS} from '@shm/shared/redirects'
 
 const CLEANUP_STATUS_QUERY_KEY = ['trpc.documentCardCleanup.getSnapshot']
 const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
@@ -80,19 +83,67 @@ function getParentDocumentId(deletedDocumentId: string) {
   }
 }
 
-async function loadParentDocument(parentDocumentId: string) {
-  const parent = unpackHmId(parentDocumentId)
-  if (!parent) throw new Error(`Invalid parent document id: ${parentDocumentId}`)
-  try {
-    const doc = await grpcClient.documents.getDocument({
-      account: parent.uid,
-      path: hmIdPathToEntityQueryPath(parent.path || []),
-    })
-    return prepareHMDocument(doc)
-  } catch (error: any) {
-    const message = error?.message || String(error)
-    if (/not found|deleted/i.test(message)) return null
-    throw error
+async function resolveContentMutationTarget(requestedDocumentId: string) {
+  const requested = unpackHmId(requestedDocumentId)
+  if (!requested) throw new Error(`Invalid document id: ${requestedDocumentId}`)
+  const seen = new Set([requested.id])
+  const redirectHops: Array<{from: string; to: string; republish?: boolean}> = []
+  let current = {...requested, version: null, latest: true}
+
+  for (;;) {
+    let resource = await seedClient.request('Resource', current)
+    if (resource.type === 'not-found') {
+      await discoverDocument(current.uid, current.path || [])
+      resource = await seedClient.request('Resource', current)
+    }
+    if (resource.type === 'document') {
+      return {requested, resolved: current, redirectHops}
+    }
+    if (resource.type === 'tombstone') {
+      throw new DocumentContentMutationDeclinedError('document_deleted', `Document ${current.id} was deleted`)
+    }
+    if (resource.type === 'not-found') {
+      throw new DocumentContentMutationDeclinedError(
+        'document_not_found',
+        `Document ${current.id} was not found after discovery`,
+      )
+    }
+    if (resource.type !== 'redirect') {
+      throw new DocumentContentMutationDeclinedError(
+        'document_not_found',
+        `Resource ${current.id} is not an editable document`,
+      )
+    }
+    if (redirectHops.length === MAX_REDIRECT_HOPS) {
+      throw new DocumentContentMutationDeclinedError(
+        'redirect_limit_exceeded',
+        `Document ${requested.id} exceeds the ${MAX_REDIRECT_HOPS}-redirect limit`,
+      )
+    }
+    const target = {...resource.redirectTarget, version: null, latest: true}
+    if (seen.has(target.id)) {
+      throw new DocumentContentMutationDeclinedError('redirect_cycle', `Redirect cycle detected at ${target.id}`)
+    }
+    redirectHops.push({from: current.id, to: target.id, republish: resource.republish === true})
+    seen.add(target.id)
+    current = target
+  }
+}
+
+async function loadParentDocument(parentDocumentId: string, job: DocumentCardCleanupJob) {
+  const resolution = await resolveContentMutationTarget(parentDocumentId)
+  await resolveParentCapability(job, resolution.resolved)
+  const doc = prepareHMDocument(
+    await grpcClient.documents.getDocument({
+      account: resolution.resolved.uid,
+      path: hmIdPathToEntityQueryPath(resolution.resolved.path || []),
+    }),
+  )
+  return {
+    ...doc,
+    requestedDocumentId: resolution.requested.id,
+    resolvedDocumentId: resolution.resolved.id,
+    redirectHops: resolution.redirectHops,
   }
 }
 
@@ -117,7 +168,14 @@ async function resolveParentCapability(
     path: hmIdPathToEntityQueryPath(parent.path || []),
   })
   const capability = capabilities.capabilities.find((cap) => cap.delegate === job.signingAccountUid)
-  return capability?.id || job.capabilityId
+  const capabilityId = capability?.id || job.capabilityId
+  if (!capabilityId) {
+    throw new DocumentContentMutationDeclinedError(
+      'permission_denied',
+      `Account ${job.signingAccountUid} cannot change ${parent.id}`,
+    )
+  }
+  return capabilityId
 }
 
 function getJobOperation(job: DocumentCardCleanupJob): DocumentCardCleanupOperation {
@@ -163,12 +221,14 @@ async function reconcileParentDraft(
   job: DocumentCardCleanupJob,
   publishedDocument: NonNullable<Awaited<ReturnType<typeof loadParentDocument>>>,
 ) {
-  const draft = await loadParentDraft(getCleanupJobParent(job).id, job.id)
+  const resolvedParentId = publishedDocument.resolvedDocumentId || getCleanupJobParent(job).id
+  const draft = await loadParentDraft(resolvedParentId, job.id)
   if (!draft) return
   let base = draft.baseBlocks
   if (!base) {
     if (!draft.deps?.length) throw new Error('Parent draft has no published baseline')
-    const parent = getCleanupJobParent(job)
+    const parent = unpackHmId(resolvedParentId)
+    if (!parent) throw new Error(`Invalid resolved parent document id: ${resolvedParentId}`)
     const document = await grpcClient.documents.getDocument({
       account: parent.uid,
       path: hmIdPathToEntityQueryPath(parent.path || []),
@@ -235,17 +295,18 @@ async function publishParentUpdate(
 ) {
   if (storageError) throw new Error(storageError)
   const parent = getCleanupJobParent(job)
-  if (!parent) throw new Error(`Invalid parent document id: ${getCleanupJobParent(job).id}`)
   if (!parentDocument) return 'missing-parent' as const
+  const resolvedParent = unpackHmId(parentDocument.resolvedDocumentId || parent.id)
+  if (!resolvedParent) throw new Error(`Invalid parent document id: ${parentDocument.resolvedDocumentId || parent.id}`)
   await seedClient.publishDocument(
     {
-      account: parent.uid,
-      path: hmIdPathToEntityQueryPath(parent.path || []),
+      account: resolvedParent.uid,
+      path: hmIdPathToEntityQueryPath(resolvedParent.path || []),
       baseVersion: parentDocument.version,
       genesis: parentDocument.genesis,
       generation: parentDocument.generationInfo?.generation,
       changes,
-      capability: await resolveParentCapability(job, parent),
+      capability: await resolveParentCapability(job, resolvedParent),
     },
     getSigner(job.signingAccountUid),
   )
@@ -266,8 +327,11 @@ function createCleanupActor() {
     now: () => Date.now(),
     getParentDocumentId,
     scheduleCleanup: scheduleDocumentCardCleanup,
-    loadParentDraft: (job) => loadParentDraft(getCleanupJobParent(job).id, job.id),
-    loadParentDocument: (job) => loadParentDocument(getCleanupJobParent(job).id),
+    loadParentDraft: async (job) => {
+      const resolution = await resolveContentMutationTarget(getCleanupJobParent(job).id)
+      return loadParentDraft(resolution.resolved.id, job.id)
+    },
+    loadParentDocument: (job) => loadParentDocument(getCleanupJobParent(job).id, job),
     cleanupParentDraft: async () => [],
     verifyPrimaryOutcome: (job) =>
       verifyDocumentCleanupPrimary({request: seedClient.request as UniversalClient['request']}, job.awaitingPrimary!),
@@ -279,7 +343,8 @@ function createCleanupActor() {
       )
     },
     findTemporaryCard: async (job) => {
-      const draft = await loadParentDraft(getCleanupJobParent(job).id)
+      const resolution = await resolveContentMutationTarget(getCleanupJobParent(job).id)
+      const draft = await loadParentDraft(resolution.resolved.id)
       function find(blocks: any[]): string | undefined {
         for (const block of blocks) {
           if (block.props?.draftId === job.childDraftId) return block.id
@@ -289,7 +354,7 @@ function createCleanupActor() {
       }
       const blockId = find(draft?.content || [])
       if (!blockId || !draft) return undefined
-      const published = await loadParentDocument(getCleanupJobParent(job).id)
+      const published = await loadParentDocument(getCleanupJobParent(job).id, job)
       const position = findPublishedCardPosition(
         published?.content || [],
         editorBlocksToHMBlockNodes(draft.content || []),

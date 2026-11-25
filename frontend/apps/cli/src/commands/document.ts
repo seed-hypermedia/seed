@@ -43,6 +43,8 @@ import {
 } from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
+import {assertValidMermaid} from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {
   createBlocksMap,
@@ -210,6 +212,8 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
   // with UnixFS, and rewrite link to ipfs://CID. The roundtrip through
   // HMBlockNode reuses the shared resolver used by the JSON path.
   const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
+  // A ```mermaid fence that does not parse would publish fine and only fail in the reader's viewer.
+  await assertValidMermaid(hmNodes, await loadMermaidParser())
   const resolved = await resolveFileLinks(hmNodes)
   const resolvedTree = resolved.nodes.map(hmBlockNodeToBlockNode)
 

@@ -46,7 +46,7 @@ const daemonBinaryPath = path.join(
 )
 
 // The local agents server: a `bun build --compile` binary staged by
-// `agents/scripts/build-binary.ts` together with the package.json it needs at startup. The whole
+// `agents/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
 // directory ships so it lands as `<resources>/agents/`, which is where
 // `src/agents-server-path.ts` looks for it in a packaged app.
 const agentsServerName = process.env.AGENTS_SERVER_NAME || getPlatformTriple()

@@ -1182,6 +1182,53 @@ func TestRemoteGetAllowsLargeFetchResponses(t *testing.T) {
 	require.Equal(t, payload.Credentials, got.Credentials)
 }
 
+func TestGetVaultEmailPrevalidation(t *testing.T) {
+	signer := []byte{0xed, 0x01, 1, 2, 3}
+	sig := []byte{9, 8, 7}
+	var prevalidation any = map[string]string{
+		"email":  "alice@example.com",
+		"signer": base64.RawURLEncoding.EncodeToString(signer),
+		"host":   "https://vault.example.com",
+		"sig":    base64.RawURLEncoding.EncodeToString(sig),
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/api/vault", r.URL.Path)
+		require.Empty(t, r.URL.RawQuery, "must not send knownVersion, unchanged responses carry no prevalidation")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"version":            3,
+			"credentials":        []Credential{},
+			"emailPrevalidation": prevalidation,
+		}))
+	}))
+	defer server.Close()
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore, WithHTTPClient(server.Client()))
+	require.NoError(t, err)
+
+	_, err = ks.GetVaultEmailPrevalidation(t.Context())
+	require.Error(t, err, "must fail when not connected to a remote vault")
+
+	connectTestRemoteVault(t, ks, server.URL, 3, time.Now())
+
+	got, err := ks.GetVaultEmailPrevalidation(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, EmailPrevalidation{
+		Email:  "alice@example.com",
+		Signer: signer,
+		Host:   "https://vault.example.com",
+		Sig:    sig,
+	}, got)
+
+	prevalidation = nil
+	_, err = ks.GetVaultEmailPrevalidation(t.Context())
+	require.Error(t, err, "must fail when the vault provides no prevalidation")
+}
+
 func TestDecodeRemoteStateUsesAuthenticatedWrappedDEK(t *testing.T) {
 	remoteSecret := []byte("0123456789abcdef0123456789abcdef")
 	otherSecret := []byte("fedcba9876543210fedcba9876543210")

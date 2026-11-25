@@ -50,6 +50,7 @@ function processResourceCitations(
           type: sourceType as 'd' | 'c',
           author: citation.sourceBlob?.author,
           time: citation.sourceBlob?.createTime,
+          blockId: citation.sourceContext || undefined,
         },
         targetFragment,
         isExactVersion: citation.isExactVersion,
@@ -60,7 +61,8 @@ function processResourceCitations(
 }
 
 /**
- * Calculates block-level citation counts from deduplicated citations
+ * Calculates block-level counts from deduplicated citations: a document citation counts once per
+ * citing block, a comment citation once per comment (see deduplicateCitations).
  * Core logic used by calculateInteractionSummary
  */
 function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {

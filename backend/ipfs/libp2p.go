@@ -63,7 +63,10 @@ type Routing interface {
 //
 // If httpBW is non-nil, the delegated-DHT HTTP client transport is wrapped to
 // count bytes against it (bucketed by destination host).
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, httpBW *bwcounter.Counter, opts ...libp2p.Option) (nn *Libp2p, err error) {
+//
+// If isolated is true the connection gater denies every inbound and outbound
+// connection and relay/AutoNAT are off: the host exists but talks to nobody.
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, isolated bool, log *zap.Logger, httpBW *bwcounter.Counter, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
 	const unlimitedResources = true
 	defer func() {
@@ -113,12 +116,10 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	o := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.NoListenAddrs, // Users must explicitly start listening.
-		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
-		libp2p.EnableAutoNATv2(),
 		libp2p.Peerstore(ps),
 		libp2p.ConnectionManager(cm),
 		libp2p.ResourceManager(rm),
-		libp2p.ConnectionGater(newGater(ps)),
+		libp2p.ConnectionGater(newGater(ps, isolated)),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			client, err := delegated_routing.New(delegatedDHTURL,
 				delegated_routing.WithHTTPClient(delegateHTTPClient),
@@ -133,6 +134,17 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 			rt = content_routing.NewContentRoutingClient(client)
 			return rt, nil
 		}),
+	}
+
+	if isolated {
+		log.Warn("Libp2pIsolated", zap.String("gater", "deny-all"))
+		// Relay is on by default in libp2p unless explicitly disabled.
+		o = append(o, libp2p.DisableRelay())
+	} else {
+		o = append(o,
+			libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
+			libp2p.EnableAutoNATv2(),
+		)
 	}
 
 	o = append(o, opts...)

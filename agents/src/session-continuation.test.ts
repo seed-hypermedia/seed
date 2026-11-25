@@ -341,6 +341,45 @@ describe('continue_session', () => {
     expect(listedPredecessor?.continuedTo?.sessionId).toBe(successorId)
   })
 
+  test('a continued session can be deleted, and so can its agent', async () => {
+    const harness = await createHarness()
+    installProvider()
+    const created = await harness.send({_: 'CreateSession', agentId: harness.agentId})
+    if (created._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+    const continued = await harness.send({
+      _: 'MessageSession',
+      sessionId: created.sessionId,
+      content: [{type: 'text', text: "Let's plan the Lisbon offsite."}],
+    })
+    if (continued._ !== 'MessageSessionResponse') throw new Error('unexpected response')
+    const successorId = continued.continuedToSessionId!
+    expect(successorId).toBeTruthy()
+    await harness.service.drainTriggerSessions()
+    await harness.service.awaitQueueIdle()
+
+    // The link between the two goes with the session that is deleted; the other one stays.
+    const deleted = await harness.send({_: 'DeleteSession', sessionId: created.sessionId})
+    expect(deleted._).toBe('DeleteSessionResponse')
+    const successor = await harness.send({_: 'GetSession', sessionId: successorId})
+    if (successor._ !== 'GetSessionResponse') throw new Error('unexpected response')
+    expect(successor.session.continuedFrom).toBeUndefined()
+
+    // A second continuation, this time left in place when the whole agent goes.
+    const again = await harness.send({_: 'CreateSession', agentId: harness.agentId})
+    if (again._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+    await harness.send({
+      _: 'MessageSession',
+      sessionId: again.sessionId,
+      content: [{type: 'text', text: 'Now the Lisbon agenda.'}],
+    })
+    await harness.service.drainTriggerSessions()
+    await harness.service.awaitQueueIdle()
+    expect(harness.db.query<{n: number}, []>(`SELECT COUNT(*) AS n FROM session_continuations`).get()?.n).toBe(1)
+    const agentDeleted = await harness.send({_: 'DeleteAgent', agentId: harness.agentId})
+    expect(agentDeleted._).toBe('DeleteAgentResponse')
+    expect(harness.db.query<{n: number}, []>(`SELECT COUNT(*) AS n FROM session_continuations`).get()?.n).toBe(0)
+  })
+
   test('a call with a bogus reason is refused and the turn stays in this session', async () => {
     const harness = await createHarness()
     const requests: string[] = []

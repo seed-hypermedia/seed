@@ -48,7 +48,7 @@ type ToolDocument = {
 
 # The Space index <!-- id:OmLIl6Dh -->
 
-Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()`. It has: <!-- id:hv-y1xqA -->
+Every turn's input is followed by a compact `<space>` block built by `buildSpaceIndex()`. It has: <!-- id:hv-y1xqA -->
   - one line per enabled tool document (`- name — summary`). Authored tools are tagged `(authored)` and remote tools `(<server> MCP)`. An MCP server with more than six tools collapses to one `- <server>__* — N tools …` line. <!-- id:fUDEa-rz -->
   - a one-line summary of top-level memory. <!-- id:MeTMOILl -->
   - a triggers line. It names active [triggers](./triggers.md) and advertises `read ~/triggers/` and `write ~/triggers/<name>` even when no triggers exist, so an agent asked "do this every morning" knows it can create the automation. <!-- id:M-5n-zT_ -->
@@ -63,7 +63,7 @@ The agent always knows what it _could_ expand, without paying for every contract
 
 Once a tool's contract has entered the transcript, through an agent `read` of `~/tools/<name>` or any `call` by that name, the tool is **promoted** to a real provider tool for the rest of the thread. See [promotion](./promotion.md). Promotion is derived only from durable `tool_call` events (`expandedCallablesFromEvents()`, `api-service.ts`), so resume, park, restart, and compaction all rebuild the same set. Events with actor `user` are skipped: a user's palette call must not silently reshape the agent's active toolset. <!-- id:3AAxXIeD -->
 
-Before anything reaches Pi (`#runPiAgent`), promotion is intersected with the agent's enabled callables plus its own enabled non-builtin documents (authored lambdas and MCP projections, re-derived from the definition at run start): <!-- id:D8DK4IAm -->
+Before anything is offered to the provider (`#runPiAgent`), promotion is intersected with the agent's enabled callables plus its own enabled non-builtin documents (authored lambdas and MCP projections, re-derived from the definition at run start): <!-- id:D8DK4IAm -->
 
 ```ts <!-- id:4ZQwDiQa -->
 const expandedCallables = this.#expandedCallablesForSession(sessionId)
@@ -71,7 +71,7 @@ const expandedCallables = this.#expandedCallablesForSession(sessionId)
   .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
 ```
 
-This filter is a security control. A hallucinated `call {tool: 'bash'}` durably stores that name. An unfiltered allowlist would hand `bash` to Pi and activate Pi's own host builtins outside the sandbox. A promoted document tool is defined from its own document (`toolMetadataFromDocument`): the contract the model read is the schema the provider now validates against, and its executor is the same `call` dispatch. <!-- id:cuCkX0YE -->
+This filter is a security control. A hallucinated `call {tool: 'bash'}` durably stores that name, and only names that pass this filter are ever installed as tools of the turn. Nothing else can run: the turn's harness holds Seed's verbs and no host tools. A promoted document tool is defined from its own document (`toolMetadataFromDocument`): the contract the model read is the schema the provider now validates against, and its executor is the same `call` dispatch. <!-- id:cuCkX0YE -->
 
 # Grants <!-- id:tPg5Z6sN -->
 
@@ -173,7 +173,7 @@ An unrecognized loose option key is **refused with a 400 naming the key and the 
 
 More write behavior: <!-- id:6PdHCPGt -->
   - The document model has no separate "title". The document's name **is** `metadata.name`, and `options.name` is shorthand for it. A markdown `#` heading is body content and does not set the name. <!-- id:vqOTxHM1 -->
-  - `document.create` (and `draft.create`) **require a name**, from `options.name`, `metadata: {name}`, or content frontmatter (`name:`; the shared markdown parser also accepts `title:` as a backward-compat alias). A nameless create is refused. Nothing publishes as "Untitled" anymore. <!-- id:tqh88y7F -->
+  - `document.create` (and `draft.create`) **require a name**, from `options.name`, `metadata: {name}`, or content frontmatter (`name:`; the shared markdown parser also accepts `title:` as a backward-compat alias). A nameless create is refused. Nothing publishes as "Untitled" anymore. Markdown content whose frontmatter YAML does not parse, or that holds a ```` ```mermaid ```` fence mermaid cannot parse, is refused with a 400 naming the problem (on create, update and memory publish; drafts are checked when published). <!-- id:tqh88y7F -->
   - `options.metadata` (document and update, and dotted document-shaped commands) is an object of document [metadata](../metadata.md) attributes merged into the document's metadata: `{summary, icon, cover, …}` or custom keys. It merges over markdown frontmatter metadata, and `options.name` wins for `name`. <!-- id:pacPuZKE -->
   - `options.signer` picks the identity by `profileName` or `publicKey` from the agent's selected signing [keys](../build/keys.md). <!-- id:FwTGvj_C -->
   - A comment mentions an account only through an inline mention, `[@](hm://ACCOUNT_UID/:profile)` (`prepareCommentMentions`). The shared markdown parser turns any `@`-labelled hm:// link (text after the `@` is ignored; a document URL gives a document mention), and the autolink `<hm://ACCOUNT_UID/:profile>`, into the `Embed` annotation the [mention trigger](./triggers.md) and notifications look for; a plain `[Name](hm://ACCOUNT_UID/:profile)` link in a comment is promoted to a mention as well. A comment body that still contains plain-text `@Name` is refused with the correct form in the message, because a plain `@Name`, or a link to someone's comment, notifies nobody and summons no agent. `options.allowPlainMentions: true` posts literal `@` text anyway. The result lists the mentioned accounts under `mentions`, and every thread entry in a comment read result prints its author's ready-made mention.
@@ -296,7 +296,7 @@ A child always runs as the delegating agent. Direct agent-to-agent delegation (`
 
 **Leaves.** A run at the budget's depth is a leaf. It gets **no delegate verb at all** and no spawn handlers (`#delegationStatus`, `canDelegate`), and its system prompt says so ("You are a leaf worker…"). It never gets a verb whose every call is refused and costs a turn. <!-- id:44rasYwX -->
 
-Every non-leaf turn's prompt states its depth, how many children it may still start, and whether its children could delegate further. A parent whose children will be leaves is told to give them self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}`. The parent's count there is the live one, since its system prompt was built when the run started. `~/self` shows the agent's preset and limits. <!-- id:Ok1umdMw -->
+Every non-leaf turn's prompt states its depth, how many children a run may start, and whether its children could delegate further. Once a run has started a child, a `<delegation_budget>` block with each turn's input says how many are left. A parent whose children will be leaves is told to give them self-contained briefs (`delegationPrompt()`). A resolved child's `tool_result` also carries `delegation: {depth, maxDepth, childCouldDelegate, parentChildrenRemaining, parentMaxChildren}`. The parent's count there is the live one; the system prompt itself carries no running count, so it stays the same across a park and resume. `~/self` shows the agent's preset and limits. <!-- id:Ok1umdMw -->
 
 When a run uses its last slot, `childrenExhaustedMessage()` tells it to finish alone now, and how to pack the next long list: several items per brief, or one script child whose children draw on their own budget. The one remaining fixed limit is 3 `return_result` retries (`MAX_RETURN_RESULT_RETRIES`); a child that spends them fails with error code `output-schema`. <!-- id:ENgm3Xcs -->
 
@@ -306,7 +306,7 @@ When a run uses its last slot, `childrenExhaustedMessage()` tells it to finish a
 
 Maintains the thread's visible checklist: `{title?, steps: [{id, label, status: pending | running | done | failed | skipped}]}`. Each call replaces the whole plan. The plan is stored on `sessions.plan_cbor` and writes **no transcript event**, because the checklist is a card and not part of the conversation. The server stamps the owning run id. When every [step](./step.md) settles, it copies that snapshot onto the run, so the completed plan stays in transcript history even after a later turn replaces the session's mutable plan. The [plan](./plan.md) term page has the short version. <!-- id:rWxol_cq -->
 
-The runtime handles one consequence of this directly. A model resuming after its children finished cannot see the list it published. So `planStateBlock()` (`api-service.ts`) rebuilds a `<plan_state>` block from session state on **every turn** and injects it into the replay as the last user message. It is never stored. The transcript keeps exactly one copy of the truth, and the log records what happened, never what the runtime reminded the model about. Step ids and labels are model-authored text handed back inside a frame whose syntax the model knows, so both go through `escapeActionFraming()`. <!-- id:6gIaYQei -->
+The runtime handles one consequence of this directly. A model resuming after its children finished cannot see the list it published. So `planStateBlock()` (`api-service.ts`) rebuilds a `<plan_state>` block from session state on **every turn** and sends it behind the turn's input with every request of that turn. It is never stored. The transcript keeps exactly one copy of the truth, and the log records what happened, never what the runtime reminded the model about. Step ids and labels are model-authored text handed back inside a frame whose syntax the model knows, so both go through `escapeActionFraming()`. <!-- id:6gIaYQei -->
 
 **Runtime settlement.** When every run attached to a running step comes back `succeeded`, `#settlePlanStepFromChildren()` (`api-service.ts`) marks the step `done` with `resolvedBy: 'runtime'`. Only success settles a step. What a failed child means is a judgment the model makes, and the continuation loop exists to make it ask. Model input can never forge `resolvedBy`. `normalizeRunPlan` reads only what the model may say, and `#carryResolvedBy()` (`api-service.ts`) carries the runtime's mark across later writes while the step stays done. It drops the mark if the step is reopened or written off. <!-- id:mCLG-mEC -->
 
@@ -353,15 +353,15 @@ Tool failures should usually become `tool_result.error`, so the model can respon
 # Tool lifecycle <!-- id:96sl4tD5 -->
 
 <!-- id:T5dSr29_ -->
-1. The server registers the verbs (plus any promoted callables) with Pi, with `noTools: 'builtin'` so Pi's own host tools never load. <!-- id:xsFatZeE -->
-2. Pi calls the model. The model returns assistant text and tool calls. <!-- id:yQNautgz -->
-3. Pi emits `message_end` before tool execution. The server appends the turn's assistant text as a durable `message` event with its `meta`. <!-- id:mUpcgNp_ -->
-4. The server appends a durable `tool_call` event, executes the Seed-owned implementation, and appends `tool_result`. <!-- id:TjGqsaDS -->
-5. The model continues until final assistant text. Each later assistant turn is appended at its own `message_end`. <!-- id:SsXCJthS -->
+1. The server installs the verbs (plus any promoted callables) as the only tools of the turn's [Pi Durable](./durable-sessions.md) harness. <!-- id:xsFatZeE -->
+2. The harness calls the model. The model returns assistant text and tool calls. <!-- id:yQNautgz -->
+3. The harness commits the response as one entry before any tool runs. The server projects it into the log: the assistant text as a durable `message` event with its `meta`, then one `tool_call` event per call. <!-- id:mUpcgNp_ -->
+4. Each call runs as its own checkpointed task that executes the Seed-owned implementation. Its committed result is projected as `tool_result`. <!-- id:TjGqsaDS -->
+5. The model continues until final assistant text. Each later response is projected the same way when its entry is committed. <!-- id:SsXCJthS -->
 
-On later turns the server rebuilds durable assistant text and consecutive `tool_call` events as a single Pi assistant message, placed before their matching `tool_result` messages. This keeps provider replay valid for APIs such as OpenAI chat completions, which reject orphaned `tool` messages and expect multi-tool batches grouped. <!-- id:TyneiaQU -->
+On later turns the model reads those same entries from the session's durable conversation. When the conversation has to be rebuilt from the log, the server replays assistant text and consecutive `tool_call` events as a single assistant message, placed before their matching `tool_result` messages. This keeps provider replay valid for APIs such as OpenAI chat completions, which reject orphaned `tool` messages and expect multi-tool batches grouped. <!-- id:TyneiaQU -->
 
-Parked `delegate` calls keep their durable `tool_call` unanswered on purpose, until the child's finalizer appends the real result. A post-park reconcile pass closes the race where a fast child finalizes before the parent's `waiting` status commits. <!-- id:9Dtuf-4o -->
+Parked `delegate` calls keep their durable `tool_call` unanswered on purpose, until the child's finalizer appends the real result. In the durable conversation the call holds a placeholder result until then, and the real result replaces it through a context edit. A post-park reconcile pass closes the race where a fast child finalizes before the parent's `waiting` status commits. <!-- id:9Dtuf-4o -->
 
 # Size limits <!-- id:TX-32IwL -->
 

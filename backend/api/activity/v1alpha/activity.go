@@ -245,35 +245,40 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += ") AND "
 	}
 
-	if len(req.FilterEventType) > 0 {
-		filtersStr += "lower(" + storage.StructuralBlobsType.String() + ") in ("
-		linkTypesJSON = "["
-		for i, eventType := range req.FilterEventType {
-			// Hardcode this to prevent injection attacks
-			if strings.ToLower(eventType) != "capability" &&
-				strings.ToLower(eventType) != "ref" &&
-				strings.ToLower(eventType) != "comment" &&
-				strings.ToLower(eventType) != "dagpb" &&
-				strings.ToLower(eventType) != "profile" &&
-				strings.ToLower(eventType) != "contact" &&
-				strings.ToLower(eventType) != "comment/target" &&
-				strings.ToLower(eventType) != "comment/embed" &&
-				strings.ToLower(eventType) != "doc/embed" &&
-				strings.ToLower(eventType) != "doc/link" &&
-				strings.ToLower(eventType) != "doc/button" {
-				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button are supported at the moment", eventType)
-			}
-			if i > 0 {
-				filtersStr += ", "
-			}
-			filtersStr += "'" + strings.ToLower(eventType) + "'"
-			linkTypesJSON += "\"" + strings.ToLower(eventType) + "\", "
+	// An event-type filter names blob types, served by the main events query,
+	// and link types, served by the mentions query. Each query gets only the
+	// kinds it can match, and a query whose kinds are absent from a non-empty
+	// filter is skipped altogether: the desktop app polls the feed every second
+	// with blob types only, and running the mentions query with a link-type
+	// predicate no row can satisfy walked all of structural_blobs for nothing on
+	// every poll (4 to 22 s per call on a starved desktop).
+	var blobTypes, linkTypes []string
+
+	for _, eventType := range req.FilterEventType {
+		// Only allowlisted values reach the SQL, which prevents injection.
+		switch t := strings.ToLower(eventType); t {
+		case "capability", "ref", "comment", "dagpb", "profile", "contact":
+			blobTypes = append(blobTypes, t)
+		case "comment/target", "comment/embed", "doc/embed", "doc/link", "doc/button":
+			linkTypes = append(linkTypes, t)
+		default:
+			return nil, fmt.Errorf("invalid event type filter [%s]: only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button are supported at the moment", eventType)
 		}
-		if len(linkTypesJSON) > 1 {
-			linkTypesJSON = strings.TrimSuffix(linkTypesJSON, ", ")
+	}
+
+	skipMainEvents := len(req.FilterEventType) > 0 && len(blobTypes) == 0
+	skipMentions := len(req.FilterEventType) > 0 && len(linkTypes) == 0
+
+	if len(blobTypes) > 0 {
+		filtersStr += "lower(" + storage.StructuralBlobsType.String() + ") in ('" + strings.Join(blobTypes, "', '") + "') AND "
+	}
+
+	if len(linkTypes) > 0 {
+		linkTypesBytes, err := json.Marshal(linkTypes)
+		if err != nil {
+			return nil, err
 		}
-		linkTypesJSON += "]"
-		filtersStr += ") AND "
+		linkTypesJSON = string(linkTypesBytes)
 	}
 	// mainEventsArgs are the positional bind values for the main events query, in the order the
 	// named parameters first appear in the SQL. When a resource filter is present, :iris_json comes
@@ -310,6 +315,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// the coverageFloor clamp below.
 	var mainScanFloor int64
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if skipMainEvents {
+			return nil
+		}
+
 		err := sqlitex.ExecTransient(conn, getEventsStr, func(stmt *sqlite.Stmt) error {
 			mainRawCount++
 			id := stmt.ColumnInt64(0)
@@ -457,6 +466,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if skipMentions {
+			return nil
+		}
+
 		// In the unfiltered (noResourceFilter) path we skip the IRI→id
 		// resolution entirely and use the no-targets variant of the
 		// mentions query — the IN(...) list would otherwise blow up to
@@ -502,7 +515,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			queryStr += authorsFilterMentions
 			args = append(args, authorsJSON)
 		}
-		if len(linkTypesJSON) > 2 {
+
+		if linkTypesJSON != "" {
 			queryStr += linkTypesFilterMentions
 			args = append(args, linkTypesJSON)
 		}
@@ -611,10 +625,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
-			var heads []head
-			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
-				return err
-			}
 			movedResources = append(movedResources, entities.MovedResource{
 				NewIri:    stmt.ColumnText(0),
 				OldIri:    stmt.ColumnText(1),
@@ -991,7 +1001,7 @@ SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
   dg.is_deleted
-  from structural_blobs sb
+  from structural_blobs sb INDEXED BY structural_blobs_by_redirect
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'

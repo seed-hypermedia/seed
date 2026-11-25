@@ -31,10 +31,12 @@ import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
+import {gateDocumentRequest, requireSignInEnabled} from './require-sign-in.server'
 import {extractCommentId, parseResourceExportPath} from './resource-export-path'
 import {EXPOSED_HYPERMEDIA_HEADERS, handleResourceExportRequest} from './resource-export.server'
 import {getOrCreateServerSignerAccountUid} from './server-signing'
 import {applyConfigSubscriptions, getConfig} from './site-config.server'
+import {getWebSession} from './web-session.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 
@@ -208,11 +210,24 @@ async function handleRequestWithAuth(
   loadContext: AppLoadContext,
   authToken: string | null,
 ) {
+  const parsedRequest = parseRequest(request)
+  const {url, pathParts} = parsedRequest
+  // Defense in depth behind the proxy's forward_auth. Before OPTIONS too: the
+  // preflight handler resolves the resource and exposes its title in headers,
+  // which a closed site must not hand to anonymous callers.
+  const gate = gateDocumentRequest({
+    enabled: requireSignInEnabled(),
+    pathname: url.pathname,
+    search: url.search,
+    method: request.method,
+    hasSession: !!getWebSession(request),
+  })
+  if (gate.redirect) {
+    return redirect(gate.redirect)
+  }
   if (request.method === 'OPTIONS') {
     return await handleOptionsRequest(request)
   }
-  const parsedRequest = parseRequest(request)
-  const {url, pathParts} = parsedRequest
   if (pathParts.length === 1 && pathParts[0] === 'favicon.ico') {
     return new Response('Not Found', {
       status: 404,

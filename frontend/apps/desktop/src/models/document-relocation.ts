@@ -55,6 +55,42 @@ export function getDocumentCardReconciliationInputsForMove({
   }))
 }
 
+/** Builds card reconciliation for a recursive move, including cards inside moved parents. */
+export function getDocumentCardReconciliationInputsForMoves({
+  moves,
+  signingAccountUid,
+  sourceCapabilityId,
+  targetCapabilityId,
+}: {
+  moves: Array<{from: UnpackedHypermediaId; to: UnpackedHypermediaId; isSubdocumentMove: boolean}>
+  signingAccountUid: string
+  sourceCapabilityId?: string
+  targetCapabilityId?: string
+}): DocumentCardReconciliationInput[] {
+  return moves.flatMap((move) => {
+    if (!move.isSubdocumentMove) {
+      return getDocumentCardReconciliationInputsForMove({
+        from: move.from,
+        to: move.to,
+        signingAccountUid,
+        sourceCapabilityId,
+        targetCapabilityId,
+      })
+    }
+    const parentPath = move.to.path?.slice(0, -1) || []
+    return [
+      {
+        operation: 'rewrite',
+        parentDocumentId: hmId(move.to.uid, {path: parentPath}).id,
+        sourceDocumentId: move.from.id,
+        targetDocumentId: move.to.id,
+        signingAccountUid,
+        capabilityId: targetCapabilityId || sourceCapabilityId,
+      },
+    ]
+  })
+}
+
 export function getDocumentCardReconciliationInputForRepublish({
   to,
   signingAccountUid,

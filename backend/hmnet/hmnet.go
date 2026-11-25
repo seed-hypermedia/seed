@@ -448,6 +448,10 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	n.log.Info("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
 
+	if n.cfg.Isolated {
+		n.log.Warn("NodeIsolated", zap.String("reason", "-p2p.isolated: every libp2p connection is denied; no bootstrap, peer exchange, relay or NAT services"))
+	}
+
 	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
 	if err := n.startLibp2p(ctx); err != nil {
@@ -474,21 +478,28 @@ func (n *Node) Start(ctx context.Context) (err error) {
 			n.grpc.GracefulStop()
 			return nil
 		})
-		g.Go(func() error {
-			t := time.NewTimer(peerExchangeTick)
-			defer t.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-t.C:
+		// Peer exchange dials peers remembered in the peers table. A node with no
+		// bootstrap peers is deliberately off the network, so it must not dial out.
+		if !n.cfg.NoBootstrap() {
+			g.Go(func() error {
+				t := time.NewTimer(peerExchangeTick)
+				defer t.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+					case <-t.C:
+					}
+
+					if err := n.runPeerExchangeTick(ctx); err != nil && ctx.Err() == nil {
+						n.log.Debug("PeerExchangeTickFailed", zap.Error(err))
+					}
+
+					t.Reset(peerExchangeTick)
 				}
-				if err := n.runPeerExchangeTick(ctx); err != nil && ctx.Err() == nil {
-					n.log.Debug("PeerExchangeTickFailed", zap.Error(err))
-				}
-				t.Reset(peerExchangeTick)
-			}
-		})
+			})
+		}
+
 		// peerWriter drains the identify-driven write queue into
 		// batched COMMITs. Exits when ctx is cancelled (Start
 		// teardown) so it shares lifetime with the libp2p event loop.
@@ -587,7 +598,10 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 			return nil
 		})
 	} else {
-		n.log.Warn("NoBoostrapMode")
+		if !n.cfg.Isolated {
+			n.log.Warn("NoBoostrapMode")
+		}
+
 		close(doneOnce)
 	}
 
@@ -639,7 +653,9 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 
 	opts := []libp2p.Option{
 		libp2p.UserAgent(userAgent),
-		libp2p.EnableHolePunching(),
+	}
+	if !cfg.Isolated {
+		opts = append(opts, libp2p.EnableHolePunching())
 	}
 
 	if cfg.AnnounceAddrs != nil {
@@ -665,17 +681,21 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		)
 	}
 
-	// We force private reachability unless we force public one and we don't need relay.
-	if !cfg.ForceReachabilityPublic && !cfg.NoRelay {
+	// An isolated node gets no reachability forcing, NAT service or autorelay:
+	// it never connects to anybody, so none of them have a job.
+	// Otherwise we force private reachability unless we force public one and we don't need relay.
+	switch {
+	case cfg.Isolated:
+	case !cfg.ForceReachabilityPublic && !cfg.NoRelay:
 		opts = append(opts, libp2p.ForceReachabilityPrivate())
-	} else {
+	default:
 		opts = append(opts, libp2p.EnableNATService())
 		if cfg.ForceReachabilityPublic {
 			opts = append(opts, libp2p.ForceReachabilityPublic())
 		}
 	}
 
-	if !cfg.NoRelay {
+	if !cfg.NoRelay && !cfg.Isolated {
 		opts = append(opts,
 			libp2p.EnableAutoRelayWithStaticRelays(DefaultRelays(),
 				autorelay.WithBootDelay(time.Second*5),
@@ -692,7 +712,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, httpClientBW, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, cfg.Isolated, log, httpClientBW, opts...)
 	if err != nil {
 		return nil, nil, nil, err
 	}

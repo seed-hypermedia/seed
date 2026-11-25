@@ -3,10 +3,17 @@ import {calculateInteractionSummary} from '../interaction-summary'
 import {hmId} from '../utils/entity-id-url'
 
 // Minimal mock types matching proto Mention shape
-function makeMention(source: string, sourceType: 'Ref' | 'Comment', author?: string, targetFragment?: string) {
+function makeMention(
+  source: string,
+  sourceType: 'Ref' | 'Comment',
+  author?: string,
+  targetFragment?: string,
+  sourceContext?: string,
+) {
   return {
     source,
     sourceType,
+    sourceContext: sourceContext ?? '',
     sourceBlob: author ? {author, createTime: undefined, cid: ''} : undefined,
     targetVersion: 'v1',
     targetFragment: targetFragment ?? '',
@@ -58,6 +65,33 @@ describe('calculateInteractionSummary', () => {
     ]
     const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
     expect(result.authorUids).toEqual(['has-author'])
+  })
+
+  it('counts a document citation once per citing block, and the citing document once', () => {
+    // A paper cites entry ref-14 from three paragraphs; ListCitations returns one row per citing block.
+    const mentions = [
+      makeMention('hm://owner-uid/paper', 'Ref', 'owner-uid', 'ref-14', 'p1'),
+      makeMention('hm://owner-uid/paper', 'Ref', 'owner-uid', 'ref-14', 'p2'),
+      makeMention('hm://owner-uid/paper', 'Ref', 'owner-uid', 'ref-14', 'p3'),
+      makeMention('hm://owner-uid/paper', 'Ref', 'owner-uid', 'ref-15', 'p3'),
+    ]
+    const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
+    expect(result.blocks['ref-14']).toEqual({citations: 3, comments: 0})
+    expect(result.blocks['ref-15']).toEqual({citations: 1, comments: 0})
+    expect(result.citations).toBe(1)
+  })
+
+  it('collapses one citing block seen in several versions, and counts a comment once', () => {
+    const mentions = [
+      makeMention('hm://other/doc', 'Ref', 'other', 'b1', 'p1'),
+      makeMention('hm://other/doc', 'Ref', 'other', 'b1', 'p1'),
+      makeMention('hm://commenter/zComment1', 'Comment', 'commenter', 'b1', 'c1'),
+      makeMention('hm://commenter/zComment1', 'Comment', 'commenter', 'b1', 'c2'),
+    ]
+    const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
+    expect(result.blocks['b1']).toEqual({citations: 1, comments: 1})
+    expect(result.citations).toBe(1)
+    expect(result.comments).toBe(1)
   })
 
   it('includes both comment and document citation authors', () => {

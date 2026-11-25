@@ -68,6 +68,41 @@ describe('confirmed child deletion safety', () => {
       await inspectChildDeletions(clientWith(new Map([[childId.id, 'v1']])), {parentId, childIds: [childId], content}),
     ).toEqual([])
   })
+  it('follows a removed redirect to the current direct child', async () => {
+    const oldChild = hmId('account', {path: ['old-parent', 'child']})
+    const client = clientWith(new Map([[childId.id, 'v1']]))
+    const request = client.request
+    client.request = (async (type: string, input: any) => {
+      if (type === 'Resource' && input.id === oldChild.id)
+        return {type: 'redirect', redirectTarget: childId, republish: false}
+      return request(type as any, input)
+    }) as typeof client.request
+
+    expect(
+      await inspectChildDeletions(client, {
+        parentId,
+        childIds: [],
+        removedReferenceTargets: [oldChild.id],
+        content: [],
+      }),
+    ).toEqual([{childId, documents: [{id: childId.id, version: 'v1'}]}])
+  })
+
+  it('does not propose deletion when a surviving redirect still points to the child', async () => {
+    const oldChild = hmId('account', {path: ['old-parent', 'child']})
+    const client = clientWith(new Map([[childId.id, 'v1']]))
+    const request = client.request
+    client.request = (async (type: string, input: any) => {
+      if (type === 'Resource' && input.id === oldChild.id)
+        return {type: 'redirect', redirectTarget: childId, republish: false}
+      return request(type as any, input)
+    }) as typeof client.request
+    const content = [
+      {block: {id: 'link', type: 'Embed', link: oldChild.id, attributes: {view: 'Card'}}, children: []},
+    ] as HMBlockNode[]
+
+    expect(await inspectChildDeletions(client, {parentId, childIds: [childId], content})).toEqual([])
+  })
   it('keeps children referenced by a self-query written in the relative form', async () => {
     const content = [
       {
@@ -159,11 +194,6 @@ describe('confirmed child deletion safety', () => {
         content: [],
         confirmations,
       }),
-    ).rejects.toThrow('Confirmation required:')
-  })
-  it('never follows moved targets', async () => {
-    await expect(
-      inspectChildDeletions(clientWith(new Map(), new Set([childId.id])), {parentId, childIds: [childId]}),
     ).rejects.toThrow('Confirmation required:')
   })
   it('rejects deletion if an inline reference was restored', async () => {

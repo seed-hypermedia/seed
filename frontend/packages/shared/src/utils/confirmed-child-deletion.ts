@@ -8,6 +8,7 @@ import {
 } from './document-card-cleanup'
 import {hmId} from './entity-id-url'
 import {hmIdPathToEntityQueryPath} from './path-api'
+import {MAX_REDIRECT_HOPS} from '../redirects'
 
 /** The exact document versions the user approved deleting from one direct child's subtree. */
 export type ConfirmedChildDeletion = {
@@ -27,7 +28,31 @@ export type ConfirmChildDeletionInput = {
   content?: HMBlockNode[]
 }
 
-/** Reads a fresh deletion scope without following redirects or using cached directory data. */
+async function resolveReferenceTargets(
+  client: Pick<UniversalClient, 'request'>,
+  ids: UnpackedHypermediaId[],
+): Promise<UnpackedHypermediaId[]> {
+  const resolved = new Map<string, UnpackedHypermediaId>()
+  for (const id of ids) {
+    let current = hmId(id.uid, {path: id.path})
+    const seen = new Set([current.id])
+    for (let hop = 0; ; hop++) {
+      const resource = await client.request('Resource', current)
+      if (resource.type === 'document') {
+        resolved.set(current.id, current)
+        break
+      }
+      if (resource.type !== 'redirect') break
+      if (hop === MAX_REDIRECT_HOPS) throw new Error('Confirmation required: too many redirects')
+      current = hmId(resource.redirectTarget.uid, {path: resource.redirectTarget.path})
+      if (seen.has(current.id)) throw new Error('Confirmation required: redirect cycle detected')
+      seen.add(current.id)
+    }
+  }
+  return Array.from(resolved.values())
+}
+
+/** Reads a fresh deletion scope, resolving authored aliases before approval and avoiding cached directory data. */
 export async function inspectChildDeletions(
   client: Pick<UniversalClient, 'request'>,
   {parentId, childIds, removedReferenceTargets, content, removedSelfQuery}: ConfirmChildDeletionInput,
@@ -35,7 +60,17 @@ export async function inspectChildDeletions(
   if (content && hasSelfQueryBlock(content, parentId.id)) return []
   const result: ConfirmedChildDeletion[] = []
   const parentPath = parentId.path || []
-  const candidates = new Map(childIds.map((id) => [id.id, id]))
+  for (const childId of childIds) {
+    const path = childId.path || []
+    if (
+      childId.uid !== parentId.uid ||
+      path.length !== parentPath.length + 1 ||
+      !parentPath.every((part, index) => path[index] === part)
+    ) {
+      throw new Error('Deletion target must be a direct child of its parent')
+    }
+  }
+  const candidates = new Map((await resolveReferenceTargets(client, childIds)).map((id) => [id.id, id]))
   if (removedSelfQuery) {
     const directory = await client.request('Query', {
       includes: [{space: parentId.uid, path: hmIdPathToEntityQueryPath(parentId.path), mode: 'Children'}],
@@ -58,7 +93,7 @@ export async function inspectChildDeletions(
       (link) => ({block: {id: link, type: 'Embed', link, attributes: {view: 'Card'}}, children: []}) as HMBlockNode,
     )
     const removed = await resolveDirectDocumentReferences(former)
-    for (const id of removed.ids) {
+    for (const id of await resolveReferenceTargets(client, removed.ids)) {
       const path = id.path || []
       if (
         id.uid === parentId.uid &&
@@ -70,7 +105,7 @@ export async function inspectChildDeletions(
   }
   if (content) {
     const remaining = await resolveDirectDocumentReferences(content)
-    for (const id of remaining.ids) candidates.delete(id.id)
+    for (const id of await resolveReferenceTargets(client, remaining.ids)) candidates.delete(id.id)
   }
   for (const childId of Array.from(candidates.values())) {
     const childPath = childId.path || []

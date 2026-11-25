@@ -727,6 +727,24 @@ func (srv *Server) GetVaultEmail(ctx context.Context, _ *daemon.GetVaultEmailReq
 	return &daemon.GetVaultEmailResponse{Email: email}, nil
 }
 
+// GetVaultEmailPrevalidation implements the corresponding gRPC method.
+func (srv *Server) GetVaultEmailPrevalidation(ctx context.Context, _ *daemon.GetVaultEmailPrevalidationRequest) (*daemon.GetVaultEmailPrevalidationResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	prevalidation, err := vlt.GetVaultEmailPrevalidation(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultEmailPrevalidationResponse{
+		Email:  prevalidation.Email,
+		Signer: prevalidation.Signer,
+		Host:   prevalidation.Host,
+		Sig:    prevalidation.Sig,
+	}, nil
+}
+
 // ChangeVaultEmailStart implements the corresponding gRPC method.
 func (srv *Server) ChangeVaultEmailStart(ctx context.Context, in *daemon.ChangeVaultEmailStartRequest) (*daemon.ChangeVaultEmailStartResponse, error) {
 	vlt, err := srv.store.Vault()

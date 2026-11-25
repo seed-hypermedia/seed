@@ -172,8 +172,9 @@ export async function moveWebDocuments(
     .map((doc) => ({
       from: hmId(input.from.uid, {path: doc.path}),
       to: hmId(input.to.uid, {path: [...toPath, ...doc.path.slice(fromPath.length)]}),
+      isSubdocumentMove: true,
     }))
-  const moves = [{from: input.from, to: input.to}, ...childMoves]
+  const moves = [{from: input.from, to: input.to, isSubdocumentMove: false}, ...childMoves]
   // Check every destination before publishing any part of a recursive move.
   await Promise.all(
     moves.map(async (move) => {
@@ -182,13 +183,14 @@ export async function moveWebDocuments(
         throw new Error(`A document already exists at ${move.to.id}, or its availability could not be verified.`)
     }),
   )
-  const sourceSnapshot = await client.request('Resource', input.from)
-  const primaryGenesis =
-    sourceSnapshot.type === 'document'
-      ? sourceSnapshot.document.genesis || sourceSnapshot.document.generationInfo?.genesis
-      : undefined
+  const moveResources = await Promise.all(
+    moves.map(async (move) => ({
+      ...move,
+      ...(await followToDocument(client as unknown as SeedClient, move.from)),
+    })),
+  )
   const pendingJobs: string[] = []
-  const cleanupInputs = getMoveCleanupInputs(input.from, input.to, input.signingAccountId, input.capabilityId)
+  const cleanupInputs = getMoveCleanupInputsForMoves(moves, input.signingAccountId, input.capabilityId)
   if (input.origin)
     cleanupInputs.push({
       operation: 'remove',
@@ -200,14 +202,19 @@ export async function moveWebDocuments(
     } as any)
   for (const cleanupInput of cleanupInputs) {
     try {
+      const movedDocument = moveResources.find(
+        (move) =>
+          ('sourceDocumentId' in cleanupInput && move.from.id === cleanupInput.sourceDocumentId) ||
+          ('targetDocumentId' in cleanupInput && move.to.id === cleanupInput.targetDocumentId),
+      )
       const queued = await enqueueWebDocumentCardCleanup(
         {
           ...cleanupInput,
           awaitingPrimary: {
-            documentId: input.from.id,
+            documentId: movedDocument?.from.id || input.from.id,
             expectedType: 'redirect',
-            targetDocumentId: input.to.id,
-            expectedGenesis: primaryGenesis,
+            targetDocumentId: movedDocument?.to.id || input.to.id,
+            expectedGenesis: movedDocument?.document.genesis || movedDocument?.document.generationInfo?.genesis,
           },
         },
         {client},
@@ -219,12 +226,12 @@ export async function moveWebDocuments(
     }
   }
 
-  for (const move of moves) {
+  for (const move of moveResources) {
     // Follows redirects so a redirected source can be moved. The destination keeps the source's
     // KIND: a republish moves as a republish (so it keeps tracking the original's edits), a plain
     // document forks its history. A source that has itself already moved is a pointer with nothing
     // to move. Fresh generations let both refs supersede any redirect Ref sitting at their paths.
-    const {document: doc, redirect, targetId} = await followToDocument(client as unknown as SeedClient, move.from)
+    const {document: doc, redirect, targetId} = move
     if (!doc.generationInfo) throw new Error('No generation info for document')
     if (redirect && !redirect.republish) {
       throw new Error(`${packHmId(move.from)} has already moved to ${packHmId(redirect.target)}. Move that instead.`)
@@ -286,7 +293,7 @@ export async function moveWebDocuments(
 
   for (const jobId of pendingJobs) await releaseWebDocumentCardCleanup(jobId).catch(console.error)
   invalidateMoveQueries(moves)
-  return moves
+  return moves.map(({from, to}) => ({from, to}))
 }
 
 /** Republishes a web document by publishing a republish redirect at the destination. */
@@ -488,7 +495,35 @@ function getMoveCleanupInputs(
   }))
 }
 
+function getMoveCleanupInputsForMoves(
+  moves: Array<PlannedMove & {isSubdocumentMove: boolean}>,
+  signingAccountUid: string,
+  capabilityId?: string,
+) {
+  return moves.flatMap((move) => {
+    if (!move.isSubdocumentMove) {
+      return getMoveCleanupInputs(move.from, move.to, signingAccountUid, capabilityId)
+    }
+    const parent = getParentId(move.to)
+    if (!parent) return []
+    return [
+      {
+        operation: 'rewrite' as const,
+        parentDocumentId: parent.id,
+        sourceDocumentId: move.from.id,
+        targetDocumentId: move.to.id,
+        signingAccountUid,
+        capabilityId,
+      },
+    ]
+  })
+}
+
 function invalidateMoveQueries(moves: PlannedMove[]) {
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
+  new Set(moves.flatMap(({from, to}) => [from.uid, to.uid])).forEach((uid) => {
+    invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
+  })
   moves.forEach(({from, to}) => {
     const affectedIds = [from, to]
     affectedIds.forEach((id) => {

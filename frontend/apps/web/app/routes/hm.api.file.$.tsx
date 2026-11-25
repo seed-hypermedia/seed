@@ -1,6 +1,7 @@
 import {LoaderFunction} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
+import {fetchUpstreamFile} from '@/upstream-reads.server'
 
 /**
  * Simple proxy for IPFS file content (videos, documents, etc.)
@@ -32,7 +33,10 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
       headers.Authorization = `Bearer ${authToken}`
     }
 
-    const response = await fetch(fileUrl, {headers})
+    const local = await fetch(fileUrl, {headers})
+    // A file from another space's document may only exist on the upstream node.
+    const response =
+      local.ok || local.status === 206 ? local : (await fetchUpstreamFile(`/ipfs/${CID}`, range)) ?? local
     if (!response.ok && response.status !== 206) {
       throw new Error(`Failed to fetch file from ${fileUrl}: ${response.status}`)
     }

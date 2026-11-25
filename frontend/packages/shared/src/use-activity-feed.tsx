@@ -26,17 +26,20 @@ export function useActivityFeed({
   filterAuthors,
   filterResource,
   filterEventType,
+  targetBlockId,
 }: {
   pageSize?: number
   filterAuthors?: string[]
   filterResource?: string
   filterEventType?: string[]
+  /** Citations of this block of filterResource only, one per citing block (see HMListEventsInput). */
+  targetBlockId?: string
 }) {
   const client = useUniversalClient()
   const currentAccount = useSelectedAccountId()
 
   return useInfiniteQuery({
-    queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, currentAccount],
+    queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, targetBlockId, currentAccount],
     queryFn: async ({
       pageParam,
       signal,
@@ -47,6 +50,7 @@ export function useActivityFeed({
           filterAuthors,
           filterEventType,
           filterResource,
+          targetBlockId,
           pageToken: pageParam as string | undefined,
           currentAccount: currentAccount ?? undefined,
         }

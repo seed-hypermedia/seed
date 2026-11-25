@@ -22,6 +22,7 @@ const rp = {
 const hmacSecret = new Uint8Array(32)
 const emailSender = {
   sendVerificationEmail: async () => {},
+  sendInvitationEmail: async () => {},
 }
 
 function createService(getAccountImpl: (req: {id: string}) => Promise<Account>) {
@@ -88,6 +89,8 @@ describe('vault account api service', () => {
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
+      inviteOnly: false,
+      relyingPartyName: rp.name,
     })
   })
 })

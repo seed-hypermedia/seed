@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/remix'
 import {nodeProfilingIntegration} from '@sentry/profiling-node'
 import fs from 'node:fs'
 import path from 'node:path'
+import {sentryTokenScrubOptions} from './app/sentry-scrub.mjs'
 
 const dsn = process.env.SITE_SENTRY_DSN
 const release =
@@ -30,6 +31,7 @@ if (dsn) {
     },
     profilesSampleRate: 1.0,
     sendDefaultPii: false,
+    ...sentryTokenScrubOptions,
     ignoreErrors: ['AbortError', /Unexpected token '<'/, /Loading chunk \d+ failed/],
   })
 }

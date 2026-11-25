@@ -31,6 +31,7 @@ const (
 	Daemon_DisconnectVault_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
 	Daemon_ForceSync_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
 	Daemon_GetVaultEmail_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/GetVaultEmail"
+	Daemon_GetVaultEmailPrevalidation_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/GetVaultEmailPrevalidation"
 	Daemon_ChangeVaultEmailStart_FullMethodName      = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailStart"
 	Daemon_ChangeVaultEmailVerify_FullMethodName     = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailVerify"
 	Daemon_GetVaultPasswordStatus_FullMethodName     = "/com.seed.daemon.v1alpha.Daemon/GetVaultPasswordStatus"
@@ -82,6 +83,9 @@ type DaemonClient interface {
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Gets the current email address of the connected remote vault user.
 	GetVaultEmail(ctx context.Context, in *GetVaultEmailRequest, opts ...grpc.CallOption) (*GetVaultEmailResponse, error)
+	// Gets the email prevalidation signed by the connected remote vault server.
+	// Services that trust the vault can accept it instead of verifying the email themselves.
+	GetVaultEmailPrevalidation(ctx context.Context, in *GetVaultEmailPrevalidationRequest, opts ...grpc.CallOption) (*GetVaultEmailPrevalidationResponse, error)
 	// Starts changing the remote vault user's email address. Sends a verification
 	// code to the new email and returns an opaque binding to pass to verify.
 	ChangeVaultEmailStart(ctx context.Context, in *ChangeVaultEmailStartRequest, opts ...grpc.CallOption) (*ChangeVaultEmailStartResponse, error)
@@ -237,6 +241,16 @@ func (c *daemonClient) GetVaultEmail(ctx context.Context, in *GetVaultEmailReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetVaultEmailResponse)
 	err := c.cc.Invoke(ctx, Daemon_GetVaultEmail_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) GetVaultEmailPrevalidation(ctx context.Context, in *GetVaultEmailPrevalidationRequest, opts ...grpc.CallOption) (*GetVaultEmailPrevalidationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVaultEmailPrevalidationResponse)
+	err := c.cc.Invoke(ctx, Daemon_GetVaultEmailPrevalidation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -454,6 +468,9 @@ type DaemonServer interface {
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
 	// Gets the current email address of the connected remote vault user.
 	GetVaultEmail(context.Context, *GetVaultEmailRequest) (*GetVaultEmailResponse, error)
+	// Gets the email prevalidation signed by the connected remote vault server.
+	// Services that trust the vault can accept it instead of verifying the email themselves.
+	GetVaultEmailPrevalidation(context.Context, *GetVaultEmailPrevalidationRequest) (*GetVaultEmailPrevalidationResponse, error)
 	// Starts changing the remote vault user's email address. Sends a verification
 	// code to the new email and returns an opaque binding to pass to verify.
 	ChangeVaultEmailStart(context.Context, *ChangeVaultEmailStartRequest) (*ChangeVaultEmailStartResponse, error)
@@ -536,6 +553,9 @@ func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (
 }
 func (UnimplementedDaemonServer) GetVaultEmail(context.Context, *GetVaultEmailRequest) (*GetVaultEmailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVaultEmail not implemented")
+}
+func (UnimplementedDaemonServer) GetVaultEmailPrevalidation(context.Context, *GetVaultEmailPrevalidationRequest) (*GetVaultEmailPrevalidationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVaultEmailPrevalidation not implemented")
 }
 func (UnimplementedDaemonServer) ChangeVaultEmailStart(context.Context, *ChangeVaultEmailStartRequest) (*ChangeVaultEmailStartResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeVaultEmailStart not implemented")
@@ -805,6 +825,24 @@ func _Daemon_GetVaultEmail_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DaemonServer).GetVaultEmail(ctx, req.(*GetVaultEmailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_GetVaultEmailPrevalidation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVaultEmailPrevalidationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetVaultEmailPrevalidation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetVaultEmailPrevalidation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetVaultEmailPrevalidation(ctx, req.(*GetVaultEmailPrevalidationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1183,6 +1221,10 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetVaultEmail",
 			Handler:    _Daemon_GetVaultEmail_Handler,
+		},
+		{
+			MethodName: "GetVaultEmailPrevalidation",
+			Handler:    _Daemon_GetVaultEmailPrevalidation_Handler,
 		},
 		{
 			MethodName: "ChangeVaultEmailStart",

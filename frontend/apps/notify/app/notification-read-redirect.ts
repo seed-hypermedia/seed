@@ -5,25 +5,19 @@ import {
   getSubscription,
   mergeNotificationReadState,
 } from './db'
+import {buildNotificationReadRedirectUrl as buildReadRedirectUrl, getNotifyEmailOrigin} from '@shm/emails/notify-links'
 
-export const EMAIL_NOTIFICATION_REDIRECT_PATH = '/hm/notification-read-redirect'
-
+/** Email link that marks a notification read and then redirects to `redirectTo` (`/hm/api/notify/read-redirect`). */
 export function buildNotificationReadRedirectUrl(input: {
-  notifyServiceHost: string
+  notifyServiceHost?: string
   token: string
   accountId: string
   eventId: string
   eventAtMs: number
   redirectTo: string
 }) {
-  const params = new URLSearchParams({
-    token: input.token,
-    accountId: input.accountId,
-    eventId: input.eventId,
-    eventAtMs: String(input.eventAtMs),
-    redirectTo: input.redirectTo,
-  })
-  return `${input.notifyServiceHost.replace(/\/$/, '')}${EMAIL_NOTIFICATION_REDIRECT_PATH}?${params.toString()}`
+  const {notifyServiceHost, ...params} = input
+  return buildReadRedirectUrl(getNotifyEmailOrigin(notifyServiceHost), params)
 }
 
 export function getSafeNotificationRedirectTarget(redirectTo: string | null): string | null {

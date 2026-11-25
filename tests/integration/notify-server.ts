@@ -1,6 +1,6 @@
 /**
  * Notify-service manager for integration tests.
- * Runs the notification server (frontend/apps/notify, Remix vite dev) with a
+ * Runs the notification server (frontend/apps/notify, a Bun service) with a
  * temp SQLite DATA_DIR and no SMTP — emails are skipped, but configs and
  * verification tokens land in the DB, so tests verify emails by reading the
  * token straight from sqlite (exactly what the emailed link would carry).
@@ -45,15 +45,15 @@ export async function startNotifyServer(config: NotifyServerConfig): Promise<Not
     PORT: String(config.port),
   }
   // Neutralize SMTP so tests never send real mail. Empty strings (not
-  // deletes): the notify app's dotenv loads frontend/apps/notify/.env, and
-  // dotenv only fills variables that are UNSET — an empty value blocks it.
+  // deletes): Bun loads frontend/apps/notify/.env, and only fills variables
+  // that are UNSET — an empty value blocks it.
   env.NOTIFY_SMTP_HOST = ''
   env.NOTIFY_SMTP_USER = ''
   env.NOTIFY_SMTP_PASSWORD = ''
   env.NOTIFY_SENDER = ''
   delete env.NODE_ENV
 
-  const notifyProcess = spawn('npx', ['remix', 'vite:dev', '--port', String(config.port)], {
+  const notifyProcess = spawn('bun', ['app/main.ts'], {
     cwd: notifyAppDir,
     stdio: 'pipe',
     detached: true,
@@ -76,9 +76,7 @@ export async function startNotifyServer(config: NotifyServerConfig): Promise<Not
     while (Date.now() - startTime < timeoutMs) {
       if (exited) throw new Error('Notify server exited before becoming ready')
       try {
-        // Any HTTP answer means vite is serving; the first real request
-        // triggers the server build.
-        const response = await fetch(baseUrl)
+        const response = await fetch(`${baseUrl}/hm/api/notify/health`)
         if (response.status < 500) {
           console.log(`[Notify] Ready at ${baseUrl}`)
           return
@@ -104,9 +102,7 @@ export async function startNotifyServer(config: NotifyServerConfig): Promise<Not
       ).trim()
       return out || null
     } catch (error) {
-      console.log(
-        `[Notify] readVerificationToken failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      console.log(`[Notify] readVerificationToken failed: ${error instanceof Error ? error.message : String(error)}`)
       return null
     }
   }

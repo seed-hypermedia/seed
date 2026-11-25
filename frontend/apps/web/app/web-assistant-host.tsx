@@ -72,8 +72,10 @@ function usePanelWidth(): [number, (width: number) => void] {
  * open, so toggling never remounts the page either — and whose second column, when open, is a
  * draggable divider plus a sticky full-height aside. Pages that scroll the window keep doing so;
  * the aside sticks to the viewport beside them. Narrow screens have no room for a split: the panel
- * takes the whole viewport and a "Back to page" bar returns to the page without closing the panel's
- * state, so reopening it from the account menu lands back in the same chat.
+ * takes the whole viewport and a "Back to page" bar returns to the page. Because that covers the
+ * page, it only happens when the reader opened the panel themselves during this page load — a
+ * preference restored from an earlier (wider) visit, or an auto-open on a window that has since
+ * shrunk, keeps the panel out of the way until they ask for it from the header.
  */
 export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const panel = useAssistantPanel()
@@ -82,7 +84,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   // visitor. The preference itself is kept, so signing back in restores the panel as it was.
   const keyPair = useLocalKeyPair()
   const media = useMedia()
-  const isMobile = media.xs
+  const isMobile = !!media.xs
   const [width, setWidth] = usePanelWidth()
   const [dragging, setDragging] = useState(false)
   const dragStart = useRef<{x: number; width: number} | null>(null)
@@ -111,14 +113,18 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   }, [])
 
   const showSidePanel = !!keyPair && panel.isOpen && !isMobile
-  const showFullScreen = !!keyPair && panel.isOpen && isMobile
+  const showFullScreen = !!keyPair && panel.isOpen && isMobile && panel.openedByReader
+  const visible = showSidePanel || showFullScreen
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
-  // panel itself is; the header additionally checks that the space names an agents server.
+  // panel itself is; the header additionally checks that the space names an agents server. It
+  // reflects what is on screen, not the stored preference: on a narrow viewport with a restored
+  // "open" that is not showing, the button reads closed and a tap opens the panel rather than
+  // silently closing the invisible one.
   const [activity, setActivity] = useState<AgentActivityIndicator | null>(null)
   const headerToggle = useMemo<AssistantPanelToggle | null>(
-    () => (keyPair ? {isOpen: panel.isOpen, toggle: panel.toggle, activity} : null),
-    [keyPair, panel.isOpen, panel.toggle, activity],
+    () => (keyPair ? {isOpen: visible, toggle: visible ? panel.close : panel.open, activity} : null),
+    [keyPair, visible, panel.close, panel.open, activity],
   )
 
   return (

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"seed/backend/api/entities/v1alpha"
 	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -88,6 +89,44 @@ func TestFeedQueriesUseIndexedOrdering(t *testing.T) {
 			first, _, _ := strings.Cut(got, "\n")
 			require.Contains(t, first, tt.drivenBy,
 				"query must be driven by %s so the LIMIT stays bounded\nplan:\n%s", tt.drivenBy, got)
+		})
+	}
+}
+
+// TestMovedBlocksQueriesSeekRedirectIndex guards the index that resolves moved
+// documents for every feed page and mentions listing. Driven by the plain
+// genesis index, the lookup walked every blob sharing a genesis and parsed the
+// redirect out of each row — thousands of rows per genesis on accounts whose
+// documents share the home genesis, for every page served — and the moved-blocks
+// query alone was 5% of the gateway's CPU. The partial index holds only
+// redirecting Refs and covers the query.
+func TestMovedBlocksQueriesSeekRedirectIndex(t *testing.T) {
+	t.Parallel()
+
+	db := storage.MakeTestDB(t)
+	conn, release, err := db.ReadConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	for _, tt := range []struct {
+		name  string
+		query string
+	}{
+		{name: "by genesis", query: entities.QGetMovedBlocks()},
+		{name: "by resource filter", query: qGetMovedBlocksByResourceID()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var sb strings.Builder
+
+			require.NoError(t, sqlitex.ExecTransient(conn, "EXPLAIN QUERY PLAN "+strings.TrimSpace(tt.query), func(stmt *sqlite.Stmt) error {
+				sb.WriteString(stmt.ColumnText(3))
+				sb.WriteString("\n")
+				return nil
+			}))
+			got := sb.String()
+			require.Contains(t, got, "INDEX structural_blobs_by_redirect (genesis_blob=?)",
+				"moved-blocks lookup must seek the redirect index by genesis\nplan:\n%s", got)
+			require.NotContains(t, got, "structural_blobs_by_genesis_blob", "plan:\n%s", got)
 		})
 	}
 }

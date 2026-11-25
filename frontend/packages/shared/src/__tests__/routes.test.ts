@@ -1090,3 +1090,17 @@ describe('schemaRouteSchema + inspector draft paths', () => {
     expect(() => navRouteSchema.parse({key: 'raw-blob'})).toThrow()
   })
 })
+
+describe('space settings browser destinations', () => {
+  test('opens the space settings master view on its own domain', () => {
+    expect(routeToHref({key: 'site-settings', id: hmId('owner')}, {originHomeId: hmId('owner')})).toBe('/:settings')
+  })
+  test.each(['identity', 'navigation', 'web-domain'] as const)(
+    'keeps the viewed space and section %s on a gateway',
+    (tab) => {
+      expect(routeToHref({key: 'site-settings', id: hmId('owner'), tab}, {originHomeId: hmId('gateway')})).toBe(
+        `/hm/owner/:settings/${tab}`,
+      )
+    },
+  )
+})

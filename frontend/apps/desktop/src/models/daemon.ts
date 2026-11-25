@@ -1,4 +1,5 @@
 import {grpcClient} from '@/grpc-client'
+import {logoutHosting} from './host-session'
 import {client} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
@@ -177,13 +178,19 @@ export function useDisconnectVault(opts?: UseMutationOptions<void, unknown, void
   })
 }
 
-/** Logs out by disconnecting remote vault sync and deleting all local vault keys. */
+/** Logs out of hosting and disconnects remote vault sync, deleting all local vault keys. */
 export function useLogout(opts?: UseMutationOptions<void, unknown, void>) {
   return useMutation({
     ...opts,
     mutationFn: async () => {
-      await grpcClient.daemon.disconnectVault({clearLocalVault: true})
-      clearLocalAccountQueryData()
+      const results = await Promise.allSettled([
+        grpcClient.daemon.disconnectVault({clearLocalVault: true}),
+        logoutHosting(),
+      ])
+      if (results[0].status === 'fulfilled') clearLocalAccountQueryData()
+      for (const result of results) {
+        if (result.status === 'rejected') throw result.reason
+      }
     },
     onSuccess: async (data, variables, context) => {
       clearLocalAccountQueryData()

@@ -1,3 +1,4 @@
+import {Code, ConnectError} from '@connectrpc/connect'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 ;(globalThis as typeof globalThis & {React?: typeof React}).React = React
@@ -9,6 +10,8 @@ import {HMDocument, HMDraft, UnpackedHypermediaId} from '@seed-hypermedia/client
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
 const {
+  inviteToPublishDomainMock,
+  requestResourceMock,
   invalidateQueriesMock,
   setQueriesDataByKeyMock,
   getDocumentMock,
@@ -21,6 +24,8 @@ const {
   useResourceMock,
   prepareHMDocumentMock,
 } = vi.hoisted(() => ({
+  inviteToPublishDomainMock: vi.fn(),
+  requestResourceMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
   setQueriesDataByKeyMock: vi.fn(),
   getDocumentMock: vi.fn(),
@@ -33,6 +38,8 @@ const {
   useResourceMock: vi.fn(),
   prepareHMDocumentMock: vi.fn((raw: any) => raw),
 }))
+
+vi.mock('@/models/domain-publishing-invitation', () => ({inviteToPublishDomain: inviteToPublishDomainMock}))
 
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,
@@ -54,7 +61,7 @@ vi.mock('@/grpc-client', () => ({
 
 vi.mock('@/desktop-universal-client', () => ({
   desktopUniversalClient: {
-    request: vi.fn(async () => ({type: 'document', document: {version: 'parent-version', visibility: 'PUBLIC'}})),
+    request: requestResourceMock,
     publishDocument: publishDocumentMock,
   },
 }))
@@ -187,6 +194,10 @@ async function renderHarness(editId: UnpackedHypermediaId | undefined): Promise<
 
 describe('usePublishResource path resolution', () => {
   beforeEach(() => {
+    inviteToPublishDomainMock.mockReset()
+    requestResourceMock
+      .mockReset()
+      .mockResolvedValue({type: 'document', document: {version: 'parent-version', visibility: 'PUBLIC'}})
     invalidateQueriesMock.mockReset()
     setQueriesDataByKeyMock.mockReset()
     getDocumentMock.mockReset()
@@ -518,5 +529,257 @@ describe('usePublishResource path resolution', () => {
     }
 
     expect(publishDocumentMock.mock.calls[0][0].path).toBe('/parent/untitled-draft-abc')
+  })
+})
+
+describe('first space publication invitation', () => {
+  const homeId = hmId('acct-1', {path: []})
+  const publishedHome = {
+    version: 'content-version',
+    genesis: 'home-genesis',
+    account: 'acct-1',
+    path: '',
+    content: [],
+    metadata: {name: 'My Space'},
+    visibility: 'PUBLIC',
+  }
+  function homeDraft(): HMDraft {
+    return {...makeDraft(), locationPath: [], editPath: [], metadata: {name: 'My Space'}}
+  }
+  beforeEach(() => {
+    vi.resetAllMocks()
+    useMyAccountIdsMock.mockReturnValue({data: ['acct-1']})
+    useResourceMock.mockReturnValue({data: undefined, isFetched: true, isLoading: false})
+    prepareHMDocumentMock.mockImplementation((raw: any) => raw)
+    requestResourceMock.mockResolvedValue({type: 'not-found'})
+    getDocumentMock
+      .mockRejectedValueOnce(new ConnectError('No home document', Code.NotFound))
+      .mockResolvedValue(publishedHome)
+    publishDocumentMock.mockResolvedValue({
+      version: publishedHome.version,
+      genesis: publishedHome.genesis,
+      generation: 1,
+    })
+    listDocumentChangesMock.mockResolvedValue({changes: []})
+  })
+
+  it.each(['unified editor', 'legacy draft toolbar'])(
+    'invites after a new public home is published through the %s',
+    async (flow) => {
+      const {call, cleanup} = await renderHarness(flow === 'unified editor' ? homeId : undefined)
+      try {
+        expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+        await act(async () => {
+          await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+        })
+        expect(getDocumentMock).toHaveBeenNthCalledWith(1, {account: 'acct-1', path: ''})
+        expect(inviteToPublishDomainMock).toHaveBeenCalledExactlyOnceWith(homeId)
+      } finally {
+        cleanup()
+      }
+    },
+  )
+
+  it('accepts a definitive NotFound when the raw resource probe is unavailable', async () => {
+    requestResourceMock.mockRejectedValue(new Error('Raw lookup unavailable'))
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).toHaveBeenCalledExactlyOnceWith(homeId)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not invite when a raw existing document contradicts a stale NotFound response', async () => {
+    requestResourceMock.mockResolvedValue({type: 'document', document: publishedHome})
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('accepts a positive missing-resource result when the document probe fails without a NotFound code', async () => {
+    getDocumentMock
+      .mockReset()
+      .mockRejectedValueOnce(new Error('document lookup unavailable'))
+      .mockResolvedValue(publishedHome)
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).toHaveBeenCalledExactlyOnceWith(homeId)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('invites after a signed first publication even while the indexed document cannot reload', async () => {
+    getDocumentMock
+      .mockReset()
+      .mockRejectedValueOnce(new ConnectError('Missing', Code.NotFound))
+      .mockRejectedValue(new Error('index unavailable'))
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      let result: HMDocument | undefined
+      await act(async () => {
+        result = await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(result?.version).toBe(publishedHome.version)
+      expect(inviteToPublishDomainMock).toHaveBeenCalledExactlyOnceWith(homeId)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not invite for an update even when the draft has no stored dependencies', async () => {
+    getDocumentMock.mockReset().mockResolvedValue(publishedHome)
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it.each(['draft dependencies', 'loaded document', 'site URL', 'private visibility'])(
+    'does not invite when the root has %s',
+    async (reason) => {
+      const draft = homeDraft()
+      if (reason === 'draft dependencies') draft.deps = ['existing-version']
+      if (reason === 'loaded document')
+        useResourceMock.mockReturnValue({
+          data: {type: 'document', document: publishedHome},
+          isFetched: true,
+          isLoading: false,
+        })
+      if (reason === 'site URL') draft.metadata = {...draft.metadata, siteUrl: 'https://already.example.com'}
+      if (reason === 'private visibility') draft.visibility = 'PRIVATE'
+      const {call, cleanup} = await renderHarness(homeId)
+      try {
+        await act(async () => {
+          await call.mutateAsync({draft, destinationId: homeId, accountId: 'acct-1'})
+        })
+        expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+      } finally {
+        cleanup()
+      }
+    },
+  )
+
+  it('does not invite for a child publication', async () => {
+    const childId = hmId('acct-1', {path: ['child']})
+    requestResourceMock.mockResolvedValue({
+      type: 'document',
+      document: {version: 'parent-version', visibility: 'PUBLIC'},
+    })
+    getDocumentMock
+      .mockReset()
+      .mockRejectedValueOnce(new ConnectError('Missing', Code.NotFound))
+      .mockResolvedValue({...publishedHome, path: '/child'})
+    const {call, cleanup} = await renderHarness(childId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({
+          draft: {...makeDraft(), editPath: ['child'], locationPath: []},
+          destinationId: childId,
+          accountId: 'acct-1',
+        })
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not use a missing child probe as evidence that an overridden root destination is new', async () => {
+    const childId = hmId('acct-1', {path: ['-draft-abc']})
+    const {call, cleanup} = await renderHarness(childId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({
+          draft: {...makeDraft(), editPath: ['-draft-abc'], locationPath: []},
+          destinationId: childId,
+          accountId: 'acct-1',
+          pathOverride: [],
+        })
+      })
+      expect(getDocumentMock).toHaveBeenNthCalledWith(1, {account: 'acct-1', path: '/-draft-abc'})
+      expect(publishDocumentMock.mock.calls[0][0].path).toBe('')
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not mistake a transient lookup failure for proof of first publication', async () => {
+    getDocumentMock
+      .mockReset()
+      .mockRejectedValueOnce(new ConnectError('Offline', Code.Unavailable))
+      .mockResolvedValue(publishedHome)
+    requestResourceMock.mockRejectedValue(new Error('Offline'))
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not invite when publishing over a redirect', async () => {
+    requestResourceMock.mockResolvedValue({type: 'redirect'})
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'})
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not invite after a rejected publication', async () => {
+    publishDocumentMock.mockRejectedValue(new Error('Publish failed'))
+    const {call, cleanup} = await renderHarness(homeId)
+    try {
+      await act(async () => {
+        await expect(
+          call.mutateAsync({draft: homeDraft(), destinationId: homeId, accountId: 'acct-1'}),
+        ).rejects.toThrow('Publish failed')
+      })
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not invite merely because an existing remote home was loaded', async () => {
+    useResourceMock.mockReturnValue({
+      data: {type: 'document', document: publishedHome},
+      isFetched: true,
+      isLoading: false,
+    })
+    const {cleanup} = await renderHarness(homeId)
+    try {
+      expect(publishDocumentMock).not.toHaveBeenCalled()
+      expect(inviteToPublishDomainMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
   })
 })

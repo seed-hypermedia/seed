@@ -253,13 +253,13 @@ export function SiteFileBrowser({
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
                       {doc.isCollection ? (
-                        <Grid3X3 aria-label="Collection" className="size-3 shrink-0" />
+                        <Grid3X3 aria-label="Collection" className="text-icon size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
-                        <Lock aria-label="Private document" className="size-3 shrink-0" />
+                        <Lock aria-label="Private document" className="text-icon size-3 shrink-0" />
                       ) : unpublishedDraftIds.has(doc.id.id) ? (
                         <FileText aria-label="Unpublished draft" className="size-3 shrink-0 text-yellow-500" />
                       ) : (
-                        <FileText aria-label="Document" className="text-muted-foreground size-3 shrink-0" />
+                        <FileText aria-label="Document" className="text-icon size-3 shrink-0" />
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>

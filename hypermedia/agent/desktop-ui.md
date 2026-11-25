@@ -6,7 +6,7 @@ The [Seed app](../apps/desktop.md) and the [Seed web app](../apps/web.md) are th
 
 # Two surfaces, one code <!-- id:T7G6VI9d -->
 
-Two surfaces read the same sessions. The **Agents pages** are full-window: an index of recent sessions across every configured server, one page per server, one page per agent with its tabs, and one page per session. The **assistant panel** is the same thing in a column: on the desktop it is toggled from the footer and sits beside whatever you are reading; on the web it is mounted above the site's page outlet so route changes never remount it, opened from the account menu's "Agents" item, full-screen with a "Back to page" bar on narrow screens. On the web the full pages live under `/hm/agents`. <!-- id:p_UDNR-m -->
+Two surfaces read the same sessions. The **Agents pages** are full-window: an index of recent sessions across every configured server, one page per server, one page per agent with its tabs, and one page per session. The **assistant panel** is the same thing in a column: on the desktop it is toggled from the footer and sits beside whatever you are reading; on the web it is mounted above the site's page outlet so route changes never remount it, opened from the account menu's "Agents" item, full-screen with a "Back to page" bar on narrow screens (only when opened there on purpose: a remembered open state never takes over a narrow screen by itself). On the web the full pages live under `/hm/agents`. <!-- id:p_UDNR-m -->
 
 Both surfaces need a selected [account](../protocol/identity.md), because an agents server, including the local one, rejects unsigned requests. With no account the pages render an invitation to sign in. <!-- id:5ouzsQhP -->
 
@@ -94,6 +94,7 @@ Every list refreshes through React Query polling and [WebSocket](./websocket-sub
 - `frontend/apps/web/app/routes/hm.agents.tsx` and `hm.agents.$.tsx` mount the pages; `web-assistant-host.tsx` mounts the panel; `web-agents-platform.ts` signs with the browser's device key and the [capability](../protocol/permissions.md) the [vault](../apps/vault.md) issued at [sign-in](../build/sign-in.md). <!-- id:20Vt6Tin -->
 - `frontend/packages/shared/src/routes.ts` defines the `agents`, `agent-server`, `agent` (with `tab`, `triggerId`, `memoryPath`), `agent-session`, and `agent-run` routes. `frontend/packages/shared/src/utils/agents-routing.ts` maps them to the web URLs `/hm/agents`, `/hm/agents/server?url=`, `/hm/agents/agent/<id>?server=&tab=&trigger=&file=`, `/hm/agents/session/<id>?server=&agent=`, and `/hm/agents/run/<id>?server=&agent=`, and back, so a copied web link opens in the desktop app. <!-- id:f8zqWJaA -->
 - `agents/protocol/src/tool-registry.ts` is the shared registry that drives tool-row rendering and the wrench palette's forms, the same source as the model-facing descriptions. <!-- id:paiA_noM -->
+- `frontend/packages/agents-ui/` packages these screens for apps outside the repository: one provider implements the platform seam from a host's server URL and signer, and the build bundles the shared code. See [Embedding the agents UI](../build/agents-ui.md).
 
 # Manual smoke test <!-- id:63xnyWtl -->
 

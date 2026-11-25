@@ -7,6 +7,8 @@ export type SiteConfig = {
   hostname?: string
   isGateway?: boolean
   /** Notification service base URL announced by the server, when configured. */
+  notifyServiceUrl?: string | null
+  /** Legacy: the origin of the notification service (older servers only announce this). */
   notifyServiceHost?: string | null
 }
 
@@ -36,6 +38,7 @@ export async function fetchSiteConfig(serverUrl: string): Promise<SiteConfig> {
     peerId: data.peerId,
     hostname: data.hostname,
     isGateway: data.isGateway,
+    notifyServiceUrl: data.notifyServiceUrl ?? null,
     notifyServiceHost: data.notifyServiceHost ?? null,
   }
 }

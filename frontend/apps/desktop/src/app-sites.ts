@@ -1,9 +1,13 @@
 import {getSiteEmailSubscribers} from '@shm/shared/models/notification-service'
+import {normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
 import {z} from 'zod'
 import {buildDesktopSigner, getNotifyServiceHostDefault} from './app-notifications'
 import {t} from './app-trpc'
 
-/** Reads the notifyServiceHost that a site advertises via its /hm/api/config. */
+/**
+ * Reads the notify service a site advertises via its /hm/api/config: `notifyServiceUrl` (the full
+ * base URL) on current sites, else the legacy origin-only `notifyServiceHost`.
+ */
 async function getSiteNotifyServiceHost(siteUrl: string): Promise<string | null> {
   const resp = await fetch(`${siteUrl.replace(/\/$/, '')}/hm/api/config`, {})
   if (resp.status !== 200) {
@@ -15,7 +19,8 @@ async function getSiteNotifyServiceHost(siteUrl: string): Promise<string | null>
   } catch {
     throw new Error('Space returned invalid response')
   }
-  return typeof config?.notifyServiceHost === 'string' ? config.notifyServiceHost : null
+  if (typeof config?.notifyServiceUrl === 'string') return normalizeNotifyServiceUrl(config.notifyServiceUrl)
+  return typeof config?.notifyServiceHost === 'string' ? normalizeNotifyServiceUrl(config.notifyServiceHost) : null
 }
 
 const registerInputSchema = z.object({

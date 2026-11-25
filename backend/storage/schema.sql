@@ -132,6 +132,14 @@ CREATE INDEX profiles_by_alias ON structural_blobs (extra_attrs->>'alias', autho
 -- Index for querying profiles by subject.
 CREATE INDEX contacts_by_subject ON structural_blobs (extra_attrs->>'subject', ts, author) WHERE type = 'Contact';
 
+-- Refs that redirect a document to a new address, by genesis. The activity
+-- feed and the mentions API resolve moved documents for every page they serve,
+-- keyed by the genesis of each event. The plain genesis index would walk every
+-- blob sharing that genesis (thousands, for accounts whose documents share the
+-- home genesis) and parse the redirect out of each row; this one holds only
+-- the redirecting Refs and covers the moved-blocks query.
+CREATE INDEX structural_blobs_by_redirect ON structural_blobs (genesis_blob, extra_attrs->>'redirect', resource) WHERE type = 'Ref' AND extra_attrs->>'redirect' != '';
+
 -- Stores blobs that we have failed to index for some reason.
 -- Sometimes we still keep the blob, even if we have failed to index it,
 -- because we might be able to index it later, e.g. when some other related blobs arrive out of order.

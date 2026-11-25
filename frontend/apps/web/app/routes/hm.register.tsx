@@ -1,5 +1,9 @@
+import {useLocalKeyPair, useLocalKeyPairLoaded} from '@/auth'
 import {defaultPageMeta} from '@/meta'
+import {useSearchParams} from '@remix-run/react'
+import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
+import {useState} from 'react'
 
 export const loader = async ({request}: {request: Request}) => {
   return null
@@ -41,8 +45,71 @@ export default function RegisterPage() {
               here before you do.
             </p>
           </SizableText>
+          <BrowserRegistration />
         </div>
       </div>
+    </div>
+  )
+}
+
+type RegistrationState = {status: 'idle'} | {status: 'busy'} | {status: 'done'} | {status: 'error'; message: string}
+
+/**
+ * Web-only organizations have no desktop app: the space they created with
+ * /hm/create-site already lives on this site's daemon, so registering it is
+ * just the signed-in account claiming the setup secret here.
+ */
+function BrowserRegistration() {
+  const [searchParams] = useSearchParams()
+  const registrationSecret = searchParams.get('secret')
+  const keyPair = useLocalKeyPair()
+  const keyPairLoaded = useLocalKeyPairLoaded()
+  const accountUid = keyPair?.delegatedAccountUid ?? keyPair?.id ?? null
+  const [state, setState] = useState<RegistrationState>({status: 'idle'})
+
+  if (!registrationSecret || !keyPairLoaded || !accountUid) return null
+
+  async function register() {
+    setState({status: 'busy'})
+    try {
+      const configResponse = await fetch('/hm/api/config', {credentials: 'include'})
+      if (!configResponse.ok) throw new Error(`Could not read site config (${configResponse.status})`)
+      const config = (await configResponse.json()) as {peerId?: string}
+      if (!config.peerId) throw new Error('Site config is missing its peer ID')
+      // Passing the site's own peer tells the register action the space is
+      // already on this daemon, so it skips the libp2p connection step.
+      const response = await fetch('/hm/api/register', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({registrationSecret, accountUid, peerId: config.peerId, addrs: []}),
+      })
+      const result = (await response.json().catch(() => ({}))) as {message?: string}
+      if (!response.ok) throw new Error(result.message || `Registration failed (${response.status})`)
+      setState({status: 'done'})
+    } catch (e) {
+      setState({status: 'error', message: e instanceof Error ? e.message : String(e)})
+    }
+  }
+
+  return (
+    <div className="border-border flex flex-col gap-3 border-t pt-4">
+      <SizableText asChild>
+        <p>
+          <b>Already created your space here?</b> You are signed in, so you can register it directly from this browser.
+        </p>
+      </SizableText>
+      {state.status === 'done' ? (
+        <SizableText color="success">This space is now registered on this site.</SizableText>
+      ) : (
+        <Button onClick={register} loading={state.status === 'busy'} disabled={state.status === 'busy'}>
+          Register this space on this site
+        </Button>
+      )}
+      {state.status === 'error' ? (
+        <SizableText color="destructive" size="sm">
+          {state.message}
+        </SizableText>
+      ) : null}
     </div>
   )
 }

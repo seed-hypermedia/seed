@@ -16,6 +16,7 @@ import {createTipTapBlock} from '../core/extensions/Blocks/api/block'
 import {TagParseRule} from '@tiptap/pm/model'
 import {NodeViewContent, NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import {createContext, ElementType, FC, HTMLProps, useContext} from 'react'
+import {getBlockNodeFromPos} from './block-node-position'
 
 // extend BlockConfig but use a React render function
 export type ReactBlockConfig<
@@ -111,17 +112,19 @@ export function createReactBlockSpec<
         // Gets position of the node
         const pos = typeof props.getPos === 'function' ? props.getPos() : undefined
 
-        if (!pos) return null
+        if (pos == null) return null
         // Gets TipTap editor instance
         const tipTapEditor = editor._tiptapEditor
         // Gets parent blockNode node
 
-        const blockNode = tipTapEditor.state.doc.resolve(pos!).node()
+        const blockNode = getBlockNodeFromPos(tipTapEditor.state.doc, pos)
+        if (!blockNode) return null
 
         // Gets block identifier
         const blockIdentifier = blockNode.attrs.id
         // Get the block
-        const block = editor.getBlock(blockIdentifier)!
+        const block = editor.getBlock(blockIdentifier)
+        if (!block) return null
         if (block.type !== blockConfig.type) {
           throw new Error('Block type does not match')
         }

@@ -40,14 +40,11 @@ import {grpcClient} from './app-grpc'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
 import {
-  AppWindow,
   closeLoadingWindow,
   createLoadingWindow,
   deleteWindowsState,
   getAllWindows,
   getFocusedWindow,
-  getLastFocusedWindow,
-  getWindowNavState,
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
@@ -496,45 +493,7 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    // Get the focused window's properties to copy them to the new window
-    const focusedWindow = getLastFocusedWindow()
-    let selectedIdentity: AppWindow['selectedIdentity'] = null
-    let accessoryWidth: AppWindow['accessoryWidth'] | undefined = undefined
-    let sidebarLocked: AppWindow['sidebarLocked'] | undefined = undefined
-    let sidebarWidth: AppWindow['sidebarWidth'] | undefined = undefined
-    let width: number | undefined = undefined
-    let height: number | undefined = undefined
-
-    if (focusedWindow) {
-      const focusedWindowId = Array.from(getAllWindows().entries()).find(([_, window]) => window === focusedWindow)?.[0]
-
-      if (focusedWindowId) {
-        // Use in-memory windowNavState instead of persisted windowsState
-        // to get the most current state values
-        const windowNavState = getWindowNavState()
-        const focusedWindowState = windowNavState[focusedWindowId]
-        selectedIdentity = focusedWindowState?.selectedIdentity || null
-        accessoryWidth = focusedWindowState?.accessoryWidth
-        sidebarLocked = focusedWindowState?.sidebarLocked
-        sidebarWidth = focusedWindowState?.sidebarWidth
-
-        // Only get dimensions if window is in a valid state (not fullscreen/maximized/minimized)
-        if (!focusedWindow.isFullScreen() && !focusedWindow.isMaximized() && !focusedWindow.isMinimized()) {
-          const bounds = focusedWindow.getBounds()
-          width = bounds.width
-          height = bounds.height
-        }
-      }
-    }
-
-    trpc.createAppWindow({
-      routes: [defaultRoute],
-      selectedIdentity,
-      accessoryWidth,
-      sidebarLocked,
-      sidebarWidth,
-      bounds: width !== undefined && height !== undefined ? {width, height} : undefined,
-    })
+    trpc.createAppWindow({routes: [defaultRoute]})
   })
 
   ipcMain.on('minimize_window', (_event, _info) => {

@@ -50,8 +50,8 @@ When a name/account exists in both, the vault wins. `key list` shows a `source` 
 daemon needs to be running. **Mainnet identities typically live in the desktop app's vault**, not the keyring — an empty
 or missing `seed-daemon-main` keyring does NOT mean there are no mainnet keys; always check `key list` (vault included).
 If `key list` output has no `source` field, the installed CLI predates vault support — use the `npx ...@latest` form
-instead. Full reference: `docs/KEYS.md` shipped with the npm package
-(https://unpkg.com/@seed-hypermedia/cli/docs/KEYS.md).
+instead. Full reference: the Keys page of the Seed docs
+(https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/keys.md).
 
 **IMPORTANT:** Mainnet and devnet use **separate keyrings and separate vaults**. A key from one network does not exist
 in the other. Always list keys with the **same environment flag** you will use for publishing — use `key list --dev`

@@ -367,6 +367,13 @@ func OpenIndexPendingReindex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	return newIndex(db, log)
 }
 
+// SetOffline stops the index from fetching site configs over HTTP,
+// both the periodic domain poller and on-demand site URL resolution (isolated nodes).
+func (idx *Index) SetOffline(offline bool) {
+	idx.sitePeerResolver.offline.Store(offline)
+	idx.Domains.SetOffline(offline)
+}
+
 func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	resolver := newSitePeerResolver(500, 5*time.Minute)
 	domains := NewDomainStore(db, resolver, log)

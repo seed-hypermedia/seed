@@ -1,3 +1,4 @@
+import {parseEmailPrevalidation, type EmailPrevalidation} from '@shm/shared/hmauth'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
@@ -202,20 +203,30 @@ export interface StoredLocalKeys {
   capabilityBlob?: Uint8Array
   vaultUrl?: string
   notifyServerUrl?: string
+  emailPrevalidation?: EmailPrevalidation
 }
 
 export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
-  const [privateKey, publicKey, delegatedAccountUid, capabilityCid, capabilityBlob, vaultUrl, notifyServerUrl] =
-    await Promise.all([
-      storeGet<CryptoKey>(store, 'privateKey'),
-      storeGet<CryptoKey>(store, 'publicKey'),
-      storeGet<string | undefined>(store, 'delegatedAccountUid'),
-      storeGet<string | undefined>(store, 'capabilityCid'),
-      storeGet<Uint8Array | undefined>(store, 'capabilityBlob'),
-      storeGet<string | undefined>(store, 'vaultUrl'),
-      storeGet<string | undefined>(store, 'notifyServerUrl'),
-    ])
+  const [
+    privateKey,
+    publicKey,
+    delegatedAccountUid,
+    capabilityCid,
+    capabilityBlob,
+    vaultUrl,
+    notifyServerUrl,
+    emailPrevalidation,
+  ] = await Promise.all([
+    storeGet<CryptoKey>(store, 'privateKey'),
+    storeGet<CryptoKey>(store, 'publicKey'),
+    storeGet<string | undefined>(store, 'delegatedAccountUid'),
+    storeGet<string | undefined>(store, 'capabilityCid'),
+    storeGet<Uint8Array | undefined>(store, 'capabilityBlob'),
+    storeGet<string | undefined>(store, 'vaultUrl'),
+    storeGet<string | undefined>(store, 'notifyServerUrl'),
+    storeGet<unknown>(store, 'emailPrevalidation'),
+  ])
   if (!privateKey || !publicKey) return null
   return {
     keyPair: {privateKey, publicKey},
@@ -224,6 +235,10 @@ export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
     capabilityBlob: capabilityBlob ?? undefined,
     vaultUrl: vaultUrl ?? undefined,
     notifyServerUrl: notifyServerUrl ?? undefined,
+    emailPrevalidation:
+      vaultUrl && delegatedAccountUid && capabilityCid
+        ? parseEmailPrevalidation(emailPrevalidation, vaultUrl)
+        : undefined,
   }
 }
 
@@ -235,6 +250,7 @@ export async function writeLocalKeys(
     capabilityBlob?: Uint8Array
     vaultUrl?: string
     notifyServerUrl?: string
+    emailPrevalidation?: EmailPrevalidation
   },
 ): Promise<void> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
@@ -253,6 +269,14 @@ export async function writeLocalKeys(
   }
   if (options?.vaultUrl !== undefined) {
     writes.push(storePut(store, options.vaultUrl, 'vaultUrl'))
+  }
+  const emailPrevalidation = options?.vaultUrl
+    ? parseEmailPrevalidation(options.emailPrevalidation, options.vaultUrl)
+    : undefined
+  if (emailPrevalidation && options?.delegatedAccountUid && options?.capabilityCid) {
+    writes.push(storePut(store, emailPrevalidation, 'emailPrevalidation'))
+  } else {
+    writes.push(storeDelete(store, 'emailPrevalidation'))
   }
   if (options?.notifyServerUrl !== undefined) {
     writes.push(storePut(store, options.notifyServerUrl, 'notifyServerUrl'))

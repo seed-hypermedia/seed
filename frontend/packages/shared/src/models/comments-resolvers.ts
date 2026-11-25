@@ -19,7 +19,7 @@ import {documentMetadataParseAdjustments} from './entity'
 /**
  * Maps items to async results with at most `limit` requests in flight. The daemon has no
  * in-flight cap of its own, so callers fanning out per-item RPCs bound the burst here
- * (docs/daemon-saturation-incident.md). Real relief is server-side citation/comment
+ * (hypermedia/apps/daemon.md, "Load and the read pool"). Real relief is server-side citation/comment
  * pagination; until then this keeps a heavily-cited document from firing a whole
  * citations page of lookups at once.
  */
@@ -178,7 +178,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
         })
         .catch(() => null),
       // maxPages bounded on purpose: unbounded ListCitations enumeration took
-      // production down on 2026-08-11 (docs/daemon-saturation-incident.md).
+      // production down on 2026-08-11 (hypermedia/apps/daemon.md, "Load and the read pool").
       listAllPages(
         (pageToken) => client.resources.listCitations({iri: targetId.id, pageSize: LIST_PAGE_SIZE, pageToken}),
         (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
@@ -281,7 +281,7 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
   }> => {
     try {
       // maxPages bounded on purpose: unbounded ListCitations enumeration took
-      // production down on 2026-08-11 (docs/daemon-saturation-incident.md).
+      // production down on 2026-08-11 (hypermedia/apps/daemon.md, "Load and the read pool").
       const citations = await listAllPages(
         (pageToken) =>
           client.resources.listCitations({

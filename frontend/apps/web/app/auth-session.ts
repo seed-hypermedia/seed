@@ -14,10 +14,14 @@ import {
   PARAM_CLIENT_ID,
   PARAM_DATA,
   PARAM_EMAIL,
+  PARAM_EMAIL_PREVALIDATION,
+  parseEmailPrevalidation,
+  type EmailPrevalidation,
   PARAM_ERROR,
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
+  PARAM_INVITE,
   PARAM_SITE_NAME,
   PARAM_STATE,
   PARAM_TS,
@@ -122,12 +126,18 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   url.searchParams.set(PARAM_REDIRECT_URI, redirectUri)
   url.searchParams.set(PARAM_SESSION_KEY, session.principal)
   url.searchParams.set(PARAM_STATE, authState)
+  url.searchParams.set(PARAM_EMAIL_PREVALIDATION, '1')
   url.searchParams.set(PARAM_TS, String(authStartTime))
   if (config.email) {
     url.searchParams.set(PARAM_EMAIL, config.email)
   }
   if (config.siteName) {
     url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  }
+  // Invite-only vault: the vault creates the account from the invitation and
+  // then completes this delegation.
+  if (config.invite) {
+    url.searchParams.set(PARAM_INVITE, config.invite)
   }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)
@@ -145,6 +155,14 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
  */
 export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Promise<AuthResult | null> {
   const url = new URL(window.location.href)
+  const fragment = new URLSearchParams(url.hash.slice(1))
+  const emailPrevalidationParam = fragment.get(PARAM_EMAIL_PREVALIDATION)
+  // The optional proof must never reach request logs, referrers, or retained browser history.
+  if (fragment.has(PARAM_EMAIL_PREVALIDATION)) {
+    fragment.delete(PARAM_EMAIL_PREVALIDATION)
+    url.hash = fragment.toString()
+    window.history.replaceState(window.history.state, '', url.toString())
+  }
   const dataParam = url.searchParams.get(PARAM_DATA)
   const stateParam = url.searchParams.get(PARAM_STATE)
   const error = url.searchParams.get(PARAM_ERROR)
@@ -243,6 +261,15 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     throw new Error('Callback account does not match profile signer')
   }
 
+  let emailPrevalidation: EmailPrevalidation | undefined
+  if (emailPrevalidationParam) {
+    try {
+      emailPrevalidation = parseEmailPrevalidation(cbor.decode(base64.decode(emailPrevalidationParam)), vaultUrl)
+    } catch {
+      // Older or malformed optional proof cannot prevent a valid identity delegation.
+    }
+  }
+
   await putAuthSession(vaultUrl, {
     ...record,
     authState: null,
@@ -255,6 +282,7 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     ...(profile ? {profile} : {}),
     session,
     notifyServerUrl,
+    ...(emailPrevalidation ? {emailPrevalidation} : {}),
   }
 }
 

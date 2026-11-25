@@ -34,6 +34,7 @@ Nothing is registered in advance. The vault trusts the redirect because the requ
 | `session_key` | the session key's [principal](../principal.md), `z6Mk…` <!-- id:is-3k7P8 --> |
 | `state` | a random value of at least 128 bits, checked on return <!-- id:ET1U0W3B --> |
 | `ts` | the request time in Unix milliseconds <!-- id:0hhKodHq --> |
+| `email_prevalidation` | optional `1`, requests verified email proof after consent; disabled by default in the SDK <!-- id:emailProofRequest --> |
 | `email`, `site_name` | optional hints for the vault's UI; `site_name` is claimed by you and shown as such <!-- id:-pTdCAF1 --> |
 | `proof` | last, a signature by the session key over the URL exactly as it appears without `proof` <!-- id:X9XMwPwU --> |
 
@@ -48,6 +49,8 @@ The vault redirects to `redirect_uri?data=<payload>&state=<state>`, or `?error=<
 ```
 
 `handleCallback` decodes it, re-encodes the capability and the profile and compares their CIDs to the ones sent, verifies both signatures, and checks the two principal relationships. Only then does the session become usable. <!-- id:5aq9zVzw -->
+
+When `requestEmailPrevalidation` is enabled, Vault discloses verified-email sharing in its consent screen and returns an optional `#email_prevalidation=…` fragment containing base64url DAG-CBOR `{email, host, signer, sig}`. `handleCallback` immediately removes that fragment, including on failure, and returns the proof only after the delegation checks pass and its issuer matches the Vault origin. Treat it as private: do not log it or place it in query parameters. The receiving service must still verify its signature and trust the issuer. Seed Hosting accepts this timeless proof only for new accounts; existing accounts require fresh email verification. Old clients and Vaults remain compatible without the proof. <!-- id:emailProofCallback -->
 
 # The SDK <!-- id:kZG846xF -->
 
@@ -77,7 +80,7 @@ const signer = createSessionSigner(session!)
 const comment = await createComment({docId, docVersion, content}, signer)
 ```
 
-`startAuth(config, options?)` takes `{vaultUrl, clientId?, redirectUri?, email?, siteName?}`. `handleCallback({vaultUrl})` returns `{accountPrincipal, capability, profile?, session, notifyServerUrl?} | null`. `getSession(vaultUrl)`, `signWithSession(session, bytes)` and `clearSession(vaultUrl)` manage the stored session. Sessions are keyed by vault URL. Pass `{store}` in `options` to replace IndexedDB with your own `AuthSessionStore` (it must be able to hold a `CryptoKey`, which `localStorage` cannot). <!-- id:qZTzeVCT -->
+`startAuth(config, options?)` takes `{vaultUrl, clientId?, redirectUri?, email?, siteName?, requestEmailPrevalidation?}`. `handleCallback({vaultUrl})` returns `{accountPrincipal, capability, profile?, session, notifyServerUrl?, emailPrevalidation?} | null`. `getSession(vaultUrl)`, `signWithSession(session, bytes)` and `clearSession(vaultUrl)` manage the stored session. Sessions are keyed by vault URL. Pass `{store}` in `options` to replace IndexedDB with your own `AuthSessionStore` (it must be able to hold a `CryptoKey`, which `localStorage` cannot). <!-- id:qZTzeVCT -->
 
 Requirements: a secure context (`https`, or `localhost`), WebCrypto with Ed25519, IndexedDB and `CompressionStream`. <!-- id:4hIe5-wt -->
 

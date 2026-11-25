@@ -47,7 +47,7 @@ A comment records the document version its author saw, and readers show it under
 
 To comment on one block, or on a selection inside it, a client wraps the comment body in an [Embed](../block/embed.md) block whose link is the target with a fragment: [`hm://<space>/<path>?v=<version>#<blockId>`](./urls.md) for a block, or `#<blockId>[start:end]` for a range of its text in Unicode code points. The version is pinned on purpose. A later edit could move the offsets, so the quote always shows the text the author selected. The comment's own text follows as the embed's children. <!-- id:CnmVx8g9 -->
 
-Because the quote is an ordinary link inside the body, the daemon indexes it like any other link. So a block comment shows up as a citation of that block. The `InteractionSummary` request reports per-block comment and citation counts that the app uses to mark commented blocks in the margin. <!-- id:gTlHuE6Q -->
+Because the quote is an ordinary link inside the body, the daemon indexes it like any other link. So a block comment shows up as a citation of that block. The `InteractionSummary` request reports per-block comment and citation counts that the app uses to mark commented blocks in the margin. A block's citation count is one per citing block, so a paper that cites one bibliography entry from four paragraphs shows 4 on that entry; its comment count is one per comment. <!-- id:gTlHuE6Q -->
 
 # Citations and backlinks <!-- id:fvUUw6AL -->
 

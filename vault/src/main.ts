@@ -62,7 +62,7 @@ async function main() {
 
   const db = result.db
   const hmacSecret = sqlite.getOrCreateHmacSecret(db)
-  const emailSender = email.createSender(cfg.smtp, cfg.webBaseUrl)
+  const emailSender = email.createSender({smtp: cfg.smtp, relay: cfg.emailRelay, webBaseUrl: cfg.webBaseUrl})
   const grpcClient = createClient(cfg.backend.grpcBaseUrl)
   const svc = new apisvc.Service(
     db,
@@ -73,6 +73,7 @@ async function main() {
     cfg.relyingParty,
     hmacSecret,
     emailSender,
+    {inviteOnly: cfg.inviteOnly, adminSecret: cfg.adminSecret},
   )
 
   // Pre-build asset lookup map at startup for O(1) serving.
@@ -92,8 +93,11 @@ async function main() {
       '/hm/api/config': {
         GET: () => {
           if (isProd) return new Response('Not Found', {status: 404})
-          return fetch('http://localhost:3000/hm/api/config').then(
-            (res) => new Response(res.body, {status: res.status, headers: res.headers}),
+          // Not passing the headers through: the body is already decompressed, so the upstream
+          // Content-Encoding and Content-Length would make the response unreadable.
+          return fetch(`${cfg.webBaseUrl || 'http://localhost:3000'}/hm/api/config`).then(
+            async (res) =>
+              new Response(await res.text(), {status: res.status, headers: {'Content-Type': 'application/json'}}),
           )
         },
       },
@@ -186,6 +190,14 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/login/recovery': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.loginRecovery(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/login/passkey/start': {
       POST: async (req) => {
         const body = await req.json()
@@ -210,12 +222,31 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/register/invited': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.registerInvited(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/register/verify': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
         const result = await svc.registerVerify(body, ctx)
         return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/invitations/:code': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.code) {
+          return handleResponse({error: 'Missing code'}, ctx, 400)
+        }
+
+        const result = await svc.getInvitation({code: req.params.code}, ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
       },
     },
     '/vault/api/vault': {
@@ -234,6 +265,14 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         const body = await req.json()
         const ctx = getRequestContext(req)
         const result = await svc.saveVault(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/vault-accounts': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.syncVaultAccounts(body, ctx)
         return handleResponse(result, ctx)
       },
     },
@@ -334,6 +373,30 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
           'Cache-Control': 'no-store, private, max-age=0',
           Vary: 'Authorization, Cookie',
         })
+      },
+    },
+    '/vault/api/admin/invitations': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.adminListInvitations(ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
+      },
+      POST: async (req) => {
+        const body = await parseJSONBody(req)
+        const ctx = getRequestContext(req)
+        const result = await svc.adminCreateInvitations(body, ctx)
+        return handleResponse(result, ctx, 201)
+      },
+    },
+    '/vault/api/admin/accounts/:accountUid': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.accountUid) {
+          return handleResponse({error: 'Missing account ID'}, ctx, 400)
+        }
+
+        const result = await svc.adminGetAccount({accountUid: req.params.accountUid}, ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
       },
     },
     '/vault/api/accounts/:id': {
@@ -454,6 +517,23 @@ function parseBearerToken(authorizationHeader: string | null): string | null {
   }
 
   return token
+}
+
+/** Parse an optional JSON object body; an empty body means `{}`. */
+async function parseJSONBody(req: BunRequest): Promise<Record<string, unknown>> {
+  const text = (await req.text()).trim()
+  if (!text) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('not an object')
+    }
+    return parsed
+  } catch {
+    throw new apisvc.APIError('Invalid JSON body', 400)
+  }
 }
 
 function parseKnownVersion(knownVersionRaw: string | null): number | undefined {

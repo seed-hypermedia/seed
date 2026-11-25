@@ -341,8 +341,10 @@ func materializeScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error
 // qScopeItems mirrors loadRBSRStore's result query but sources the blob set from
 // the persisted rbsr_item rows of the given scopes (a JSON array of scope ids)
 // instead of rebuilding it via collectBlobs. DISTINCT collapses blobs shared
-// across scopes so the single visibility index counts each unique blob once,
-// matching loadRBSRStore's single-pass union over multiple discovery keys.
+// across scopes, matching loadRBSRStore's single-pass union over multiple
+// discovery keys. Rows come unordered: both stores order items themselves and
+// visibility is attached by value, so a sort here would only cost a temp
+// b-tree per reconcile round (22% of the query on a 60k-blob scope).
 var qScopeItems = dqb.Str(`SELECT
 		COALESCE(sb.ts, 0),
 		b.codec,
@@ -361,13 +363,12 @@ var qScopeItems = dqb.Str(`SELECT
 	FROM (SELECT DISTINCT blob FROM rbsr_item WHERE scope IN (SELECT value FROM json_each(:ids))) ri
 	CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = ri.blob
 	LEFT JOIN structural_blobs sb ON sb.id = b.id
-	WHERE b.size >= 0
-	ORDER BY sb.ts, b.multihash;`)
+	WHERE b.size >= 0;`)
 
 // buildStoreFromScopes fills store from the union of the given scopes' persisted
-// rbsr_item rows in a single ordered pass, applying per-item visibility — the
-// same shape loadRBSRStore produces, but without re-running the closure. The
-// store is not sealed here; the caller seals and filters it.
+// rbsr_item rows in a single pass, applying per-item visibility — the same
+// shape loadRBSRStore produces, but without re-running the closure. The store
+// is not sealed here; the caller seals and filters it.
 func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorizedStore) (err error) {
 	if len(scopeIDs) == 0 {
 		return nil
@@ -379,7 +380,6 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorized
 	// as a BLOB, which SQLite (>=3.45) reads as JSONB and rejects as malformed.
 	rows, discard, check := sqlitex.Query(conn, qScopeItems(), int64SliceJSON(scopeIDs)).All()
 	defer discard(&err)
-	var i int
 	for row := range rows {
 		inc := sqlite.NewIncrementor(0)
 		var (
@@ -390,7 +390,9 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorized
 		)
 
 		c := cid.NewCidV1(uint64(codec), hash) //nolint:gosec
-		if err := store.Insert(ts, unsafeutil.BytesFromString(c.KeyString())); err != nil {
+
+		key := c.KeyString()
+		if err := store.Insert(ts, unsafeutil.BytesFromString(key)); err != nil {
 			return fmt.Errorf("failed to insert blob %s into RBSR store: %w", c, err)
 		}
 
@@ -403,9 +405,8 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorized
 			if err != nil {
 				return err
 			}
-			store.SetItemPrivateVisibility(i, space)
+			store.SetItemPrivateVisibility(key, space)
 		}
-		i++
 	}
 
 	if err := check(); err != nil {

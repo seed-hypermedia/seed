@@ -93,6 +93,20 @@ The block's own attributes choose the presentation. [style](../query/style.md) i
 
 The query object carries no filters today. Attribute filters such as "status is Done" live in the [Seed API](../build/web-api.md)'s `QueryDocuments` request and the Explore grammar, described in [the query grammar](../build/query-grammar.md). A query block resolves through the same daemon listing and returns each document's info and metadata. That is why a folder page is usually one query block over its own children. <!-- id:ndrQtVsj -->
 
+## Collections
+
+A **collection** is a document whose content is exactly one top-level `Query` block whose query lists the document's own children. The protocol has no collection concept, and no attribute declares one. The shape alone decides, and the same rule is implemented in the TypeScript document machine and in the Go indexer. A document is a collection when all three hold:
+
+  - it has exactly one top-level block;
+  - that block is a `Query` block;
+  - the query has no `includes`, an empty list, or exactly one inclusion that is either empty (no space and no path) or names the document's own space and normalized path.
+
+The style (`Card`, `List` or `Table`), the table config and any blocks nested under the query block do not matter. More than one top-level block, more than one inclusion, a partly filled inclusion, or an inclusion pointing elsewhere makes it an ordinary document. The older `type: Collection` metadata attribute, shipped in release 2026.8.9, is ignored and never migrated.
+
+The daemon derives the flag when it indexes a published document and serves it as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. The value is optional: unset means the indexer has not reached that document yet, and readers treat it as an ordinary document. Existing documents are backfilled by a bounded background worker after startup rather than by a full reindex, so old rows can read as documents for a while. The derivation never blocks indexing.
+
+In the Seed app a collection renders as the shared table view, whatever style its query stores. **New Collection** starts a draft with one canonical query block (`Table`, an empty `Children` inclusion, sorted by `updated`), and publishing retargets that inclusion to the final space and path. **Convert to Collection** and **Convert to Document** sit in the document options menu. Each asks for confirmation, because one replaces all content with a query block and the other removes the query, and each changes only the local draft, so the normal Publish step applies it. Desktop and web drafts store the derived `isCollection` with each listed draft, and a matching draft overrides the published value in the file browser until it is published.
+
 # Tables <!-- id:0pXxkUBN -->
 
 A table uses three block types. There is no cell type. <!-- id:KXR-1HKt -->

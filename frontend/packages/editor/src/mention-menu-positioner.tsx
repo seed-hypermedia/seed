@@ -1,8 +1,7 @@
-import {mentionCandidateSubtitle} from '@shm/shared/models/mention-ranking'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import {useInlineMentionsSearch} from '@shm/shared/models/inline-mentions'
-import {LoadedHMIcon} from '@shm/ui/hm-icon'
+import {MentionResults} from '@shm/ui/mention-results'
 import Tippy from '@tippyjs/react'
 import {useActorRef, useSelector} from '@xstate/react'
 import {useEffect, useId, useRef, useState} from 'react'
@@ -67,16 +66,12 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   }, [])
   const mobile = useMobile()
   const listId = useId()
-  const rows = useRef<Array<HTMLButtonElement | null>>([])
   useEffect(() => {
     actor.send({type: 'options.updated', search, perspectiveAccountUid, siteUid, documentId})
   }, [actor, search, perspectiveAccountUid, siteUid, documentId])
   useEffect(() => {
     if (show) editor.mentionMenu?.suspend(mobile)
   }, [editor, show, mobile])
-  useEffect(() => {
-    rows.current[selected]?.scrollIntoView({block: 'nearest'})
-  }, [selected])
   useEffect(() => {
     const dom = editor.domElement
     if (show && !mobile) {
@@ -109,58 +104,16 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
       />
     )
   const content = (
-    <div
+    <MentionResults
       id={listId}
-      role="listbox"
-      aria-label={mode === 'account' ? 'Accounts' : 'Documents'}
-      aria-busy={loading}
-      className="border-border bg-background flex max-h-64 w-80 flex-col overflow-y-auto rounded border shadow-lg"
-    >
-      {loading && !suggestions.length && (
-        <p role="status" className="text-muted-foreground px-4 py-2">
-          Searching…
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="px-4 py-2">
-          Unable to load mentions or resolve the published version.{' '}
-          <button onClick={() => actor.send({type: 'menu.retry'})}>Retry</button>
-        </p>
-      )}
-      {!loading && !error && !suggestions.length && (
-        <p role="status" className="text-muted-foreground px-4 py-2">
-          No {mode === 'account' ? 'accounts' : 'documents'} found
-        </p>
-      )}
-      {suggestions.map((item, i) => (
-        <button
-          id={`${listId}-${i}`}
-          key={item.id.id}
-          ref={(el) => {
-            rows.current[i] = el
-          }}
-          role="option"
-          aria-selected={selected === i}
-          disabled={loading || error}
-          className={`flex min-h-12 items-center gap-3 px-4 py-2 text-left ${
-            selected === i ? 'bg-accent' : 'hover:bg-accent'
-          }`}
-          onPointerDown={(event) => {
-            if (event.button !== 0 || loading || error) return
-            event.preventDefault()
-          }}
-          onClick={() => actor.send({type: 'menu.select', item})}
-        >
-          <LoadedHMIcon id={item.id} size={24} />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate">{item.title || item.id.uid}</span>
-            <span className="text-muted-foreground text-xs" title={item.type === 'account' ? item.id.uid : undefined}>
-              {mentionCandidateSubtitle(item)}
-            </span>
-          </span>
-        </button>
-      ))}
-    </div>
+      mode={mode}
+      suggestions={suggestions}
+      selected={selected}
+      loading={loading}
+      error={error}
+      onRetry={() => actor.send({type: 'menu.retry'})}
+      onSelect={(item) => actor.send({type: 'menu.select', item})}
+    />
   )
   return (
     <Tippy

@@ -35,7 +35,33 @@ _.file = ".env"
 run = '''
 if [ -f .gitmodules ] && { [ ! -f backend/util/llama-go/Makefile ] || [ ! -f backend/util/llama-go/llama.cpp/CMakeLists.txt ]; }; then
   echo "Initializing git submodules (llama-go + llama.cpp)..."
-  git submodule update --init --recursive
+  COMMON_GIT_DIR=$(git rev-parse --path-format=absolute --git-common-dir)
+  LLAMA_GIT_DIR="$COMMON_GIT_DIR/modules/backend/util/llama-go"
+  if [ ! -d "$LLAMA_GIT_DIR" ]; then
+    # Bare repositories keep submodule storage under the worktree that initialized it.
+    MAIN_WORKTREE=$(sh scripts/find-worktree-file.sh backend/util/llama-go/llama.cpp/CMakeLists.txt)
+    if [ -n "$MAIN_WORKTREE" ]; then
+      LLAMA_GIT_DIR=$(git -C "$MAIN_WORKTREE" rev-parse --path-format=absolute --git-path modules/backend/util/llama-go)
+    fi
+  fi
+
+  init_submodule() {
+    repo=$1
+    path=$2
+    cache=$3
+    revision=$(git -C "$repo" rev-parse ":$path")
+    if git --git-dir="$cache" cat-file -e "$revision^{commit}" 2>/dev/null; then
+      url=$(git -C "$repo" config -f .gitmodules --get "submodule.$path.url")
+      # Local clones hardlink objects and retain the upstream URL for later fetches.
+      git -C "$repo" -c protocol.file.allow=always \
+        -c "url.$cache.insteadOf=$url" submodule update --init -- "$path"
+    else
+      git -C "$repo" submodule update --init --depth=1 -- "$path"
+    fi
+  }
+
+  init_submodule . backend/util/llama-go "$LLAMA_GIT_DIR"
+  init_submodule backend/util/llama-go llama.cpp "$LLAMA_GIT_DIR/modules/llama.cpp"
 fi
 '''
 hide = true
@@ -45,9 +71,15 @@ run = '''
 MODEL="backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf"
 if [ ! -f "$MODEL" ]; then
   mkdir -p "$(dirname "$MODEL")"
-  echo "Downloading GGUF embedding model..."
-  curl -fSL --progress-bar -o "$MODEL" \
-    "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+  MAIN_WORKTREE=$(sh scripts/find-worktree-file.sh "$MODEL")
+  if [ -f "$MAIN_WORKTREE/$MODEL" ]; then
+    echo "Reusing GGUF embedding model from main worktree..."
+    cp "$MAIN_WORKTREE/$MODEL" "$MODEL"
+  else
+    echo "Downloading GGUF embedding model..."
+    curl -fSL --progress-bar -o "$MODEL" \
+      "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+  fi
 fi
 '''
 hide = true
@@ -57,6 +89,20 @@ depends = ["ensure-submodule"]
 run = '''
 LLAMA_GO_DIR="backend/util/llama-go"
 NEEDS_BUILD=false
+
+# Copy only finished libraries, keeping each worktree's sources and builds independent.
+if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
+  MAIN_WORKTREE=$(sh scripts/find-worktree-file.sh "$LLAMA_GO_DIR/libbinding.a")
+  MAIN_LLAMA_GO_DIR="$MAIN_WORKTREE/$LLAMA_GO_DIR"
+  if [ -f "$MAIN_LLAMA_GO_DIR/libbinding.a" ] && \
+     [ "$(git -C "$MAIN_LLAMA_GO_DIR" rev-parse HEAD)" = "$(git -C "$LLAMA_GO_DIR" rev-parse HEAD)" ]; then
+    echo "Reusing llama.cpp libraries from main worktree..."
+    cp "$MAIN_LLAMA_GO_DIR/"*.a "$LLAMA_GO_DIR/"
+    if [ -f "$MAIN_LLAMA_GO_DIR/ggml-metal.metal" ]; then
+      cp "$MAIN_LLAMA_GO_DIR/ggml-metal.metal" "$LLAMA_GO_DIR/"
+    fi
+  fi
+fi
 
 if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
   NEEDS_BUILD=true

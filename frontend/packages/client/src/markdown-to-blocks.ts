@@ -847,7 +847,31 @@ const METADATA_BOOLEAN_KEYS = ['showOutline', 'showActivity'] as const
  * and keys this client does not know (schema-typed documents carry their
  * own). `title:` is accepted as a backward-compatible alias for `name:`.
  */
-export function parseFrontmatter(markdown: string): {
+/**
+ * Thrown when a document starts with a `---` frontmatter block whose YAML does not parse.
+ * A silent fallthrough used to leave the whole block in the body as a paragraph, so the
+ * failure only surfaced to readers of the published document.
+ */
+export class MarkdownFrontmatterError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MarkdownFrontmatterError'
+  }
+}
+
+export type ParseMarkdownOptions = {
+  /**
+   * `true` (default) throws {@link MarkdownFrontmatterError} on invalid frontmatter YAML.
+   * `false` keeps the legacy behaviour of treating the block as body text, for display
+   * paths that must render whatever they are given.
+   */
+  strictFrontmatter?: boolean
+}
+
+export function parseFrontmatter(
+  markdown: string,
+  options: ParseMarkdownOptions = {},
+): {
   content: string
   metadata: HMMetadata
 } {
@@ -890,8 +914,14 @@ export function parseFrontmatter(markdown: string): {
     for (const key of METADATA_BOOLEAN_KEYS) {
       if (metadata[key] !== undefined && typeof metadata[key] !== 'boolean') metadata[key] = Boolean(metadata[key])
     }
-  } catch {
-    // Invalid YAML — ignore frontmatter, return content as-is
+  } catch (error) {
+    if (options.strictFrontmatter !== false) {
+      const detail = (error instanceof Error ? error.message.split('\n')[0]! : String(error)).replace(/:\s*$/, '')
+      throw new MarkdownFrontmatterError(
+        `Invalid YAML in frontmatter: ${detail}. Quote values that contain a colon, e.g. name: "A: B".`,
+      )
+    }
+    // Lenient mode: treat the block as body text.
     return {content: markdown, metadata: {}}
   }
 
@@ -940,11 +970,14 @@ function startsSpecialBlock(rest: string): boolean {
  * metadata and stripped from the content before tokenizing. Block IDs from
  * `<!-- id:… -->` comments are preserved; absent ids are generated.
  */
-export function parseMarkdown(markdown: string): {
+export function parseMarkdown(
+  markdown: string,
+  options: ParseMarkdownOptions = {},
+): {
   tree: BlockNode[]
   metadata: HMMetadata
 } {
-  const {content, metadata} = parseFrontmatter(markdown)
+  const {content, metadata} = parseFrontmatter(markdown, options)
   const lines = content.split('\n')
   const infos = lines.map(analyzeLine)
   const root: Frame = {list: [], childIndent: 0}

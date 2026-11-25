@@ -152,7 +152,8 @@ export function ChangeEmailDialog({
   )
 }
 
-function ExpiryHint({expireTimeMs}: {expireTimeMs: number}) {
+/** Countdown to the expiry of an emailed verification code. */
+export function ExpiryHint({expireTimeMs}: {expireTimeMs: number}) {
   const [remaining, setRemaining] = useState<number>(() => Math.max(0, expireTimeMs - Date.now()))
 
   useEffect(() => {

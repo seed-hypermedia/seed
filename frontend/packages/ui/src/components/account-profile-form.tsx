@@ -50,7 +50,7 @@ export function AccountProfileForm({
   error?: string
   notificationOption?: {
     label: string
-    description: string
+    description?: string
     checked: boolean
     onCheckedChange: (checked: boolean) => void
   }

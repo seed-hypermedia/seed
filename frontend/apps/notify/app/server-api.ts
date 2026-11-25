@@ -1,8 +1,5 @@
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
-import {WEB_API_DISABLED, WEB_IS_GATEWAY} from '@shm/shared/constants'
-import {ParsedRequest, parseRequest} from './request'
-import {withCors} from './utils/cors'
+import {corsJson} from './utils/cors'
 
 export class APIError extends Error {
   constructor(
@@ -25,47 +22,22 @@ export class BadRequestError extends APIError {
   }
 }
 
-export function apiGetter<ResultType>(handler: (req: ParsedRequest) => ResultType) {
-  const apiGet: LoaderFunction = async ({request}) => {
-    const parsedRequest = parseRequest(request)
-    try {
-      if (WEB_API_DISABLED) {
-        throw new APIError('API is disabled with SEED_API_ENABLED=false', 500)
-      }
-      if (!WEB_IS_GATEWAY) {
-        throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
-      }
-      const result = await handler(parsedRequest)
-      return withCors(json(result))
-    } catch (e: unknown) {
-      if (e instanceof APIError) {
-        return withCors(json({error: e.message}, {status: e.status}))
-      }
-      return withCors(json({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500}))
-    }
-  }
-  return apiGet
-}
+/** A route handler: a standard Request in, a Response out. */
+export type Handler = (request: Request) => Response | Promise<Response>
 
-export function cborApiAction<RequestType, ResultType>(
-  handler: (data: RequestType, other: ParsedRequest & {rawData: ArrayBuffer}) => ResultType,
-) {
-  const apiAction: ActionFunction = async ({request}) => {
-    const parsedRequest = parseRequest(request)
+/** Wraps a handler for a signed CBOR POST body; the result is returned as JSON, errors as `{error}`. */
+export function cborApiAction<RequestType, ResultType>(handler: (data: RequestType) => ResultType): Handler {
+  return async (request) => {
     try {
       const cborData = await request.arrayBuffer()
       const data: RequestType = cborDecode(new Uint8Array(cborData))
-      const result = await handler(data, {
-        ...parsedRequest,
-        rawData: cborData,
-      })
-      return withCors(json(result))
+      const result = await handler(data)
+      return corsJson(result)
     } catch (e: unknown) {
       if (e instanceof APIError) {
-        return withCors(json({error: e.message}, {status: e.status}))
+        return corsJson({error: e.message}, {status: e.status})
       }
-      return withCors(json({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500}))
+      return corsJson({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500})
     }
   }
-  return apiAction
 }

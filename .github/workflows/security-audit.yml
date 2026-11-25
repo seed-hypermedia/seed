@@ -7,11 +7,17 @@ on:
     paths:
       - 'pnpm-lock.yaml'
       - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'patches/**'
+      - 'scripts/security/**'
       - '.github/workflows/security-audit.yml'
   pull_request:
     paths:
       - 'pnpm-lock.yaml'
       - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'patches/**'
+      - 'scripts/security/**'
       - '.github/workflows/security-audit.yml'
   schedule:
     # Run every Monday at 09:00 UTC to catch newly-reported vulnerabilities
@@ -34,8 +40,13 @@ jobs:
         with:
           node-version: 22
 
-      # `pnpm audit` operates on `pnpm-lock.yaml` only; installing
-      # `node_modules` first adds 15 s+ without affecting the audit result.
+      # The registry cannot inspect local patches. Exercise their actual installed
+      # behavior before accepting any advisory exception for a patched dependency.
+      - name: Install dependencies with local security patches
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Verify patched dependencies
+        run: node --test scripts/security/*.test.cjs
 
       - name: Run security audit
         # Fail on high or critical vulnerabilities.

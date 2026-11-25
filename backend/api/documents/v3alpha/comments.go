@@ -461,20 +461,32 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComme
 	return icmt, nil
 }
 
+// qGetCommentByID loads the latest version of a comment.
+//
+// INDEXED BY is needed because the planner otherwise serves "latest first" from
+// the by-type index and walks every comment on the node, newest to oldest, until
+// it meets the one we want. Seeking by tsid leaves only the versions of this
+// comment to look at.
+//
+// The latest version is picked with MAX(ts) instead of ORDER BY ... LIMIT 1 so
+// the versions don't have to be sorted with their data: SQLite takes the other
+// columns from the row that holds the maximum. HAVING keeps the result empty
+// when the comment doesn't exist, where a bare aggregate would return one row
+// of NULLs.
 var qGetCommentByID = dqb.Str(`
 	SELECT
 		sb.id,
 		b.codec,
 		b.multihash,
 		b.data,
-		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+		sb.extra_attrs->>'tsid' AS tsid,
+		MAX(sb.ts)
+	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
 	AND sb.extra_attrs->>'tsid' = :tsid
-	ORDER BY sb.ts DESC
-	LIMIT 1
+	HAVING COUNT(*) > 0
 `)
 
 var qGetCommentByCID = dqb.Str(`
@@ -509,6 +521,7 @@ AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
 AND src.extra_attrs->>'deleted' is not true
 `)
 
+// qListCommentVersions pins the tsid index for the same reason as qGetCommentByID.
 var qListCommentVersions = dqb.Str(`
 	SELECT
 		sb.id,
@@ -516,7 +529,7 @@ var qListCommentVersions = dqb.Str(`
 		b.multihash,
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
-	FROM structural_blobs sb
+	FROM structural_blobs sb INDEXED BY structural_blobs_by_tsid
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.type = 'Comment'
 	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)

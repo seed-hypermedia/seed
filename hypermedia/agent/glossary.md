@@ -24,7 +24,7 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 
 - [tool document](./tool-document.md): every tool is a content-addressed [DAG-CBOR](../protocol/blobs.md) document whose CID is its version: a builtin binding, an authored lambda, or an MCP projection. <!-- id:w3W8a1ON -->
 - [contract](./contract.md): a tool's full model-facing spec, description plus input and output schemas, returned by `read ~/tools/<name>`. <!-- id:Ik7ZxEnK -->
-- [Space index](./space-index.md): the compact `<space>` block in every system prompt, one line per tool plus the memory top level and active triggers. <!-- id:lByOWtHk -->
+- [Space index](./space-index.md): the compact `<space>` block sent with every turn's input, one line per tool plus the memory top level and active triggers. <!-- id:lByOWtHk -->
 - [promotion](./promotion.md): once a tool's contract has entered the transcript, the tool becomes a provider tool for the rest of the thread. <!-- id:6WZZGldd -->
 - [grants](./grants.md): the per-agent permissions: the callable set, the `publish` grant, and the enabled MCP servers; the verbs are never grants. <!-- id:E0X6U5sz -->
 - [MCP server](./mcp.md): a remote Model Context Protocol server connected per account and enabled per agent, whose tools appear as `<server>__<tool>` documents. <!-- id:ciW00Bil -->

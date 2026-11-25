@@ -1,0 +1,75 @@
+name: Seed Hypermedia
+description: >-
+  Seed Hypermedia is a decentralized publishing and collaboration app. This
+  template deploys a self-hosted site with its P2P daemon, web app, persistent
+  data, HTTPS routing, and scoped automatic image updates.
+instructions: |-
+  Before deploying, point the domain's DNS records at this server and open the configured P2P port for both TCP and UDP. Use a unique P2P port for every Seed site.
+
+  The default `latest` images are intentional: Shepherd checks for updated images and redeploys this project's services. Override the image fields if you want to pin a different release.
+
+  After deployment, read `SEED_LINK_SECRET` from the web service environment and register with `https://<domain>/hm/register?secret=<SEED_LINK_SECRET>`.
+changeLog:
+  - date: 2026-10-06
+    description: Initial Easypanel template
+links:
+  - label: Website
+    url: https://seed.hyper.media
+  - label: Documentation
+    url: https://seed.hyper.media/resources/self-host-seed
+  - label: GitHub
+    url: https://github.com/seed-hypermedia/seed
+contributors:
+  - name: Horacio Herrera
+    url: https://github.com/horacioh
+schema:
+  type: object
+  required:
+    - domain
+  properties:
+    daemonServiceName:
+      type: string
+      title: Daemon service name
+      default: daemon
+    webServiceName:
+      type: string
+      title: Web service name
+      default: web
+    updaterServiceName:
+      type: string
+      title: Updater service name
+      default: updater
+    domain:
+      type: string
+      title: Domain (DNS must already point to this server)
+      description:
+        Use a lowercase hostname only, with no scheme, port, or path. DNS must
+        resolve to this Easypanel server before deployment.
+      pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+    p2pPort:
+      type: integer
+      title: Public P2P port (TCP and UDP)
+      description:
+        Open this host port for both TCP and UDP, and use a unique port for each
+        Seed site.
+      minimum: 1
+      maximum: 65535
+      default: 56000
+    siteImage:
+      type: string
+      title: Seed daemon image
+      default: seedhypermedia/site:latest
+    webImage:
+      type: string
+      title: Seed web image
+      default: seedhypermedia/web:latest
+    updateInterval:
+      type: integer
+      title: Shepherd update interval (seconds)
+      description:
+        Shepherd checks for image updates every 600 seconds by default.
+      default: 600
+tags:
+  - Decentralized
+  - Self-hosted
+  - Knowledge Management

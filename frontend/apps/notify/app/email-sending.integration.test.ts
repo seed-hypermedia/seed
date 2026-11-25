@@ -10,6 +10,9 @@ const {createTransportMock, sendMailMock} = vi.hoisted(() => {
   return {createTransportMock, sendMailMock}
 })
 
+// email-notifier imports the database module, which needs bun:sqlite; nothing here touches it.
+vi.mock('./db', () => ({}))
+
 vi.mock('nodemailer', () => ({
   default: {
     createTransport: createTransportMock,
@@ -78,7 +81,7 @@ describe('notification email sending integration', () => {
       documentName: 'Design Notes',
       commentBlocks,
       actionUrl: 'https://hyper.media/hm/doc-owner/projects/roadmap?comment=1',
-      unsubscribeUrl: 'https://notify.example.com/hm/api/unsubscribe?token=test-token',
+      unsubscribeUrl: 'https://notify.example.com/hm/api/notify/unsubscribe?token=test-token',
       siteUrl: 'https://hyper.media',
       resolvedNames,
     })
@@ -89,7 +92,7 @@ describe('notification email sending integration', () => {
       {text: mentionEmail.text, html: mentionEmail.html},
       undefined,
       {
-        unsubscribeUrl: 'https://notify.example.com/hm/api/unsubscribe?token=test-token',
+        unsubscribeUrl: 'https://notify.example.com/hm/api/notify/unsubscribe?token=test-token',
         feedbackId: 'mention',
       },
     )
@@ -112,7 +115,7 @@ describe('notification email sending integration', () => {
       to: 'reader@example.com',
       subject: 'Eric mentioned you in a comment on Design Notes',
       headers: expect.objectContaining({
-        'List-Unsubscribe': '<https://notify.example.com/hm/api/unsubscribe?token=test-token>',
+        'List-Unsubscribe': '<https://notify.example.com/hm/api/notify/unsubscribe?token=test-token>',
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'Feedback-Id': 'mention:seed-notify',
       }),

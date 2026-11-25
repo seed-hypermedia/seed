@@ -7,14 +7,15 @@ The [Seed Agents](../agent.md) HTTP API is a signed action API encoded as [DAG-C
 # Endpoint <!-- id:pbaO7izF -->
 
 ```text <!-- id:O0-qNjbh -->
-POST /api/message
+POST /hm/api/agents/message
 Content-Type: application/cbor
 Accept: application/cbor
 ```
 
-Equivalent prefixed endpoint: <!-- id:YXgAPHd9 -->
+Equivalent legacy endpoints, kept for the standalone host and released clients (see [operations](./operations.md#where-the-service-lives)): <!-- id:YXgAPHd9 -->
 
 ```text <!-- id:-XPoSzZ6 -->
+POST /api/message
 POST /agents/api/message
 ```
 
@@ -543,7 +544,7 @@ Actions: <!-- id:bwunosHW -->
   - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger; webhookSecret?}` (the plaintext secret of a new webhook trigger). <!-- id:0u89fDzQ -->
   - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` merges the other trigger into this one and retires it with `mergedInto`. See [triggers](./triggers.md).
 
-Webhook deliveries do not use the signed envelope: `POST /agents/api/webhooks/<triggerId>/<secret>` or `POST /agents/api/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md).
+Webhook deliveries do not use the signed envelope: `POST /hm/api/agents/webhooks/<triggerId>/<secret>` or `POST /hm/api/agents/webhooks/<triggerId>` (legacy: `/agents/api/webhooks/…`) with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md).
   - `UpdateAgentTrigger {triggerId, patch}` returns `{_: 'UpdateAgentTriggerResponse'; trigger}`. <!-- id:GD1HRkZ9 -->
   - `DeleteAgentTrigger {triggerId}` returns `{_: 'DeleteAgentTriggerResponse'; triggerId}`. <!-- id:6K2fNfnq -->
 
@@ -913,7 +914,7 @@ Request: <!-- id:9rEtnIIc -->
 }
 ```
 
-Used over `/agents/ws`. See [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:Ibn2PhkU -->
+Used over `/hm/api/agents/ws` (legacy `/agents/ws`). See [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:Ibn2PhkU -->
 
 # Idempotency <!-- id:86xaRurd -->
 

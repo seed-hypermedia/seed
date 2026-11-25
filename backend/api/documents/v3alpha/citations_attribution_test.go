@@ -402,3 +402,38 @@ func TestListCitations_PaginatesAttributedRows(t *testing.T) {
 	require.Empty(t, token, "pagination must terminate")
 	require.Equal(t, map[string]bool{"b1": true, "b2": true, "b3": true}, seen)
 }
+
+func TestListCitations_OneCitationPerCitingBlock(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestDocsAPI(t, "alice")
+	kp := srv.me.Account
+	clock := newCitClock()
+
+	// A paper cites one bibliography entry from two paragraphs, the second one twice.
+	aIRI := citIRI(kp, "/a")
+	p2 := blob.Block{ID_Good: "P2", Type: "paragraph", Text: "see [1] and again [1]", Annotations: []blob.Annotation{
+		{Type: "Link", Link: aIRI + "#R1", Starts: []int32{4}, Ends: []int32{7}},
+		{Type: "Link", Link: aIRI + "#R1", Starts: []int32{18}, Ends: []int32{21}},
+	}}
+	ops := []blob.OpMap{citTitleOp(t, "A")}
+	ops = append(ops, citBlockOps("R1", "[1] An entry")...)
+	ops = append(ops, citLinkOps("P1", "see [1]", aIRI+"#R1")...)
+	ops = append(ops, blob.NewOpMoveBlocks("", []string{"P2"}, nil), blob.NewOpReplaceBlock(p2))
+	a := createCitDoc(t, srv.idx, kp, "/a", 1, clock, ops...)
+
+	got := refCitations(listCitationsAll(t, srv, a.iri()))
+	require.Len(t, got, 2, "one citation per citing block: not per link, not per document")
+	require.ElementsMatch(t, []string{"P1", "P2"}, []string{got[0].SourceContext, got[1].SourceContext})
+	for _, c := range got {
+		require.Equal(t, a.iri(), c.Source)
+		require.Equal(t, "R1", c.TargetFragment)
+	}
+
+	// Editing a citing paragraph republishes its link in a new Change headed by a
+	// new Ref of the same document. That is the same citation, not a third one.
+	a.edit(t, clock, citLinkOps("P1", "see [1], edited", aIRI+"#R1")...)
+	got = refCitations(listCitationsAll(t, srv, a.iri()))
+	require.Len(t, got, 2)
+	require.ElementsMatch(t, []string{"P1", "P2"}, []string{got[0].SourceContext, got[1].SourceContext})
+}

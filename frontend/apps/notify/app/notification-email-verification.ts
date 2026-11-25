@@ -5,15 +5,13 @@ import {
   getNotificationEmailVerificationByToken,
   markNotificationConfigVerified,
 } from './db'
+import {buildNotificationEmailVerificationUrl as buildVerifyUrl, getNotifyEmailOrigin} from '@shm/emails/notify-links'
 
-export const EMAIL_NOTIFICATION_VERIFICATION_PATH = '/hm/notification-email-verify'
 export const EMAIL_NOTIFICATION_VERIFICATION_EXPIRY_MS = 2 * 60 * 60 * 1000
 
-export function buildNotificationEmailVerificationUrl(input: {notifyServiceHost: string; token: string}) {
-  const params = new URLSearchParams({
-    token: input.token,
-  })
-  return `${input.notifyServiceHost.replace(/\/$/, '')}${EMAIL_NOTIFICATION_VERIFICATION_PATH}?${params.toString()}`
+/** Email link that verifies the notification email (`/hm/api/notify/verify-email`). */
+export function buildNotificationEmailVerificationUrl(input: {notifyServiceHost?: string; token: string}) {
+  return buildVerifyUrl(getNotifyEmailOrigin(input.notifyServiceHost), input.token)
 }
 
 export function isNotificationEmailVerificationExpired(sendTime: string, nowMs: number = Date.now()) {

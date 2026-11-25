@@ -1,4 +1,5 @@
-import {describe, expect, test} from 'vitest'
+import {afterEach, describe, expect, test, vi} from 'vitest'
+import * as auth from './auth'
 import * as base64 from './base64'
 import * as blobs from './blobs'
 import * as cbor from './cbor'
@@ -157,5 +158,129 @@ describe('delegation callback protocol', () => {
     if (!decodedData.profile || !decodedData.profileCid) throw new Error('profile callback data missing')
     expect(decodedData.profile.name).toBe('Alice')
     expect(blobs.encode(decodedData.profile).cid.toString()).toBe(decodedData.profileCid.toString())
+  })
+})
+
+describe('private email proof callback transport', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function proof(host = 'https://vault.example.com'): SDK.EmailPrevalidation {
+    const signer = blobs.generateNobleKeyPair()
+    return {
+      email: 'owner@example.com',
+      host,
+      signer: base64.encode(signer.principal),
+      sig: base64.encode(new Uint8Array(64)),
+    }
+  }
+
+  async function callbackFixture(emailProof: unknown = proof()) {
+    let record: auth.AuthSessionRecord | null = null
+    const store: auth.AuthSessionStore = {
+      get: async () => record,
+      put: async (_url, value) => {
+        record = value
+      },
+      delete: async () => {
+        record = null
+      },
+    }
+    const vaultUrl = 'https://vault.example.com/vault/delegate'
+    const requestUrl = await auth.startAuth(
+      {
+        vaultUrl,
+        clientId: 'https://site.example.com',
+        redirectUri: 'https://site.example.com/callback',
+        requestEmailPrevalidation: true,
+      },
+      {store},
+    )
+    const request = SDK.parseDelegationRequest(requestUrl)!
+    expect(request.emailPrevalidation).toBe(true)
+    await SDK.verifyDelegationRequestProof(request, 'https://vault.example.com')
+    const account = blobs.generateNobleKeyPair()
+    const capability = await SDK.createDelegation(
+      account,
+      blobs.principalFromString(request.sessionKeyPrincipal),
+      request.clientId,
+    )
+    const profile = await blobs.createProfile(account, {name: 'Owner'}, Date.now())
+    const url = new URL(
+      await SDK.buildCallbackUrl(request.redirectUri, request.state, account.principal, capability, profile),
+    )
+    url.hash = new URLSearchParams({
+      [SDK.PARAM_EMAIL_PREVALIDATION]: base64.encode(new Uint8Array(cbor.encode(emailProof))),
+      tab: 'publication',
+    }).toString()
+    const location = {href: url.toString()}
+    const replaceState = vi.fn((_state: unknown, _title: string, next: string) => {
+      location.href = next
+    })
+    vi.stubGlobal('window', {location, history: {state: {existing: true}, replaceState}})
+    return {store, vaultUrl, request, url, location, replaceState}
+  }
+
+  cryptoTest('does not request private email proof by default', async () => {
+    const store: auth.AuthSessionStore = {get: async () => null, put: async () => {}, delete: async () => {}}
+    const request = await auth.startAuth(
+      {
+        vaultUrl: 'https://vault.example.com/delegate',
+        clientId: 'https://site.example.com',
+        redirectUri: 'https://site.example.com/callback',
+      },
+      {store},
+    )
+    expect(new URL(request).searchParams.has(SDK.PARAM_EMAIL_PREVALIDATION)).toBe(false)
+    expect(SDK.parseDelegationRequest(request)?.emailPrevalidation).toBe(false)
+  })
+
+  cryptoTest('returns private proof after validating delegation and removes it from the browser URL', async () => {
+    const expected = proof()
+    const fixture = await callbackFixture(expected)
+    const result = await auth.handleCallback({vaultUrl: fixture.vaultUrl}, {store: fixture.store})
+    expect(result?.emailPrevalidation).toEqual(expected)
+    expect(fixture.replaceState).toHaveBeenCalledTimes(1)
+    expect(new URL(fixture.location.href).hash).toBe('#tab=publication')
+    expect(fixture.url.searchParams.has(SDK.PARAM_EMAIL_PREVALIDATION)).toBe(false)
+    expect(
+      cbor.decode<any>(await decompress(base64.decode(fixture.url.searchParams.get(SDK.PARAM_DATA)!)))
+        .emailPrevalidation,
+    ).toBeUndefined()
+    expect((await fixture.store.get(fixture.vaultUrl))?.authState).toBeNull()
+  })
+
+  cryptoTest('removes private proof even when callback state validation fails', async () => {
+    const fixture = await callbackFixture()
+    fixture.url.searchParams.set(SDK.PARAM_STATE, 'wrong-state')
+    fixture.location.href = fixture.url.toString()
+    await expect(auth.handleCallback({vaultUrl: fixture.vaultUrl}, {store: fixture.store})).rejects.toThrow(
+      'Invalid callback state',
+    )
+    expect(new URL(fixture.location.href).hash).toBe('#tab=publication')
+    expect((await fixture.store.get(fixture.vaultUrl))?.authState).toBe(fixture.request.state)
+  })
+
+  cryptoTest('ignores malformed or other-vault proof without failing the valid sign-in', async () => {
+    for (const value of [
+      proof('https://other-vault.example.com'),
+      {...proof(), sig: 'invalid'},
+      {email: 'owner@example.com'},
+    ]) {
+      const fixture = await callbackFixture(value)
+      const result = await auth.handleCallback({vaultUrl: fixture.vaultUrl}, {store: fixture.store})
+      expect(result?.accountPrincipal).toBeTruthy()
+      expect(result?.emailPrevalidation).toBeUndefined()
+      expect(new URL(fixture.location.href).hash).toBe('#tab=publication')
+    }
+  })
+
+  cryptoTest('retains compatibility with callbacks from an older Vault without private proof', async () => {
+    const fixture = await callbackFixture()
+    fixture.url.hash = ''
+    fixture.location.href = fixture.url.toString()
+    const result = await auth.handleCallback({vaultUrl: fixture.vaultUrl}, {store: fixture.store})
+    expect(result?.accountPrincipal).toBeTruthy()
+    expect(result?.emailPrevalidation).toBeUndefined()
+    expect(fixture.replaceState).not.toHaveBeenCalled()
   })
 })

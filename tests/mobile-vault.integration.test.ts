@@ -693,8 +693,9 @@ describe('Mobile Remote Vault Connect e2e', () => {
           {timeout: 15_000},
         )
         .not.toBeNull()
-      const verifyRes = await fetch(`${notify.baseUrl}/hm/notification-email-verify?token=${token}`)
-      expect(verifyRes.status).toBeLessThan(400)
+      const verifyRes = await fetch(`${notify.baseUrl}/hm/api/notify/verify-email?token=${token}`, {redirect: 'manual'})
+      expect(verifyRes.status).toBe(302)
+      expect(verifyRes.headers.get('Location')).toContain('verification=verified')
 
       // The screen polls while pending and flips to verified
       await expect

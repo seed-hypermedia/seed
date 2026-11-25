@@ -6,7 +6,6 @@ import {
   reorderJoinedSitesAtEdge,
   useJoinedSiteOrder,
 } from '@/models/joined-site-order'
-import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
 import {useCreateSpaceDialog} from './create-space-dialog'
@@ -216,7 +215,6 @@ function SubscriptionsSection() {
   const route = useNavRoute()
 
   const accountsMetadata = accountList.data?.accountsMetadata
-  const subscribedDocs = useSubscribedDocuments()
 
   return (
     <SidebarSection title="Joined Spaces">
@@ -242,8 +240,7 @@ function SubscriptionsSection() {
           if (!name && siteResource?.isLoading && selectedAccountId) return null
           if (!name && selectedAccountId) return null
 
-          const isUnread =
-            account?.activitySummary?.isUnread ?? subscribedDocs.data?.get(id.id)?.activitySummary?.isUnread ?? false
+          const isUnread = account?.activitySummary?.isUnread ?? false
           return (
             <SidebarMenuItem key={id.id}>
               <JoinedSiteListItem

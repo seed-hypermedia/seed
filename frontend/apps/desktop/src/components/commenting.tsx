@@ -234,8 +234,6 @@ function CommentBoxImpl(props: {
       removeDraft.mutate()
 
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
-      invalidateQueries([queryKeys.LIBRARY])
-      invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       invalidateQueries([queryKeys.SEARCH])

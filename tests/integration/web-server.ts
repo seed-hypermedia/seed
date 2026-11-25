@@ -13,6 +13,8 @@ export type WebServerConfig = {
   dataDir: string // Path to web config directory (contains config.json)
   /** Announced via /hm/api/config notifyServiceHost when set. */
   notifyServiceHost?: string
+  /** Secret of the gateway admin API (/hm/api/admin), which the hosting service uses to create sites. */
+  serviceAdminSecret?: string
 }
 
 export type WebServerInstance = {
@@ -60,6 +62,7 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     SEED_BASE_URL: baseUrl,
     NODE_ENV: 'production',
     ...(config.notifyServiceHost ? {NOTIFY_SERVICE_HOST: config.notifyServiceHost} : {}),
+    ...(config.serviceAdminSecret ? {SERVICE_ADMIN_SECRET: config.serviceAdminSecret} : {}),
   }
 
   // Use remix-serve to run the built app

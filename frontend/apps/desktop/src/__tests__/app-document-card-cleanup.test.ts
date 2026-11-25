@@ -20,6 +20,8 @@ const appStoreMock = {
 
 const getDocumentMock = vi.fn()
 const publishDocumentMock = vi.fn(async () => undefined)
+const requestMock = vi.fn(async (_key: string, _input: any): Promise<any> => ({type: 'document'}))
+const discoverDocumentMock = vi.fn(async () => ({version: 'discovered'}))
 const appInvalidateQueriesMock = vi.fn()
 const findDraftByEditMock = vi.fn()
 const getDraftMock = vi.fn()
@@ -45,9 +47,13 @@ vi.mock('../app-grpc', () => ({
 vi.mock('../app-client', () => ({
   getSigner: vi.fn((accountUid: string) => ({accountUid})),
   seedClient: {
-    request: vi.fn(async () => ({type: 'document'})),
+    request: requestMock,
     publishDocument: publishDocumentMock,
   },
+}))
+
+vi.mock('../app-sync', () => ({
+  discoverDocument: discoverDocumentMock,
 }))
 
 vi.mock('../app-invalidation', () => ({
@@ -117,6 +123,8 @@ describe('desktop published parent reconciliation', () => {
     for (const key of Object.keys(storeData)) delete storeData[key]
     getDocumentMock.mockReset().mockResolvedValue(makeParentDocument())
     publishDocumentMock.mockReset().mockResolvedValue(undefined)
+    requestMock.mockReset().mockResolvedValue({type: 'document'})
+    discoverDocumentMock.mockReset().mockResolvedValue({version: 'discovered'})
     findDraftByEditMock.mockResolvedValue(null)
     getDraftMock.mockResolvedValue(null)
     compareAndSwapDraftMock.mockResolvedValue(true)
@@ -186,6 +194,124 @@ describe('desktop published parent reconciliation', () => {
     })
     expect(getDocumentMock).toHaveBeenCalledTimes(2)
     expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({state: 'done', publishedVersion: 'new'})
+  })
+
+  it('follows redirects and publishes the content change only to the final live document', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const redirectedParent = hmId('alice', {path: ['moved-parent']})
+    requestMock.mockImplementation(async (_key, id: any) =>
+      id.id === parent ? {type: 'redirect', redirectTarget: redirectedParent, republish: false} : {type: 'document'},
+    )
+    let published = false
+    getDocumentMock.mockReset().mockImplementation(async () => ({
+      ...makeParentDocument(published ? [] : [card()]),
+      id: redirectedParent.id,
+      path: ['moved-parent'],
+      ...(published ? {version: 'resolved-version'} : {}),
+    }))
+    publishDocumentMock.mockImplementation(async () => {
+      published = true
+    })
+
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+
+    expect(publishDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({account: 'alice', path: '/moved-parent'}),
+      expect.anything(),
+    )
+    expect(findDraftByEditMock).toHaveBeenCalledWith({editUid: 'alice', editPath: ['moved-parent']})
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'done',
+      requestedDocumentId: parent,
+      resolvedDocumentId: redirectedParent.id,
+      redirectHops: [{from: parent, to: redirectedParent.id}],
+    })
+  })
+
+  it('discovers a missing redirect target before changing it', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const target = hmId('alice', {path: ['remote-parent']})
+    let targetReads = 0
+    requestMock.mockImplementation(async (_key, id: any) => {
+      if (id.id === parent) return {type: 'redirect', redirectTarget: target, republish: false}
+      targetReads += 1
+      return targetReads === 1 ? {type: 'not-found'} : {type: 'document'}
+    })
+    getDocumentMock.mockResolvedValue({...makeParentDocument([card()]), id: target.id, path: ['remote-parent']})
+
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+
+    expect(discoverDocumentMock).toHaveBeenCalledWith('alice', ['remote-parent'])
+    expect(publishDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({path: '/remote-parent'}),
+      expect.anything(),
+    )
+  })
+
+  it('declines a content change when the resolved document is deleted', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    requestMock.mockResolvedValue({type: 'tombstone'})
+
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'skippedTerminal',
+      attempts: 0,
+      failureReason: 'document_deleted',
+    })
+  })
+
+  it('declines redirect cycles without retrying or publishing', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const target = hmId('alice', {path: ['moved-parent']})
+    requestMock.mockImplementation(async (_key, id: any) =>
+      id.id === parent
+        ? {type: 'redirect', redirectTarget: target, republish: false}
+        : {type: 'redirect', redirectTarget: hmId('alice', {path: ['parent']}), republish: false},
+    )
+
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'skippedTerminal',
+      attempts: 0,
+      failureReason: 'redirect_cycle',
+    })
+  })
+
+  it('declines a sixth redirect without retrying or publishing', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    requestMock.mockImplementation(async (_key, id: any) => {
+      const segment = id.path?.[0] || 'parent'
+      const index = segment === 'parent' ? 0 : Number(segment.slice(1))
+      return {
+        type: 'redirect',
+        redirectTarget: hmId('alice', {path: [`r${index + 1}`]}),
+        republish: false,
+      }
+    })
+
+    await api.enqueue({deletedDocumentId: source, signingAccountUid: 'alice'})
+    await mod.runNextDocumentCardCleanupForTest()
+
+    expect(requestMock).toHaveBeenCalledTimes(6)
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(mod.getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      state: 'skippedTerminal',
+      attempts: 0,
+      failureReason: 'redirect_limit_exceeded',
+    })
   })
 
   it('publishes first then CAS-rebases a draft without publishing its user text', async () => {

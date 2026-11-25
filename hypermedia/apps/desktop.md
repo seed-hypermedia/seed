@@ -22,6 +22,8 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 
 The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
+Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`.
+
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
 
 User data is Electron's per-platform application-data folder: `~/Library/Application Support/Seed` on macOS, `~/.config/Seed` on Linux, `%APPDATA%\Seed` on Windows. Inside it, `daemon/` is the daemon's data directory with the SQLite database, the device key and the encrypted vault. `drafts/` holds drafts as files. Drafts and navigation state belong to the app, and the daemon does not store them. So drafts do not sync between devices. Published [documents](../protocol/documents.md) and [private documents](../protocol/privacy.md) do sync. In development the folder is `Seed-local`, so a dev app and a production app can run side by side. <!-- id:0v4MONLN -->
@@ -35,6 +37,16 @@ Every [document](../protocol/documents.md) goes through the same four states: lo
   4. **Publishing.** The draft becomes a signed [change](../change.md) and [ref](../ref.md), published through the daemon. On success the draft is deleted. On failure you are back in editing with the draft intact. <!-- id:0ezsKOhO -->
 
 Switching to an [account](../protocol/identity.md) without [edit access](../protocol/permissions.md) saves the draft and leaves editing. If a newer [version](../protocol/documents.md) is published elsewhere while you edit, the app notes it and does not force it on you. The whole flow is one state machine in `@shm/shared`, shared with the [web app](./web.md). <!-- id:oPC5qmXB -->
+
+"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent, and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by `buildInlineDraftWrite` in `@shm/shared` and stored like any other draft.
+
+# The editor
+
+`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor)) is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren` (a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode` holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own. The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it.
+
+Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to `normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion.
+
+Typography is one class. `.hm-prose`, defined in `@shm/ui` ([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the `data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface.
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 
@@ -62,6 +74,10 @@ The renderer publishes through `@seed-hypermedia/client`, the [SDK](../build/sdk
 
 The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under [Seed Agents](../agent.md). <!-- id:OQnaBari -->
 
+## Notifications
+
+The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
+
 # Development notes <!-- id:TUREvD9- -->
 
 - `pnpm desktop dev:debug` opens Chrome DevTools Protocol on 9222. Automated drivers use it to screenshot and navigate the dev app. <!-- id:VTL7vY_K -->
@@ -70,5 +86,14 @@ The desktop app starts a local [agents server](./agents.md) and shows the agents
 
 # See also <!-- id:CVQjdOA9 -->
 
+<!-- id:PHFBxAlV -->
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md) <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
+
+## Seed Hosting <!-- id:mW_AKbPg -->
+
+After the first public publication of a new space, an invitation offers **Publish to a Domain**, opening the hosting workflow to choose a free Seed address or a custom domain. **Not now** dismisses the invitation. Desktop and web use the same domain and hosting choices, self-hosting guide, setup-URL form, and completion flow. Self-hosting uses the setup URL without a Seed Hosting login. Space settings has a **Web Domain** page for publishing and removing a web domain. Seed Hosting sign-in uses a four-digit emailed code, or trusted vault verification for eligible new hosting accounts. Logging out of the desktop app also clears its hosting credentials and cached sites, and revokes the hosting session when the service is reachable. <!-- id:zuSNGAlu -->
+
+**Change Site Address** and **Transfer Hosting** are available only when the signed-in hosting account owns a site registered to this space and its published URL matches that site's address or custom domain. Self-hosted sites do not expose these controls. A hosting transfer moves management to an existing hosting account; it does not transfer the Seed identity or content permissions. Active paid services must stop before a transfer, and dedicated hosting must stop before a rename. <!-- id:SzMElbvx -->
+
+Renaming preserves the site identity and custom domains. The desktop updates the space's published URL when it points to the old hosting address; a custom primary domain stays unchanged. Pending publication updates are retained so an interrupted move can be completed without moving the hosting address again. <!-- id:D3mM5LLF -->

@@ -41,7 +41,9 @@ import {
   type DocumentOperation,
   type HMSigner,
   type SeedClient,
+  assertValidMermaid,
 } from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {
   computeReplaceOps,
   createBlocksMap,
@@ -874,6 +876,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     let prep = prepared.get(file)
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
     const {raw, tree, metadata: fileMetadata, nodes} = prep
+    await assertValidMermaid(nodes, await loadMermaidParser())
     const schema = await readSchemaFile(opts.dir, file, layout)
     const ownMetadata = layout.selfAuthority
       ? swapAuthority(fileMetadata, layout.selfAuthority, opts.account)

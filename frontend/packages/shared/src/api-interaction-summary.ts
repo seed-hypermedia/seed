@@ -21,7 +21,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         // pool has only 12 connections, so a document with thousands of
         // citations could hold a slot for 30s+ and convoy every other query
         // behind it. That took production down on 2026-08-11; see
-        // docs/daemon-saturation-incident.md.
+        // hypermedia/apps/daemon.md, "Load and the read pool".
         //
         // Consequence: documents with more than LIST_PAGE_SIZE citations
         // under-report their counts. That is a deliberate trade against

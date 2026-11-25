@@ -228,6 +228,7 @@ func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocume
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 	err = sqlitex.ExecTransient(conn, qb.StringTransient(), func(row *sqlite.Stmt) error {
@@ -461,7 +462,7 @@ var (
 )
 
 // ListDocumentAttributeNames lists user-defined document attribute names for autocomplete.
-func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents.ListDocumentAttributeNamesRequest) (*documents.ListDocumentAttributeNamesResponse, error) {
+func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents.ListDocumentAttributeNamesRequest) (out *documents.ListDocumentAttributeNamesResponse, err error) {
 	if err := validateAttributePath(in.GetParentPath(), false); err != nil {
 		return nil, err
 	}
@@ -473,7 +474,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 	if err != nil {
 		return nil, err
 	}
-	out := &documents.ListDocumentAttributeNamesResponse{}
+	out = &documents.ListDocumentAttributeNamesResponse{}
 	searchPath := attrkey.SearchPath(in.GetParentPath())
 	fullPrefix := strings.Join(append(searchPath, attrkey.SearchKey(in.GetPrefix())), ".")
 	exactParent := strings.Join(in.GetParentPath(), ".")
@@ -486,6 +487,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
 		if len(out.Names) == pageSize {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
@@ -514,7 +516,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 }
 
 // ListDocumentAttributeValues lists known values for a user-defined document attribute.
-func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *documents.ListDocumentAttributeValuesRequest) (*documents.ListDocumentAttributeValuesResponse, error) {
+func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *documents.ListDocumentAttributeValuesRequest) (out *documents.ListDocumentAttributeValuesResponse, err error) {
 	if err := validateAttributePath(in.GetPath(), true); err != nil {
 		return nil, err
 	}
@@ -532,7 +534,7 @@ func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *document
 		return nil, err
 	}
 	wantKey := strings.Join(in.GetPath(), ".")
-	out := &documents.ListDocumentAttributeValuesResponse{}
+	out = &documents.ListDocumentAttributeValuesResponse{}
 	var queries attributeAutocompleteQueries
 	var indexedKind string
 	switch in.GetKind() {
@@ -555,6 +557,7 @@ func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *document
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
 		if len(out.Values) == pageSize {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
@@ -1366,7 +1369,7 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 }
 
 // ListDirectory implements Documents API v3.
-func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirectoryRequest) (*documents.ListDirectoryResponse, error) {
+func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirectoryRequest) (out *documents.ListDirectoryResponse, err error) {
 	{
 		if in.Account == "" {
 			return nil, errutil.MissingArgument("account")
@@ -1467,7 +1470,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		query = wrapDocumentsQuery(qb, outerOrder)
 	}
 
-	out := &documents.ListDirectoryResponse{
+	out = &documents.ListDirectoryResponse{
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
@@ -1476,6 +1479,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2075,6 +2079,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2187,6 +2192,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2221,7 +2227,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 // ListUnreferencedDocuments implements Documents API v3.
-func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (*documents.ListUnreferencedDocumentsResponse, error) {
+func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (out *documents.ListUnreferencedDocumentsResponse, err error) {
 	const enabled = false
 	if !enabled {
 		return nil, status.Error(codes.Unavailable, "unreferenced documents are temporarily disabled")
@@ -2257,6 +2263,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	// The unreferenced section is a publishing aid for public site structure.
 	// Private documents never belong in it, including for their owner.
@@ -2264,7 +2271,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 	query := fmt.Sprintf(qListUnreferencedDocuments, visibility)
 	args := []any{accountIRI + "/", accountIRI + "0", cursor.IRI, in.PageSize + 1}
 
-	out := &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
+	out = &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
 	lookup := blob.NewLookupCache(conn)
 	lastIRI := cursor.IRI
 	rows, discard, check := sqlitex.Query(conn, query, args...).All()

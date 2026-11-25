@@ -1482,3 +1482,36 @@ describe('all documents view urls', () => {
     expect(routeToUrl({key: 'all-documents', id: hmId('abc')})).toBe(`${DEFAULT_GATEWAY_URL}/hm/abc/:all-documents`)
   })
 })
+
+describe('durable domain setup URLs', () => {
+  const route = {
+    key: 'site-settings' as const,
+    id: hmId('owner'),
+    tab: 'web-domain' as const,
+    domain: 'www.example.com',
+  }
+  test('creates custom-host and gateway paths and an equivalent Hypermedia URL', () => {
+    expect(routeToUrl(route, {hostname: 'https://space.example', originHomeId: hmId('owner')})).toBe(
+      'https://space.example/:settings/web-domain/www.example.com',
+    )
+    expect(routeToUrl(route, {hostname: 'https://gateway.example', originHomeId: hmId('gateway')})).toBe(
+      'https://gateway.example/hm/owner/:settings/web-domain/www.example.com',
+    )
+    expect(routeToHmUrl(route)).toBe('hm://owner/:settings/web-domain/www.example.com')
+  })
+  test.each([
+    'https://space.example/:settings/web-domain/www.example.com',
+    'https://gateway.example/hm/owner/:settings/web-domain/www.example.com',
+    'hm://owner/:settings/web-domain/www.example.com',
+  ])('extracts the exact domain from %s', (url) => {
+    expect(extractViewTermFromUrl(url)).toMatchObject({
+      viewTerm: ':settings',
+      settingsTab: 'web-domain',
+      settingsDomain: 'www.example.com',
+    })
+  })
+  test('does not throw on malformed percent encoding', () => {
+    expect(() => extractViewTermFromUrl('hm://owner/:settings/web-domain/bad%ZZ.example')).not.toThrow()
+    expect(extractViewTermFromUrl('hm://owner/:settings/web-domain/bad%ZZ.example').viewTerm).toBeNull()
+  })
+})

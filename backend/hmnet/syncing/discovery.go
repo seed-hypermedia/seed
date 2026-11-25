@@ -838,14 +838,12 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *au
 		FROM rbsr_blobs rb
 		CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 		LEFT JOIN structural_blobs sb ON sb.id = b.id
-		WHERE b.size >= 0
-		ORDER BY sb.ts, b.multihash;`
+		WHERE b.size >= 0;`
 
 	lookup := blob.NewLookupCache(conn)
 
 	rows, discard, check := sqlitex.Query(conn, q).All()
 	defer discard(&err)
-	var i int
 	for row := range rows {
 		{
 			inc := sqlite.NewIncrementor(0)
@@ -857,7 +855,9 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *au
 			)
 
 			c := cid.NewCidV1(uint64(codec), hash)
-			if err := store.Insert(ts, unsafeutil.BytesFromString(c.KeyString())); err != nil {
+
+			key := c.KeyString()
+			if err := store.Insert(ts, unsafeutil.BytesFromString(key)); err != nil {
 				return fmt.Errorf("failed to insert blob %s into RBSR store: %w", c, err)
 			}
 
@@ -873,10 +873,9 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *au
 					return err
 				}
 
-				store.SetItemPrivateVisibility(i, space)
+				store.SetItemPrivateVisibility(key, space)
 			}
 		}
-		i++
 	}
 
 	if err := check(); err != nil {

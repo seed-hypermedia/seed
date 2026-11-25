@@ -76,8 +76,16 @@ export {
   parseFrontmatter,
   markdownBlockNodesToHMBlockNodes,
   hmAccountMentionUid,
+  MarkdownFrontmatterError,
 } from './markdown-to-blocks'
-export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
+export type {BlockNode, SeedBlock, Annotation, ParseMarkdownOptions} from './markdown-to-blocks'
+export {
+  collectMermaidBlocks,
+  validateMermaidBlocks,
+  assertValidMermaid,
+  InvalidMermaidError,
+} from './mermaid-validation'
+export type {MermaidParser, MermaidDiagramError, MermaidBlockLike} from './mermaid-validation'
 export {
   blocksToMarkdown,
   emitFrontmatter,

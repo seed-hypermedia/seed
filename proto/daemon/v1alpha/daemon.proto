@@ -45,6 +45,10 @@ service Daemon {
   // Gets the current email address of the connected remote vault user.
   rpc GetVaultEmail(GetVaultEmailRequest) returns (GetVaultEmailResponse);
 
+  // Gets the email prevalidation signed by the connected remote vault server.
+  // Services that trust the vault can accept it instead of verifying the email themselves.
+  rpc GetVaultEmailPrevalidation(GetVaultEmailPrevalidationRequest) returns (GetVaultEmailPrevalidationResponse);
+
   // Starts changing the remote vault user's email address. Sends a verification
   // code to the new email and returns an opaque binding to pass to verify.
   rpc ChangeVaultEmailStart(ChangeVaultEmailStartRequest) returns (ChangeVaultEmailStartResponse);
@@ -225,6 +229,25 @@ message GetVaultEmailRequest {}
 message GetVaultEmailResponse {
   // Current vault user email. Empty when not connected to a remote vault.
   string email = 1;
+}
+
+// Request to get the email prevalidation of the connected remote vault user.
+message GetVaultEmailPrevalidationRequest {}
+
+// Response with the email prevalidation signed by the remote vault server.
+// The signature covers the DAG-CBOR encoding of {email, signer, host}.
+message GetVaultEmailPrevalidationResponse {
+  // Email address of the vault user, verified by the vault server.
+  string email = 1;
+
+  // Public key of the vault server, with the multicodec prefix.
+  bytes signer = 2;
+
+  // Origin of the vault server that signed the prevalidation.
+  string host = 3;
+
+  // Signature of the vault server.
+  bytes sig = 4;
 }
 
 // Request to start a remote vault email change.

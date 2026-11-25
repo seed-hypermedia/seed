@@ -1,9 +1,11 @@
-import type {HMMentionCandidate, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId, type HMMentionCandidate, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useQuery} from '@tanstack/react-query'
-import {useCallback} from 'react'
-import {useUniversalClient} from '../routing'
+import {useCallback, useMemo} from 'react'
+import {getContactMetadata, getDocumentTitle} from '../content'
+import {useUniversalAppContext, useUniversalClient} from '../routing'
 import type {UniversalClient} from '../universal-client'
 import {hmId} from '../utils/entity-id-url'
+import {useAccounts, useResources} from './entity'
 import {rankMentionCandidates, type MentionThreadContext} from './mention-ranking'
 import {getQueryClient} from './query-client'
 import {queryKeys} from './query-keys'
@@ -142,4 +144,56 @@ export function useInlineMentionsSearch(thread?: MentionThreadContext) {
     },
     [client, thread],
   )
+}
+
+/** An inline embed link whose display name should be loaded. */
+export type MentionRef = {link: string; mentionKind?: 'account' | 'document'}
+
+/** Loads display names for inline embed links. */
+export function useMentionNames(mentionRefs: MentionRef[]): Record<string, string> {
+  const {contacts} = useUniversalAppContext()
+  const refs = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          mentionRefs.map((ref) => [
+            ref.mentionKind ? `${ref.mentionKind}:${ref.link}` : ref.link,
+            {...ref, refId: unpackHmId(ref.link)},
+          ]),
+        ).values(),
+      ),
+    [mentionRefs],
+  )
+  const accountIds = useMemo(
+    () =>
+      refs.map(({refId, mentionKind}) =>
+        mentionKind !== 'document' &&
+        (mentionKind === 'account' || refId?.path?.[0] === ':profile' || !refId?.path?.length)
+          ? refId?.path?.[0] === ':profile'
+            ? refId.path[1] || refId.uid
+            : refId?.uid
+          : null,
+      ),
+    [refs],
+  )
+  const resourceIds = useMemo(
+    () => refs.map(({refId}, index) => (accountIds[index] ? null : refId)),
+    [refs, accountIds],
+  )
+  const accounts = useAccounts(accountIds)
+  const resources = useResources(resourceIds, {subscribed: true})
+  return useMemo(() => {
+    const names: Record<string, string> = {}
+    refs.forEach((ref, index) => {
+      const key = ref.mentionKind ? `${ref.mentionKind}:${ref.link}` : ref.link
+      const accountUid = accountIds[index]
+      if (accountUid) {
+        names[key] = getContactMetadata(accountUid, accounts[index]?.data?.metadata, contacts).name
+      } else {
+        const resource = resources[index]?.data
+        if (resource?.type === 'document') names[key] = getDocumentTitle(resource.document)
+      }
+    })
+    return names
+  }, [refs, accountIds, accounts, resources, contacts])
 }

@@ -1,73 +1,54 @@
-import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import {Button} from '@/frontend/components/ui/button'
+import {FlowHeader} from '@/frontend/components/FlowHeader'
+import {OptionCard} from '@/frontend/components/OptionCard'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {StepIndicator} from '@/frontend/components/StepIndicator'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
+import {Fingerprint, Lock} from 'lucide-react'
 
 /**
- * View for choosing authentication method during registration (Step 3 of 4).
+ * View for choosing how to secure the account during registration.
+ * The passkey and password are offered as first-class options.
  */
 export function ChooseAuthView() {
   const {loading, error, passkeySupported} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
-  // The password fallback is shown directly when passkeys aren't supported,
-  // and otherwise appears once a passkey attempt fails.
-  const passwordVisible = !passkeySupported || !!error
-
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={3} />
-        <CardTitle className="text-left text-xl">
-          {passkeySupported ? 'Set up your passkey' : 'Secure your account'}
-        </CardTitle>
-        <CardDescription className="text-left">
-          {passkeySupported
-            ? 'Faster, safer, no password to remember. Sign in securely using your device (Face ID, Touch ID, or screen lock).'
-            : 'Create a password to protect your vault and sign in with your email.'}
-        </CardDescription>
+        <FlowHeader step={2} />
+        <CardTitle className="text-left text-xl">Pick how to secure your account</CardTitle>
+        <CardDescription className="text-left">Your data will be protected by encryption.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         <ErrorMessage message={error} />
 
-        {passkeySupported && (
-          <div className="space-y-3">
-            <Button onClick={actions.handleSetPasskey} loading={loading} className="w-full">
-              Create a passkey
-            </Button>
-            <p className="text-muted-foreground text-center text-sm">
-              <a
-                href="https://www.passkeys.com/what-are-passkeys.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground underline underline-offset-2 transition-colors"
-              >
-                What is a passkey?
-              </a>
-            </p>
-          </div>
-        )}
+        <OptionCard
+          icon={Fingerprint}
+          title="Use a passkey"
+          badge={passkeySupported ? 'Recommended' : undefined}
+          description={
+            passkeySupported
+              ? 'Sign in securely using your device (Face ID, Touch ID, or screen lock).'
+              : 'Your device does not support Passkey, please add password instead.'
+          }
+          recommended={passkeySupported}
+          disabled={!passkeySupported || loading}
+          onClick={actions.handleSetPasskey}
+        />
 
-        {passwordVisible && (
-          <>
-            {passkeySupported && <Divider>or</Divider>}
-            <Button
-              variant={passkeySupported ? 'secondary' : 'default'}
-              disabled={loading}
-              onClick={() => {
-                actions.setError('')
-                navigate('/password/set')
-              }}
-              className="w-full"
-            >
-              Use password
-            </Button>
-          </>
-        )}
+        <OptionCard
+          icon={Lock}
+          title="Use a password"
+          description="Create a password to create account."
+          disabled={loading}
+          onClick={() => {
+            actions.setError('')
+            navigate('/password/set')
+          }}
+        />
       </CardContent>
     </Card>
   )

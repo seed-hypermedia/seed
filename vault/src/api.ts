@@ -1,10 +1,10 @@
+import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
-import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 /**
  * Vault service definition. Shared source of truth for both client and server types.
@@ -25,13 +25,13 @@ import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/docu
  *
  * # Authentication rules
  *
- * - Unauthenticated: `preLogin`, `register*`, `login`, `loginPasskey*`,
- *   `getConfig`, `getAccount`.
+ * - Unauthenticated: `preLogin`, `register*`, `login`, `loginRecovery`, `loginPasskey*`,
+ *   `getConfig`, `getAccount`, `getInvitation`.
  * - Session cookie required: `getSession`, `logout`, `changeEmail*`,
  *   `addPasskey*`, `addPassword`,
  *   `changePassword`, `addSecretCredential`, `putVaultConnect`.
  * - Session cookie OR bearer (`credentialId:authKey`, secret credential only):
- *   `getVault`, `saveVault`. Bearer wins when both are present. The bearer's
+ *   `getVault`, `saveVault`, `syncVaultAccounts`. Bearer wins when both are present. The bearer's
  *   `credentialId` is the credentials-table primary key, so lookup is a single
  *   indexed hit that yields `userId` — no scan and no need to include
  *   `userId` in the URL.
@@ -44,6 +44,7 @@ export interface ServiceDefinition {
   // Session and identity.
   preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
   login(req: LoginRequest): Promise<LoginResponse>
+  loginRecovery(req: LoginRecoveryRequest): Promise<LoginRecoveryResponse>
   logout(): Promise<LogoutResponse>
   getSession(): Promise<GetSessionResponse>
   getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
@@ -52,10 +53,13 @@ export interface ServiceDefinition {
   // Email-based registration.
   registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
   registerVerify(req: RegisterVerifyRequest): Promise<RegisterVerifyResponse>
+  registerInvited(req: RegisterInvitedRequest): Promise<RegisterVerifyResponse>
+  getInvitation(req: GetInvitationRequest): Promise<GetInvitationResponse>
 
   // Vault data.
   getVault(req: GetVaultRequest): Promise<GetVaultResponse>
   saveVault(req: SaveVaultRequest): Promise<SaveVaultResponse>
+  syncVaultAccounts(req: SyncVaultAccountsRequest): Promise<SyncVaultAccountsResponse>
 
   // Credential management. All operations are scoped to the authenticated user.
   addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
@@ -95,6 +99,8 @@ export type PreLoginResponse = {
 // Register start.
 export type RegisterStartRequest = {
   email: string
+  // Invitation code. Required when the server runs in invite-only mode.
+  invite?: string
 }
 export type RegisterStartResponse = {
   message: string
@@ -105,10 +111,31 @@ export type RegisterStartResponse = {
 // Register verify.
 export type RegisterVerifyRequest = {
   code: string
+  // Invitation code. Required when the server runs in invite-only mode;
+  // it is marked used in the same transaction that creates the account.
+  invite?: string
 }
 export type RegisterVerifyResponse = {
   verified: boolean
   userId: string
+}
+
+// Register with an invitation: no emailed code. The invitation link was
+// itself delivered to the address it is bound to, so it proves the email.
+export type RegisterInvitedRequest = {
+  email: string
+  invite: string
+}
+
+// Look up an unused invitation by its code (public, unauthenticated).
+// Answers 404 when the code is unknown, already used, or not bound to an email.
+export type GetInvitationRequest = {
+  code: string
+}
+export type GetInvitationResponse = {
+  /** Email the invitation is for; registration is only possible with this address. */
+  email: string
+  valid: true
 }
 
 // Add password credential. Fails if the user already has a password.
@@ -135,6 +162,7 @@ export type ChangePasswordResponse = {
 export type AddSecretCredentialRequest = {
   authKey: string
   wrappedDEK: string
+  purpose?: 'recovery'
 }
 export type AddSecretCredentialResponse = {
   success: boolean
@@ -177,6 +205,18 @@ export type LoginRequest = {
 export type LoginResponse = {
   success: boolean
   userId: string
+}
+
+// Login (recovery words). `authKey` is derived from the secret that the recovery words encode.
+export type LoginRecoveryRequest = {
+  email: string
+  authKey: string
+}
+export type LoginRecoveryResponse = {
+  success: boolean
+  userId: string
+  /** The recovery credential, whose wrapped DEK the client unwraps after signing in. */
+  credentialId: string
 }
 
 /**
@@ -251,6 +291,35 @@ export type SaveVaultResponse = {
   success: boolean
 }
 
+/**
+ * Report the public account IDs held in the caller's vault. Replaces the
+ * caller's previously reported set. This is the one piece of per-account
+ * state the server learns in plaintext: which public account IDs belong to
+ * which vault user, so the admin API can answer membership checks. The keys
+ * themselves never leave the encrypted blob.
+ *
+ * Each claim proves possession of the account key: `signature` is the
+ * account's Ed25519 signature over `vaultAccountClaimMessage(...)`, so a
+ * vault user cannot register an account ID they do not control.
+ */
+export type SyncVaultAccountsRequest = {
+  accounts: VaultAccountClaim[]
+}
+export type VaultAccountClaim = {
+  uid: string
+  createTime: number
+  /** base64url Ed25519 signature by the account key over the claim message. */
+  signature: string
+}
+
+/** Canonical message an account key signs to claim its ID for a vault user. */
+export function vaultAccountClaimMessage(rpOrigin: string, userId: string, uid: string): string {
+  return `seed-vault-account:${rpOrigin}:${userId}:${uid}`
+}
+export type SyncVaultAccountsResponse = {
+  success: boolean
+}
+
 // Get session.
 export type GetSessionResponse = {
   authenticated: boolean
@@ -260,6 +329,7 @@ export type GetSessionResponse = {
   credentials?: {
     password?: true
     passkey?: true
+    recoveryWords?: true
   }
 }
 
@@ -275,6 +345,68 @@ export type GetConfigResponse = {
   notificationServerUrl: string
   /** Base URL of the public web reader (for "open profile" links); '' = same origin. */
   webBaseUrl: string
+  /** Whether creating an account requires an invitation code. */
+  inviteOnly: boolean
+  /** Human-readable name of the vault's WebAuthn relying party (`--rp-name`). */
+  relyingPartyName: string
+}
+
+/**
+ * Admin API. Not part of the SPA client: authorized with
+ * `Authorization: Bearer <admin secret>` and answers 404 when no admin secret
+ * is configured. Never exposes account data.
+ */
+/**
+ * What an invitation grants once the person has an account. `reader`: vault
+ * membership, which the sign-in gate turns into read access. `writer`: that,
+ * plus a WRITER capability on the site's space for every account the person
+ * registers, signed by the owner key the daemon holds.
+ */
+export type InvitationRole = 'reader' | 'writer'
+export const INVITATION_ROLES: readonly InvitationRole[] = ['reader', 'writer']
+
+export type AdminInvitation = {
+  code: string
+  /** Email the code is bound to. Always set in invite-only mode; null only for legacy unbound codes. */
+  email: string | null
+  /** Ready-to-share registration link: `<origin>/vault?invite=<code>&email=<email>`. */
+  link: string
+  role: InvitationRole
+  createTime: number
+  usedTime: number | null
+  used: boolean
+  /** Writer invitations: the accounts that received a WRITER capability so far. */
+  grants: Array<{accountUid: string; grantTime: number}>
+  /** The accounts the invited user keeps in their vault, as they reported them (empty until they joined). */
+  accounts: Array<{accountUid: string; createTime: number}>
+}
+export type AdminCreateInvitationsRequest = {
+  /** Email the invitation is for. Required in invite-only mode. */
+  email?: string
+  /** Number of codes to create (default 1, max 100). Must be 1 when `email` is set. */
+  count?: number
+  /** Default `reader`. */
+  role?: InvitationRole
+  /** Email the link to `email` (default true when `email` is set). The link is returned either way. */
+  send?: boolean
+}
+export type AdminCreateInvitationsResponse = {
+  invitations: AdminInvitation[]
+  /** True when the link was emailed to the invitee. */
+  emailed: boolean
+  /** Why the email was not sent, when it was attempted and failed; the link still works. */
+  emailError?: string
+}
+export type AdminListInvitationsResponse = {
+  invitations: AdminInvitation[]
+}
+export type AdminGetAccountRequest = {
+  accountUid: string
+}
+export type AdminGetAccountResponse = {
+  accountUid: string
+  email?: string
+  createTime: number
 }
 
 // Change email start — initiates email change verification.

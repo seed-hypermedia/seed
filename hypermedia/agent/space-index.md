@@ -1,8 +1,8 @@
 ---
 name: Space Index
-summary: The Space index is the compact block in every system prompt that lists an agent's tools, top-level memory, and active triggers.
+summary: The Space index is the compact block sent with every turn's input that lists an agent's tools, top-level memory, and active triggers.
 ---
-**Space index**: the compact `<space>` block in every system prompt. It has one line per tool, the top level of memory, and the active triggers, so the agent always knows what it can read in its [Space](./space.md). See [tools](./tools.md) and the [prompt injection map](./prompt-injection-map.md). <!-- id:JSgsrBTV -->
+**Space index**: the compact `<space>` block the model reads with every turn's input. It has one line per tool, the top level of memory, and the active triggers, so the agent always knows what it can read in its [Space](./space.md). See [tools](./tools.md) and the [prompt injection map](./prompt-injection-map.md). <!-- id:JSgsrBTV -->
 
 # See also <!-- id:nl7GKdO- -->
 

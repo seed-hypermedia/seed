@@ -37,13 +37,13 @@ Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
   └─ chat message renderer shared with the desktop assistant panel
 
 Agents service (Bun)
-  ├─ /api/message signed action API
-  ├─ /agents/ws signed subscription API
+  ├─ /hm/api/agents/message signed action API
+  ├─ /hm/api/agents/ws signed subscription API
   ├─ SQLite persistence (state, and the runs table that is also the queue)
   ├─ AES-GCM secret storage
-  ├─ Pi SDK-backed model execution loop
+  ├─ Pi Durable model execution loop, one durable conversation per session
   ├─ the verbs (read / write / call / delegate / plan, plus status / continue_session)
-  ├─ tool documents in ~/tools + the <space> index in every system prompt
+  ├─ tool documents in ~/tools + the <space> index with every turn's input
   ├─ run queue: leases, boot sweep, park/resume, wake sources
   ├─ QuickJS script engine with a content-keyed journal
   └─ diagnostic logging
@@ -71,12 +71,12 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 10. Desktop subscribes to `sessions/<sessionId>` over WebSocket. <!-- id:o4auo92c -->
 11. A writer sends a message with signed `MessageSession`. Other accepted writers may send at the same time. <!-- id:HR9VWSNS -->
 12. Server immediately appends each durable user message with its acting account and exact signer, broadcasts it, and creates a `runs` row. The first turn is claimed inline on the `interactive` queue. Concurrent turns stay queued in append order, because only one model turn may own a session. Session status mirrors run state, so it reads `streaming` while any of those turns are live. <!-- id:oRXM5vFs -->
-13. Server creates an in-memory Pi SDK session. Its configuration comes from the Seed provider record, the encrypted secret, the agent's system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the verbs, plus any callables the transcript shows this thread has already expanded. <!-- id:XnosbwT5 -->
-14. Pi runs the provider and model loop and emits streaming, tool, and final events. <!-- id:5aLPYqqC -->
+13. Server opens the session's [durable store](./durable-sessions.md) and brings its conversation up to date with the log. The turn's configuration comes from the Seed provider record, the encrypted secret, the agent's system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the verbs, plus any callables the transcript shows this thread has already expanded. <!-- id:XnosbwT5 -->
+14. Pi Durable runs the provider and model loop. It commits every model response, tool result, and partial answer to the store before anything else sees it. <!-- id:5aLPYqqC -->
 15. Server emits `session-partial` service events for model text deltas, cumulative usage, and the current activity phase. <!-- id:Tmz1FBxK -->
 16. WebSocket sends `appendPartial` events to subscribed desktop clients. <!-- id:t5ien6K3 -->
 17. Desktop renders the partial through the shared assistant markdown renderer. <!-- id:5V6t_xTb -->
-18. Tool calls and results are translated from Pi events and appended as durable Seed events whose actor reads as `agent` (derived from their shape; only `user` and `system` are ever stamped). A [`call`](./call.md) for a tool the thread has not expanded returns that tool's contract instead of an error (touch-expand). Once the contract is in the transcript, the tool is promoted for the rest of the thread. <!-- id:aSLd8Isz -->
+18. Tool calls and results are projected from the store's entries and appended as durable Seed events stamped `actor: 'agent'`. A [`call`](./call.md) for a tool the thread has not expanded returns that tool's contract instead of an error (touch-expand). Once the contract is in the transcript, the tool is promoted for the rest of the thread. <!-- id:aSLd8Isz -->
 19. If the turn used `delegate`, each child gets its own run row: a model child with its own session, or a script child in the QuickJS engine. The parent's run parks on them without holding resources and resumes when they resolve. <!-- id:nKBBy1Gx -->
 20. The final assistant message is appended as a durable event. The run finalizes: it rolls child usage up, settles [plan](./plan.md) steps whose children all succeeded, and records any obligation it ended without meeting. <!-- id:ZwcfQgzb -->
 21. Session status re-derives to `idle`, or to `error` when the latest run failed. <!-- id:2lxTmx1B -->
@@ -86,9 +86,9 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 ## Server <!-- id:4Y9bCXsB -->
 
 - Bun standalone service with configurable host, port, db, and data dir. See [operations](./operations.md). <!-- id:4LiSzWvH -->
-- `/api/message` and `/agents/api/message` signed CBOR action routes. <!-- id:tZu7kMWo -->
-- `/api/health` and `/agents/api/health` JSON health routes. <!-- id:DEcuBaGj -->
-- `/agents/ws` signed WebSocket subscription endpoint. <!-- id:w0JhfKLo -->
+- `/hm/api/agents/message` (legacy `/api/message`, `/agents/api/message`) signed CBOR action routes. <!-- id:tZu7kMWo -->
+- `/hm/api/agents/health` (legacy `/api/health`, `/agents/api/health`) JSON health routes. <!-- id:DEcuBaGj -->
+- `/hm/api/agents/ws` (legacy `/agents/ws`) signed WebSocket subscription endpoint. <!-- id:w0JhfKLo -->
 - No browser UI and no unauthenticated data routes. Everything else is a 404. <!-- id:ERQ0V57X -->
 - Graceful shutdown for WebSockets and SQLite. <!-- id:cCtN6O8W -->
 
@@ -110,10 +110,11 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 - Agent invitations, acceptance and decline, revocation, and reader and writer collaborator roles. Readers can inspect the complete agent. Writers can also change it and interact with it. Only owners manage access or delete the agent. <!-- id:pwPlTOBC -->
 - Session create, get, list, message, stop, retry, and delete. <!-- id:D2RZH2GQ -->
 - Cross-agent session listing (`ListSessions`) with composite keyset pagination. <!-- id:8iuaH3pW -->
-- Pi SDK-backed model execution for OpenAI-compatible, Anthropic, and Google provider mappings. See [model providers](./model-providers.md). <!-- id:lAWFWbOd -->
-- Text streaming translated from Pi events into Seed WebSocket partials. <!-- id:NSfbrCwb -->
+- Model execution through pi-ai for OpenAI-compatible, Anthropic, and Google provider mappings. See [model providers](./model-providers.md). <!-- id:lAWFWbOd -->
+- A Pi Durable store per session: the model reads provider responses exactly as they arrived, the prompt prefix stays byte-stable across turns, and a turn cut off by a restart continues from its last checkpoint. See [durable sessions](./durable-sessions.md).
+- Text streaming translated from the store's committed partials into Seed WebSocket partials. <!-- id:NSfbrCwb -->
 - Durable user, assistant, error, and tool events, each carrying its actor. <!-- id:98lUOPrW -->
-- The verbs, registered as Seed-owned Pi custom tools. Callables are dispatched through `call` and never exposed to the provider. <!-- id:w4i5NWLg -->
+- The verbs, registered as the only tools of the turn's harness. Callables are dispatched through `call` and never exposed to the provider. <!-- id:w4i5NWLg -->
 - Tool result size limiting (256 KiB). <!-- id:l4qFQAxD -->
 - The run queue: two queues, lease-based claiming, boot sweep, retry classification with backoff, cancellation cascade, and timer and event wakes. <!-- id:5fTXXpUY -->
 
@@ -137,7 +138,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 # Known incomplete areas <!-- id:7Kit49Vm -->
 
 <!-- id:y8Sembfy -->
-- Anthropic and Google are mapped through Pi but have no real-provider smoke coverage yet, so they are not production-complete. <!-- id:YsLNlO21 -->
+- Anthropic and Google are mapped through pi-ai but have no real-provider smoke coverage yet, so they are not production-complete. <!-- id:YsLNlO21 -->
 - Signed-action timestamps reject requests more than five minutes from server time. There is no nonce cache, so a captured request can be replayed inside that window. See [security](./security.md). <!-- id:qZUKtz61 -->
 - No production KMS or OS-keychain storage for the secret key. <!-- id:3g510zpO -->
 - Grants stop at the callable set, a single `publish` grant, and the list of enabled MCP servers. There is no per-address or per-destination policy engine, and memory writes are ungated by design. <!-- id:nJ6r4hkB -->
@@ -154,6 +155,7 @@ See the [roadmap](./roadmap.md) for what is planned. <!-- id:ycSmp720 -->
 - [Signed API](./signed-api.md) <!-- id:-Alet1OC -->
 - [WebSocket subscriptions](./websocket-subscriptions.md) <!-- id:wcs36GWm -->
 - [Persistence](./persistence.md) <!-- id:y2-XofLJ -->
+- [Durable sessions](./durable-sessions.md)
 - [Tools](./tools.md) <!-- id:pt_odyHy -->
 - [Security](./security.md) <!-- id:AOXXb80e -->
 - [Agents service](../apps/agents.md) <!-- id:qeaCNGql -->

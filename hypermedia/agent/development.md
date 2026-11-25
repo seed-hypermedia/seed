@@ -54,17 +54,18 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 | what <!-- col:_1WRiXMp --> | dev URL <!-- col:TDo0vFXF --> <!-- id:QLFChrGi --> |
 | --- | --- |
 | server base | `http://localhost:3051` <!-- id:0JDepxKs --> |
-| health | `http://localhost:3051/agents/api/health` <!-- id:5IM7m_SR --> |
+| health | `http://localhost:3051/hm/api/agents/health` <!-- id:5IM7m_SR --> |
 | perf | `http://localhost:3051/api/perf` and `/api/perf/sessions/<sessionId>` |
-| signed API | `POST http://localhost:3051/api/message` <!-- id:hhM3PRG8 --> |
-| WebSocket | `ws://localhost:3051/agents/ws` <!-- id:omAL0PAD --> |
+| signed API | `POST http://localhost:3051/hm/api/agents/message` <!-- id:hhM3PRG8 --> |
+| WebSocket | `ws://localhost:3051/hm/api/agents/ws` <!-- id:omAL0PAD --> |
 | latency snapshot | `http://localhost:3051/api/perf` <!-- id:zM2v1hz1 --> |
 
 # Code map <!-- id:l1qGFiv- -->
 
 The service, in `agents/`: <!-- id:I1toG_st -->
   - `src/main.ts`: the Bun HTTP and WebSocket server, CORS, the webhook route, health and version, live event fan-out. <!-- id:6Mgrjc3y -->
-  - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the Pi-backed model loop, the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
+  - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the model turn on Pi Durable (`#runPiAgent`), the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
+  - `src/durable-session.ts`: the per-session Pi Durable store: the file system that keeps it in the database, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md).
   - `src/auth.ts`: signed envelope verification, the five-minute timestamp window, [capability](../protocol/permissions.md)-based delegation. <!-- id:o3piFt7L -->
   - `src/cbor.ts`: [DAG-CBOR](../protocol/blobs.md) request and response helpers and the protocol version header. <!-- id:rfRSsgr7 -->
   - `src/config.ts`: every environment variable and CLI flag, with defaults. <!-- id:LswE9nei -->
@@ -96,6 +97,7 @@ Shared Hypermedia behaviour the service reuses from [`@seed-hypermedia/client`](
 
 The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE -->
   - `api-service.test.ts`: the big one: actions, ownership, sessions, delegation, obligations, plans. <!-- id:v1WA7PUZ -->
+  - `durable-session.test.ts`: the durable session runtime: one conversation across turns, the byte-stable prompt prefix, a turn resumed from its checkpoint after a process death, a lost store rebuilt from the log.
   - `verbs.test.ts`: the five verbs: address dispatch, touch-expand, promotion, user-invoked verbs. <!-- id:IEq07SB6 -->
   - `tool-documents.test.ts`: CIDs, builtin materialization, lambda authoring validation. <!-- id:1H4sSkuE -->
   - `runs.test.ts`, `run-time.test.ts`: queue claiming, leases, sweeps, parks and wakes. <!-- id:caikMvwb -->
@@ -154,9 +156,9 @@ The verbs (the five working verbs plus `status` and `continue_session`) are the 
 
 1. Add the `PROVIDER_SPECS` entry in `api-service.ts` and the matching `PROVIDER_METADATA` entry in the UI's `provider-registry.ts`. <!-- id:V6_ROH-n -->
 2. If the model needs reasoning control, add its generation to `reasoning.ts` with a note on how the levels were verified. If it takes images, add it to `model-capabilities.ts`. <!-- id:_U7z8PjV -->
-3. Preserve the session lifecycle and WebSocket partials. Map Pi events into ordered `message`, `tool_call`, and `tool_result` events. <!-- id:VrwStUJn -->
+3. Preserve the session lifecycle and WebSocket partials. Check that the durable store's entries project into ordered `message`, `tool_call`, and `tool_result` events. <!-- id:VrwStUJn -->
 4. Add mocked network tests for success, streaming, text-before-tool ordering, tools, missing key, and provider errors. <!-- id:kuRYQE4J -->
-5. Confirm decrypted secrets stay in memory and never reach Pi auth files. <!-- id:cm0Swvpm -->
+5. Confirm decrypted secrets stay in memory and never reach the durable store or a Pi auth file. <!-- id:cm0Swvpm -->
 6. Update [model providers](./model-providers.md). <!-- id:MImbwolq -->
 
 # Which page to update <!-- id:z1WePGfo -->

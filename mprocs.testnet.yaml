@@ -38,12 +38,15 @@ procs:
     shell: 'pnpm web'
     autostart: true
 
-  # Notify server (Remix/Vite :3060). Backs the vault's email/notification flow.
+  # Notify server (:3060). Backs the vault's email/notification flow. Reached like
+  # in production, on the web app's origin: the web dev server (:3000) forwards
+  # /hm/api/notify/* and the legacy notify paths here, so its public base URL is
+  # http://localhost:3000/hm/api/notify.
   notify:
-    shell: 'pnpm notify'
+    shell: 'NOTIFY_SERVICE_HOST=http://localhost:3000/hm/api/notify pnpm notify'
     autostart: true
 
-  # Vault (:3030), bun --hot. Points at the notify server above (:3060).
+  # Vault (:3030), bun --hot. Points at the notify server above, through the web app (:3000/hm/api/notify).
   # Separate Bun workspace — install its deps before starting (fast if satisfied).
   vault:
     shell: 'cd vault && bun install && bun run dev'

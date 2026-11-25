@@ -33,6 +33,33 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
 
 
 
+def host_dir():
+    """Checkout of the hosting service (private SeedHost repo), or None when this machine has none."""
+    candidate = os.environ.get("SEED_HOST_DIR") or os.path.join(os.path.dirname(os.getcwd()), "SeedHost")
+    return candidate if os.path.exists(os.path.join(candidate, "scripts", "dev-local.ts")) else None
+
+
+def ensure_local_gateway_config():
+    """Run the dev web app as a gateway, so the hosting service (SeedHost `yarn dev:local`)
+    can create sites on it at http://<name>.localhost:3000. The root site keeps the
+    config.json settings. Delete service-config.json to go back to a single site."""
+    import json
+
+    web_dir = "frontend/apps/web"
+    service_config = os.path.join(web_dir, "service-config.json")
+    if os.path.exists(service_config):
+        return
+    root_config = {}
+    try:
+        with open(os.path.join(web_dir, "config.json")) as f:
+            root_config = json.load(f)
+    except FileNotFoundError:
+        pass
+    with open(service_config, "w") as f:
+        json.dump({"rootHostname": "localhost", "rootConfig": root_config, "namedServices": {}}, f, indent=2)
+    print(f"Created {service_config}: the dev web app now runs as a gateway")
+
+
 def main():
     if not os.getenv("DIRENV_DIR"):
         print("Direnv is not enabled. Fix it first! See README.md for instructions.")
@@ -251,6 +278,11 @@ def main():
         "Run the full agents dev stack on mainnet in a single mprocs TUI, one pane per process. See mprocs.yaml.",
     )
     def up(args):
+        ensure_local_gateway_config()
+        # With the hosting service checked out next to this repo, the desktop uses the local one
+        # (the `host` pane) instead of the deployed dev service from .env.vars.
+        if host_dir():
+            os.environ["VITE_SEED_HOST_URL"] = "http://localhost:5555"
         # mprocs reads ./mprocs.yaml and inherits this direnv/mise environment,
         # so each pane runs the same command you'd type by hand.
         run_mprocs_stack("mprocs.yaml", args)
@@ -282,6 +314,16 @@ def main():
         os.environ.setdefault("VITE_DESKTOP_DEFAULT_VAULT_URL", "http://localhost:3030/vault")
 
         return run("pnpm desktop", args=args)
+
+    @cmd(cmds, "run-host", "Run the hosting service (SeedHost checkout next to this repo, or SEED_HOST_DIR) locally on :5555.")
+    def run_host(args):
+        directory = host_dir()
+        if not directory:
+            print("No hosting service checkout at ../SeedHost (set SEED_HOST_DIR). The desktop uses the deployed dev service.")
+            return
+        if not os.path.exists(os.path.join(directory, "node_modules")):
+            run(f"cd {shlex.quote(directory)} && yarn install")
+        return run(f"cd {shlex.quote(directory)} && yarn dev:local", args=args)
 
     @cmd(cmds, "hm-sync", "Edit a directory of markdown in the desktop dev app (Repo HM sync). Default: hypermedia/ (developer docs, Hypermedia schema library, agents docs)")
     def hm_sync(args):

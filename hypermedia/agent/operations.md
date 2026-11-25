@@ -267,13 +267,19 @@ agents/data/agents.sqlite-wal
 agents/data/agents/<agentId>/
 ```
 
-SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
+SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. Each session's [durable store](./durable-sessions.md) is in the database, not in this directory. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
 
 # HTTP endpoints <!-- id:oTx-eqES -->
+
+Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The older paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered: the standalone production host, released clients and webhook URLs already handed out use them.
 
 <!-- id:WyyD8vqE -->
 | Endpoint <!-- col:QqHnNcMC --> | Method <!-- col:0cPxyrJj --> | Purpose <!-- col:oVN2t9-G --> <!-- id:p8d1Mrxo --> |
 | --- | --- | --- |
+| `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). |
+| `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). |
+| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). |
+| `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). |
 | `/api/message` | `POST` | Signed CBOR action API. <!-- id:D634v2_4 --> |
 | `/agents/api/message` | `POST` | Same action API under `/agents`. <!-- id:0MOz3jtf --> |
 | `/api/health` | `GET` | JSON health and capabilities (no account data). <!-- id:A68cofS7 --> |
@@ -282,7 +288,18 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)). Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+
+# Where the service lives
+
+A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`):
+
+- **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`.
+- **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it.
+
+Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service.
+
+On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate.
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 
@@ -417,7 +434,7 @@ Run, runtime, and script diagnostics: <!-- id:0OVrLoWY -->
   - `[agents/workflow] continued as new run` <!-- id:fH-VDeMa -->
   - `[agents/workflow] run paused on its time budget` <!-- id:u0b-olQJ -->
 
-Server model execution goes through the Pi SDK. The old manual OpenAI stream logs are not emitted on the primary Pi-backed path. Use durable session events (via `GetSession` or the desktop session page), WebSocket partial logs, and mocked tests for current runtime diagnosis. Add Seed-level Pi runtime diagnostics before production if real-provider troubleshooting needs more visibility. <!-- id:KNt6k5MM -->
+Server model execution goes through pi-ai and Pi Durable. Use durable session events (via `GetSession` or the desktop session page), the `[agents/runtime]` run lines, WebSocket partial logs, and mocked tests for runtime diagnosis. A run that picked up a turn left by an earlier process logs `resuming the durable turn an earlier process left unfinished`, and its `agent run finished` line carries `resumed: true`. A session's durable store is plain JSONL inside the `session_durable_files` table: `SELECT CAST(data AS TEXT) FROM session_durable_files WHERE session_id = ? AND file = 'main.jsonl' ORDER BY seq` prints its main file. <!-- id:KNt6k5MM -->
 
 Server WebSocket logs: <!-- id:LFKybXaZ -->
   - `[agents/ws] open` <!-- id:J0oO3TLG -->
@@ -468,7 +485,7 @@ Desktop signing omits `undefined` recursively before signing. If the error comes
 Follow the log chain: <!-- id:y_nHvnuv -->
   1. Desktop should show `[agents/ws] subscribed event` for `sessions/<sessionId>`. <!-- id:D8kYyYQL -->
   2. The session should be set to `streaming` after `MessageSession`. <!-- id:TdzBvw7L -->
-  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when Pi emits text deltas. <!-- id:_ipbPc0H -->
+  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when the harness commits streamed text. <!-- id:_ipbPc0H -->
   4. Desktop should show `[agents/ws] partial event` and `[agents/ui] rendering streaming assistant partial`. <!-- id:NzvqNL8D -->
   5. The final assistant message should appear as a durable event in the desktop session page after refresh. <!-- id:CT2Cuh_P -->
 

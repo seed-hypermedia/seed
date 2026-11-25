@@ -146,7 +146,7 @@ gets *for free* on day one: triggers, usage/cost display, multi-agent, `web_sear
 ## 6. Parity gaps to close
 
 1. **ChatGPT OAuth login.** ~~The one genuine feature gap.~~ **Downgraded after research — see
-   [pi-chatgpt-oauth.md](https://github.com/seed-hypermedia/seed/blob/main/docs/plans/pi-chatgpt-oauth.md).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
+   [pi-chatgpt-oauth.md](https://github.com/seed-hypermedia/seed/blob/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs/plans/pi-chatgpt-oauth.md) (removed from the tree, kept in history).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
    `chatgpt-account-id` header, `instructions`/`store:false` Responses semantics — everything
    `chat-provider-options.ts` hand-rolls). The agents service simply never wires pi's OAuth layer to its provider
    model: ~1 provider type + 3 protocol actions. Pi's login is loopback-only (`localhost:1455`), which is fine for the

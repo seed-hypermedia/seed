@@ -10,6 +10,10 @@ import {hmId, unpackHmId} from './utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from './utils/path-api'
 
 const LIMIT = 100
+// Search hits requested per keystroke. The picker resolves at most RESOLUTION_LIMIT of them, and every hit
+// the daemon returns costs it a resolution pass and a version check first, so 100 made typing a mention
+// several times more expensive than the menu could ever show.
+const SEARCH_LIMIT = 30
 const RESOLUTION_LIMIT = 20
 const caches = new WeakMap<GRPCClient, Map<string, {expires: number; value: Promise<unknown>}>>()
 
@@ -49,7 +53,7 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
             query,
             loggedAccountUid: input.perspectiveAccountUid,
             includeBody: false,
-            pageSize: LIMIT,
+            pageSize: SEARCH_LIMIT,
             entityKindFilter:
               input.mode === 'account'
                 ? [EntityKindFilter.ENTITY_KIND_SPACE, EntityKindFilter.ENTITY_KIND_CONTACT]

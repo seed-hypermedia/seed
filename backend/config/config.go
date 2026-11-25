@@ -19,10 +19,11 @@ import (
 
 // Base configuration.
 type Base struct {
-	DataDir     string
-	LogLevel    string
-	PublicOnly  bool
-	KeystoreDir string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
+	DataDir            string
+	LogLevel           string
+	PublicOnly         bool
+	KeystoreDir        string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
+	VaultMemorySecrets bool   // If set, the vault keeps its secrets in memory instead of the OS keychain (for testing)
 }
 
 // Default returns the default configuration.
@@ -40,6 +41,7 @@ func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Log verbosity debug | info | warning | error")
 	fs.BoolVar(&c.PublicOnly, "public-only", c.PublicOnly, "Only serve public data in APIs")
 	fs.StringVar(&c.KeystoreDir, "keystore-dir", c.KeystoreDir, "Directory for file-based keystore (insecure, for testing only)")
+	fs.BoolVar(&c.VaultMemorySecrets, "vault-memory-secrets", c.VaultMemorySecrets, "Keep vault secrets in memory instead of the OS keychain, keys don't survive a restart (for testing only)")
 }
 
 // ExpandDataDir is used to expand the home directory in the data directory path.
@@ -285,6 +287,9 @@ func (c *LLM) BindFlags(fs *flag.FlagSet) {
 // Lndhub related config.
 type Lndhub struct {
 	Mainnet bool
+	// Disabled turns the lndhub integration off: no startup account check and
+	// payment RPCs fail with FailedPrecondition.
+	Disabled bool
 }
 
 func (c Lndhub) Default() Lndhub {
@@ -294,6 +299,7 @@ func (c Lndhub) Default() Lndhub {
 // BindFlags binds the flags to the given FlagSet.
 func (c *Lndhub) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Mainnet, "lndhub.mainnet", c.Mainnet, "Connect to the mainnet lndhub.go server")
+	fs.BoolVar(&c.Disabled, "lndhub.disabled", c.Disabled, "Disable the lndhub wallet integration: no startup account check, payment RPCs fail with FailedPrecondition")
 }
 
 // Syncing configuration.
@@ -397,6 +403,9 @@ type P2P struct {
 	MaxInboundReconciles int
 	// InboundReconcileWait is how long an inbound ReconcileBlobs RPC waits for capacity before failing; 0 means default.
 	InboundReconcileWait time.Duration
+	// Isolated makes the node talk to no other node: every libp2p connection is denied,
+	// and bootstrap, peer exchange, relay and NAT services are off. Implies NoBootstrap().
+	Isolated bool
 }
 
 func (p2p P2P) Default() P2P {
@@ -412,19 +421,12 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&p2p.TestnetName, "p2p.testnet-name", p2p.TestnetName, "Name of the testnet to use (empty for mainnet)")
 	fs.IntVar(&p2p.Port, "p2p.port", p2p.Port, "Port to listen for incoming P2P connections")
 	fs.BoolVar(&p2p.NoRelay, "p2p.no-relay", p2p.NoRelay, "Disable libp2p circuit relay")
-	fs.Func("p2p.bootstrap-peers", "Comma-separated multiaddrs for bootstrap nodes (default see `config/config.go`)", func(in string) error {
-		addrs := strings.Split(in, ",")
-		out := make([]multiaddr.Multiaddr, len(addrs))
-		for i, addr := range addrs {
-			maddr, err := multiaddr.NewMultiaddr(addr)
-			if err != nil {
-				return err
-			}
-			out[i] = maddr
+	fs.Func("p2p.bootstrap-peers", "Comma-separated multiaddrs for bootstrap nodes; 'none' or empty disables bootstrapping (default see `config/config.go`)", func(in string) error {
+		peers, err := parseBootstrapPeers(in)
+		if err != nil {
+			return err
 		}
-		if len(out) > 0 {
-			p2p.BootstrapPeers = must.Do2(peer.AddrInfosFromP2pAddrs(out...))
-		}
+		p2p.BootstrapPeers = peers
 		return nil
 	})
 	fs.Var(newAddrsFlag(p2p.ListenAddrs, &p2p.ListenAddrs), "p2p.listen-addrs", "Addresses to be listen at (comma separated multiaddresses format)")
@@ -437,11 +439,38 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&p2p.RelayBackoff, "p2p.relay-backoff", p2p.RelayBackoff, "The time the autorelay waits to reconnect after failing to obtain a reservation with a candidate")
 	fs.IntVar(&p2p.MaxInboundReconciles, "p2p.max-inbound-reconciles", p2p.MaxInboundReconciles, "Max concurrent inbound ReconcileBlobs RPCs; 0 = auto (2*GOMAXPROCS, minimum 2), negative = unlimited")
 	fs.DurationVar(&p2p.InboundReconcileWait, "p2p.inbound-reconcile-wait", p2p.InboundReconcileWait, "How long inbound ReconcileBlobs waits for capacity before ResourceExhausted; 0 = 3s")
+	fs.BoolVar(&p2p.Isolated, "p2p.isolated", p2p.Isolated, "Talk to no other node: deny every libp2p connection and skip bootstrap, peer exchange, relay and NAT services (implies -p2p.bootstrap-peers=none and -lndhub.disabled)")
+}
+
+// NoBootstrapPeers is the -p2p.bootstrap-peers value that disables bootstrapping.
+const NoBootstrapPeers = "none"
+
+// parseBootstrapPeers parses the -p2p.bootstrap-peers flag value.
+// An empty string or NoBootstrapPeers yields nil, which NoBootstrap() reports as true.
+func parseBootstrapPeers(in string) ([]peer.AddrInfo, error) {
+	in = strings.TrimSpace(in)
+	if in == "" || in == NoBootstrapPeers {
+		return nil, nil
+	}
+
+	addrs := strings.Split(in, ",")
+	out := make([]multiaddr.Multiaddr, len(addrs))
+	for i, addr := range addrs {
+		maddr, err := multiaddr.NewMultiaddr(strings.TrimSpace(addr))
+		if err != nil {
+			return nil, fmt.Errorf("invalid bootstrap peer %q: %w", addr, err)
+		}
+
+		out[i] = maddr
+	}
+
+	return peer.AddrInfosFromP2pAddrs(out...)
 }
 
 // NoBootstrap indicates whether bootstrap nodes are configured.
+// An isolated node never bootstraps, whatever the peer list says.
 func (p2p P2P) NoBootstrap() bool {
-	return len(p2p.BootstrapPeers) == 0
+	return p2p.Isolated || len(p2p.BootstrapPeers) == 0
 }
 
 // IsBootstrap returns true if the passed peerID is part of bootstrapped nodes.

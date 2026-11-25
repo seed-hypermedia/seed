@@ -2,7 +2,6 @@ import {describe, expect, it, vi} from 'vitest'
 import type {DocNavigationItem} from '@shm/ui/navigation'
 
 vi.mock('@shm/shared', () => ({unpackHmId: vi.fn()}))
-vi.mock('@shm/shared/constants', () => ({NOTIFY_SERVICE_HOST: ''}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: vi.fn()}))
 vi.mock('@shm/ui/hm-host-banner', () => ({HypermediaHostBanner: vi.fn()}))
 vi.mock('@shm/ui/site-header', () => ({SiteHeader: vi.fn()}))

@@ -1,1 +1,1 @@
-../../docs/security/auditor.md
+../../.agents/security/auditor.md
