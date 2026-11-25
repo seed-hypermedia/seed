@@ -51,7 +51,7 @@ export function CreateAccountDialogContent({
         <DialogTitle className="flex items-center gap-2 max-sm:text-base">{customIdentityTitle}</DialogTitle>
         <DialogDescription className="max-sm:text-sm">Enter the URL of your identity server.</DialogDescription>
         <input
-          className="rounded border px-3 py-2 text-sm dark:bg-neutral-900"
+          className="bg-background rounded border px-3 py-2 text-sm"
           value={customIdentityUrl}
           onChange={(e) => setCustomIdentityUrl(e.target.value)}
           placeholder={customIdentityPlaceholder}
@@ -90,7 +90,7 @@ export function CreateAccountDialogContent({
       ) : header ? (
         <>
           <div className="flex items-center gap-2">
-            <div className="flex size-6 items-center justify-center rounded-full bg-emerald-600">
+            <div className="bg-brand flex size-6 items-center justify-center rounded-full">
               <SeedLogo className="size-3.5 text-white" />
             </div>
             <span className="text-sm font-semibold">{header}</span>
@@ -101,7 +101,7 @@ export function CreateAccountDialogContent({
         </>
       ) : (
         <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={onTitleClick}>
-          <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+          <div className="bg-brand flex size-8 items-center justify-center rounded-full">
             <SeedLogo className="size-4 text-white" />
           </div>
           {title}
@@ -128,9 +128,9 @@ export function CreateAccountDialogContent({
           </Button>
 
           <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-            <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+            <div className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-xs">Or,</span>
+            <div className="bg-border h-px flex-1" />
           </div>
 
           <Button variant="outline" size="lg" className="w-full" onClick={() => onSubmit({type: 'login'})}>
@@ -140,7 +140,7 @@ export function CreateAccountDialogContent({
           <div className="text-center text-sm">
             <button
               type="button"
-              className="cursor-pointer font-medium text-neutral-500 hover:underline dark:text-neutral-400"
+              className="text-muted-foreground cursor-pointer font-medium hover:underline"
               onClick={() => setStep('custom-identity')}
             >
               I have a different identity domain

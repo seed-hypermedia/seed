@@ -140,7 +140,7 @@ export function SessionProviderGate({
           </span>
           {canWrite && noProviders && openAddProvider ? (
             <div>
-              <Button size="sm" onClick={openAddProvider} disabled={pending}>
+              <Button variant="ghost" size="sm" onClick={openAddProvider} disabled={pending}>
                 <Plus className="size-4" />
                 Add provider…
               </Button>

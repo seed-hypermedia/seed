@@ -85,7 +85,7 @@ export const buttonVariants = cva(
     },
 
     defaultVariants: {
-      variant: 'ghost',
+      variant: 'default',
       size: 'default',
     },
   },

@@ -176,7 +176,7 @@ export function ModelProvidersDialog({
         {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
       </div>
       <div className="flex justify-end gap-2">
-        <Button onClick={() => addProviderDialog.open(input)}>
+        <Button variant="ghost" onClick={() => addProviderDialog.open(input)}>
           <Plus className="size-4" />
           Add provider
         </Button>
@@ -466,7 +466,7 @@ function AddModelProviderForm({
             Cancel
           </Button>
         ) : null}
-        <Button type="submit" disabled={!canSubmit}>
+        <Button variant="default" type="submit" disabled={!canSubmit}>
           {submitLabel}
         </Button>
       </div>
@@ -626,6 +626,7 @@ export function ManageAgentAccountsDialog({
           Import key
         </Button>
         <Button
+          variant="ghost"
           onClick={() =>
             newAccountDialog.open({serverUrl: input.serverUrl, selectedAccountId: input.selectedAccountId})
           }
@@ -728,7 +729,7 @@ function NewAgentAccountDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleCreate()} disabled={createIdentity.isLoading || !name.trim()}>
+        <Button variant="ghost" onClick={() => void handleCreate()} disabled={createIdentity.isLoading || !name.trim()}>
           Create account
         </Button>
       </div>
@@ -836,6 +837,7 @@ export function EditAgentAccountDialog({
           Cancel
         </Button>
         <Button
+          variant="default"
           onClick={() => void handleSave()}
           disabled={updateIdentity.isLoading || processingIcon || !label.trim()}
         >
@@ -1352,12 +1354,12 @@ export function CreateAgentDialog({
       {createError ? <Notice tone="error">{createError}</Notice> : null}
       <div className="flex justify-end gap-2">
         {input.location ? (
-          <Button onClick={() => void createAtLocation()} disabled={!canSubmit || creating}>
+          <Button variant="default" onClick={() => void createAtLocation()} disabled={!canSubmit || creating}>
             {creating ? <Spinner /> : null}
             {preparedMount.current ? 'Retry' : 'Create Agent'}
           </Button>
         ) : (
-          <Button onClick={() => setChoosingLocation(true)} disabled={!canSubmit}>
+          <Button variant="ghost" onClick={() => setChoosingLocation(true)} disabled={!canSubmit}>
             Choose location
           </Button>
         )}
@@ -1429,7 +1431,7 @@ export function EditAgentNameDialog({
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || !name.trim()}>
+        <Button variant="default" type="submit" disabled={saving || !name.trim()}>
           Save
         </Button>
       </div>
@@ -1503,7 +1505,9 @@ export function EnableWindowsHypervisorDialog({onClose}: {input: Record<string, 
       </SizableText>
 
       <div className="flex justify-end">
-        <Button onClick={onClose}>Got it</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Got it
+        </Button>
       </div>
     </div>
   )

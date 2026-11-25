@@ -95,7 +95,7 @@ function ImageField<Fields extends FieldValues>({
   useEffect(() => () => void requestRef.current++, [])
   return (
     <div className="flex flex-col gap-1">
-      <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 max-sm:h-16 max-sm:w-16 dark:border-neutral-600 dark:hover:border-neutral-500">
+      <div className="group border-border hover:border-muted-foreground/50 relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed max-sm:h-16 max-sm:w-16">
         <input
           type="file"
           accept={IMAGE_FILE_ACCEPT}
@@ -123,8 +123,8 @@ function ImageField<Fields extends FieldValues>({
           className="absolute inset-0 z-10 cursor-pointer opacity-0"
         />
         {!c.field.value && (
-          <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-neutral-100 dark:bg-neutral-800">
-            <SizableText size="xs" className="text-center text-neutral-600 dark:text-neutral-400">
+          <div className="bg-muted pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center">
+            <SizableText size="xs" className="text-muted-foreground text-center">
               {tx('add', ({what}: {what: string}) => `Add ${what}`, {
                 what: label,
               })}

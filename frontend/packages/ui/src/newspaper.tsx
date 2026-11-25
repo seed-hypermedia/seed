@@ -258,8 +258,8 @@ export function DocumentCardThumbnail({
   }
   // Neither cover nor icon — use the document type placeholder.
   return (
-    <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
-      <DocumentKindIcon kind={kind} className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
+    <div className="bg-muted m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md @md:size-14">
+      <DocumentKindIcon kind={kind} className="text-muted-foreground size-6" strokeWidth={1.5} />
     </div>
   )
 }

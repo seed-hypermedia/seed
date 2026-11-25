@@ -1,4 +1,4 @@
-export function SeedLogo({className = 'size-6 text-gray-400', ...props}: React.SVGProps<SVGSVGElement>) {
+export function SeedLogo({className = 'size-6 text-muted-foreground', ...props}: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       className={className}

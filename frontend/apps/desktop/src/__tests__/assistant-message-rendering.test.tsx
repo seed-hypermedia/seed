@@ -768,8 +768,8 @@ describe('runtime-authored messages', () => {
 
     expect(container.querySelector('[data-message-kind="system"]')).toBeTruthy()
     expect(container.querySelector('[data-testid="system-message"]')).toBeTruthy()
-    // Not the user's bubble: no sky fill, and it reads as subordinate muted text.
-    expect(container.innerHTML).not.toContain('bg-sky-100')
+    // Not the user's bubble: no bubble fill, and it reads as subordinate muted text.
+    expect(container.innerHTML).not.toContain('bg-muted text-foreground')
     expect(container.querySelector('[data-testid="system-message"]')?.className).toContain('text-muted-foreground')
     expect(container.textContent).toContain('Two plan steps are still open.')
 
@@ -794,7 +794,7 @@ describe('runtime-authored messages', () => {
 
     expect(container.querySelector('[data-message-kind="user"]')).toBeTruthy()
     expect(container.querySelector('[data-testid="system-message"]')).toBeNull()
-    expect(container.innerHTML).toContain('bg-sky-100')
+    expect(container.innerHTML).toContain('bg-muted text-foreground')
 
     cleanupRendered(root, container)
   })

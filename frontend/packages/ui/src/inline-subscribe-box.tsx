@@ -73,7 +73,7 @@ export function InlineSubscribeBox({accountId, notifyServiceHost, accountMeta, c
           value={email}
           onChangeText={setEmail}
           disabled={isPending}
-          className="flex-1 bg-white dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-400"
+          className="bg-card text-foreground placeholder:text-muted-foreground flex-1"
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSubscribe()
           }}

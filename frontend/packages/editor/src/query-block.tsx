@@ -621,6 +621,7 @@ function QuerySettings({
               <div className="border-border -mt-1 flex flex-col gap-2 border-t">
                 <div className="flex justify-end">
                   <Button
+                    variant="ghost"
                     size="icon"
                     onClick={() => {
                       beginEditIfNeeded()
@@ -656,6 +657,7 @@ function QuerySearch({
   return (
     <div className="relative flex flex-col">
       <Button
+        variant="ghost"
         onClick={() => {
           // Flip the editor to editable before the search input mounts so
           // ProseMirror stops stealing focus from the embedded <Input>.

@@ -2,7 +2,7 @@ import {cva, type VariantProps} from 'class-variance-authority'
 import {forwardRef} from 'react'
 import {cn} from './utils'
 
-export const headingVariants = cva('font-bold text-gray-900 dark:text-gray-100', {
+export const headingVariants = cva('text-foreground font-bold', {
   variants: {
     level: {
       1: 'text-2xl leading-9 md:text-3xl md:leading-10',

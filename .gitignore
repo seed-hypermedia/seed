@@ -88,6 +88,7 @@ thumbs.db
 /playwright-report/
 /playwright/.cache/
 .mtt-test
+/design-captures/
 
 _env.scss
 

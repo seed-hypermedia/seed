@@ -62,6 +62,7 @@ function loadMarkdownFixture(name: string): MarkdownFixture {
 
 const accountFixture = JSON.parse(readTextFixture('account.json')) as FixtureAccount
 const hierarchyFixture = loadMarkdownFixture('hierarchy-test.md')
+const designInventoryFixture = loadMarkdownFixture('design-inventory.md')
 
 export const FIXTURE_ACCOUNT_MNEMONIC = accountFixture.mnemonic
 export const FIXTURE_ACCOUNT_ID = accountFixture.accountId
@@ -72,3 +73,6 @@ export const FIXTURE_REGISTRATION_SECRET = accountFixture.registrationSecret
 export const FIXTURE_HIERARCHY_PATH = hierarchyFixture.path
 export const FIXTURE_HIERARCHY_TITLE = hierarchyFixture.title
 export const FIXTURE_HIERARCHY_MARKDOWN = hierarchyFixture.body
+export const FIXTURE_DESIGN_INVENTORY_PATH = designInventoryFixture.path
+export const FIXTURE_DESIGN_INVENTORY_TITLE = designInventoryFixture.title
+export const FIXTURE_DESIGN_INVENTORY_MARKDOWN = designInventoryFixture.body

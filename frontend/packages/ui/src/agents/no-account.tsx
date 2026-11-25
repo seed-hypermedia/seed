@@ -38,7 +38,7 @@ export function AgentsNoAccountPage() {
               : 'App environments require an authenticated account. Sign in or create an account to get started.'}
           </SizableText>
           {!hasAccounts && signIn ? (
-            <Button onClick={() => signIn()}>
+            <Button variant="ghost" onClick={() => signIn()}>
               <LogIn className="size-4" />
               Sign in
             </Button>

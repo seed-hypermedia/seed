@@ -142,7 +142,7 @@ export default function SignInPage() {
         {waitingOnSession ? (
           <Spinner />
         ) : (
-          <Button onClick={signIn} loading={busy} disabled={busy} className="w-full">
+          <Button variant="ghost" onClick={signIn} loading={busy} disabled={busy} className="w-full">
             {invite ? 'Set up your account' : 'Sign in'}
           </Button>
         )}

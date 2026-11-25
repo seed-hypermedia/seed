@@ -41,8 +41,9 @@ export function DocumentCreateButton({
   const primary = options ? options[0]?.onSelect : () => onCreate('document')
 
   return (
-    <div className="bg-background flex items-center overflow-hidden rounded-md border border-green-900 shadow-xs dark:border-green-700">
+    <div className="bg-background flex items-center overflow-hidden rounded-md border shadow-xs">
       <Button
+        variant="ghost"
         type="button"
         size="sm"
         disabled={disabled || !primary}
@@ -56,11 +57,12 @@ export function DocumentCreateButton({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
+            variant="ghost"
             type="button"
             size="icon"
             disabled={disabled}
             aria-label="Choose what to create"
-            className="h-8 w-7 min-w-7 rounded-none border-l border-green-900 px-0 dark:border-green-700"
+            className="h-8 w-7 min-w-7 rounded-none border-l px-0"
           >
             <ChevronDown className="size-4" />
           </Button>

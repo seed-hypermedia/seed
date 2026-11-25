@@ -1293,6 +1293,7 @@ function AgentCollaboratorsTab({
               </select>
               {selected.length ? (
                 <Button
+                  variant="ghost"
                   size="sm"
                   className="h-auto rounded-tl-none rounded-bl-none"
                   onClick={() => void handleInvite()}
@@ -1522,6 +1523,7 @@ function AgentWriteAccessSection({
             </SizableText>
             {pending ? (
               <Button
+                variant="ghost"
                 size="sm"
                 disabled={grant.isLoading}
                 onClick={() =>
@@ -2295,7 +2297,7 @@ function NewAgentAccountPanel({
             Cancel
           </Button>
         ) : null}
-        <Button onClick={onCreate} disabled={disabled || !name.trim()}>
+        <Button variant="ghost" onClick={onCreate} disabled={disabled || !name.trim()}>
           Create account
         </Button>
       </div>
@@ -2915,6 +2917,7 @@ function CombineAgentTriggersDialog({
           Cancel
         </Button>
         <Button
+          variant="ghost"
           disabled={!other || combine.isLoading}
           onClick={async () => {
             if (!other) return
@@ -3060,6 +3063,7 @@ function CreateAgentTriggerDialog({
           Cancel
         </Button>
         <Button
+          variant="ghost"
           onClick={() => void handleCreateTrigger()}
           disabled={createTrigger.isLoading || sourceDraftOpen || !isTriggerSourceReady(source) || !name.trim()}
         >

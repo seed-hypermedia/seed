@@ -91,7 +91,12 @@ export function SchemaBrowserPage({
               <Tooltip
                 content={`Start a new IPFS blob that follows ${typeName} — the draft is pre-filled with this schema`}
               >
-                <Button size="sm" data-testid="schema-browser-new" onClick={() => navigate(newInstanceRoute(cid))}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="schema-browser-new"
+                  onClick={() => navigate(newInstanceRoute(cid))}
+                >
                   <Plus className="mr-1 size-4" /> New {typeName}
                 </Button>
               </Tooltip>

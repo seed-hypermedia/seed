@@ -38,9 +38,7 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
     <div
       className={cn(
         'group flex w-full items-start gap-3 rounded-lg border p-3 transition-colors',
-        isRead
-          ? 'bg-background hover:bg-muted/40'
-          : 'border-blue-100 bg-blue-50 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/30 dark:hover:bg-blue-900/40',
+        isRead ? 'bg-background hover:bg-muted/40' : 'bg-highlight hover:bg-highlight-fragment',
       )}
     >
       <div className="shrink-0" onClick={(event) => event.stopPropagation()}>

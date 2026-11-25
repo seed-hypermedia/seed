@@ -140,6 +140,7 @@ function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: strin
   return (
     <Tooltip content="Activity" asChild>
       <Button
+        variant="ghost"
         className={cn(
           'window-no-drag relative h-8 rounded-full border-1 p-0',
           isActive
@@ -274,6 +275,7 @@ export function AccountProfileButton() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              variant="ghost"
               aria-label="Account menu"
               className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
             >
@@ -340,6 +342,7 @@ export function AccountProfileButton() {
       >
         <DropdownMenuTrigger asChild>
           <Button
+            variant="ghost"
             aria-label="Account menu"
             className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
           >
@@ -532,6 +535,7 @@ function AssistantChatButton() {
   return (
     <Tooltip content={ASSISTANT_TOGGLE_LABEL} asChild>
       <Button
+        variant="ghost"
         className={cn(
           'window-no-drag relative h-8 w-8 rounded-full border p-0',
           isActive
@@ -556,6 +560,7 @@ export function BookmarksButton() {
   return (
     <Tooltip content="Bookmarks" asChild>
       <Button
+        variant="ghost"
         className={cn(
           'window-no-drag relative h-8 w-8 rounded-full border p-0',
           isActive
@@ -607,6 +612,7 @@ export function ExploreButton({className}: {className?: string}) {
   return (
     <Tooltip content="Explore" asChild>
       <Button
+        variant="ghost"
         className={cn(
           'window-no-drag h-10 w-full justify-start gap-3 rounded-xl border-0 px-3 text-sm font-semibold',
           isActive
@@ -644,6 +650,7 @@ export function NavigationButtons() {
       </Button>
 
       <Button
+        variant="ghost"
         size="iconSm"
         onClick={() => dispatch({type: 'forward'})}
         disabled={state.routeIndex >= state.routes.length - 1}
@@ -692,7 +699,14 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             content={tooltip}
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
           >
-            <Button size="icon" key={key} aria-label={tooltip} className="shrink-0" onClick={handleClick}>
+            <Button
+              variant="ghost"
+              size="icon"
+              key={key}
+              aria-label={tooltip}
+              className="shrink-0"
+              onClick={handleClick}
+            >
               {icon}
             </Button>
           </Tooltip>

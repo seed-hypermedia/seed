@@ -58,6 +58,7 @@ export function DatePicker({value, onValue, onReset, placeholder = 'Select date'
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger className="w-full">
           <Button
+            variant="ghost"
             className={cn('w-full justify-start text-left font-normal', !selectedDate && 'text-muted-foreground')}
           >
             <CalendarIcon className="mr-2 size-4" />
@@ -69,7 +70,7 @@ export function DatePicker({value, onValue, onReset, placeholder = 'Select date'
         </PopoverContent>
       </Popover>
       {selectedDate && (
-        <Button onClick={handleReset}>
+        <Button variant="ghost" onClick={handleReset}>
           <X className="size-4" />
         </Button>
       )}

@@ -133,6 +133,7 @@ export function HypermediaLinkPreview(
             </SizableText>
           </div>
           <Button
+            variant="ghost"
             data-testid="hm-link-preview-edit-button"
             className="hover:bg-black/5 hover:opacity-80 dark:hover:bg-white/10"
             onClick={() => setIsEditing(true)}
