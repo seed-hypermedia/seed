@@ -1433,7 +1433,11 @@ async function evaluateMentionEventForNotifications(
   const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
   const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
   // Metadata citations carry the attribute key in sourceContext. Only skip assigning yourself as Owner.
-  if (sourceType === 'metadata/link' && mentionEvent.sourceContext === 'Owner' && authorAccountId === targetAccountUid) {
+  if (
+    sourceType === 'metadata/link' &&
+    mentionEvent.sourceContext === 'Owner' &&
+    authorAccountId === targetAccountUid
+  ) {
     return
   }
   const isCommentMention = sourceType.startsWith('comment/')
