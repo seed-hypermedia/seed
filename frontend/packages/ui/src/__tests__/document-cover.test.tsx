@@ -62,21 +62,12 @@ describe('DocumentCover', () => {
   })
 
   it('lets editors choose a replacement cover image from the cover picker', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(JSON.stringify({photos: []}))),
-    )
     const onChangeCover = vi.fn()
     renderCover(<DocumentCover cover="ipfs://cover-cid" onChangeCover={onChangeCover} />)
 
     act(() => {
       container
         .querySelector('button[aria-label="Change document cover image"]')
-        ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
-    })
-    act(() => {
-      Array.from(document.body.querySelectorAll('[role="tab"]'))
-        .find((tab) => tab.textContent === 'Upload')
         ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
     })
     const input = document.body.querySelector<HTMLInputElement>('input[aria-label="Choose document cover image"]')!
@@ -87,7 +78,6 @@ describe('DocumentCover', () => {
     })
 
     expect(onChangeCover).toHaveBeenCalledWith(file)
-    vi.unstubAllGlobals()
   })
 
   it('keeps cover actions visible on mobile and hover-gated on desktop', () => {

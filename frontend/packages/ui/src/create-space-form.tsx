@@ -1,4 +1,4 @@
-import {HelpCircle, Plus, Search, X} from 'lucide-react'
+import {HelpCircle, Plus, X} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {Badge} from './components/badge'
@@ -7,7 +7,6 @@ import {Label} from './components/label'
 import {ScrollArea} from './components/scroll-area'
 import {Switch} from './components/switch'
 import {ImageForm} from './image-form'
-import {ImagePickerPopover} from './image-picker'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -190,7 +189,6 @@ function IdentityStep({state, update}: StepProps) {
   const coverUrl = useFilePreviewUrl(state.cover)
   const logoUrl = useFilePreviewUrl(state.logo)
   const faviconUrl = useFilePreviewUrl(state.favicon)
-  const [coverPickerOpen, setCoverPickerOpen] = useState(false)
   const COVER_DROP_HEIGHT = 76
   const COVER_FILLED_HEIGHT = COVER_DROP_HEIGHT + 45
   const renderCoverInput = (height: number) => (
@@ -214,21 +212,7 @@ function IdentityStep({state, update}: StepProps) {
         description="You can skip this and do it later from space settings if you prefer."
       />
       <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between gap-2">
-          <Label>Home cover image</Label>
-          <ImagePickerPopover
-            kind="cover"
-            align="end"
-            open={coverPickerOpen}
-            onOpenChange={setCoverPickerOpen}
-            onFile={(file) => update({cover: file})}
-          >
-            <Button type="button" variant="ghost" size="xs" className="text-muted-foreground">
-              <Search className="size-3.5" />
-              Search photos
-            </Button>
-          </ImagePickerPopover>
-        </div>
+        <Label>Home cover image</Label>
         {coverUrl ? (
           renderCoverInput(COVER_FILLED_HEIGHT)
         ) : (

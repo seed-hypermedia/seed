@@ -1,44 +1,20 @@
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useDebounce} from '@shm/shared/utils/use-debounce'
-import {ImageUp, Search, WifiOff} from 'lucide-react'
-import {ChangeEvent, DragEvent, ReactNode, useEffect, useMemo, useState, useSyncExternalStore} from 'react'
+import {ImageUp, Search} from 'lucide-react'
+import {ChangeEvent, DragEvent, ReactNode, useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
+import {Tabs, TabsContent, TabsList, TabsTrigger} from './components/tabs'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 
-/** A stock photo as returned by the web app's stock photo proxy. */
-export type StockPhoto = {
-  id: number
-  alt: string
-  width: number
-  height: number
-  color: string | null
-  photographer: string
-  photographerUrl: string
-  pageUrl: string
-  thumbUrl: string
-  downloadUrl: string
-}
-
-/** Response body of the stock photo proxy. */
-export type StockPhotoSearchResult = {photos: StockPhoto[]}
-
-/** Path of the stock photo proxy route, served by the hyper.media gateway. */
-export const STOCK_PHOTOS_PATH = '/hm/api/stock-photos'
-
-/** What the picker produces the image for. Covers search stock photos; icons pick emoji. */
+/** What the picker produces the image for: an uploaded cover, or an uploaded or emoji icon. */
 export type ImagePickerKind = 'cover' | 'icon'
 
-type ImagePickerTab = 'photos' | 'emoji' | 'upload'
-
-const SEARCH_DEBOUNCE_MS = 350
 const EMOJI_FONT_STACK = "'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif"
 const EMOJI_IMAGE_SIZE = 256
 
 /**
- * Popover for choosing a cover or icon image. Covers can come from a stock
- * photo search or an upload; icons from an emoji or an upload. Whatever the
+ * Popover for choosing a cover or icon image. Covers come from uploads;
+ * icons can also be rendered from emoji. Whatever the
  * source, the chosen image reaches `onFile` as a File, so callers keep their
  * existing upload path. The popover closes once `onFile` resolves.
  */
@@ -63,11 +39,7 @@ export function ImagePickerPopover({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent
-        align={align}
-        className="w-[min(92vw,28rem)] overflow-hidden p-0"
-        onClick={(event) => event.stopPropagation()}
-      >
+      <PopoverContent align={align} className="w-[min(92vw,28rem)] p-0" onClick={(event) => event.stopPropagation()}>
         {open ? (
           <ImagePickerPanel
             kind={kind}
@@ -99,24 +71,12 @@ function ImagePickerPanel({
   onFile: (file: File) => Promise<void>
   onRemove?: () => void
 }) {
-  const online = useIsOnline()
-  const [tab, setTab] = useState<ImagePickerTab>(kind === 'icon' ? 'emoji' : online ? 'photos' : 'upload')
-  const [pendingKey, setPendingKey] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const tabs: {value: ImagePickerTab; label: string}[] =
-    kind === 'icon'
-      ? [
-          {value: 'emoji', label: 'Emoji'},
-          {value: 'upload', label: 'Upload'},
-        ]
-      : [
-          {value: 'photos', label: 'Search photos'},
-          {value: 'upload', label: 'Upload'},
-        ]
 
-  async function deliver(key: string, produceFile: () => Promise<File>) {
-    if (pendingKey) return
-    setPendingKey(key)
+  async function deliver(produceFile: () => Promise<File>) {
+    if (pending) return
+    setPending(true)
     setError(null)
     try {
       await onFile(await produceFile())
@@ -125,186 +85,58 @@ function ImagePickerPanel({
       console.error(`Failed to set ${kind} image: ${message}`, err)
       setError('Could not add this image. Please try again.')
     } finally {
-      setPendingKey(null)
+      setPending(false)
     }
   }
 
+  const upload = <UploadDropzone kind={kind} pending={pending} onFile={(file) => deliver(async () => file)} />
+
   return (
-    <div className="flex flex-col">
-      <div className="border-border flex items-center gap-1 border-b px-2 pt-2" role="tablist">
-        {tabs.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="tab"
-            aria-selected={tab === option.value}
-            onClick={() => setTab(option.value)}
-            className={cn(
-              'focus-visible:ring-ring/50 -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px]',
-              tab === option.value
-                ? 'border-primary text-foreground'
-                : 'text-muted-foreground hover:text-foreground border-transparent',
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-        <div className="flex-1" />
+    <Tabs defaultValue="emoji">
+      <div className="border-border flex items-center justify-between gap-2 border-b p-3">
+        {kind === 'icon' ? (
+          <TabsList aria-label="Icon source">
+            <TabsTrigger value="emoji" disabled={pending}>
+              Emoji
+            </TabsTrigger>
+            <TabsTrigger value="upload" disabled={pending}>
+              Upload
+            </TabsTrigger>
+          </TabsList>
+        ) : (
+          <span className="text-sm font-medium">Upload cover</span>
+        )}
         {onRemove ? (
-          <Button type="button" variant="ghost" size="xs" className="text-muted-foreground mb-1" onClick={onRemove}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground"
+            disabled={pending}
+            onClick={onRemove}
+          >
             Remove
           </Button>
         ) : null}
       </div>
       <div className="p-3">
-        {tab === 'photos' ? (
-          <StockPhotoSearch
-            online={online}
-            pendingKey={pendingKey}
-            onPick={(photo) => deliver(`photo-${photo.id}`, () => downloadStockPhoto(photo))}
-          />
-        ) : null}
-        {tab === 'emoji' ? (
-          <EmojiSearch
-            disabled={!!pendingKey}
-            onPick={(emoji) => deliver(`emoji-${emoji.hexcode}`, async () => renderEmojiToFile(emoji))}
-          />
-        ) : null}
-        {tab === 'upload' ? (
-          <UploadDropzone
-            kind={kind}
-            pending={pendingKey === 'upload'}
-            onFile={(file) => deliver('upload', async () => file)}
-          />
-        ) : null}
+        {kind === 'icon' ? (
+          <>
+            <TabsContent value="emoji">
+              <EmojiSearch disabled={pending} onPick={(emoji) => deliver(() => renderEmojiToFile(emoji))} />
+            </TabsContent>
+            <TabsContent value="upload">{upload}</TabsContent>
+          </>
+        ) : (
+          upload
+        )}
         {error ? (
           <p role="alert" className="text-destructive pt-2 text-xs">
             {error}
           </p>
         ) : null}
       </div>
-      {tab === 'photos' ? (
-        <div className="border-border text-muted-foreground border-t px-3 py-2 text-xs">
-          Photos by{' '}
-          <a href="https://www.pexels.com" target="_blank" rel="noreferrer" className="text-foreground underline">
-            Pexels
-          </a>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function StockPhotoSearch({
-  online,
-  pendingKey,
-  onPick,
-}: {
-  online: boolean
-  pendingKey: string | null
-  onPick: (photo: StockPhoto) => void
-}) {
-  const [query, setQuery] = useState('')
-  const debouncedQuery = useDebounce(query.trim(), SEARCH_DEBOUNCE_MS)
-  const [attempt, setAttempt] = useState(0)
-  const [result, setResult] = useState<{status: 'loading' | 'ready' | 'error'; photos: StockPhoto[]}>({
-    status: 'loading',
-    photos: [],
-  })
-
-  useEffect(() => {
-    if (!online) return
-    const controller = new AbortController()
-    setResult((prev) => ({status: 'loading', photos: prev.photos}))
-    fetchStockPhotos(debouncedQuery, controller.signal)
-      .then((photos) => setResult({status: 'ready', photos}))
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return
-        console.error('Stock photo search failed', err)
-        setResult({status: 'error', photos: []})
-      })
-    return () => controller.abort()
-  }, [debouncedQuery, online, attempt])
-
-  if (!online) {
-    return (
-      <div className="text-muted-foreground flex h-64 flex-col items-center justify-center gap-2 text-center text-sm">
-        <WifiOff className="size-5" />
-        <p>Photo search needs an internet connection.</p>
-        <p className="text-xs">You can still upload an image from your computer.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="relative block">
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <input
-          type="search"
-          autoFocus
-          aria-label="Search photos"
-          placeholder="Search photos…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="border-border bg-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border pr-3 pl-8 text-sm outline-none focus-visible:ring-[3px]"
-        />
-      </label>
-      <p className="text-muted-foreground text-xs">{debouncedQuery ? `Results for “${debouncedQuery}”` : 'Featured'}</p>
-      <div className="h-64 overflow-y-auto">
-        {result.status === 'error' ? (
-          <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-sm">
-            <p>Could not load photos.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-              Try again
-            </Button>
-          </div>
-        ) : result.status === 'ready' && result.photos.length === 0 ? (
-          <p className="text-muted-foreground flex h-full items-center justify-center text-sm">No photos found.</p>
-        ) : (
-          <div
-            className={cn(
-              'grid grid-cols-3 gap-2 transition-opacity',
-              result.status === 'loading' && result.photos.length > 0 && 'opacity-60',
-            )}
-          >
-            {result.photos.length === 0
-              ? Array.from({length: 9}, (_, index) => (
-                  <div key={index} className="bg-muted aspect-[3/2] animate-pulse rounded-md" />
-                ))
-              : result.photos.map((photo) => {
-                  const pending = pendingKey === `photo-${photo.id}`
-                  return (
-                    <button
-                      key={photo.id}
-                      type="button"
-                      disabled={!!pendingKey}
-                      aria-label={photo.alt ? `Use photo: ${photo.alt}` : `Use photo by ${photo.photographer}`}
-                      onClick={() => onPick(photo)}
-                      className="group/photo focus-visible:ring-ring relative aspect-[3/2] overflow-hidden rounded-md outline-none focus-visible:ring-2 disabled:cursor-default"
-                      style={{backgroundColor: photo.color ?? undefined}}
-                    >
-                      <img
-                        src={photo.thumbUrl}
-                        alt=""
-                        loading="lazy"
-                        className="size-full object-cover transition-transform duration-200 group-hover/photo:scale-105 motion-reduce:transition-none"
-                      />
-                      <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-1.5 pt-3 pb-1 text-left text-[10px] text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
-                        {photo.photographer}
-                      </span>
-                      {pending ? (
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white">
-                          <Spinner />
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-          </div>
-        )}
-      </div>
-    </div>
+    </Tabs>
   )
 }
 
@@ -439,23 +271,6 @@ function UploadDropzone({
   )
 }
 
-/** Fetches featured photos, or search results when `query` is non-empty, from the gateway's stock photo proxy. */
-export async function fetchStockPhotos(query: string, signal?: AbortSignal): Promise<StockPhoto[]> {
-  const url = new URL(STOCK_PHOTOS_PATH, DEFAULT_GATEWAY_URL)
-  if (query) url.searchParams.set('q', query)
-  const response = await fetch(url, {signal})
-  if (!response.ok) throw new Error(`Stock photo search failed (${response.status})`)
-  const body = (await response.json()) as StockPhotoSearchResult
-  return body.photos
-}
-
-async function downloadStockPhoto(photo: StockPhoto): Promise<File> {
-  const response = await fetch(photo.downloadUrl)
-  if (!response.ok) throw new Error(`Photo download failed (${response.status})`)
-  const blob = await response.blob()
-  return new File([blob], `pexels-${photo.id}.jpg`, {type: blob.type || 'image/jpeg'})
-}
-
 type EmojiEntry = {hexcode: string; unicode: string; label: string; search: string}
 type EmojiGroup = {id: number; label: string; emojis: EmojiEntry[]}
 type EmojibaseCompactEmoji = {hexcode: string; unicode: string; label: string; tags?: string[]; group?: number}
@@ -532,21 +347,4 @@ async function renderEmojiToFile(emoji: EmojiEntry): Promise<File> {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Could not render emoji')
   return new File([blob], `emoji-${emoji.hexcode.toLowerCase()}.png`, {type: 'image/png'})
-}
-
-function subscribeToOnlineStatus(onChange: () => void) {
-  window.addEventListener('online', onChange)
-  window.addEventListener('offline', onChange)
-  return () => {
-    window.removeEventListener('online', onChange)
-    window.removeEventListener('offline', onChange)
-  }
-}
-
-function useIsOnline() {
-  return useSyncExternalStore(
-    subscribeToOnlineStatus,
-    () => navigator.onLine,
-    () => true,
-  )
 }

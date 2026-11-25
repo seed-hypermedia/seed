@@ -28,10 +28,6 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () => new Response(JSON.stringify({photos: []}))),
-  )
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -42,7 +38,6 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 function renderButtons(props: Partial<React.ComponentProps<typeof DocumentMetadataAffordanceButtons>> = {}) {
@@ -67,6 +62,7 @@ function buttonWithText(text: string): HTMLButtonElement | null {
 
 function click(element: Element | null | undefined) {
   act(() => {
+    element?.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true, button: 0}))
     element?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
   })
 }
@@ -159,7 +155,7 @@ describe('DocumentMetadataAffordanceButtons', () => {
     const onMetadata = vi.fn()
     renderButtons({fileUpload, onMetadata})
     click(buttonWithText('Add cover image'))
-    expect(document.body.textContent).toContain('Search photos')
+    expect(document.body.querySelector('input[aria-label="Choose document cover image"]')).not.toBeNull()
     const file = new File(['cover'], 'cover.png', {type: 'image/png'})
 
     await uploadFromPicker('Choose document cover image', file)
