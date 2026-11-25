@@ -28,7 +28,7 @@ This page defines the **schema/property** type. The type's formal schema is atta
 
 A default only initializes. When an editor creates a new value of the struct, it writes a copy of each default into that value. From then on the field is ordinary data: the author can change it or remove it, and what gets saved is the value itself. Nothing reads the schema later to fill a gap. <!-- id:CZJa96uS -->
   - **A default must match its property.** The default is checked against the property's own `value` schema. A string default on an integer field is an error in the schema, reported by the schema editor, `schema validate` and an [agent](../agent.md)'s `write`. The [meta-schema](../schema.md) cannot state this rule, because the type of `default` depends on the key beside it, so it is a separate check. <!-- id:bTD9MWth -->
-  - **Existing values never change.** Adding a default to a schema, or changing one, changes no value that already exists. A [document](../protocol/documents.md) that lacks the field still lacks it. Editors do not fill it in when the document is opened, and [validation](./how-it-works.md) does not read the default. <!-- id:Knhkejlq -->
+  - **Existing values never change.** Adding a default to a schema, or changing one, changes no value that already exists. A [document](../protocol/documents.md) that lacks the field still lacks it. Editors do not fill it in when the document is opened, and [validation](./workflows.md) does not read the default. <!-- id:Knhkejlq -->
   - **Any value can be a default.** That includes `null`, `false`, `0`, an empty string and an empty list. A property with no `default` key has no default. <!-- id:-uhK4ejE -->
 
 ## Required and optional <!-- id:gBbqxVA7 -->
