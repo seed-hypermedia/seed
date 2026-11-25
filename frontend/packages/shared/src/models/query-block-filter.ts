@@ -1,5 +1,6 @@
 import {
   BUILTIN_METADATA_KEYS,
+  SCHEMA_BINDING_METADATA_KEYS,
   type HMDocumentInfo,
   type HMQueryBlockInput,
   type HMQueryBlockFilterOptions,
@@ -131,7 +132,11 @@ export function getQueryBlockFilterOptions(
     comments: 'number',
   }
   const metadataKeys = new Set(
-    items.flatMap((item) => Object.keys(item.metadata).filter((key) => !BUILTIN_METADATA_KEYS.has(key))),
+    items.flatMap((item) =>
+      Object.keys(item.metadata).filter(
+        (key) => !BUILTIN_METADATA_KEYS.has(key) && !SCHEMA_BINDING_METADATA_KEYS.has(key),
+      ),
+    ),
   )
   for (const key of Array.from(metadataKeys)) {
     const present = items.map((item) => item.metadata[key]).filter((value) => value != null && value !== '')

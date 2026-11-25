@@ -40,6 +40,11 @@ jobs:
   deploy-script:
     uses: ./.github/workflows/check-deploy-script.yml
 
+  # The Docker Images release publishes hypermedia/ to the production docs as its last job. A tree it
+  # would refuse stops the desktop build too, so a tag never yields half a release.
+  hypermedia-check:
+    uses: ./.github/workflows/check-hypermedia.yml
+
   # Use the reusable parallel test workflow
   frontend-tests:
     needs: [build-info]
@@ -51,7 +56,7 @@ jobs:
     timeout-minutes: 30
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
-    needs: [build-info, frontend-tests, deploy-script]
+    needs: [build-info, frontend-tests, deploy-script, hypermedia-check]
     # Publish whatever platforms built. A failing leg must neither cancel its
     # siblings (fail-fast) nor skip publish-to-github (continue-on-error).
     # The "Check platform artifacts" step in publish-to-github reports the gap.

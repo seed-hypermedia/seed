@@ -1359,9 +1359,7 @@ export default function DesktopResourcePage() {
                     linkExtensionOptions={linkExtensionOptions}
                     attributeAutocomplete={attributeAutocomplete}
                     fileUpload={fileUpload}
-                    editNavPane={
-                      canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
-                    }
+                    editNavPane={<EditNavHeaderPane homeId={hmId(docId.uid)} />}
                   />
                   {draftVersionDeleteDraftDialog.content}
                 </QuerySearchInputProvider>

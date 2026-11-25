@@ -102,4 +102,50 @@ describe('explore-query', () => {
       expect(compileExploreQuery(parsed, {type: 'node'}).filter, query).toBeUndefined()
     }
   })
+
+  it('reads empty:key as missing or an empty string', () => {
+    const parsed = parseExploreQuery('in:alice empty:Priority')
+    const {filter, diagnostics} = compileExploreQuery(parsed, {type: 'node'})
+    expect(parsed.diagnostics).toEqual([])
+    expect(diagnostics).toEqual([])
+    expect(filter).toEqual({
+      and: {
+        filters: [
+          {spaceMatch: {space: 'alice'}},
+          {
+            or: {
+              filters: [
+                {missing: {key: 'Priority'}},
+                {comparison: {key: 'Priority', operator: 'EQUAL', value: {stringValue: ''}}},
+              ],
+            },
+          },
+        ],
+      },
+    })
+    // The sugar serializes to its expansion, which parses back to the same filter.
+    const serialized = serializeExploreQuery(parsed.ast)
+    expect(serialized).toBe('in:alice AND (missing:Priority OR Priority="")')
+    expect(compileExploreQuery(parseExploreQuery(serialized), {type: 'node'}).filter).toEqual(filter)
+  })
+
+  it('takes a quoted key with spaces, and keeps a quoted value a string', () => {
+    const parsed = parseExploreQuery('"Depends On":tasks has:"Due Date" version="3" count=3 "a phrase"')
+    const {filter, textTerms} = compileExploreQuery(parsed, {type: 'node'})
+    expect(parsed.diagnostics).toEqual([])
+    expect(textTerms).toEqual([{value: 'a phrase', phrase: true}])
+    expect(filter).toEqual({
+      and: {
+        filters: [
+          {stringMatch: {key: 'Depends On', value: 'tasks', caseSensitive: false, prefix: false}},
+          {exists: {key: 'Due Date'}},
+          {comparison: {key: 'version', operator: 'EQUAL', value: {stringValue: '3'}}},
+          {comparison: {key: 'count', operator: 'EQUAL', value: {intValue: 3}}},
+        ],
+      },
+    })
+    expect(serializeExploreQuery(parsed.ast)).toBe(
+      '"Depends On":tasks AND has:"Due Date" AND version="3" AND count=3 AND "a phrase"',
+    )
+  })
 })

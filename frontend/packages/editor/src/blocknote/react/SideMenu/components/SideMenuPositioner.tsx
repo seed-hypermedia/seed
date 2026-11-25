@@ -2,8 +2,10 @@ import {Block, BlockNoteEditor, BlockSchema, DefaultBlockSchema, SideMenuProsemi
 import {getGroupInfoFromPos} from '../../../core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {fullBlockSelectionPluginKey} from '../../../core/extensions/FullBlockSelection/FullBlockSelectionPlugin'
 import Tippy from '@tippyjs/react'
+import type {Instance as TippyInstance} from 'tippy.js'
 import type {Node as PMNode} from 'prosemirror-model'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
+import {observeEditorLayout} from '../../observeEditorLayout'
 import {DefaultSideMenu} from './DefaultSideMenu'
 import {DragHandleMenuProps} from './DragHandleMenu/DragHandleMenu'
 import {DropIndicator} from './DropIndicator'
@@ -44,6 +46,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   const [block, setBlock] = useState<Block<BSchema>>()
   const referencePos = useRef<DOMRect>()
   const [lh, setLh] = useState('')
+  const tippyRef = useRef<TippyInstance>()
   useEffect(() => {
     const editor = props.editor
     // Derive the block tools straight from the FullBlockSelection plugin — the
@@ -74,6 +77,15 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     return unsubscribe
   }, [props.editor])
 
+  // Popper only recomputes on ancestor scroll/resize. Content above that grows
+  // moves the block without firing either, so ask it to recompute.
+  useEffect(() => {
+    if (!show) return
+    return observeEditorLayout(props.editor._tiptapEditor?.view?.dom, () => {
+      tippyRef.current?.popperInstance?.update()
+    })
+  }, [show, props.editor])
+
   const getReferenceClientRect = useMemo(
     () => {
       if (!referencePos.current || !block) {
@@ -84,7 +96,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       const editor = props.editor
       // Read the block's CURRENT rect lazily on every popper computation, so
       // the menu follows the block through scrolls and layout changes (popper
-      // re-invokes this on ancestor scroll/resize). Visibility stays purely a
+      // re-invokes this on ancestor scroll/resize and editor layout changes). Visibility stays purely a
       // function of the selection state — scrolling never hides the menu.
       return () => {
         const view = editor._tiptapEditor?.view
@@ -152,6 +164,9 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     <>
       <Tippy
         appendTo={props.editor.domElement.parentElement ?? document.body}
+        onCreate={(instance) => {
+          tippyRef.current = instance
+        }}
         content={sideMenuElement}
         getReferenceClientRect={getReferenceClientRect}
         interactive={true}

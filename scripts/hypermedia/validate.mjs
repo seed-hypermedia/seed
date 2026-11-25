@@ -115,7 +115,9 @@ export const isLiteralSchema = (s) => {
 export const literalValue = (s) => (s !== null && typeof s === "object" ? s.value : s);
 const literalNode = (s) => (s !== null && typeof s === "object" ? s : { value: s });
 
-// A struct writes its fields as `properties[name] = {value, required?, description?}`.
+// A struct writes its fields as `properties[name] = {value, required?, description?, default?}`.
+// `default` is the value an editor writes into a NEW struct for the field. It initializes and is
+// never a fallback: validate() ignores it, so a value that lacks a required field is still missing it.
 // (A literal schema is also spelled {value}, but a properties entry always wraps
 // its field's schema, so there `value` IS the field's schema.)
 export function structFields(schema) {
@@ -125,6 +127,7 @@ export function structFields(schema) {
     schema: entry?.value === undefined ? {} : entry.value,
     required: entry?.required === true,
     description: entry?.description,
+    ...(entry && typeof entry === "object" && entry.default !== undefined ? { default: entry.default } : {}),
   }));
 }
 export function fieldSchema(schema, name) {
@@ -138,6 +141,7 @@ export function fieldsToProperties(fields) {
     const e = { value: f.schema };
     if (f.required) e.required = true;
     if (f.description) e.description = f.description;
+    if (f.default !== undefined) e.default = f.default;
     out[f.name] = e;
   }
   return out;
@@ -285,6 +289,55 @@ export function validateAdvisory(schema, data, path = "$", env = {}) {
 const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // --- CLI / self-test — only when run directly, not when imported -------
+
+// --- property defaults ---------------------------------------------------
+
+// The violations of every property `default` against that property's `value` schema, at any depth
+// (nested structs, list items, map values, union arms, type-parameter defaults). The meta-schema
+// cannot say this, since the type of `default` depends on a sibling key, so it is its own check.
+export function validateDefaults(schema, path = "$", env = {}) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return [];
+  let scope = env;
+  if (schema.params && typeof schema.params === "object") {
+    scope = { ...env };
+    for (const [p, def] of Object.entries(schema.params)) if (scope[p] === undefined) scope[p] = def;
+  }
+  const errors = [];
+  if (schema.properties && typeof schema.properties === "object") {
+    for (const [name, entry] of Object.entries(schema.properties)) {
+      if (!entry || typeof entry !== "object") continue;
+      const at = `${path}.properties.${name}`;
+      const value = entry.value === undefined ? {} : entry.value;
+      if (entry.default !== undefined) errors.push(...validate(value, entry.default, `${at}.default`, scope));
+      errors.push(...validateDefaults(value, `${at}.value`, scope));
+    }
+  }
+  if (schema.items) errors.push(...validateDefaults(schema.items, `${path}.items`, scope));
+  if (schema.values) errors.push(...validateDefaults(schema.values, `${path}.values`, scope));
+  if (Array.isArray(schema.anyOf)) schema.anyOf.forEach((arm, i) => errors.push(...validateDefaults(arm, `${path}.anyOf[${i}]`, scope)));
+  if (schema.params && typeof schema.params === "object")
+    for (const [p, def] of Object.entries(schema.params)) errors.push(...validateDefaults(def, `${path}.params.${p}`, scope));
+  return errors;
+}
+
+// The value a new instance of a schema starts with: a struct gets every property that has a
+// `default` (required or optional) set to a copy of it and every required property without one
+// seeded from its own schema; optional properties without a default are left out.
+export function seed(schema0, env0 = {}, depth = 0) {
+  const { schema, env } = resolveSchema(schema0, env0);
+  if (isLiteralSchema(schema)) return schema.value;
+  if (schema.anyOf) return schema.anyOf.length ? seed(schema.anyOf[0], env, depth + 1) : undefined;
+  const kind = schema.type ? kindOf(schema.type) : null;
+  if (kind === "map" || kind === "struct") {
+    const o = {};
+    for (const f of structFields(schema)) {
+      if (f.default !== undefined) o[f.name] = JSON.parse(JSON.stringify(f.default));
+      else if (f.required && depth < 24) o[f.name] = seed(f.schema, env, depth + 1);
+    }
+    return o;
+  }
+  return { list: [], string: "", integer: 0, float: 0, boolean: false, null: null, link: { "/": "" }, bytes: { "/": { bytes: "" } } }[kind] ?? null;
+}
 
 const RUN = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
@@ -780,6 +833,62 @@ failed += report("Change<app-block> accepts the app's Poll block", validate(load
 failed += report("Change<app-block> accepts a core Paragraph block", validate(load("example/myapp-change.schema.json"), blockChange(paraBlock)));
 failed += reportReject("Change<app-block> REJECTS the Widget block (strict, deep in the op)", validate(load("example/myapp-change.schema.json"), blockChange(widgetBlock)));
 failed += assertPath("the rejection points inside the op stack", validate(load("example/myapp-change.schema.json"), blockChange(widgetBlock)), "body.ops[0].block");
+
+// =====================================================================
+// 6. Property defaults — the value a new struct starts with.
+// =====================================================================
+section("Property defaults");
+for (const f of jsonFiles) {
+  const errs = validateDefaults(load(f));
+  if (errs.length) failed += report(`${f}: defaults match their properties`, errs);
+}
+failed += report("every default in the library matches its property", jsonFiles.flatMap((f) => validateDefaults(load(f))));
+const withDefault = (value, def, extra = {}) => ({ type: U("struct"), properties: { a: { value, default: def, ...extra } } });
+failed += report("a property with a default is a valid schema", validate(meta, withDefault({ type: U("string") }, "todo")));
+failed += report("a default may be any value: null, a list, a map, a link", [
+  ...validate(meta, withDefault({ type: U("null") }, null)),
+  ...validate(meta, withDefault({ type: U("list"), items: { type: U("string") } }, ["a"])),
+  ...validate(meta, withDefault({ type: U("map"), values: { type: U("integer") } }, { n: 1 })),
+  ...validate(meta, withDefault({ type: U("link") }, cid("bafy"))),
+]);
+failed += report("a string default on a string property", validateDefaults(withDefault({ type: U("string") }, "todo")));
+failed += reportReject("an integer default on a string property", validateDefaults(withDefault({ type: U("string") }, 3)));
+failed += assertPath("the error names the property's default", validateDefaults(withDefault({ type: U("string") }, 3)), "$.properties.a.default");
+failed += report("a default that is a member of a literal union", validateDefaults(withDefault({ anyOf: ["todo", "done"] }, "todo")));
+failed += reportReject("a default outside a literal union", validateDefaults(withDefault({ anyOf: ["todo", "done"] }, "later")));
+failed += reportReject("a default that breaks a value constraint", validateDefaults(withDefault({ type: U("integer"), minimum: 1 }, 0)));
+failed += report("a list default whose items match", validateDefaults(withDefault({ type: U("list"), items: { type: U("string") } }, ["a", "b"])));
+failed += reportReject("a list default with a wrong item", validateDefaults(withDefault({ type: U("list"), items: { type: U("string") } }, ["a", 1])));
+failed += report("a link default", validateDefaults(withDefault({ type: U("link"), target: U("example/person") }, cid("bafy"))));
+failed += reportReject("a string where a link default is expected", validateDefaults(withDefault({ type: U("link") }, "bafy")));
+const nestedStruct = { type: U("struct"), properties: { n: { value: { type: U("integer") }, required: true, default: 1 }, label: { value: { type: U("string") } } } };
+failed += report("a struct default that matches the nested struct", validateDefaults(withDefault(nestedStruct, { n: 2 })));
+failed += reportReject("a struct default missing a nested required field", validateDefaults(withDefault(nestedStruct, { label: "x" })));
+failed += reportReject("a bad default inside a nested struct", validateDefaults(withDefault({ type: U("struct"), properties: { n: { value: { type: U("integer") }, default: "one" } } }, undefined)));
+failed += assertPath("…reported at its own path", validateDefaults(withDefault({ type: U("struct"), properties: { n: { value: { type: U("integer") }, default: "one" } } }, undefined)), "$.properties.a.value.properties.n.default");
+failed += reportReject("a bad default inside a list's item struct", validateDefaults({ type: U("list"), items: withDefault({ type: U("boolean") }, "yes") }));
+failed += report("a default on a property typed by a type parameter is checked against the parameter's default", validateDefaults({ params: { T: { type: U("integer") } }, type: U("struct"), properties: { a: { value: { var: "T" }, default: 1 } } }));
+failed += reportReject("…and rejected when it does not match", validateDefaults({ params: { T: { type: U("integer") } }, type: U("struct"), properties: { a: { value: { var: "T" }, default: "x" } } }));
+
+// A default initializes. It is not a fallback: validation never reads it.
+failed += reportReject("a required field with a default is still required of a value", validate(withDefault({ type: U("string") }, "todo", { required: true }), {}));
+failed += report("an optional field with a default may be absent from a value", validate(withDefault({ type: U("string") }, "todo"), {}));
+
+// seed(): what a new value starts with.
+const same = (label, got, want) => report(label, JSON.stringify(got) === JSON.stringify(want) ? [] : [`got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`]);
+const task = load("example/task-doc.schema.json");
+failed += same("a new task starts from its defaults; an optional field without one is left out", seed(task), { status: "todo", priority: 2, tags: [], checklist: { done: false, steps: [] } });
+failed += report("…and that starting value is valid", validate(task, seed(task)));
+failed += same("a required field without a default is seeded from its schema", seed({ type: U("struct"), properties: { a: { value: { type: U("string") }, required: true }, b: { value: { type: U("string") } } } }), { a: "" });
+failed += same("an optional field with a default is included", seed(withDefault({ type: U("integer") }, 5)), { a: 5 });
+failed += same("a required nested struct without a default is seeded from its own defaults", seed({ type: U("struct"), properties: { inner: { value: nestedStruct, required: true } } }), { inner: { n: 1 } });
+failed += same("a property default wins over the nested struct's own defaults, whole", seed(withDefault(nestedStruct, { n: 7, label: "x" })), { a: { n: 7, label: "x" } });
+failed += same("an extension inherits its parent's defaults", seed({ type: U("example/task-doc"), properties: { owner: { value: { type: U("string") }, default: "nobody" } } }), { status: "todo", priority: 2, tags: [], checklist: { done: false, steps: [] }, owner: "nobody" });
+failed += same("an extension that restates a property replaces its default", seed({ type: U("example/task-doc"), properties: { status: { value: { type: U("example/task-status") }, default: "doing" } } }).status, "doing");
+failed += same("…and drops it when the restated property has none", "status" in seed({ type: U("example/task-doc"), properties: { status: { value: { type: U("example/task-status") } } } }), false);
+const seeded = seed(task);
+seeded.tags.push("x");
+failed += same("a seeded value is a copy: editing it leaves the schema's default alone", structFields(task).find((f) => f.name === "tags").default, []);
 
 // (The example documents — bob : employee, alice : person, root : admin — are checked against
 // their `attributesSchema` by check.mjs, which reads their frontmatter.)

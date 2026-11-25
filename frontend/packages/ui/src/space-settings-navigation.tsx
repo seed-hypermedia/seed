@@ -1,10 +1,11 @@
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type {HMDocument, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {createWebHMUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {ChevronDown, EllipsisVertical, FileText, Link as LinkIcon, Lock, Plus, X, type LucideIcon} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef, useState, type HTMLAttributes, type PointerEvent} from 'react'
+import {useContext, useEffect, useMemo, useRef, useState, type HTMLAttributes, type PointerEvent} from 'react'
 import {Button} from './button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
@@ -13,8 +14,10 @@ import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {useImageUrl} from './get-file-url'
 import {HMDocURLInput} from './hm-doc-url-input'
 import {HMIcon} from './hm-icon'
+import {SmallListItem} from './list-item'
 import {OptionsDropdown} from './options-dropdown'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {EditNavPanePlacementContext} from './site-header'
 import {SettingsToggle, useReportDirty, type SpaceHomeUpdater} from './space-settings'
 import {SizableText} from './text'
 import {toast} from './toast'
@@ -236,6 +239,78 @@ export function SpaceSettingsNavigation({
           siteUrl={publishedMetadata.siteUrl}
           filterPresets={(candidate) => !navValue.some((i) => i.id !== dialogItem.id && i.link === candidate.link)}
           onSubmit={submitDialog}
+          onClose={() => setDialogItem(null)}
+        />
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The header's Add or edit links button. Adds a link at the end and publishes it.
+ */
+export function HeaderAddLink({
+  siteId,
+  document,
+  updateHome,
+}: {
+  siteId: UnpackedHypermediaId
+  document: HMDocument
+  updateHome: SpaceHomeUpdater
+}) {
+  const navigate = useNavigate()
+  const placement = useContext(EditNavPanePlacementContext)
+  const [dialogItem, setDialogItem] = useState<HMNavigationItem | null>(null)
+  const publishedNav = useMemo(() => readPublishedNav(document), [document])
+  const openDialog = () => setDialogItem({id: nanoid(), type: 'Link', text: '', link: ''})
+
+  async function addLink(item: HMNavigationItem) {
+    setDialogItem(null)
+    try {
+      await updateHome.mutateAsync({navigation: [...publishedNav, item]})
+      toast.success('Link added to the top bar')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add the link', {
+        action: {label: 'Retry', onClick: () => void addLink(item)},
+      })
+    }
+  }
+
+  return (
+    <>
+      {placement === 'menu' ? (
+        <SmallListItem
+          bold
+          title="Add or edit links"
+          icon={<LinkIcon className="size-4" />}
+          disabled={updateHome.isPending}
+          onClick={openDialog}
+        />
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground"
+          disabled={updateHome.isPending}
+          onClick={openDialog}
+        >
+          <LinkIcon className="size-4" />
+          Add or edit links
+        </Button>
+      )}
+      {dialogItem ? (
+        <NavItemDialog
+          item={dialogItem}
+          isNew
+          homeId={siteId}
+          siteUrl={document.metadata.siteUrl}
+          isFull={publishedNav.length >= MAX_NAV_LINKS}
+          filterPresets={(candidate) => !publishedNav.some((i) => i.link === candidate.link)}
+          onSubmit={addLink}
+          onManageLinks={() => {
+            setDialogItem(null)
+            navigate({key: 'site-settings', id: hmId(siteId.uid), tab: 'navigation'})
+          }}
           onClose={() => setDialogItem(null)}
         />
       ) : null}
@@ -534,7 +609,9 @@ function NavItemDialog({
   homeId,
   siteUrl,
   filterPresets,
+  isFull = false,
   onSubmit,
+  onManageLinks,
   onClose,
 }: {
   item: HMNavigationItem
@@ -542,7 +619,9 @@ function NavItemDialog({
   homeId: UnpackedHypermediaId
   siteUrl?: string
   filterPresets: (candidate: {link: string}) => boolean
+  isFull?: boolean
   onSubmit: (item: HMNavigationItem) => void
+  onManageLinks?: () => void
   onClose: () => void
 }) {
   const isDocumentLink = !!unpackHmId(item.link)
@@ -588,79 +667,93 @@ function NavItemDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{isNew ? 'Add link to the top bar' : 'Edit link'}</DialogTitle>
+          <DialogTitle>{isFull ? 'The top bar is full' : isNew ? 'Add link to the top bar' : 'Edit link'}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-3 rounded-lg bg-black/5 p-4 dark:bg-black/40">
-            <SizableText size="sm">What should this link to?</SizableText>
-            <RadioGroup value={kind ?? ''} onValueChange={(value) => setKind(value as NavLinkKind)} className="gap-3">
-              <NavLinkKindOption
-                value="external"
-                icon={LinkIcon}
-                label="External URL Link"
-                selected={kind === 'external'}
-              />
-              {kind === 'external' ? (
-                <>
-                  <Input
-                    aria-label="URL"
-                    autoFocus
-                    value={url}
-                    aria-invalid={showUrlError}
-                    onChange={(e) => setUrl(e.target.value)}
-                    onBlur={() => setIsUrlTouched(true)}
-                    placeholder="https://example.com"
-                  />
-                  {showUrlError ? (
-                    <SizableText size="sm" color="destructive">
-                      Enter a web address, like example.com
-                    </SizableText>
-                  ) : null}
-                </>
-              ) : null}
-              <NavLinkKindOption
-                value="document"
-                icon={FileText}
-                label="Existing document"
-                selected={kind === 'document'}
-              />
-              {kind === 'document' ? (
-                <HMDocURLInput
-                  link={docLink}
-                  homeId={homeId}
-                  filterPresets={filterPresets}
-                  overlayResults
-                  onUpdate={(nextLink, title) => {
-                    setDocLink(nextLink)
-                    // Autofill the name from the selected doc's title if it isn't set.
-                    if (title) setText((current) => (current.trim() ? current : title))
-                  }}
+        {isFull ? (
+          <SizableText size="sm" color="muted">
+            The top bar can hold up to {MAX_NAV_LINKS} links. Remove one link to add another.
+          </SizableText>
+        ) : (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3 rounded-lg bg-black/5 p-4 dark:bg-black/40">
+              <SizableText size="sm">What should this link to?</SizableText>
+              <RadioGroup value={kind ?? ''} onValueChange={(value) => setKind(value as NavLinkKind)} className="gap-3">
+                <NavLinkKindOption
+                  value="external"
+                  icon={LinkIcon}
+                  label="External URL Link"
+                  selected={kind === 'external'}
                 />
+                {kind === 'external' ? (
+                  <>
+                    <Input
+                      aria-label="URL"
+                      autoFocus
+                      value={url}
+                      aria-invalid={showUrlError}
+                      onChange={(e) => setUrl(e.target.value)}
+                      onBlur={() => setIsUrlTouched(true)}
+                      placeholder="https://example.com"
+                    />
+                    {showUrlError ? (
+                      <SizableText size="sm" color="destructive">
+                        Enter a valid web address
+                      </SizableText>
+                    ) : null}
+                  </>
+                ) : null}
+                <NavLinkKindOption
+                  value="document"
+                  icon={FileText}
+                  label="Existing document"
+                  selected={kind === 'document'}
+                />
+                {kind === 'document' ? (
+                  <HMDocURLInput
+                    link={docLink}
+                    homeId={homeId}
+                    filterPresets={filterPresets}
+                    overlayResults
+                    onUpdate={(nextLink, title) => {
+                      setDocLink(nextLink)
+                      // Autofill the name from the selected doc's title if it isn't set.
+                      if (title) setText((current) => (current.trim() ? current : title))
+                    }}
+                  />
+                ) : null}
+              </RadioGroup>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="nav-link-name">Link name (shown in the top bar)</Label>
+              <Input
+                id="nav-link-name"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="e.g. About, Contact, Blog"
+              />
+              {docAddress ? (
+                <SizableText size="sm" color="muted" className="truncate">
+                  {docAddress}
+                </SizableText>
               ) : null}
-            </RadioGroup>
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="nav-link-name">Link name (shown in the top bar)</Label>
-            <Input
-              id="nav-link-name"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="e.g. About, Contact, Blog"
-            />
-            {docAddress ? (
-              <SizableText size="sm" color="muted" className="truncate">
-                {docAddress}
-              </SizableText>
-            ) : null}
-          </div>
-        </div>
+        )}
         <DialogFooter className="flex-col items-center gap-3 sm:flex-col">
-          <Button variant="default" className="w-full" disabled={!canAdd} onClick={() => onSubmit(nextItem)}>
-            {isNew ? 'Add link' : 'Save link'}
-          </Button>
-          {/* <Button variant="link" onClick={onClose}>
-            Manage links
-          </Button> */}
+          {isFull ? null : (
+            <Button variant="default" className="w-full" disabled={!canAdd} onClick={() => onSubmit(nextItem)}>
+              {isNew ? 'Add link' : 'Save link'}
+            </Button>
+          )}
+          {onManageLinks ? (
+            <Button
+              variant={isFull ? 'default' : 'link'}
+              className={isFull ? 'w-full' : undefined}
+              onClick={onManageLinks}
+            >
+              Manage links
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

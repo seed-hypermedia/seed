@@ -99,7 +99,7 @@ const readVerb = {
     '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all, including your trigger documents (read those by their hm:// address too).',
     "- `hm://…/<tool>/:calls` — a tool's recent calls on this server (who ran it, when, how it went); `hm://…/<tool>/:call/<id>` one call with its input and output; `hm://…/<trigger>/:firings` a trigger's recent firings. Readable whenever you can read the tool or trigger itself, in apps and agents alike.",
     '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
-    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to). A typed document (metadata `attributesSchema`, or a parent with `childAttributesSchema`) also returns `schema`: the type it conforms to, `via` (own or inherited), the `required` metadata fields, the `missing` ones, and `violations`.',
+    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Each block ends with its `<!-- id:X -->` comment (the id a block link and a `write` edit use), and what an embed or a query points at is shown under it between `<!-- resolved: … -->` and `<!-- /resolved -->`, which is not part of the document. Append `/:directory` to list the child documents under an account or document, each with its attributes (to filter, sort or count them by attribute, call the `query` tool with `childrenOf`); `/:attributes` for metadata only; `/:profile` on an account for its profile; `/:comments` on a document for its whole discussion (every comment with its id, author, time, and what it replies to). A typed document (metadata `attributesSchema`, or a parent with `childAttributesSchema`) also returns `schema`: the type it conforms to, `via` (own or inherited), the `required` metadata fields, the `missing` ones, and `violations`.',
     '- A comment id is `<authorUid>/<tsid>` (the value in replyTo, replyParent, threadRoot and activity `comment.id` fields). Read a comment at `hm://<authorUid>/<tsid>` — a bare `<authorUid>/<tsid>` works too — and the result includes the whole thread it belongs to (oldest first, the requested comment marked) plus the exact write call that replies to it. Never prefix a comment id with the target document: `hm://<docUid>/<authorUid>/<tsid>` is not an address (it is corrected when recognizable, but do not rely on it).',
     '- `ipfs://<cid>` — a file: fetched by CID into memory and returned (binary files return metadata only). A DAG-CBOR object (a schema, a typed blob, a signed blob) is decoded instead: `value` as JSON, `signature` (who signed, when, whether it verifies; null when unsigned), and `schema` (violations against the schema it links to, or options {schema}).',
     '- `https://…` — read a public web page as markdown.',
@@ -163,7 +163,7 @@ const writeVerb = {
     '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
     '  - `~/tools/write/apps` — build an app: the only home for tools and pages. "Make a tool" means a tool resource in an app (or an agent); there are no private tools (`~/tools/write/tools`).',
     "  - `~/tools/write/pages` — build a custom HTML page inside an app: define HM schemas and Seed resources first, use the app's public config and tools from the page, then connect and test the UI.",
-    '  - `~/tools/write/documents` — create, replace, rename, move, redirect, fork, or delete documents; metadata and memory-file publishing.',
+    '  - `~/tools/write/documents` — create documents; change one by block id with `options.edits` (send only what changes, never the whole document) or replace its body; rename, move, redirect, fork, or delete; metadata and memory-file publishing.',
     '  - `~/tools/write/comments` — comment, reply, edit, or delete comments.',
     '  - `~/tools/write/capabilities` — grant WRITER or AGENT access to an account or path.',
     '  - `~/tools/write/contacts` — create named contacts or delete contact records.',
@@ -639,7 +639,7 @@ const searchTool = {
   name: 'search',
   label: 'Search',
   description:
-    'Search Seed hypermedia content: document titles, contacts, and optionally document bodies and comments. Returns ranked results with hm:// URLs you can read.',
+    'Search Seed hypermedia content: document titles, contacts, and optionally document bodies and comments. Returns ranked results with hm:// URLs you can read. Search matches words, not attributes: to find or count documents by a field (status, priority, owner, type) or to list a collection with its fields, call `query` instead.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -848,17 +848,35 @@ const queryTool = {
   name: 'query',
   label: 'Query',
   description: [
-    'Query documents by their attributes (metadata) — the structured complement to `search`. Finds every current document whose attributes match, across the whole network or scoped to a space or subtree, and returns each with its full attributes, so you can inspect custom fields and the schema-binding keys (`attributesSchema`, `childAttributesSchema`, `schemaDefinition`). Free text is NOT matched here: use `search` for words, then `query` for attributes.',
-    'Write `q` in the Explore grammar: `key=value`, `key="two words"`, `key!=value`, `key>=3`, `key<10` compare exactly (typed: string, integer, boolean); `key:text` or `key~text` contains (case-insensitive), `key^text` starts with; `has:key`, `missing:key`; `in:<space uid or hm:// URL>` scopes to a space or a document subtree; `path:/specs` or `path:/specs/*`; combine with AND, OR, NOT and parentheses (adjacency is AND). Nested keys are dotted (`address.city:Berlin`). Examples: `attributesSchema=hm://ACCOUNT_UID/types/person` (every page typed by that schema), `in:hm://ACCOUNT_UID/places kind=fortress`, `has:childAttributesSchema` (every typed folder), `status="In Progress" AND priority>=3`.',
-    'Or pass `filter`, a raw DocumentFilter in JSON — one of `{and:{filters:[…]}}`, `{or:{filters:[…]}}`, `{not:{filter}}`, `{comparison:{key, operator:"EQUAL"|"NOT_EQUAL"|"LESS_THAN"|"LESS_THAN_OR_EQUAL"|"GREATER_THAN"|"GREATER_THAN_OR_EQUAL", value:{stringValue}|{intValue}|{boolValue}}}`, `{exists:{key}}`, `{missing:{key}}`, `{stringMatch:{key, value, prefix?, caseSensitive?}}`, `{spaceMatch:{space}}`, `{pathMatch:{path, prefix?}}`, `{urlMatch:{url, prefix?}}`. `q` and `filter` are ANDed when both are given.',
-    '`sort`: `[{key:"status"}]` for an attribute or `[{attribute:"NAME"|"PATH"|"CREATE_TIME"|"UPDATE_TIME"|"ACTIVITY_TIME"|"COMMENT_COUNT"}]`, each with optional `descending:true`. Page with `pageSize` (default 25, max 100) and the returned `nextPageToken`. Use `attributes` first to learn which keys and values exist.',
+    'Query documents by their attributes (metadata): the structured complement to `search`, and the way to answer "which documents have X", "how many are Y", or "list everything in this collection with its fields". Finds every current document whose attributes match, across the whole network or scoped to a space, a subtree or the direct children of one document, and lists each with its attributes, including custom fields and the schema-binding keys (`attributesSchema`, `childAttributesSchema`, `schemaDefinition`). Free text is NOT matched here: use `search` for words, `query` for attributes.',
+    'Scope: `childrenOf: "hm://UID/tasks"` is the direct children of a document (the rows of a collection or tracker). In `q`, `in:<space uid or hm:// URL>` is a space or a whole subtree, which includes the document itself and every descendant; `path:/specs` or `path:/specs/*` matches a path in any space.',
+    'Conditions go in `q`, in the Explore grammar: `key=value`, `key="two words"`, `key!=value`, `key>=3`, `key<10` compare exactly (typed: string, integer, boolean; a quoted value is always a string); `key:text` or `key~text` contains, ignoring case; `key^text` starts with; `has:key`, `missing:key`, and `empty:key` (missing or an empty string, which is what people mean by an empty field). Built-in fields: `$author:<account uid>`, `$created>=2026-09-01`, `$updated<2026-10-01`. Combine with AND, OR, NOT and parentheses (adjacency is AND). Nested keys are dotted (`address.city:Berlin`); a key with spaces is quoted (`"Due Date">=2026-01-01`, `has:"Depends On"`). Keys and `=` values are case-sensitive: `Priority=High` is not `priority=high`, so copy names from a document you read or from `attributes`. `key!=value` matches only documents that have the key; `NOT key=value` also matches those without it. A list-valued attribute cannot be matched by its items.',
+    'Examples: `{childrenOf: "hm://UID/tasks", q: "empty:Priority"}` (rows with no Priority); `{childrenOf: "hm://UID/tasks", q: "Status!=Done", groupBy: "Priority"}` (open rows counted per priority); `{q: "in:hm://UID/projects Status=\\"In Progress\\" $updated<2026-10-01", select: ["Owner", "$updated"]}`; `{q: "attributesSchema=hm://UID/types/person"}` (every page of that type); `{q: "has:childAttributesSchema"}` (every typed folder).',
+    'Output: one line per document with its attributes. `select: ["Status", "Owner"]` shows only those keys (absent ones as `(missing)`); `$path`, `$created`, `$updated`, `$authors` select built-in fields. `count: true` returns the total instead of a list, and `groupBy: "Status"` the count per value. Sort with `sort: [{key: "Status"}]` or `[{attribute: "NAME"|"PATH"|"CREATE_TIME"|"UPDATE_TIME"|"ACTIVITY_TIME"|"COMMENT_COUNT"}]`, each with optional `descending: true`, or inside `q` as `sort:Status,-$updated`. Results come `pageSize` at a time (default 50, max 100): when the result says more exist, call again with the same input plus the `pageToken` it gives, until it says that is all. In a script, `ctx.call("query", …)` also returns `results: [{url, name, path, attributes, updateTime}]`.',
+    'Or pass `filter`, a raw DocumentFilter in JSON, ANDed with `q`: one of `{and:{filters:[…]}}`, `{or:{filters:[…]}}`, `{not:{filter}}`, `{comparison:{key, operator:"EQUAL"|"NOT_EQUAL"|"LESS_THAN"|"LESS_THAN_OR_EQUAL"|"GREATER_THAN"|"GREATER_THAN_OR_EQUAL", value:{stringValue}|{intValue}|{boolValue}}}`, `{exists:{key}}`, `{missing:{key}}`, `{stringMatch:{key, value, prefix?, caseSensitive?}}`, `{spaceMatch:{space}}`, `{pathMatch:{path, prefix?}}`, `{urlMatch:{url, prefix?}}`, `{authorMatch:{author}}`, `{timeRange:{field:"CREATE_TIME"|"UPDATE_TIME", start?, end?}}`.',
   ].join('\n'),
   inputSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
       q: {type: 'string', description: 'The query in the Explore grammar (attribute conditions, scopes, AND/OR/NOT).'},
+      childrenOf: {
+        type: 'string',
+        description:
+          'An hm:// document URL: only its direct children (the rows of a collection). Usable alone to list them all, or with `q` to filter them.',
+      },
       filter: {type: 'object', description: 'A raw DocumentFilter in JSON, ANDed with `q`.'},
+      select: {
+        type: 'array',
+        items: {type: 'string'},
+        description:
+          'Attribute keys to show per document instead of all of them (dotted for nested; `$path`, `$created`, `$updated`, `$authors` for built-in fields).',
+      },
+      count: {type: 'boolean', description: 'Return the total number of matches instead of listing them.'},
+      groupBy: {
+        type: 'string',
+        description: 'An attribute key: return how many matches hold each of its values (implies count).',
+      },
       sort: {
         type: 'array',
         items: {

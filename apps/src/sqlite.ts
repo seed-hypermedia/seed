@@ -14,7 +14,7 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
-  // Triggers are documents (hypermedia/apps/triggers.md): a trigger document under an agent or an
+  // Triggers are documents (hypermedia/trigger.md): a trigger document under an agent or an
   // app is projected into these rows while its host lives on this server. A trigger now belongs to
   // an agent OR an app, so agent_id becomes nullable beside the new app_id; document_id names the
   // trigger document a row was projected from (null for a trigger still stored only here), and
@@ -86,7 +86,7 @@ export const migrations: string[] = [
   CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
   CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
   PRAGMA defer_foreign_keys = OFF;`,
-  // Running apps (hypermedia/apps/apps-and-tools.md). An app runs on this server once a writer of its
+  // Running apps (hypermedia/app.md). An app runs on this server once a writer of its
   // space starts it: the row holds who started it and its private config, encrypted like other
   // secrets. Every tool call is recorded; anyone who can read the tool can read its calls.
   `CREATE TABLE app_runs (

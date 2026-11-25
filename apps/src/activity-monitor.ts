@@ -22,6 +22,25 @@ export type ActivityMonitorOptions = {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000
+
+/**
+ * The event types the monitor asks the feed for: the feed's own default list plus `metadata/Link`,
+ * an account or document named by a document attribute. The default leaves that one out, so a
+ * document that sets `Owner` to an agent's account would never reach its mention trigger.
+ */
+export const ACTIVITY_EVENT_TYPES = [
+  'Ref',
+  'Capability',
+  'Comment',
+  'DagPB',
+  'Profile',
+  'Contact',
+  'comment/Embed',
+  'doc/Embed',
+  'doc/Link',
+  'doc/Button',
+  'metadata/Link',
+]
 const DEFAULT_POLL_TIMEOUT_MS = 60_000
 
 type Watermark = {seenKeys: string[]; lastSuccessAt?: number}
@@ -110,6 +129,7 @@ export class ActivityMonitor {
             pageSize: this.#options.pageSize,
             pageToken,
             currentAccount: accountId,
+            filterEventType: ACTIVITY_EVENT_TYPES,
             // Order by local observation, not the event's claimed/create time, so a comment that
             // propagates late (old create time) surfaces at the TOP of the feed when it finally arrives —
             // instead of being buried at its create-time position where the page walk never reaches it.

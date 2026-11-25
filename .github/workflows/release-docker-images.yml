@@ -45,6 +45,11 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Resolved Docker image tag: $tag"
 
+  # The last job publishes hypermedia/ to the production docs. Whether it can is known in a minute,
+  # so every image waits for this: a release whose docs cannot be published builds nothing.
+  hypermedia-check:
+    uses: ./.github/workflows/check-hypermedia.yml
+
   # Use the reusable parallel test workflow
   frontend-tests:
     uses: ./.github/workflows/test-frontend-parallel.yml
@@ -161,7 +166,7 @@ jobs:
   # Uploads pre-built artifacts so Docker jobs skip rebuilding.
   build-and-perf-test:
     runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests]
+    needs: [frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -307,7 +312,7 @@ jobs:
 
   docker-site:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -370,7 +375,7 @@ jobs:
 
   docker-monitord:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -395,7 +400,7 @@ jobs:
 
   docker-relayd:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -420,7 +425,7 @@ jobs:
 
   docker-agents:
     runs-on: ubuntu-latest
-    needs: [image-tag, agents-tests]
+    needs: [image-tag, agents-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -454,7 +459,7 @@ jobs:
 
   docker-vault:
     runs-on: ubuntu-latest
-    needs: [image-tag, frontend-tests, backend-tests]
+    needs: [image-tag, frontend-tests, backend-tests, hypermedia-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

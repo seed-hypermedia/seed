@@ -10,6 +10,7 @@ const {selectMock, sendMock, unpublishedChangeCountMock, useAccountMock} = vi.ho
   selectMock: {
     document: null as any,
     draftId: null as string | null,
+    draftHidden: false,
     metadata: {} as Record<string, any>,
     renameState: 'idle' as 'idle' | 'renaming' | 'committing' | 'error',
     renameError: null as string | null,
@@ -27,6 +28,7 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
       context: {
         document: selectMock.document,
         draftId: selectMock.draftId,
+        draftHidden: selectMock.draftHidden,
         metadata: selectMock.metadata,
       },
     }
@@ -35,6 +37,7 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
   useDocumentSend: () => sendMock,
   selectDocument: (s: any) => s.context.document,
   selectDraftId: (s: any) => s.context.draftId,
+  selectDraftHidden: (s: any) => s.context.draftHidden,
   selectMetadata: (s: any) => s.context.metadata,
   selectSaveIndicatorStatus: () => 'hidden',
   selectRenameState: () => selectMock.renameState,
@@ -64,7 +67,12 @@ vi.mock('../tooltip', async () => {
   }
 })
 
-import {PublishButtonWithPopover, PublishPopoverBody, isPublishShortcutTarget} from '../editing-toolbar'
+import {
+  DraftHiddenActions,
+  PublishButtonWithPopover,
+  PublishPopoverBody,
+  isPublishShortcutTarget,
+} from '../editing-toolbar'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 function renderNode(node: React.ReactNode) {
@@ -674,5 +682,82 @@ describe('isPublishShortcutTarget', () => {
       document.getSelection()?.removeAllRanges()
       host.remove()
     }
+  })
+})
+
+describe('PublishPopoverBody published preview toggle', () => {
+  beforeEach(() => {
+    selectMock.document = {version: 'bafy123', metadata: {}}
+    selectMock.draftId = 'draft-1'
+    selectMock.metadata = {}
+    sendMock.mockReset()
+    useAccountMock.mockReset()
+    useAccountMock.mockReturnValue({data: undefined})
+  })
+
+  it('hides the draft and closes the popover from the changes row', () => {
+    const onClose = vi.fn()
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={hmId('acct-1', {path: ['my-doc']})}
+        changeCount={2}
+        onPublish={vi.fn()}
+        onClose={onClose}
+        publishDisabled={false}
+      />,
+    )
+    const button = container.querySelector('button[aria-label="Preview published version"]') as HTMLButtonElement
+    expect(button).not.toBeNull()
+
+    act(() => {
+      button.click()
+    })
+    expect(sendMock).toHaveBeenCalledWith({type: 'draftHidden.set', hidden: true})
+    expect(onClose).toHaveBeenCalled()
+    cleanup(root, container)
+  })
+
+  it('offers no preview when the document was never published', () => {
+    selectMock.document = {version: '', metadata: {}}
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={hmId('acct-1', {path: ['my-doc']})}
+        changeCount={2}
+        onPublish={vi.fn()}
+        onClose={vi.fn()}
+        publishDisabled={false}
+      />,
+    )
+    expect(container.querySelector('button[aria-label="Preview published version"]')).toBeNull()
+    cleanup(root, container)
+  })
+})
+
+describe('DraftHiddenActions', () => {
+  beforeEach(() => {
+    selectMock.draftId = 'draft-1'
+    selectMock.draftHidden = true
+    sendMock.mockReset()
+  })
+
+  it('restores the draft from the Show changes button', () => {
+    const {container, root} = renderNode(<DraftHiddenActions />)
+    const button = container.querySelector('button[data-testid="draft-hidden-actions"]')
+    expect(button).not.toBeNull()
+    expect(button!.textContent).toContain('Show changes')
+    expect(container.querySelector('[aria-label="About the published preview"]')).not.toBeNull()
+
+    act(() => {
+      ;(button as HTMLButtonElement).click()
+    })
+    expect(sendMock).toHaveBeenCalledWith({type: 'draftHidden.set', hidden: false})
+    cleanup(root, container)
+  })
+
+  it('renders nothing while the draft is shown', () => {
+    selectMock.draftHidden = false
+    const {container, root} = renderNode(<DraftHiddenActions />)
+    expect(container.querySelector('[data-testid="draft-hidden-actions"]')).toBeNull()
+    cleanup(root, container)
   })
 })

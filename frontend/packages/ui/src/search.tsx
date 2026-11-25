@@ -10,6 +10,7 @@ import {
 } from '@shm/shared'
 import {ContentTypeFilter, SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {useResource} from '@shm/shared/models/entity'
+import {formatPathSegment} from '@shm/shared/models/mention-ranking'
 import {Fragment, PropsWithChildren, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -635,11 +636,7 @@ function escapeRegExp(str: string) {
 }
 
 function normalizePath(path: string[]): string[] {
-  return path.map((segment) => {
-    const [first, ...rest] = segment.split('-')
-    // @ts-ignore
-    return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(' ')
-  })
+  return path.map(formatPathSegment)
 }
 
 export function useCollapsedPath(

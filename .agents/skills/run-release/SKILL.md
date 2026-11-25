@@ -5,7 +5,7 @@ description: 'Cut a production release: tag, wait for CI, write release notes, p
 
 # Run Release
 
-Execute the release process in `hypermedia/build/releasing.md`. That doc is canonical for the process details; this
+Execute the release process in `hypermedia/contribute/releasing.md`. That doc is canonical for the process details; this
 skill is the interactive runbook. Invoking this skill counts as explicit permission to create and push the release tag,
 but confirm the version number with the user before pushing it.
 
@@ -13,7 +13,7 @@ but confirm the version number with the user before pushing it.
 
 1. **Preflight**: confirm you are on `main`, the working tree is clean, and local `main` matches `origin/main`. Abort
    and report if not.
-2. **Determine the version** (`YYYY.M.N`, see `hypermedia/build/releasing.md`): check
+2. **Determine the version** (`YYYY.M.N`, see `hypermedia/contribute/releasing.md`): check
    `git tag --sort=-creatordate | head -5`. If the latest tag is from the current month, increment its last number;
    otherwise start at `.1` for the current month.
 3. **Verify CI is green for the commit BEFORE tagging.** The release workflows gate on the same `frontend-tests` (Lint,
@@ -21,9 +21,15 @@ but confirm the version number with the user before pushing it.
    to `main` already triggered `Dev - Docker Images` on this exact commit:
    `gh run list --workflow "Dev - Docker Images" --branch main --limit 5 --json headSha,status,conclusion,databaseId`
    - Green for the commit → proceed.
+   - Also check the docs: the release's last job publishes `hypermedia/` to production, and a tree it refuses fails
+     the release. `gh run list --workflow "Repo HM sync (hypermedia)" --branch main --limit 3` — the newest run must be
+     green (it only runs on commits that touch `hypermedia/`, so it may be on an older commit). Red → fix on `main`
+     first. Never tag over a red docs sync; the release workflows refuse to build in that state anyway
+     (`hypermedia-check` job).
    - Red → diagnose with `gh run view <id>`; fix on `main` first, then restart at step 1.
    - Still running or missing → don't wait for it; releases are often cut in a rush. Instead run the most obvious,
      fastest checks locally and then tag. In order of cost-effectiveness:
+     - `pnpm hypermedia:check` (~20 s; includes the publish's own broken-link check).
      - Root `pnpm format:check` (~1 min; the most common release-killer). The root script chains pnpm workspaces, then
        `agents/`, then `vault/` with `&&` — later groups are masked until earlier ones pass, so only the root script
        proves all of them.
@@ -38,7 +44,7 @@ but confirm the version number with the user before pushing it.
    waiting, don't proceed early. If a workflow fails, stop and report.
 7. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and exclusion rules in the
    `releasenotes` skill, but match the exact format of the last few published releases (`gh release view <prev-tag>`).
-   Key rules from `hypermedia/build/releasing.md`:
+   Key rules from `hypermedia/contribute/releasing.md`:
    - Very short feature entries; many commits often collapse into one line.
    - No entries for regressions introduced and fixed since the previous tag — never released, users never saw them.
    - End with the `**Full Changelog**` compare link.

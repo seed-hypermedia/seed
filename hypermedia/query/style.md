@@ -6,6 +6,6 @@ The **query style** is the `style` of a [query block](../block/query.md): `Card`
 
 # See also <!-- id:vRjVX7Ej -->
 
-- [block/query](../block/query.md): the block that uses this value. <!-- id:ImN32DiR -->
+- [block/query](../block/query.md): the [block](../protocol/blocks.md) that uses this value. <!-- id:ImN32DiR -->
 - [query/table-config](./table-config.md): settings for the table style. <!-- id:mB7F-mcR -->
 - [query](../query.md): the query itself. <!-- id:A62h8Z9F -->

@@ -104,7 +104,7 @@ export function AgentHomeIntro({document, canEdit}: {document: HMDocument; canEd
   const onlyDefaultGuide =
     instructions.length === 1 &&
     (instructions[0]!.block as {type?: string; link?: string}).type === 'Embed' &&
-    /\/app-environment\/guide$/.test((instructions[0]!.block as {link?: string}).link ?? '')
+    /\/(agent|app-environment)\/guide$/.test((instructions[0]!.block as {link?: string}).link ?? '')
   if (!onlyDefaultGuide) return null
   return (
     <div className="border-border bg-muted/40 mx-auto my-4 flex w-full max-w-2xl items-start gap-3 rounded-lg border p-4">

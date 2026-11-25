@@ -219,7 +219,9 @@ type FixtureName =
   | 'withTwoEmbeds'
   | 'draftAndPublished'
   | 'allBlocks'
+  | 'queryAtEnd'
   | 'longText'
+  | 'headingSizes'
 
 const text = (text: string) =>
   ({
@@ -359,7 +361,51 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
     p('p-bottom', [text('Last paragraph')]),
   ],
 
+  // A published document ending in a query has no trailing paragraph in its
+  // saved content. Entering edit mode must preserve its block identities.
+  queryAtEnd: [
+    {id: 'query-heading', type: 'heading', props: {level: '2'}, content: [text('Issues')], children: []} as any,
+    {
+      id: 'query-at-end',
+      type: 'query',
+      props: {
+        style: 'Card',
+        columnCount: '3',
+        queryIncludes: JSON.stringify([{space: 'bafy-doc-uid', path: '', mode: 'Children'}]),
+        querySort: JSON.stringify([{term: 'updated', reverse: true}]),
+        banner: 'false',
+      },
+      content: [],
+      children: [],
+    } as any,
+  ],
+
   longText: Array.from({length: 30}, (_, i) => p(`p-long-${i + 1}`, [text(`Paragraph ${i + 1}`)])),
+
+  // Top-level and nested headings that share an explicit text size, so their rendered sizes can be compared.
+  headingSizes: (['small', 'medium', 'big'] as const).map((size) => ({
+    id: `h-top-${size}`,
+    type: 'heading',
+    props: {level: '2'},
+    content: [{type: 'text', text: `Top ${size}`, styles: {textSize: size}}],
+    children: [
+      {
+        id: `h-nested-${size}`,
+        type: 'heading',
+        props: {level: '3'},
+        content: [{type: 'text', text: `Nested ${size}`, styles: {textSize: size}}],
+        children: [
+          {
+            id: `h-deep-${size}`,
+            type: 'heading',
+            props: {level: '4'},
+            content: [{type: 'text', text: `Deep ${size}`, styles: {textSize: size}}],
+            children: [],
+          },
+        ],
+      },
+    ],
+  })) as any,
 }
 
 function getFixtureFromUrl(): FixtureName {

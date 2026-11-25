@@ -69,6 +69,7 @@ const runnerScript = String.raw`
     const port = event.ports[0]
     const pending = new Map()
     const inputListeners = new Set()
+    const dataListeners = new Map()
     let nextId = 0
     let loaded = false
     let closed = false
@@ -89,7 +90,7 @@ const runnerScript = String.raw`
         port.postMessage(message)
       })
     Object.defineProperty(window, 'seed', {
-      value: (SEED_API_FACTORY)(call, (listener) => { inputListeners.add(listener); return () => inputListeners.delete(listener) }),
+      value: (SEED_API_FACTORY)(call, (listener) => { inputListeners.add(listener); return () => inputListeners.delete(listener) }, (id, listener) => { dataListeners.set(id, listener); return () => dataListeners.delete(id) }),
       writable: false,
       configurable: false,
     })
@@ -127,6 +128,8 @@ const runnerScript = String.raw`
         port.postMessage({type: 'seed-loaded'})
       } else if (data?.type === 'seed-input') {
         for (const listener of inputListeners) { try { listener(data.state) } catch (error) { console.error(error) } }
+      } else if (data?.type === 'seed-data') {
+        dataListeners.get(data.message?.watch)?.(data.message)
       } else if (data?.type === 'seed-result') {
         const request = pending.get(data.id)
         if (!request) return
@@ -285,6 +288,10 @@ export function mountDocumentPage({
     destroy,
     inputChanged: (state: import('./document-page-input').DocumentPageInputState) => {
       if (active && loaded) channel.port1.postMessage({type: 'seed-input', state})
+    },
+    /** Push a watched read's new value (or refresh error) to the page. */
+    dataChanged: (message: import('./document-page-watch').DocumentPageWatchMessage) => {
+      if (active && loaded) channel.port1.postMessage({type: 'seed-data', message})
     },
   }
 }

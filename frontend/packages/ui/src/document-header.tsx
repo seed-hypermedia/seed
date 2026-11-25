@@ -10,9 +10,16 @@ import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
 import {useTx} from '@shm/shared/translation'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {X} from 'lucide-react'
-import {useMemo} from 'react'
+import {Check, ChevronDown, Folder, ListTree, X} from 'lucide-react'
+import {ReactNode, useMemo} from 'react'
 import {Button} from './button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from './components/dropdown-menu'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
@@ -339,8 +346,87 @@ export function Breadcrumbs({breadcrumbs, className}: {breadcrumbs: BreadcrumbEn
 
 type DocumentBreadcrumbEntry = Extract<BreadcrumbEntry, {id: any}>
 
-function HomeBreadcrumb({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
+/** Compact mobile access to the same hierarchy shown by the inline breadcrumbs. */
+export function DocumentPathMenu({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
+  if (breadcrumbs.length < 2) return null
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline" aria-label="Document path" className="gap-1 px-2">
+          <ListTree className="size-4" />
+          <ChevronDown className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" collisionPadding={16} className="w-80 max-w-[calc(100vw-2rem)]">
+        <DropdownMenuLabel className="text-muted-foreground text-xs">Document path</DropdownMenuLabel>
+        {breadcrumbs.map((crumb, depth) => {
+          const isCurrent = depth === breadcrumbs.length - 1
+          return 'id' in crumb ? (
+            depth === 0 ? (
+              <HomeBreadcrumb key={depth} crumb={crumb} isCurrent={isCurrent} menuDepth={depth} />
+            ) : (
+              <BreadcrumbLink key={depth} crumb={crumb} isCurrent={isCurrent} menuDepth={depth} />
+            )
+          ) : (
+            <PathMenuItem key={depth} depth={depth} isCurrent={isCurrent}>
+              <span className="truncate">{crumb.label}</span>
+            </PathMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function PathMenuItem({
+  depth,
+  isCurrent,
+  linkProps,
+  children,
+}: {
+  depth: number
+  isCurrent: boolean
+  linkProps?: React.AnchorHTMLAttributes<HTMLAnchorElement>
+  children: ReactNode
+}) {
+  const content = (
+    <>
+      {depth === 0 ? <Home className="size-4" /> : !isCurrent ? <Folder className="size-4" /> : null}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {isCurrent ? <Check className="size-4" aria-hidden /> : null}
+    </>
+  )
+  const className = cn('min-w-0', isCurrent && 'font-semibold data-[disabled]:opacity-100')
+  const style = {paddingLeft: 8 + Math.min(depth, 8) * 14}
+  return (
+    <DropdownMenuItem asChild disabled={isCurrent || !linkProps} className={className} style={style}>
+      {isCurrent || !linkProps ? (
+        <div aria-current={isCurrent ? 'page' : undefined}>{content}</div>
+      ) : (
+        <a {...linkProps}>{content}</a>
+      )}
+    </DropdownMenuItem>
+  )
+}
+
+function HomeBreadcrumb({
+  crumb,
+  isCurrent,
+  menuDepth,
+}: {
+  crumb: DocumentBreadcrumbEntry
+  isCurrent: boolean
+  menuDepth?: number
+}) {
   const linkProps = useRouteLink({key: 'document', id: crumb.id})
+  if (menuDepth !== undefined) {
+    return (
+      <PathMenuItem depth={menuDepth} isCurrent={isCurrent} linkProps={linkProps}>
+        Home
+      </PathMenuItem>
+    )
+  }
   if (isCurrent) {
     return (
       <span aria-current="page" className="text-muted-foreground flex items-center gap-1">
@@ -355,15 +441,27 @@ function HomeBreadcrumb({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
   )
 }
 
-function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
+function BreadcrumbLink({
+  crumb,
+  isCurrent,
+  menuDepth,
+}: {
+  crumb: DocumentBreadcrumbEntry
+  isCurrent: boolean
+  menuDepth?: number
+}) {
   const route: NavRoute = crumb.draftId ? {key: 'draft', id: crumb.draftId} : {key: 'document', id: crumb.id}
   const linkProps = useRouteLink(route)
   const title = crumb.metadata?.name
   const fallbackName = crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)
   const displayName = title || fallbackName
 
-  const renderText = (className: string, label = displayName) =>
-    isCurrent ? (
+  const renderText = (className: string, label: ReactNode = displayName) =>
+    menuDepth !== undefined ? (
+      <PathMenuItem depth={menuDepth} isCurrent={isCurrent} linkProps={linkProps}>
+        <span className={cn('block', className)}>{label}</span>
+      </PathMenuItem>
+    ) : isCurrent ? (
       <span aria-current="page" className={className}>
         {label}
       </span>
@@ -381,18 +479,7 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
       </>
     )
     const className = 'text-muted-foreground flex min-w-0 items-center gap-1 truncate text-xs whitespace-nowrap'
-    if (isCurrent) {
-      return (
-        <span aria-current="page" className={className}>
-          {content}
-        </span>
-      )
-    }
-    return (
-      <a {...linkProps} className={`${className} no-underline hover:underline`}>
-        {content}
-      </a>
-    )
+    return renderText(className, content)
   }
 
   if (crumb.isTombstone) {

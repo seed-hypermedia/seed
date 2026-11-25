@@ -29,6 +29,9 @@ import {
   namedSchemaUrl,
   refToName,
   resolveSchema,
+  seedField,
+  seedValue,
+  seedWithEnv,
   structFields,
   validate,
 } from './engine'
@@ -45,43 +48,10 @@ const selectCls =
   'border-border bg-input text-foreground dark:bg-input/30 h-9 rounded-md border px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]'
 
 // --- default-value synthesis (a valid-ish starting point) ------------------
-
-/** Synthesize a valid-ish default value for a schema (port of the reference seed()). */
-export function seedValue(schema: HypermediaSchema, registry: SchemaRegistry = {}): unknown {
-  return seed(schema, {}, registry)
-}
-
-function seed(schema0: HypermediaSchema, env: Env, reg: SchemaRegistry): unknown {
-  const {schema, env: e} = resolveSchema(schema0, env, reg)
-  if (isLiteralSchema(schema)) return schema.value
-  if (schema.anyOf) return schema.anyOf.length ? seed(schema.anyOf[0], e, reg) : undefined
-  const kind = schema.type ? kindOf(schema.type) : null
-  switch (kind) {
-    case 'map':
-    case 'struct': {
-      const o: Record<string, unknown> = {}
-      for (const f of structFields(schema)) if (f.required) o[f.name] = seed(f.schema, e, reg)
-      return o
-    }
-    case 'list':
-      return []
-    case 'string':
-      return ''
-    case 'integer':
-    case 'float':
-      return 0
-    case 'boolean':
-      return false
-    case 'null':
-      return null
-    case 'link':
-      return {'/': ''}
-    case 'bytes':
-      return {'/': {bytes: ''}}
-    default:
-      return null
-  }
-}
+//
+// Seeding lives in the engine so the CLI and the agents service start a new value the same way.
+export {seedValue}
+const seed = seedWithEnv
 
 // --- helpers ----------------------------------------------------------------
 
@@ -442,7 +412,10 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {fields.map(({name: k, schema: sub, description}) => {
+      {fields.map((field) => {
+        const {name: k, schema: sub, description} = field
+        // A field joining the value starts from its property default, else a seed of its schema.
+        const starter = () => seedField(field, env, reg)
         const isReq = required.has(k)
         const included = isReq || k in v
         return (
@@ -452,9 +425,7 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
                 <Switch
                   aria-label={`Include ${k}`}
                   checked={k in v}
-                  onCheckedChange={(c) =>
-                    c ? emitDeclared({...v, [k]: seed(sub, env, reg)}) : emitDeclared(omit(v, k))
-                  }
+                  onCheckedChange={(c) => (c ? emitDeclared({...v, [k]: starter()}) : emitDeclared(omit(v, k)))}
                 />
               )}
               <span className="text-foreground text-sm font-medium">{k}</span>
@@ -467,7 +438,7 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
               <FieldLabel.Provider value={k}>
                 <Node
                   schema={sub}
-                  value={k in v ? v[k] : seed(sub, env, reg)}
+                  value={k in v ? v[k] : starter()}
                   onChange={(nv) => emitDeclared({...v, [k]: nv})}
                   env={env}
                   reg={reg}

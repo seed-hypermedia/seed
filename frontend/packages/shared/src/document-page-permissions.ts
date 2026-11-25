@@ -143,6 +143,10 @@ export function createDocumentPageAccess(
     snapshot() {
       return grants.map((grant) => ({...grant}))
     },
+    /** Whether a remembered grant already covers this request, so it would not ask the viewer. */
+    granted(request: PagePermissionRequest) {
+      return matches(request)
+    },
     async authorize(request: PagePermissionRequest, signal: AbortSignal) {
       const authorized = AbortSignal.any([signal, controller.signal])
       authorized.throwIfAborted()
@@ -203,6 +207,24 @@ export function createDocumentPageAccess(
     close() {
       controller.abort(new Error('Page closed.'))
       publications.clear()
+    },
+  }
+}
+
+/**
+ * A page's access controller, except that it never asks the viewer: a request no grant covers is
+ * refused. A watched read refreshes through it, so a change in the data cannot raise a prompt.
+ */
+export function documentPageAccessWithoutPrompts(
+  access: ReturnType<typeof createDocumentPageAccess>,
+): ReturnType<typeof createDocumentPageAccess> {
+  return {
+    ...access,
+    authorize: async (request, signal) => {
+      const authorized = access.signal(signal)
+      authorized.throwIfAborted()
+      if (!access.granted(request)) throw new Error('This page needs permission again to keep this data current.')
+      return authorized
     },
   }
 }

@@ -36,6 +36,12 @@
         }
       },
       "description": "The operations this Change applies to the document's content and metadata."
+    },
+    "message": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Optional human-readable description of the Change, like a commit message; omitted when empty."
     }
   },
   "params": {

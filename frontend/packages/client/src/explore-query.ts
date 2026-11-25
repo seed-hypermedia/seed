@@ -5,7 +5,8 @@
 //
 //   key:value  key="two words"  key!=value  key>=3  key<10     attribute comparison (typed)
 //   key~text (contains)  key^text (starts with)                string match
-//   has:key  missing:key                                        presence
+//   has:key  missing:key  empty:key                             presence (empty = missing or "")
+//   "Two Words"=value  has:"Two Words"                          keys with spaces are quoted
 //   in:<space uid | hm:// url>  path:/specs  path:/specs/*      scope
 //   $author:<account uid>                                       any one of the document's authors
 //   $created>=2026-09-01  $updated<2026-10-01T12:00:00Z         creation / last-update time
@@ -243,7 +244,15 @@ function parseScalar(value: string): ExploreScalar {
 
 /** Quotes a value for the grammar when it contains whitespace, parentheses, quotes, or operators. */
 export function quoteExploreValue(value: string): string {
-  return /[\s()"=<>~^]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value
+  // An empty string, and a string that would read back as a number or boolean, need their quotes.
+  return value === '' || /[\s()"=<>~^]/.test(value) || typeof parseScalar(value) !== 'string'
+    ? `"${value.replace(/"/g, '\\"')}"`
+    : value
+}
+
+/** Quotes an attribute key that would not survive tokenizing as a bare word. */
+function quoteExploreKey(key: string): string {
+  return /[\s()"=<>~^:!]/.test(key) ? `"${key.replace(/"/g, '\\"')}"` : key
 }
 
 function flatten(kind: 'and' | 'or', children: ExploreQueryNode[]): ExploreQueryNode {
@@ -339,7 +348,10 @@ class ExploreParser {
       return null
     }
     this.index++
-    if (token.kind === 'quoted') return {kind: 'text', value: token.value, phrase: true}
+    // A quoted token directly followed by an operator is an attribute key with spaces
+    // (`"Depends On"=x`); on its own it is a text phrase.
+    if (token.kind === 'quoted' && this.current()?.kind !== 'operator')
+      return {kind: 'text', value: token.value, phrase: true}
     const operator = this.current()
     if (operator?.kind !== 'operator') return {kind: 'text', value: token.value, phrase: false}
     this.index++
@@ -390,7 +402,20 @@ class ExploreParser {
       )
       return {kind: 'text', value: `${token.value}${operator.value}${value}`, phrase: false}
     }
-    if ((token.value === 'has' || token.value === 'missing') && operator.value === ':') {
+    if (token.kind === 'word' && token.value === 'empty' && operator.value === ':') {
+      // Sugar: a field people call empty is either absent or holds an empty string.
+      return {
+        kind: 'or',
+        children: [
+          {kind: 'predicate', predicate: {kind: 'attribute', key: value, operator: 'missing'}},
+          {
+            kind: 'predicate',
+            predicate: {kind: 'attribute', key: value, operator: 'comparison', comparison: '=', value: ''},
+          },
+        ],
+      }
+    }
+    if (token.kind === 'word' && (token.value === 'has' || token.value === 'missing') && operator.value === ':') {
       return {
         kind: 'predicate',
         predicate: {kind: 'attribute', key: value, operator: token.value === 'has' ? 'exists' : 'missing'},
@@ -415,7 +440,8 @@ class ExploreParser {
           key: token.value,
           operator: 'comparison',
           comparison: operator.value as ExploreComparisonOperator,
-          value: parseScalar(value),
+          // A quoted value is a string even when it looks like a number: `version="3"`.
+          value: valueToken.kind === 'quoted' ? value : parseScalar(value),
         },
       }
     }
@@ -447,11 +473,12 @@ function serializePredicate(predicate: ExplorePredicate): string {
     return `path:${pathPredicate.value}${pathPredicate.prefix ? '/*' : ''}`
   }
   if (predicate.operator === 'exists' || predicate.operator === 'missing')
-    return `${predicate.operator === 'exists' ? 'has' : 'missing'}:${predicate.key}`
-  if (predicate.operator === 'contains') return `${predicate.key}:${quoteExploreValue(predicate.value)}`
-  if (predicate.operator === 'prefix') return `${predicate.key}^${quoteExploreValue(predicate.value)}`
+    return `${predicate.operator === 'exists' ? 'has' : 'missing'}:${quoteExploreKey(predicate.key)}`
+  if (predicate.operator === 'contains')
+    return `${quoteExploreKey(predicate.key)}:${quoteExploreValue(predicate.value)}`
+  if (predicate.operator === 'prefix') return `${quoteExploreKey(predicate.key)}^${quoteExploreValue(predicate.value)}`
   const comparison = predicate as Extract<ExploreAttributePredicate, {operator: 'comparison'}>
-  return `${comparison.key}${comparison.comparison}${
+  return `${quoteExploreKey(comparison.key)}${comparison.comparison}${
     typeof comparison.value === 'string' ? quoteExploreValue(comparison.value) : String(comparison.value)
   }`
 }

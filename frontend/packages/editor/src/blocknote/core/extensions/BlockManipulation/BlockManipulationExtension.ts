@@ -1,4 +1,5 @@
 import {Extension} from '@tiptap/core'
+import {keydownHandler} from '@tiptap/pm/keymap'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
@@ -134,6 +135,54 @@ export const BlockManipulationExtension = Extension.create<{
           const insideSelectedNode = next.from > prev.from && next.from < prev.to
           if (insideSelectedNode && !lastMousedownInCaption) return false
           return true
+        },
+      }),
+      new Plugin({
+        key: new PluginKey('MediaCaptionSelectionSync'),
+        view: (view) => {
+          const document = view.dom.ownerDocument
+          const syncCaptionCaret = () => {
+            const caption = document.activeElement
+            if (!view.editable || !(caption instanceof HTMLElement) || caption === view.dom) return
+            if (!view.dom.contains(caption) || !caption.matches('[data-media-container-ignore-select]')) return
+            const domSelection = document.getSelection()
+            const {anchorNode, focusNode} = domSelection ?? {}
+            if (!domSelection || !anchorNode || !focusNode) return
+            if (!caption.contains(anchorNode) || !caption.contains(focusNode)) return
+            const anchor = view.posAtDOM(anchorNode, domSelection.anchorOffset)
+            const head = view.posAtDOM(focusNode, domSelection.focusOffset)
+            const {selection} = view.state
+            if (selection.anchor === anchor && selection.head === head) return
+            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)))
+          }
+          const runHistoryKey = keydownHandler({
+            'Mod-z': () => (this.editor.commands.undo(), true),
+            'Shift-Mod-z': () => (this.editor.commands.redo(), true),
+            'Mod-y': () => (this.editor.commands.redo(), true),
+          })
+          const handleCaptionHistoryKey = (event: KeyboardEvent) => {
+            const caption = event.target
+            if (!view.editable || !(caption instanceof HTMLElement)) return
+            if (!caption.matches('[data-media-container-ignore-select]')) return
+            if (!runHistoryKey(view, event)) return
+            event.preventDefault()
+            const {anchor, head} = view.state.selection
+            const anchorDOM = view.domAtPos(anchor)
+            const headDOM = view.domAtPos(head)
+            if (caption.contains(anchorDOM.node) && caption.contains(headDOM.node)) {
+              document.getSelection()?.setBaseAndExtent(anchorDOM.node, anchorDOM.offset, headDOM.node, headDOM.offset)
+            } else {
+              view.focus()
+            }
+          }
+          document.addEventListener('selectionchange', syncCaptionCaret)
+          view.dom.addEventListener('keydown', handleCaptionHistoryKey)
+          return {
+            destroy: () => {
+              document.removeEventListener('selectionchange', syncCaptionCaret)
+              view.dom.removeEventListener('keydown', handleCaptionHistoryKey)
+            },
+          }
         },
       }),
       new Plugin({

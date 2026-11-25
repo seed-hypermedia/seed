@@ -1,6 +1,6 @@
 import {movedDocsPaths} from '../sync-hypermedia'
 import {afterEach, describe, expect, test} from 'bun:test'
-import {decode as decodeCbor} from '@ipld/dag-cbor'
+import {decode as decodeCbor, encode as encodeCbor} from '@ipld/dag-cbor'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {execFileSync, spawn} from 'node:child_process'
@@ -86,8 +86,26 @@ function session(dir: string, overrides: Partial<DevLoopOptions> = {}) {
   }
   const client = {
     request: async (name: string, input: any) => {
-      const path = input?.path?.length ? '/' + input.path.join('/') : ''
+      const path =
+        typeof input?.path === 'string' ? input.path : input?.path?.length ? '/' + input.path.join('/') : ''
       await hooks.request?.(name, path)
+      if (name === 'PrepareDocumentChange') {
+        // The fixture keeps no document state to compare with, so every requested change is one:
+        // a Change with as many ops, on top of the version the request names.
+        const ops = input.changes.map((change: {op: {case: string}}) => ({type: change.op.case}))
+        return {
+          unsignedChange: encodeCbor({
+            type: 'Change',
+            body: {ops, opCount: ops.length},
+            genesis: CID.parse(genesis),
+            deps: input.baseVersion.split('.').map((cid: string) => CID.parse(cid)),
+            depth: 1,
+            signer: null,
+            ts: Date.now(),
+            sig: null,
+          }),
+        }
+      }
       if (name === 'Resource')
         return docs.has(path) ? {type: 'document', document: docs.get(path)} : {type: 'not-found'}
       if (name === 'Query')
@@ -443,10 +461,12 @@ describe('a running dev sync follows Git checkouts', () => {
 })
 
 describe('movedDocsPaths', () => {
-  test("names the page's address from before the app environment rename, in the caller's path form", () => {
-    expect(movedDocsPaths('app-environment/guide')).toEqual(['agent/guide'])
-    expect(movedDocsPaths('/app-environment/plans/exec-warm-pool')).toEqual(['/agent/plans/exec-warm-pool'])
-    expect(movedDocsPaths('apps/desktop')).toEqual([])
+  test("names the page's earlier addresses, in the caller's path form", () => {
+    expect(movedDocsPaths('agent/guide')).toEqual(['app-environment/guide'])
+    expect(movedDocsPaths('/operate/operations')).toEqual(['/app-environment/operations', '/agent/operations'])
+    expect(movedDocsPaths('software/desktop')).toEqual(['apps/desktop'])
+    expect(movedDocsPaths('trigger')).toEqual(['apps/triggers'])
+    expect(movedDocsPaths('protocol/documents')).toEqual([])
     expect(movedDocsPaths('')).toEqual([])
   })
 })

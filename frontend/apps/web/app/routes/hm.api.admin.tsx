@@ -186,7 +186,9 @@ export const action: ActionFunction = async ({request}) => {
       return json({message: 'Invalid admin secret'}, {status: 401})
     }
 
-    const serviceConfig = await getServiceConfig()
+    // Admin actions decide from this copy (is the name taken?) and the host reads
+    // back what it just wrote, possibly through another process: never a stale one.
+    const serviceConfig = await getServiceConfig({fresh: true})
     if (!serviceConfig) {
       return json({message: 'Service config not found'}, {status: 404})
     }

@@ -8,7 +8,7 @@
 // instantiations): it is the default there, and the form is unavailable so it
 // cannot mangle them. Kept visually minimal and consistent with the value
 // editor that renders the forms this schema defines.
-import {ArrowRight, Braces, Lock, LockOpen, Plus, Rows3, Variable, X} from 'lucide-react'
+import {ArrowRight, Braces, Lock, LockOpen, PenLine, Plus, Rows3, Variable, X} from 'lucide-react'
 import {forwardRef, useEffect, useMemo, useRef, useState} from 'react'
 import {Textarea} from '../components/textarea'
 import {HMEntityField} from '../hm-entity-field'
@@ -33,9 +33,12 @@ import {
   refToName,
   structFields,
   validate,
+  seedValue,
 } from './engine'
+import {SchemaDataEditor} from './data-editor'
 import {kindColor, refChipColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
+import {useHydratedRegistry} from './schema-resolve'
 import {SchemaTypeInput, type TypeOption} from './schema-type-input'
 
 /** The field kinds a struct property can take (friendly labels). */
@@ -403,7 +406,9 @@ function IconAction({
   className?: string
 }) {
   return (
-    <Tooltip content={tooltip}>
+    // `asChild`: the button itself is the trigger. A wrapping inline span would sit the button on the
+    // text baseline, a few pixels off its neighbours in a row of actions.
+    <Tooltip content={tooltip} asChild>
       <button
         type="button"
         aria-label={label}
@@ -918,6 +923,59 @@ function TargetTypeInput({
 }
 
 /**
+ * A property's default: the value a new struct starts with for the field, edited with the form the
+ * field's own type gives it. A default that does not match the type is flagged, never blocked.
+ */
+function PropertyDefaultEditor({
+  schema,
+  value,
+  onValue,
+  onClear,
+  label,
+}: {
+  schema: HypermediaSchema
+  value: unknown
+  onValue: (next: unknown) => void
+  onClear: () => void
+  /** The field's (qualified) name, for control labels. */
+  label: string
+}) {
+  // The field may be typed by a schema published elsewhere: fetch it so the form and the check follow it.
+  const {registry, isLoading} = useHydratedRegistry(schema)
+  const errors = useMemo(
+    () => (isLoading ? [] : validate(schema, value, '$', {}, registry)),
+    [schema, value, registry, isLoading],
+  )
+  return (
+    <div className="group/row mt-1 mb-1 ml-1 flex flex-col gap-1" data-testid={`schema-default-${label}`}>
+      <div className="flex items-start gap-2">
+        <Tooltip content="Default: the value a new document or object starts with for this field. It is written into the new value and can be edited there. Existing values are not changed.">
+          <span className="text-muted-foreground pt-2 text-xs">default</span>
+        </Tooltip>
+        <fieldset aria-label={`Default value of ${label}`} className="min-w-0 flex-1">
+          <SchemaDataEditor schema={schema} value={value} onValue={onValue} registry={registry} />
+        </fieldset>
+        <IconAction
+          label={`Remove default value of ${label}`}
+          tooltip="Remove the default"
+          onClick={onClear}
+          className="mt-1.5"
+        >
+          <X className="size-3.5" />
+        </IconAction>
+      </div>
+      {errors.length > 0 && (
+        <ul className="text-destructive text-xs" role="alert">
+          {errors.map((error, i) => (
+            <li key={i}>The default does not match this field's type: {error.replace(/^\$[^:]*: /, '')}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/**
  * The field rows of a struct — name, description, type, target, optional/required, and whatever the
  * type spells out beneath (see {@link NestedSchemaEditor}) — plus Add field and the open/closed
  * toggle. Used for the root and, recursively, for every inline struct a field declares. `path`
@@ -1031,7 +1089,7 @@ function StructFieldsEditor({
   return (
     <div className="flex flex-col">
       {visible.length === 0 && <p className="text-muted-foreground py-2 text-sm">{emptyLabel ?? 'No fields yet.'}</p>}
-      {visible.map(({name, schema: ps, required, description}, index) => (
+      {visible.map(({name, schema: ps, required, description, default: defaultValue}, index) => (
         // Stable index key: renaming changes the property name but not the
         // row's identity, so the (controlled) name input never remounts and
         // keeps focus while typing.
@@ -1079,12 +1137,23 @@ function StructFieldsEditor({
               />
             </div>
             <div className="flex items-center gap-0.5">
+              {defaultValue === undefined && (
+                <IconAction
+                  label={`Set default value of ${q(name)}`}
+                  tooltip="Set a default: the value a new document or object starts with for this field"
+                  onClick={() => update(name, {default: seedValue(ps) ?? null})}
+                  reveal
+                >
+                  <PenLine className="size-3.5" />
+                </IconAction>
+              )}
               <Tooltip
                 content={
                   required
                     ? 'Required — every value includes this field. Click to make it optional.'
                     : 'Optional — a value may leave this field out. Click to require it.'
                 }
+                asChild
               >
                 <button
                   type="button"
@@ -1093,7 +1162,7 @@ function StructFieldsEditor({
                   aria-label={`Required ${q(name)}`}
                   onClick={() => update(name, {required: !required})}
                   className={cn(
-                    'hover:bg-muted focus-visible:ring-ring/40 cursor-pointer rounded px-1 py-0.5 text-xs outline-none focus-visible:ring-2',
+                    'hover:bg-muted focus-visible:ring-ring/40 inline-flex h-6 shrink-0 cursor-pointer items-center rounded px-1 text-xs leading-none outline-none focus-visible:ring-2',
                     required
                       ? 'text-muted-foreground/70 opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'
                       : 'text-muted-foreground',
@@ -1118,6 +1187,15 @@ function StructFieldsEditor({
             options={options}
             ariaPrefix={q(name)}
           />
+          {defaultValue !== undefined && (
+            <PropertyDefaultEditor
+              schema={ps}
+              value={defaultValue}
+              onValue={(next) => update(name, {default: next === undefined ? null : next})}
+              onClear={() => update(name, {default: undefined})}
+              label={q(name)}
+            />
+          )}
         </div>
       ))}
       <div

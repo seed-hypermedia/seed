@@ -2,7 +2,7 @@
 name: Block (Base)
 summary: "The three fields every concrete block type shares: the required id and type, and the daemon-filled revision."
 ---
-**Block (Base)** holds the three fields every concrete [block](../block.md) type shares, and every concrete type extends it. `id` is the block's permanent identity inside its document. `type` names the block type. `revision` is output only: the CID of the last [Change](../change.md) that modified the block. A new block type is a struct that extends this base and adds its own `text`, `link`, `annotations` and `attributes`. See [block/core](./core.md) for the built-in union and [Blocks](../protocol/blocks.md) for the model. <!-- id:u-pDGjJ_ -->
+**Block (Base)** holds the three fields every concrete [block](../block.md) type shares, and every concrete type extends it. `id` is the block's permanent identity inside its [document](../protocol/documents.md). `type` names the block type. `revision` is output only: the [CID](../cid.md) of the last [Change](../change.md) that modified the block. A new block type is a [struct](../struct.md) that extends this base and adds its own `text`, `link`, `annotations` and [`attributes`](../metadata.md). See [block/core](./core.md) for the built-in union and [Blocks](../protocol/blocks.md) for the model. <!-- id:u-pDGjJ_ -->
 
 # See also <!-- id:t38T51PA -->
 

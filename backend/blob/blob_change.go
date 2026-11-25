@@ -30,6 +30,8 @@ type Change struct {
 	Deps    []cid.Cid  `refmt:"deps,omitempty"`
 	Depth   int        `refmt:"depth,omitempty"`
 	Body    ChangeBody `refmt:"body,omitempty"`
+	// Message is an optional human-readable description of the change, like a commit message.
+	Message string `refmt:"message,omitempty"`
 }
 
 // ChangeBody is the body of a Change.
@@ -45,8 +47,18 @@ type ChangeBody struct {
 	Ops []OpMap `refmt:"ops,omitempty"`
 }
 
+// ChangeOption sets an optional field of a Change.
+type ChangeOption func(*Change)
+
+// WithMessage sets a human-readable description of the change, like a commit message.
+func WithMessage(msg string) ChangeOption {
+	return func(c *Change) {
+		c.Message = msg
+	}
+}
+
 // NewChange creates a new Change.
-func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
+func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time, opts ...ChangeOption) (eb Encoded[*Change], err error) {
 	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
 		return cmp.Compare(a.KeyString(), b.KeyString())
 	}) {
@@ -63,6 +75,10 @@ func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, b
 		Deps:    deps,
 		Depth:   depth,
 		Body:    body,
+	}
+
+	for _, opt := range opts {
+		opt(cc)
 	}
 
 	if err := Sign(signer, cc, &cc.BaseBlob.Sig); err != nil {

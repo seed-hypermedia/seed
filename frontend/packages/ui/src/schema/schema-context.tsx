@@ -6,7 +6,15 @@
 import {createContext, useContext, useMemo, type ReactNode} from 'react'
 import {isDagJsonLink} from '../dag-json'
 import type {ValuePath} from '../value-editor'
-import {type SchemaRegistry, type HypermediaSchema, fieldSchema, kindOf, resolveSchema, validate} from './engine'
+import {
+  type SchemaRegistry,
+  type HypermediaSchema,
+  fieldSchema,
+  kindOf,
+  resolveSchema,
+  structFields,
+  validate,
+} from './engine'
 
 /** An advisory schema warning at a value path (port of v1's SchemaWarning). */
 export type SchemaWarning = {path: (string | number)[]; message: string}
@@ -55,6 +63,19 @@ export function subschemaAt(
   const {schema: resolved} = resolveSchema(schema, {}, registry)
   if (!resolved || resolved.__missing || resolved.__unbound) return 'unresolved'
   return resolved
+}
+
+/**
+ * The property default declared for the field at `path`, when the path ends on a struct property
+ * that has one: what a field starts with when it is added to a value. Undefined otherwise.
+ */
+export function propertyDefaultAt(root: HypermediaSchema, path: ValuePath, registry: SchemaRegistry): unknown {
+  const last = path[path.length - 1]
+  if (typeof last !== 'string') return undefined
+  const parent = subschemaAt(root, path.slice(0, -1), registry)
+  if (!parent || parent === 'unresolved') return undefined
+  const field = structFields(parent).find((f) => f.name === last)
+  return field?.default === undefined ? undefined : JSON.parse(JSON.stringify(field.default))
 }
 
 type SchemaContextValue = {

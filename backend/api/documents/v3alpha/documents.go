@@ -1150,7 +1150,7 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 
 	// Use NopSigner to create the Change without actually signing it.
 	// The client will sign it themselves.
-	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now())
+	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now(), blob.WithMessage(in.Message))
 	if err != nil {
 		return nil, err
 	}

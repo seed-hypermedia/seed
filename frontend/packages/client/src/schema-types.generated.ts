@@ -19,7 +19,7 @@ export type HMAccount = string
 
 /**
  * Seed Agents
- * Seed Agents is the hosted agent runtime that lets an account run language-model agents which read and write Hypermedia through the Seed API with their own signing keys.
+ * An agent is a language model with memory, tools and its own Seed identity, which runs on an app environment and reads and writes Hypermedia like any other participant.
  * Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID.
  * Schema: hm://hyper.media/agent
  */
@@ -565,6 +565,8 @@ export type HMChange<Block = HMBlock> = HMBlob & {
   depth?: number
   /** The operations this Change applies to the document's content and metadata. */
   body?: HMChangeBody<Block>
+  /** Optional human-readable description of the Change, like a commit message; omitted when empty. */
+  message?: string
 }
 
 /**
@@ -1175,6 +1177,38 @@ export type HMExampleStatus = 'draft' | 'published' | 'archived'
 export type HMExampleTags = string[]
 
 /**
+ * Example: Task Document
+ * A document type for a task that shows property defaults: a new task starts as todo with priority 2, no tags and an unfinished checklist.
+ * A document type for a task, showing property defaults: the values a new task starts with.
+ * Schema: hm://hyper.media/example/task-doc
+ */
+export type HMExampleTaskDoc = {
+  /** Where the task stands. A new task starts as `todo`. · default: "todo" */
+  status: HMExampleTaskStatus
+  /** 1 is most urgent and 3 is least. A new task starts in the middle. · minimum: 1 · maximum: 3 · default: 2 */
+  priority?: number
+  /** Labels for the task. A new task starts with an empty list. · default: [] */
+  tags?: string[]
+  /** The steps of the task. It has no default of its own, so a new task builds it from the defaults of its fields. */
+  checklist: {
+    /** Whether every step is finished. · default: false */
+    done: boolean
+    /** The steps, in order. */
+    steps: string[]
+  }
+  /** The day the task is due. It has no default, so a new task leaves it out. */
+  due?: HMDate
+}
+
+/**
+ * Example: Task Status
+ * The state of a task: todo, doing, or done.
+ * The state of a task: `todo`, `doing` or `done`.
+ * Schema: hm://hyper.media/example/task-status
+ */
+export type HMExampleTaskStatus = 'todo' | 'doing' | 'done'
+
+/**
  * Example: Tree
  * A node holding an integer value and links to child nodes.
  * A tree node holding an integer value and links to child nodes, showing a self-referencing type.
@@ -1211,7 +1245,7 @@ export type HMExampleWorldDoc = {
 }
 
 /**
- * Resource URL
+ * Hypermedia URL
  * A reference to a Hypermedia document held as an `hm://` URL string, which editors render as a searchable pill showing the target’s title.
  * A reference to a Hypermedia document as an `hm://` URL string — rendered as a searchable pill showing the target's title.
  * Schema: hm://hyper.media/hm-url
@@ -1329,8 +1363,8 @@ export type HMMetadataNavigationItem = {
 export type HMNone = never
 
 /**
- * Custom HTML Page
- * A resource type for a sandboxed HTML page with schema-defined URL input.
+ * Page
+ * A page is a document typed hm://hyper.media/page that carries an HTML bundle and an input schema, runs sandboxed in the viewer's client, and acts as the viewer under approvals the viewer gives step by step.
  * Resource attributes for a custom HTML page, with a sandboxed HTML bundle and a published input contract.
  * Schema: hm://hyper.media/page
  */
@@ -1343,8 +1377,8 @@ export type HMPage = {
 } & {[key: string]: HMValue}
 
 /**
- * Empty Page Input
- * The default published input schema for a custom HTML page that accepts no URL state.
+ * Page Input
+ * A page takes typed input from its URL, declared by the struct schema its inputSchema names, and this closed, empty struct is the default for a page that takes none.
  * The empty input contract for a custom HTML page that accepts no URL parameters.
  * Schema: hm://hyper.media/page-input
  */
@@ -1498,7 +1532,7 @@ export type HMRole = 'WRITER' | 'AGENT'
 
 /**
  * Schema
- * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, with a guide to schemas in the Seed app and an index of the reference pages.
+ * The meta-schema, which is the union of every shape a schema can take and a valid instance of itself, and the starting point for every page about Hypermedia Schemas.
  * The meta-schema: the union of every shape a schema can take, itself a valid instance of this type.
  * Schema: hm://hyper.media/schema
  */
@@ -1535,7 +1569,7 @@ export type HMSchemaAnyof = {
 }
 
 /**
- * Reference Schema
+ * Include schema
  * The variant for a reference, which is a bare include or, when it carries refinements, an extension.
  * A schema that names another schema by URL: a bare include becomes that schema, and added refinements make it an extension.
  * Schema: hm://hyper.media/schema/include-schema
@@ -1634,8 +1668,8 @@ export type HMSchemaMapSchema = {
 
 /**
  * Property
- * One field of a struct, holding its value schema, whether a value must include it, and a description of what it is for.
- * One field of a struct: the schema its value must match, whether it is required, and what it is for.
+ * One field of a struct, holding its value schema, whether a value must include it, a description of what it is for, and the default a new value starts with.
+ * One field of a struct: the schema its value must match, whether it is required, what it is for, and the value a new struct starts with.
  * Schema: hm://hyper.media/schema/property
  */
 export type HMSchemaProperty = {
@@ -1645,6 +1679,8 @@ export type HMSchemaProperty = {
   required?: boolean
   /** What the field is for, for people and for the editors that show it. */
   description?: string
+  /** The value an editor writes into a new struct for this field. It must match `value`. It only initializes: a struct that lacks the field is not read as if it had this value. */
+  default?: unknown
 }
 
 /**

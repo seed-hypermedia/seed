@@ -12,6 +12,7 @@ import {
   isLiteralSchema,
   literalValue,
   resolveSchema,
+  schemaErrors,
   validate,
 } from '@seed-hypermedia/client/schema-engine'
 import {
@@ -23,6 +24,7 @@ import {
   hydrateSchemaRegistry,
   isPlainMap,
   metadataSchemaOf,
+  newDocumentDefaults,
   resolveSchemaRef,
   withoutSchemaLink,
 } from '@seed-hypermedia/client/schema-resolve'
@@ -37,7 +39,15 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {existsSync, readFileSync} from 'node:fs'
 import {resolve as resolvePath} from 'node:path'
 
-export {bareCid, blobSchemaRef, effectiveSchemaRef, isPlainMap, metadataSchemaOf, withoutSchemaLink}
+export {
+  bareCid,
+  blobSchemaRef,
+  effectiveSchemaRef,
+  isPlainMap,
+  metadataSchemaOf,
+  newDocumentDefaults,
+  withoutSchemaLink,
+}
 export {hasSignedEnvelope, principalToPublicKey, verifySignedBlob}
 export type {SignatureCheck}
 
@@ -103,6 +113,14 @@ export async function loadSchema(client: SeedClient, ref: string): Promise<Loade
   }
   const registry = await hydrateSchemaRegistry(client, schema, {})
   return {schema, cid, registry, source}
+}
+
+/**
+ * Everything wrong with a schema: its violations of the meta-schema, then any property `default`
+ * that does not match its own property's `value` schema. Empty when it is a valid schema.
+ */
+export function schemaViolations(schema: unknown, registry: SchemaRegistry = {}): string[] {
+  return schemaErrors(schema, registry)
 }
 
 /** The violations of `value` against `schema`; empty when it conforms. */

@@ -6,7 +6,7 @@ import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom, enqueueActions} from 'xstate'
 import {getBlockText} from '../content'
-import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
+import {applyRebasePlan, classifyRebase, collectChangedBlockIds} from '../utils/document-changes'
 import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
   documentMachine,
@@ -162,6 +162,16 @@ export function DocumentMachineProvider({
           pushPublishedContentToEditor: ({context}) => {
             const publishedContent = hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
             editorHandlersRef.current?.replaceCurrentContent?.(publishedContent)
+          },
+          // After saving out of `editing`, restore what should be visible: the published
+          // document when the draft is hidden, otherwise the current baseline (used by the
+          // version.changed exit, where editorBaseline already tracks the target version).
+          pushExitContentToEditor: ({context}) => {
+            const blocks = context.draftHidden
+              ? hmBlocksToEditorContent(context.document?.content ?? [], {childrenType: 'Group'})
+              : context.editorBaseline
+            if (!blocks) return
+            editorHandlersRef.current?.replaceCurrentContent?.(blocks)
           },
           applyExternalDraftState: enqueueActions(({context, event, enqueue}) => {
             if (
@@ -758,9 +768,18 @@ export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): E
   return getCollectionEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
 }
 
+/** Whether the user has temporarily hidden the draft to preview the published version. */
+export function selectDraftHidden(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.draftHidden
+}
+
 /** Whether draft content is allowed to overlay the published document for the current route. */
 export function selectDraftOverlayAllowed(snapshot: DocumentMachineSnapshot): boolean {
-  return shouldAllowDraftOverlay(snapshot.context.isLatestVersion, snapshot.context.routeVersion)
+  return shouldAllowDraftOverlay(
+    snapshot.context.isLatestVersion,
+    snapshot.context.routeVersion,
+    snapshot.context.draftHidden,
+  )
 }
 
 /** Whether the current route can start or continue document edits. */
@@ -1116,13 +1135,17 @@ export function useAutoRebase({
         mineNodes = baseBlocks
       }
 
-      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+      // Union persisted touch tracking with blocks the publish diff would
+      // write, so an incomplete mineTouchedIds list (e.g. a restored draft)
+      // does not let a remote change silently overwrite a user edit.
+      const mineTouchedUnion = Array.from(new Set([...mineTouched, ...collectChangedBlockIds(baseBlocks, mineNodes)]))
+      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouchedUnion, newCids)
       console.log('[Rebase hook] classification', {
         autoMergeable: classification.autoMergeable,
         conflictedBlockIds: classification.conflictedBlockIds,
         planMineBlocks: Array.from(classification.plan.mineBlocks),
         planTheirsBlocks: Array.from(classification.plan.theirsBlocks),
-        mineTouchedInput: mineTouched,
+        mineTouchedInput: mineTouchedUnion,
         baseBlockIds: baseBlocks.map((n) => n.block?.id),
         mineBlockIds: mineNodes.map((n) => n.block?.id),
         theirsBlockIds: (remoteDoc.content ?? []).map((n) => n.block?.id),
@@ -1158,7 +1181,7 @@ export function useAutoRebase({
           base: summarize(baseMap.get(id)),
           mine: summarize(mineMap.get(id)),
           theirs: summarize(theirsMap.get(id)),
-          mineTouched: mineTouched.includes(id),
+          mineTouched: mineTouchedUnion.includes(id),
           theirsRevisionInNewCids: (() => {
             const rev = (theirsMap.get(id)?.block as any)?.revision
             return typeof rev === 'string' ? newCids.has(rev) : null
@@ -1171,7 +1194,7 @@ export function useAutoRebase({
           newCidsCount: newCids.size,
           newCids: Array.from(newCids),
           remoteVersion: remoteDoc.version,
-          mineTouched,
+          mineTouched: mineTouchedUnion,
           baseBlockIdSet: Array.from(baseMap.keys()),
           mineBlockIdSet: Array.from(mineMap.keys()),
           theirsBlockIdSet: Array.from(theirsMap.keys()),

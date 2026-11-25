@@ -23,6 +23,7 @@ import {
 import {createAPIRoutes} from '@/main'
 import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
+import {fakePreparedChange} from '@/prepare-change-test-server'
 
 /**
  * An event payload with its provenance stamp dropped.
@@ -196,6 +197,11 @@ describe('api service', () => {
       expect(migrated).toContain('forecast')
       // It knows the server it runs on, so it can name it on an app it owns before running it.
       expect(migrated).toContain('You run on the app server https://agent.example')
+      // A custom agent gets connector setup guidance even before consulting the write guide.
+      expect(migrated).toContain('server-side tool')
+      expect(migrated).toContain('ctx.privateConfig')
+      expect(migrated).toContain('Settings → Run App')
+      expect(migrated).toContain('Settings → Private config')
     } finally {
       hm.stop(true)
       sqlite.closeDatabase(db)
@@ -343,7 +349,7 @@ describe('api service', () => {
     }
   })
 
-  test('private memory is owner-only through API, tool reads, uploads, and directory totals', async () => {
+  test('memory follows the agent access policy, with no special private folder', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
     try {
@@ -363,41 +369,20 @@ describe('api service', () => {
       })
       await send(writer, {_: 'AcceptAgentInvite', agentId})
       await send(owner, {_: 'SetAgentPublicRead', agentId, publicRead: true})
-      await send(owner, {
-        _: 'WriteAgentMemoryFile',
-        agentId,
-        path: 'private/browser/archive.md',
-        content: 'private secret',
-      })
-      await send(owner, {_: 'WriteAgentMemoryFile', agentId, path: 'public.txt', content: 'hello'})
-      for (const signer of [writer, stranger]) {
-        for (const action of [
-          {_: 'ReadAgentMemoryFile', agentId, path: '/./private/browser/archive.md'},
-          {_: 'ListAgentMemoryDir', agentId, path: 'private'},
-          {_: 'UploadAgentMemoryFileToIpfs', agentId, path: 'private/browser/archive.md'},
-          {_: 'WriteAgentMemoryFile', agentId, path: 'private/new.md', content: 'bad'},
-          {_: 'DeleteAgentMemoryFile', agentId, path: 'private'},
-          {_: 'DownloadAgentMemoryFile', agentId, path: 'private/new.md', url: 'https://example.invalid/file'},
-          {_: 'BeginFileUpload', target: {kind: 'memory', agentId, path: 'private/upload.bin'}, size: 3},
-        ] as const)
-          await expect(send(signer, action)).rejects.toMatchObject({status: 403})
-        const listed = await send(signer, {_: 'ListAgentMemory', agentId})
-        expect(listed).toMatchObject({entries: [{path: 'public.txt'}], totalBytes: 5})
-        const directory = await send(signer, {_: 'ListAgentMemoryDir', agentId})
-        expect(directory).toMatchObject({entries: [{path: 'public.txt'}], totals: {files: 1, bytes: 5}})
-        const tools = await send(signer, {_: 'ListAgentTools', agentId})
-        expect(JSON.stringify(tools)).not.toContain('private secret')
+      await send(owner, {_: 'WriteAgentMemoryFile', agentId, path: 'private/notes.md', content: 'hello'})
+      for (const signer of [owner, writer, stranger]) {
+        expect(await send(signer, {_: 'ReadAgentMemoryFile', agentId, path: 'private/notes.md'})).toMatchObject({
+          file: {content: 'hello'},
+        })
+        expect(await send(signer, {_: 'ListAgentMemory', agentId})).toMatchObject({
+          entries: [{path: 'private'}, {path: 'private/notes.md'}],
+          totalBytes: 5,
+        })
       }
-      expect(await send(owner, {_: 'ReadAgentMemoryFile', agentId, path: 'private/browser/archive.md'})).toMatchObject({
-        file: {content: 'private secret'},
-      })
-      const toolRead = await send(writer, {
-        _: 'InvokeSessionTool',
-        sessionId,
-        verb: 'read',
-        input: {address: '~/memory/private/browser/archive.md'},
-      })
-      expect(JSON.stringify(toolRead)).not.toContain('private secret')
+      await send(writer, {_: 'WriteAgentMemoryFile', agentId, path: 'private/writer.md', content: 'ok'})
+      await expect(
+        send(stranger, {_: 'WriteAgentMemoryFile', agentId, path: 'private/reader.md', content: 'bad'}),
+      ).rejects.toMatchObject({status: 403})
     } finally {
       svc.stopRunQueue()
       sqlite.closeDatabase(db)
@@ -6575,6 +6560,12 @@ describe('api service', () => {
           return Response.json(serialize({cids: [`published-${publishes.length}`]}))
         }
         if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities}))
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
         }
@@ -6822,6 +6813,134 @@ describe('api service', () => {
     }
   })
 
+  test('a document write that breaks its type is refused unless options.force, and an update is refused only for what it breaks', async () => {
+    // Live incident (Clerk session 44422dd8): a project was created with status "In Progress" where
+    // its inherited type allows "In Development". The violation came back as a warning beside a
+    // successful publish, which the agent read as success. A nonconforming write must fail instead.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      let existing: {version: string; metadata: Record<string, unknown>} | null = null
+      const publishes: number[] = []
+      const doc = (path: string, version: string, metadata: Record<string, unknown>) => ({
+        type: 'document',
+        id: unpackHmId(`hm://${signerPublicKey}${path}`),
+        document: {
+          content: [],
+          version,
+          account: signerPublicKey,
+          authors: [signerPublicKey],
+          path,
+          createTime: '',
+          updateTime: '',
+          metadata,
+          genesis: version,
+          visibility: 'PUBLIC',
+        },
+      })
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push((init?.body as ArrayBuffer).byteLength)
+          return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existing?.version, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const requested = new URL(href).searchParams.get('id') ?? ''
+          if (requested.includes('/people/bob')) {
+            if (!existing) return Response.json(serialize({type: 'not-found', id: unpackHmId(requested)}))
+            return Response.json(serialize(doc('/people/bob', existing.version, existing.metadata)))
+          }
+          if (requested.includes('/people')) return Response.json(serialize(doc('/people', 'p1', {name: 'People'})))
+          return Response.json(serialize(doc('', 'r1', {name: 'Root'})))
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse' || !identity.identity.accountId)
+        throw new Error('unexpected response')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'Typed writer', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+      })
+      const write = async (input: Record<string, unknown>) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+      const address = `hm://${signerPublicKey}/people/bob`
+      const offType = {name: 'Bob', age: 'old', attributesSchema: 'hm://hyper.media/example/person'}
+      const setupPublishes = publishes.length
+
+      const refused = await write({address, content: 'Bob.', options: {name: 'Bob', metadata: offType}})
+      expect(String(refused.error)).toContain('would not conform to its type')
+      expect(String(refused.error)).toContain('$.metadata.age')
+      expect(String(refused.error)).toContain('options.force: true')
+      expect(publishes).toHaveLength(setupPublishes)
+
+      // A dry run reports the same problems without refusing.
+      const preview = await write({address, content: 'Bob.', dryRun: true, options: {name: 'Bob', metadata: offType}})
+      expect(preview.error).toBeUndefined()
+      expect(preview.dryRun).toBe(true)
+      expect(String(preview.warnings)).toContain('$.metadata.age')
+      expect(publishes).toHaveLength(setupPublishes)
+
+      // force publishes it anyway and says what is wrong.
+      const forced = await write({address, content: 'Bob.', options: {name: 'Bob', metadata: offType, force: true}})
+      expect(forced.error).toBeUndefined()
+      expect(String(forced.warnings)).toContain('$.metadata.age')
+      expect(publishes.length).toBeGreaterThan(setupPublishes)
+      existing = {version: String(forced.version), metadata: {...offType}}
+
+      // An update that leaves the existing violation alone is not blocked by it...
+      const afterForce = publishes.length
+      const renamed = await write({address, options: {action: 'update', name: 'Robert'}})
+      expect(renamed.error).toBeUndefined()
+      expect(publishes.length).toBeGreaterThan(afterForce)
+
+      // ...but one that adds a violation is refused.
+      const beforeBreak = publishes.length
+      const broken = await write({address, options: {action: 'update', metadata: {active: 'yes'}}})
+      expect(String(broken.error)).toContain('$.metadata.active')
+      expect(String(broken.error)).not.toContain('$.metadata.age')
+      expect(publishes.length).toBe(beforeBreak)
+
+      // Fixing the metadata publishes cleanly.
+      const fixed = await write({address, options: {action: 'update', metadata: {age: 42}}})
+      expect(fixed.error).toBeUndefined()
+      expect(fixed.warnings).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('write with options.tool publishes a tool under its app and keeps the app list in step', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
@@ -6834,6 +6953,9 @@ describe('api service', () => {
         {block: {id: 'note', type: 'Paragraph', text: 'Weather tools.', annotations: [], attributes: {}}, children: []},
       ]
       const publishes: {blobs: {cid?: string; data: Uint8Array}[]}[] = []
+      const prepares: {path?: string; baseVersion?: string; changes: {op: {case: string}}[]}[] = []
+      // When set, the site finds every requested change already true and prepares an empty Change.
+      let nothingToChange = false
       const document = (path: string, metadata: Record<string, unknown>, content: unknown[] = []) => ({
         type: 'document',
         id: unpackHmId(`hm://${signerPublicKey}${path}`),
@@ -6855,6 +6977,17 @@ describe('api service', () => {
         if (href.includes('/api/PublishBlobs')) {
           publishes.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
           return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        // The app's card list is updated through the daemon, which computes the Change.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          prepares.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
+          const prepared = fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))
+          const unsignedChange = nothingToChange
+            ? Uint8Array.from(
+                cbor.encode({...cbor.decode<Record<string, unknown>>(prepared), body: {ops: [], opCount: 0}}),
+              )
+            : prepared
+          return Response.json(serialize({unsignedChange}))
         }
         if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
         if (href.includes('/api/ListChanges'))
@@ -6968,6 +7101,14 @@ describe('api service', () => {
       expect(created.code).toMatch(/^ipfs:\/\/bafy/)
       // One publish carries the tool, its code folder and the app's new card embed.
       expect(publishes).toHaveLength(1)
+      // The app's embed went through PrepareDocumentChange, on the app's current version.
+      expect(prepares).toHaveLength(1)
+      expect(prepares[0]).toMatchObject({
+        path: '/weather',
+        baseVersion: 'bafyreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy',
+      })
+      // The new card and its one move: blocks already in place are not sent (preparableDocumentChanges).
+      expect(prepares[0]!.changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'moveBlock'])
       const changes = publishes[0]!.blobs
         .map((blob) => {
           try {
@@ -6993,7 +7134,7 @@ describe('api service', () => {
         view: 'Card',
       })
 
-      // Deleting the tool removes its embed in the same publish.
+      // The tool now exists and its app lists it.
       toolExists = true
       appContent.unshift({
         block: {
@@ -7004,16 +7145,39 @@ describe('api service', () => {
         },
         children: [],
       })
+      // The same tool written again changes nothing: no new version, and the result does not say
+      // "the tool is published" beside `unchanged`. Its code folder is still stored.
+      nothingToChange = true
+      const republished = await write({
+        address: `hm://${signerPublicKey}/weather/forecast`,
+        options: {...toolOptions, action: 'update'},
+      })
+      nothingToChange = false
+      expect(republished.error).toBeUndefined()
+      expect(republished).toMatchObject({unchanged: true, resourceType: 'hm://hyper.media/tool', code: created.code})
+      expect(String(republished.message)).toContain('already up to date')
+      expect(republished.instructions).toBeUndefined()
+      expect(publishes).toHaveLength(2)
+      const isChange = (data: Uint8Array) => {
+        try {
+          return cbor.decode<{type?: string}>(data)?.type === 'Change'
+        } catch {
+          return false // a file of the code folder
+        }
+      }
+      expect(publishes[1]!.blobs.some((blob) => isChange(blob.data))).toBe(false)
+
+      // Deleting the tool removes its embed in the same publish.
       const deleted = await write({
         address: `hm://${signerPublicKey}/weather/forecast`,
         options: {action: 'delete'},
       })
       expect(deleted.error).toBeUndefined()
       expect(deleted).toMatchObject({app: `hm://${signerPublicKey}/weather`, removedFromApp: true})
-      expect(publishes).toHaveLength(2)
+      expect(publishes).toHaveLength(3)
       expect(
         JSON.stringify(
-          publishes[1]!.blobs.map((blob) => {
+          publishes[2]!.blobs.map((blob) => {
             try {
               return cbor.decode(blob.data)
             } catch {
@@ -7042,6 +7206,12 @@ describe('api service', () => {
         if (href.includes('/api/PublishBlobs')) {
           publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
           return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
         }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
@@ -7250,6 +7420,109 @@ describe('api service', () => {
     }
   })
 
+  test('an agent edit keeps the document in its generation instead of starting a new one', async () => {
+    // Bug: every agent edit signed its Ref with the new Change's timestamp as the generation, so
+    // each edit opened a new generation of the document. An edit continues the same document, so
+    // its Ref must carry the generation the document already has.
+    const DOCUMENT_GENERATION = 1000
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const genesis = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      let signerPublicKey = ''
+      // The generation of every Ref the server publishes, in order.
+      let publishedGenerations: number[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          const {blobs: published} = cbor.decode<{blobs: {data: Uint8Array}[]}>(
+            new Uint8Array(init?.body as ArrayBuffer),
+          )
+          for (const blob of published) {
+            const decoded = cbor.decode<{type?: string; generation?: number}>(new Uint8Array(blob.data))
+            if (decoded.type === 'Ref') publishedGenerations.push(Number(decoded.generation))
+          }
+          return Response.json(serialize({cids: published.map((_, index) => `published-${index}`)}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: genesis, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer), genesis)}),
+          )
+        }
+        if (href.includes('/api/Resource')) {
+          // An existing document, living in generation 1000.
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: unpackHmId(`hm://${signerPublicKey}/notes`),
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'Original text.'}, children: []}],
+                version: genesis,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/notes',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Notes'},
+                genesis,
+                generationInfo: {genesis, generation: DOCUMENT_GENERATION},
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Editor', clientRequestId: 'editor'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'Edit documents.', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+        signingKeys: [identity.identity.name],
+      })
+      const editDocument = async (content: string) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {
+              _: 'InvokeSessionTool',
+              sessionId,
+              verb: 'write',
+              input: {address: `hm://${signerPublicKey}/notes`, content, options: {action: 'update'}},
+              continueAgent: false,
+            },
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('unexpected response')
+        expect(response.error).toBeUndefined()
+      }
+
+      // Setup published the signing account's own home document; only the edits count from here.
+      publishedGenerations = []
+      await editDocument('First edit.')
+      await editDocument('Second edit.')
+
+      // Two edits, two Refs, both still in the document's generation.
+      expect(publishedGenerations).toEqual([DOCUMENT_GENERATION, DOCUMENT_GENERATION])
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('write action "update" edits the document at the write address, including metadata-only', async () => {
     // Live incident (session 5298a18a): every {action: "update"} write failed with "Document edit
     // target is required" because the address-form envelope never forwarded the address as the
@@ -7268,6 +7541,12 @@ describe('api service', () => {
         if (href.includes('/api/PublishBlobs')) {
           publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
           return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        // The site computes the document's Change; the write tool signs and publishes it.
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
         }
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))

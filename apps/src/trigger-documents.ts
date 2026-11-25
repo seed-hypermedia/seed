@@ -1,5 +1,5 @@
 /**
- * Trigger documents (hypermedia/apps/triggers.md): a trigger is a document typed
+ * Trigger documents (hypermedia/trigger.md): a trigger is a document typed
  * `hm://hyper.media/trigger` under an app or an agent, listed by a card embed in its host like a
  * tool. This module reads a host's triggers from Hypermedia; the service projects them into its
  * trigger rows (the engine every trigger source and firing already runs on) while the host lives on

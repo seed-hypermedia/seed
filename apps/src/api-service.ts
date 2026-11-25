@@ -16,7 +16,6 @@ import {
   type DelegationLimits,
   type Thoroughness,
   modelReasoningSupport,
-  modelContextWindow,
   modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
@@ -33,11 +32,17 @@ import {
 import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as protocol from '@seed-hypermedia/apps-protocol'
 import * as activityTriggers from '@/activity-triggers'
-import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
+import {
+  docsSpaceUrl,
+  resolveDocsLinks,
+  resolveDocsMarkdown,
+  resolveDocsRootMentions,
+  resolveDocsUrl,
+} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
 import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
-import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
+import {BrowserPrivacy, containsPrivateData, hasOwnerAccess, privateStub, withOwnerAccess} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -116,8 +121,16 @@ import {
   resolveEditableDocument,
   resolveIdWithClient,
   updateComment,
+  clientBuiltDocumentUpdateBlobs,
+  documentUpdateBlobs,
+  sameDocumentVersion,
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
+  applyBlockEdits,
+  BlockEditError,
+  describeContentChange,
+  markdownUpdateTree,
+  MarkdownResolvedRangeError,
 } from '@seed-hypermedia/client'
 import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
 import {appEmbedBlobs, findListingApp, missingCardBlobs, resolveAppParent, withHostLock} from '@/app-children'
@@ -136,7 +149,7 @@ import {
 } from '@seed-hypermedia/client/apps'
 import {withTimeout} from '@/poll-loop'
 import {loadMermaidParser} from './mermaid-parser'
-import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
+import type {CollectedBlob, ContentChange, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
@@ -155,15 +168,22 @@ import type {
   HMDocumentAttributeKind,
   HMRawDocumentInfo,
 } from '@seed-hypermedia/client/hm-types'
-import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
+import {compileExploreQuery, parseExploreQuery, type ExplorePredicate} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
+import {
+  HM_SCHEMAS,
+  validate as validateSchema,
+  validateDefaults,
+  resolveSchema,
+  STRUCT_URL,
+} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
   checkSchemaDefinition,
   isPlainMap,
   loadSchemaRef,
+  newDocumentDefaults,
   withoutSchemaLink,
 } from '@seed-hypermedia/client/schema-resolve'
 import {
@@ -180,7 +200,9 @@ import * as piOpenAICodexResponses from '@earendil-works/pi-ai/api/openai-codex-
 import * as piOpenAICompletions from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import * as piOpenAIResponses from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import * as piOpenAICodexCatalog from '@earendil-works/pi-ai/providers/openai-codex.models'
+import * as piEstimate from '@earendil-works/pi-ai/utils/estimate'
 import * as durable from '@earendil-works/pi-durable'
+import * as contextAccounting from '@/context-accounting'
 import * as durableSession from '@/durable-session'
 import {loopLagSnapshot, providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
@@ -242,6 +264,10 @@ const CONTINUATION_PROJECTION_COMPILER = 'projection/1'
 const CONTEXT_PRESSURE_WARN_FRACTION = 0.7
 /** Context fullness at which the runtime tells the model to continue before answering. */
 const CONTEXT_PRESSURE_URGENT_FRACTION = 0.85
+/** How far back through a session's events the last context measurement is looked for. */
+const CONTEXT_READING_MAX_EVENTS = 2_000
+/** Events read at a time while looking for that measurement. */
+const CONTEXT_READING_PAGE = 64
 
 /** Dedicated title-generation model calls a session gets per process before the runtime stops trying. */
 const MAX_TITLE_GENERATION_ATTEMPTS = 3
@@ -623,11 +649,21 @@ export function narrowDefinitionTools(base: string[], specTools: string[]): stri
   return base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish))
 }
 
-function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+/**
+ * Callables every agent holds whatever its `tools` array says. They only read what the always-on
+ * `read` verb can already reach (a `:directory` listing carries the same attributes), and an agent
+ * without them cannot answer "which documents have X" at all. Agent settings offer no toggle for
+ * them, so gating them on `tools` left every agent made in the app without attribute queries.
+ */
+const ALWAYS_ON_CALLABLES: readonly string[] = [callableToolRegistry.query.name, callableToolRegistry.attributes.name]
+
+export function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
   const serviceCallables = serviceCallableNames()
   const requested = definition.tools?.map(normalizeSeedToolName)
   const enabled =
-    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+    requested === undefined
+      ? serviceCallables
+      : serviceCallables.filter((name) => requested.includes(name) || ALWAYS_ON_CALLABLES.includes(name))
   return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
 }
 
@@ -1120,7 +1156,6 @@ export class Service {
       db,
       'SELECT id, account_id, state_dir FROM agents',
     ).all()) {
-      agentMemory.migratePrivateMemory(agent.state_dir)
       // Agents no longer hold private code tools; each authored one moves into the agent's memory.
       const moved = toolDocs.moveLambdaToolsToMemory(
         db,
@@ -1156,9 +1191,8 @@ export class Service {
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
       admit: () => this.#admitRuns(),
       executors: {
-        agent: (run) =>
-          agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
-        workflow: (run) => agentMemory.withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
+        agent: (run) => withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
+        workflow: (run) => withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
       },
       onRunChanged: (run) => this.#onRunChanged(run),
       onRunFinalized: (run) => this.#onRunFinalized(run),
@@ -1435,9 +1469,7 @@ export class Service {
     }
     const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
     const response = await withMemoryErrorsAsync(() =>
-      agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
-        this.#dispatch(envelope, verified, ownerAccountId),
-      ),
+      withOwnerAccess(ownerAccountId === verified.accountId, () => this.#dispatch(envelope, verified, ownerAccountId)),
     )
     return this.#browserPrivacy.forViewer(
       downgradeResponse(response, clientProtocol, {
@@ -1716,6 +1748,13 @@ export class Service {
             appRunning.getAppRun(this.#appRunDeps(), envelope.action as api.GetAppRun),
           ),
         }
+      case 'CheckAppRun':
+        return {
+          _: 'AppRunCheckResponse',
+          ...(await this.#appRun(() =>
+            appRunning.checkAppRun(this.#appRunDeps(), verified.accountId, envelope.action as api.CheckAppRun),
+          )),
+        }
       case 'CallAppTool':
         return {
           _: 'AppToolCallResponse',
@@ -1973,9 +2012,7 @@ export class Service {
       if (upload.target.kind === 'memory') {
         const target = upload.target
         const owner = fromAgent(target.agentId, 'writer')
-        withMemoryErrors(() =>
-          agentMemory.withOwnerAccess(owner === actorAccountId, () => agentMemory.resolveMemoryPath('', target.path)),
-        )
+        withMemoryErrors(() => agentMemory.resolveMemoryPath('', target.path))
         return owner
       }
       return fromSession(upload.target.sessionId, 'chat')
@@ -5216,23 +5253,63 @@ export class Service {
 
   /** The plan as currently stored, or undefined for a session that has never published one. */
   /**
-   * The prompt size of the session's most recent model turn — input plus cache reads and writes,
-   * which together are the whole context the provider was sent — from the usage stamped on the
-   * last assistant message. Undefined until a turn has completed.
+   * The newest measured prompt in the session's log. A model response is recorded as an assistant
+   * message or, when it has no text, as tool calls; both carry its usage. Rows are read newest
+   * first and only as far as the first measurement.
    */
-  #lastPromptTokens(sessionId: string): number | undefined {
-    const rows = stmt<{event_cbor: Uint8Array}, [string]>(
-      this.#db,
-      `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 60`,
-    ).all(sessionId)
-    for (const row of rows) {
-      const payload = cbor.decode<{type?: string; role?: string; meta?: api.SessionEventMeta}>(row.event_cbor)
-      if (payload.type !== 'message' || payload.role !== 'assistant') continue
-      const usage = payload.meta?.usage
-      if (!usage) continue
-      return usage.input + usage.cacheRead + usage.cacheWrite
+  #lastContextReading(sessionId: string): protocol.EventContextReading | undefined {
+    let beforeSeq = Number.MAX_SAFE_INTEGER
+    for (let scanned = 0; scanned < CONTEXT_READING_MAX_EVENTS; scanned += CONTEXT_READING_PAGE) {
+      const rows = stmt<{seq: number; event_cbor: Uint8Array}, [string, number, number]>(
+        this.#db,
+        `SELECT seq, event_cbor FROM session_events WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`,
+      ).all(sessionId, beforeSeq, CONTEXT_READING_PAGE)
+      for (const row of rows) {
+        const reading = protocol.eventContextReading(cbor.decode(row.event_cbor))
+        if (reading) return reading
+        beforeSeq = row.seq
+      }
+      if (rows.length < CONTEXT_READING_PAGE) return undefined
     }
     return undefined
+  }
+
+  /**
+   * Carries a conversation the provider rejected as too large into a successor. The model could
+   * not write a handoff, so the runtime writes a plain one; the projection supplies the recent
+   * exchanges and the user's exact message. Undefined when this session cannot continue.
+   */
+  #continueAfterContextOverflow(
+    accountId: string,
+    sessionId: string,
+    runId: string | undefined,
+    continueSession: AgentServicePiToolContext['continueSession'],
+    live: RunningSession,
+  ): SessionContinuationOutcome | undefined {
+    if (!continueSession || !runId) return undefined
+    const session = this.#getSessionInfo(accountId, sessionId)
+    const title = session?.title?.trim() || 'Continued conversation'
+    try {
+      continueSession(`context-overflow:${runId}`, {
+        reason: 'context_pressure',
+        title,
+        description: session?.description?.trim() || 'Continued after the previous session filled its context window.',
+        handoff: {
+          purpose: `Continue the conversation from "${title}", which outgrew the model's context window.`,
+          currentRequest: 'Answer the user message that follows this handoff.',
+          cautions: [
+            'The runtime wrote this handoff because the previous session could no longer be sent to the model. Work done there may not be summarized here: read that session before relying on or repeating it.',
+          ],
+        },
+      })
+    } catch (error) {
+      console.warn('[agents/runtime] could not continue after context overflow', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return undefined
+    }
+    return live.continuation
   }
 
   #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
@@ -6554,7 +6631,7 @@ export class Service {
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
-    // A title digest of a browser or private-memory session would copy signed-in page content to
+    // A title digest of a browser session would copy signed-in page content to
     // another model call. Those sessions keep their provisional title.
     if (this.#browserPrivacy.sessionIsPrivate(sessionId)) return
     this.#namingSessions.add(sessionId)
@@ -8445,9 +8522,13 @@ export class Service {
     // The time is not part of the prompt: it reaches the model with each turn's input (see
     // `turnStateMessages`), so this text stays byte-stable from one turn to the next and the
     // provider's prompt cache survives.
-    const sharedPrompt = seedAssistantSystemPrompt()
+    // The model is told the knowledge base by the account this server reads, here and where the Agent Guide names
+    // its root, so the links it writes open in that space. Resolved on every turn, after the cache: a dev site's
+    // key can change.
+    systemPrompt = resolveDocsRootMentions(systemPrompt)
+    const sharedPrompt = seedAssistantSystemPrompt({knowledgeBaseUrl: docsSpaceUrl()})
     const memoryPrompt =
-      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Anyone this agent is shared with can read your memory, so never store passwords, API keys or other secrets there. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -8573,6 +8654,7 @@ export class Service {
       models = piAi.createModels()
       auth = {apiKey: {name: `${providerName} API key`, resolve: async () => ({auth: {apiKey}})}}
     }
+    if (!subscription) await contextAccounting.discoverContextWindow(provider.type, baseUrl, definition.model)
     const model = piModelForDefinition(provider.type, providerName, baseUrl, definition, {subscription})
     models.setProvider(
       piAi.createProvider({
@@ -8863,10 +8945,10 @@ export class Service {
      * and never stored: everything before it — the system prompt included — stays byte-stable from
      * one turn to the next, and the turn's own requests share one prefix.
      */
-    const turnStateMessages = (): piAi.UserMessage[] => {
-      // A reader's turn in a browser or private-memory session must not see the owner's plan or
+    const turnStateMessages = (promptTokens: number | undefined): piAi.UserMessage[] => {
+      // A reader's turn in a browser session must not see the owner's plan or
       // status text; the private stub stands in for them.
-      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
+      const privateHistory = !hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
       const blocks = [
         buildSpaceIndex({
           db: this.#db,
@@ -8877,7 +8959,9 @@ export class Service {
         }),
         run ? delegationBudgetBlock(this.#delegationStatus(run)) : undefined,
         privateHistory ? undefined : planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
-        canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
+        canContinueSession && promptTokens !== undefined
+          ? contextUsageBlock(promptTokens, model.contextWindow)
+          : undefined,
         privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
         `<current_time>${new Date().toISOString()}</current_time>`,
         userTimeBlock(this.#accountTimezones.get(accountId)),
@@ -8911,6 +8995,7 @@ export class Service {
           cacheWrite: usage.cacheWrite,
           total: usage.input + usage.output + usage.cacheRead + usage.cacheWrite,
         },
+        ...(turnImageTokens() > 0 ? {ephemeralImageTokens: turnImageTokens()} : {}),
         ...(timing ? {turn: timing} : {}),
       }
     }
@@ -8920,6 +9005,27 @@ export class Service {
     // An image rides its tool result for the turn that asked for it and no further: the durable
     // result keeps the text, and the hook below adds the image back to this turn's requests.
     const turnImages = new Map<string, piAi.ToolResultMessage['content']>()
+    const contextModel = {providerType: provider.type, modelId: definition.model}
+    /** Tokens of the images this turn is currently sending along with its tool results. */
+    const turnImageTokens = (): number => {
+      let tokens = 0
+      for (const content of turnImages.values()) {
+        for (const part of content) {
+          if (part.type === 'image') {
+            tokens += contextAccounting.estimateImageTokens(provider.type, definition.model, part.data)
+          }
+        }
+      }
+      return tokens
+    }
+    // Pressure notices raised during this turn. Each stays at the position it was added so the
+    // prompt prefix, and with it the provider's cache, is unchanged from one request to the next.
+    const contextNotices: Array<{index: number; message: piAi.UserMessage}> = []
+    let contextBandTold = 0
+    const contextOverhead =
+      piEstimate.estimateTextTokens(systemPrompt) + piEstimate.estimateTextTokens(safeJSONStringify(offeredTools))
+    const carriedContext = this.#lastContextReading(sessionId)
+    let contextOverflowed = false
 
     // Streamed text reaches subscribers as the harness commits it: partial answers are committed
     // (and so published) at most every ~100 ms, which already batches a reasoning model's hundreds
@@ -8981,6 +9087,7 @@ export class Service {
         if (message.stopReason === 'error') {
           if (!live) return
           finalError = message.errorMessage || 'Agent run failed'
+          contextOverflowed = piAi.isContextOverflow(message, model.contextWindow)
           recordPerfCount(
             `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
           )
@@ -9001,7 +9108,10 @@ export class Service {
         // resumed after a restart asks again), the complete answer follows and the fragment is
         // not a message of its own.
         const stoppedPartial = message.stopReason === 'aborted'
-        const text = stoppedPartial && !(live && runningSession?.stopped) ? '' : piAssistantText(message)
+        // A link the model wrote to `hm://hyper.media` goes to the knowledge base this server reads: a client would
+        // resolve the domain to the production docs. The harness keeps the model's own wording.
+        const text =
+          stoppedPartial && !(live && runningSession?.stopped) ? '' : resolveDocsMarkdown(piAssistantText(message))
         if (text.trim()) {
           this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
           const appended = this.#appendSessionEvent(
@@ -9434,19 +9544,73 @@ export class Service {
                   else signal.addEventListener('abort', () => reject(signal.reason), {once: true})
                 })
               }
-              turnState ??= {index: request.messages.length, messages: turnStateMessages()}
-              const messages = request.messages.map((message) => {
-                if (message.role !== 'toolResult') return message
-                const images = turnImages.get(message.toolCallId)
-                return images ? {...message, content: images} : message
-              })
-              return {
-                messages: [
-                  ...messages.slice(0, turnState.index),
-                  ...turnState.messages,
-                  ...messages.slice(turnState.index),
-                ],
+              const withImages = () =>
+                request.messages.map((message) => {
+                  if (message.role !== 'toolResult') return message
+                  const images = turnImages.get(message.toolCallId)
+                  return images ? {...message, content: images} : message
+                })
+              const estimate = (messages: readonly piAi.Message[]) =>
+                contextAccounting.estimateNextPromptTokens(messages, contextModel, {
+                  overheadTokens: contextOverhead,
+                  ...(carriedContext ? {carriedPromptTokens: protocol.contextTokensOfReading(carriedContext)} : {}),
+                  // Images measured in an earlier run are not part of this one's prompts.
+                  ...(turnCount === 0 && carriedContext
+                    ? {measuredDiscountTokens: carriedContext.ephemeralImageTokens}
+                    : {}),
+                })
+              let messages = withImages()
+              let promptTokens = estimate(messages)
+              // Images are the one part of a prompt that can be left out without losing the record:
+              // the tool result keeps its text. Oldest go first, and only when the prompt cannot fit.
+              const shedImages: string[] = []
+              for (const callId of [...turnImages.keys()]) {
+                if (promptTokens < model.contextWindow) break
+                turnImages.delete(callId)
+                shedImages.push(callId)
+                messages = withImages()
+                promptTokens = estimate(messages)
               }
+              if (!turnState) {
+                turnState = {
+                  index: request.messages.length,
+                  messages: turnStateMessages(carriedContext || turnCount > 0 ? promptTokens : undefined),
+                }
+                contextBandTold = contextPressureBand(promptTokens / model.contextWindow)
+              } else if (canContinueSession) {
+                const band = contextPressureBand(promptTokens / model.contextWindow)
+                if (band > contextBandTold) {
+                  contextBandTold = band
+                  contextNotices.push({
+                    index: request.messages.length,
+                    message: {
+                      role: 'user',
+                      content: contextUsageBlock(promptTokens, model.contextWindow)!,
+                      timestamp: Date.now(),
+                    },
+                  })
+                }
+              }
+              if (shedImages.length) {
+                contextNotices.push({
+                  index: request.messages.length,
+                  message: {
+                    role: 'user',
+                    content: `<context_notice>${shedImages.length} image(s) shown earlier in this turn were removed because the prompt no longer fit this model's context window. Their tool results remain as text.</context_notice>`,
+                    timestamp: Date.now(),
+                  },
+                })
+              }
+              const insertions = [
+                {index: turnState.index, messages: turnState.messages},
+                ...contextNotices.map((notice) => ({index: notice.index, messages: [notice.message]})),
+              ]
+              const sent: piAi.Message[] = []
+              for (let index = 0; index <= messages.length; index += 1) {
+                for (const insertion of insertions) if (insertion.index === index) sent.push(...insertion.messages)
+                if (index < messages.length) sent.push(messages[index]!)
+              }
+              return {messages: sent}
             },
           }),
         ],
@@ -9678,6 +9842,19 @@ export class Service {
             ? `Model not found: ${model.provider}/${definition.model}`
             : `Agent run ended without an answer (${settled.reason})`
     }
+    if (finalError && contextOverflowed) {
+      // The provider refused the prompt as too large, so this session cannot answer. When it can
+      // continue, the conversation moves to a successor that answers the same message.
+      const continued = this.#continueAfterContextOverflow(
+        accountId,
+        sessionId,
+        run?.id,
+        continuationToolContext.continueSession,
+        live,
+      )
+      if (continued) throw new SessionContinuedError(continued)
+      finalError = `This conversation no longer fits the context window of ${definition.model}. Start a new session or switch to a model with a larger window. (${finalError})`
+    }
     if (finalError) {
       const recovery = await this.#recoverSubscriptionAuth(accountId, provider, finalError)
       if (recovery === 'refreshed') {
@@ -9789,8 +9966,8 @@ export class Service {
     // Results that arrived for calls the conversation already answered with a placeholder.
     const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
     let appendable = sync.importedSeq > 0
-    // A session that used the browser or private memory is rebuilt from the log on every turn:
-    // the durable conversation would otherwise carry owner-only content into a reader's turn
+    // A session that used the browser is rebuilt from the log on every turn:
+    // the durable conversation would otherwise carry the owner's page content into a reader's turn
     // (or a reader's redacted copy into the owner's). #piMessages redacts by the run's access.
     if (this.#browserPrivacy.scanSessionIsPrivate(sessionId)) appendable = false
     let interrupted = false
@@ -10002,14 +10179,14 @@ export class Service {
    * `left` names events to leave out: messages another run will put to the model itself.
    */
   #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
-    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
+    const privateSession = !hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
     )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
-      .map((event) => (agentMemory.hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
+      .map((event) => (hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
 
     // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
     // DIRECTLY after the assistant message that made the calls, but the durable event order
@@ -10829,10 +11006,11 @@ export class Service {
       this.#db,
       `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
     ).get(accountId, effective.modelProvider)
-    if (!providerRow) return modelContextWindow('', effective.model)
+    if (!providerRow) return protocol.modelContextWindow('', effective.model)
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const subscription = provider.authMode === 'subscription'
-    return piModelForDefinition(provider.type, provider.type, '', effective, {subscription}).contextWindow
+    const baseUrl = subscription ? '' : resolveProviderBaseUrl(provider.type, provider.baseUrl)
+    return piModelForDefinition(provider.type, provider.type, baseUrl, effective, {subscription}).contextWindow
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
@@ -12129,8 +12307,7 @@ function formatMemoryLine(summary: agentMemory.AgentMemorySummary): string {
 
 /** Refreshes one memory line off the prompt path; at most one refresh per state dir in flight. */
 function scheduleMemorySummaryRefresh(stateDir: string): void {
-  const summaryKey = `${stateDir}#${agentMemory.hasOwnerAccess() ? 'owner' : 'reader'}`
-  const cached = memorySummaryCache.get(summaryKey)
+  const cached = memorySummaryCache.get(stateDir)
   if (cached?.refreshing) return
   if (cached) cached.refreshing = true
   void (async () => {
@@ -12144,8 +12321,8 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    const changed = memorySummaryCache.get(summaryKey)?.line !== line
-    memorySummaryCache.set(summaryKey, {line, walkedAt: Date.now(), holdMs})
+    const changed = memorySummaryCache.get(stateDir)?.line !== line
+    memorySummaryCache.set(stateDir, {line, walkedAt: Date.now(), holdMs})
     // The line is baked into cached space indexes; drop them so the next prompt picks it up. The
     // rest of an index rebuild is a few small SQL reads.
     if (changed) spaceIndexCache.clear()
@@ -12161,8 +12338,7 @@ export function invalidateSpaceIndex(accountId: string, agentId?: string): void 
 }
 
 export function buildSpaceIndex(input: SpaceIndexInput): string {
-  const visibility = agentMemory.hasOwnerAccess() ? 'owner' : 'reader'
-  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}#${visibility}`
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
   const cached = spaceIndexCache.get(cacheKey)
   if (cached !== undefined) return cached
 
@@ -12192,8 +12368,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   }
 
   let memoryLine: string
-  const summaryKey = `${input.stateDir}#${visibility}`
-  const cachedSummary = memorySummaryCache.get(summaryKey)
+  const cachedSummary = memorySummaryCache.get(input.stateDir)
   if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
     memoryLine = cachedSummary.line
   } else if (cachedSummary && cachedSummary.holdMs > 0) {
@@ -12212,7 +12387,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    memorySummaryCache.set(summaryKey, {line: memoryLine, walkedAt: Date.now(), holdMs})
+    memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
   }
 
   const triggers = stmt<{name: string; enabled: number}, [string, string]>(
@@ -12794,7 +12969,7 @@ function promptBlocksToMarkdown(blocks: HMBlockNode[]): string {
 function stripPromptMarkdownArtifacts(markdown: string): string {
   return markdown
     .replace(/^---\n---\n\n?/, '')
-    .replace(/[ \t]*<!-- id:[^>]+ -->/g, '')
+    .replace(/[ \t]*<!-- id:.*? -->/g, '')
     .trim()
 }
 
@@ -14004,7 +14179,7 @@ function piModelForDefinition(
     // Image input gates whether view_attachment returns actual image content to the model.
     input: modelSupportsImageInput(type, definition.model) ? ['text', 'image'] : ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
-    contextWindow: modelContextWindow(type, definition.model),
+    contextWindow: contextAccounting.resolveContextWindow(type, definition.model, baseUrl),
     maxTokens: 16384,
   }
 }
@@ -14029,7 +14204,7 @@ export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
-  /** Agent state directory holding the private memory filesystem. */
+  /** Agent state directory holding the memory filesystem. */
   stateDir: string
   /** Session this run belongs to, scoping attachment addresses. */
   sessionId: string
@@ -14112,6 +14287,8 @@ type ParsedWriteDocumentContent = {
   ops: DocumentOperation[]
   metadata: HMMetadata
   blocks: HMBlockNode[]
+  /** How the body was written. Markdown says less than blocks do, so an update compares it differently. */
+  format?: 'markdown' | 'json'
 }
 
 /**
@@ -14330,37 +14507,113 @@ function rawDocumentUrl(info: HMRawDocumentInfo): string {
   return path ? `hm://${info.account}/${path}` : `hm://${info.account}`
 }
 
-/** A one-line rendering of a document's attributes, standard header fields first, bounded. */
-function attributesLine(metadata: Record<string, unknown> | undefined, max = 400): string {
-  if (!metadata) return ''
-  const entries = Object.entries(metadata).filter(([key]) => key !== 'name')
-  const text = entries
-    .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
-    .join(' · ')
+/** How an attribute value reads in a listing: absent and empty are spelled out, never blank. */
+function attributeText(value: unknown): string {
+  if (value === undefined || value === null) return '(missing)'
+  if (value === '') return '""'
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+/** The value at a key, or at a dotted path of nested keys when no attribute has that exact name. */
+function attributeAtPath(metadata: Record<string, unknown> | undefined, key: string): unknown {
+  if (!metadata) return undefined
+  if (key in metadata) return metadata[key]
+  let current: unknown = metadata
+  for (const part of key.split('.')) {
+    if (!isRecord(current)) return undefined
+    current = current[part]
+  }
+  return current
+}
+
+/**
+ * A one-line rendering of a document's attributes, bounded. Without `select` it is every attribute
+ * the document has except its name; with it, exactly those keys in that order, absent ones shown
+ * as `(missing)` so a column the caller asked about is never silently blank.
+ */
+function attributesLine(metadata: Record<string, unknown> | undefined, max = 400, select?: string[]): string {
+  const entries: Array<[string, unknown]> = select
+    ? select.map((key) => [key, attributeAtPath(metadata, key)])
+    : Object.entries(metadata ?? {}).filter(([key]) => key !== 'name')
+  const text = entries.map(([key, value]) => `${key}: ${attributeText(value)}`).join(' · ')
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
+/** `$`-prefixed names for a document's built-in fields, as `sort:` in `q` and `select` spell them. */
+const AGENT_QUERY_BUILTIN_NAMES: Record<string, (typeof AGENT_QUERY_BUILTIN_SORTS)[number]> = {
+  $name: 'NAME',
+  $path: 'PATH',
+  $created: 'CREATE_TIME',
+  $updated: 'UPDATE_TIME',
+  $activity: 'ACTIVITY_TIME',
+  $comments: 'COMMENT_COUNT',
+}
+
+type AgentQueryPlan = {
+  filter: HMDocumentFilter | undefined
+  warnings: string[]
+  /** The attribute predicates of `q`, for the hints a query with no results gets. */
+  predicates: ExplorePredicate[]
+  /** The `sort:` directive of `q`, when it carries one. */
+  sort: HMDocumentSort[] | undefined
+  /** The one space `q` is scoped to, when it names exactly one: hints look values up there. */
+  account: string | undefined
+}
+
 /** Compile `q` (the Explore grammar) and/or a raw `filter` into one DocumentFilter, with warnings. */
-function compileAgentQueryFilter(
-  q: string,
-  rawFilter: unknown,
-): {filter: HMDocumentFilter | undefined; warnings: string[]} {
+function compileAgentQueryFilter(q: string, rawFilter: unknown): AgentQueryPlan {
   const warnings: string[] = []
   const parts: HMDocumentFilter[] = []
+  let predicates: ExplorePredicate[] = []
+  let sort: HMDocumentSort[] | undefined
+  let account: string | undefined
   if (q) {
     const parsed = parseExploreQuery(q)
     const compiled = compileExploreQuery(parsed, {type: 'node'})
-    for (const diagnostic of compiled.diagnostics) warnings.push(diagnostic.message)
+    // A malformed query still compiles to something; say what was wrong with it rather than
+    // answer a different question without comment.
+    for (const diagnostic of [...parsed.diagnostics, ...compiled.diagnostics]) {
+      if (!warnings.includes(diagnostic.message)) warnings.push(diagnostic.message)
+    }
     if (compiled.textTerms.length) {
       warnings.push(
         `Free-text terms are not matched by query (${compiled.textTerms
           .map((term) => (term.phrase ? `"${term.value}"` : term.value))
-          .join(', ')}); use the search tool for text.`,
+          .join(', ')}); use the search tool for text. A key with spaces is quoted before its operator: "Due Date"=x.`,
       )
     }
     if (compiled.requestedTypes.length || compiled.excludedTypes.length) {
       warnings.push('`type:` predicates are ignored by query: it only returns documents.')
     }
+    if (parsed.presentation.view || parsed.presentation.columns) {
+      warnings.push('`view:` and `cols:` are ignored by query; pass `select` to choose the attributes shown.')
+    }
+    if (
+      compiled.documentPredicates.some(
+        (predicate) =>
+          predicate.kind === 'attribute' && predicate.operator === 'comparison' && predicate.comparison === '!=',
+      )
+    ) {
+      warnings.push(
+        '`key!=value` matches only documents that have the key; write `NOT key=value` to include documents without it.',
+      )
+    }
+    if (parsed.presentation.sort?.length) {
+      sort = parsed.presentation.sort.map((rule): HMDocumentSort => {
+        const builtin = AGENT_QUERY_BUILTIN_NAMES[rule.key.toLowerCase()]
+        const descending = rule.direction === 'desc'
+        return builtin
+          ? {attribute: `BUILTIN_SORT_ATTRIBUTE_${builtin}` as HMDocumentSort['attribute'], descending}
+          : {key: rule.key, descending}
+      })
+    }
+    predicates = compiled.documentPredicates
+    const spaces = new Set(
+      compiled.positiveScopes.flatMap((scope) =>
+        scope.scope === 'space' ? [scope.value] : scope.scope === 'url' ? [unpackHmId(scope.value)?.uid ?? ''] : [],
+      ),
+    )
+    if (spaces.size === 1) account = [...spaces][0] || undefined
     if (compiled.filter) parts.push(compiled.filter)
   }
   if (rawFilter !== undefined) {
@@ -14368,7 +14621,7 @@ function compileAgentQueryFilter(
     parts.push(rawFilter as HMDocumentFilter)
   }
   const filter = parts.length === 0 ? undefined : parts.length === 1 ? parts[0] : {and: {filters: parts}}
-  return {filter, warnings}
+  return {filter, warnings, predicates, sort, account}
 }
 
 function agentQuerySort(raw: unknown): HMDocumentSort[] | undefined {
@@ -14386,63 +14639,301 @@ function agentQuerySort(raw: unknown): HMDocumentSort[] | undefined {
   })
 }
 
+/**
+ * `childrenOf`: the direct children of one document. The daemon's filters can scope to a subtree
+ * (the document itself and every descendant) but not to one level, so the subtree is queried and
+ * the level kept here; a page can therefore come back shorter than `pageSize`.
+ */
+function agentQueryChildScope(
+  raw: unknown,
+): {url: string; account: string; filter: HMDocumentFilter; isChild: (info: HMRawDocumentInfo) => boolean} | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (typeof raw !== 'string') throw new APIError(400, 'query childrenOf must be an hm:// document URL')
+  const trimmed = raw.trim().replace(/\/:directory$/, '')
+  const parent = unpackHmId(trimmed.startsWith('hm://') ? trimmed : `hm://${trimmed}`)
+  if (!parent) throw new APIError(400, 'query childrenOf must be an hm:// document URL')
+  const parentPath = (parent.path ?? []).filter(Boolean)
+  const url = packBaseId(parent.uid, parentPath)
+  return {
+    url,
+    account: parent.uid,
+    filter: {urlMatch: {url, prefix: true}},
+    isChild: (info) =>
+      info.account === parent.uid && (info.path ?? '').split('/').filter(Boolean).length === parentPath.length + 1,
+  }
+}
+
+function agentQuerySelect(raw: unknown): string[] | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw) || raw.some((key) => typeof key !== 'string' || !key.trim())) {
+    throw new APIError(400, 'query select must be an array of attribute keys')
+  }
+  const keys = raw.map((key) => (key as string).trim())
+  return keys.length ? keys : undefined
+}
+
+/** A document's built-in fields under the `$` names `select` and `groupBy` accept. */
+function agentQueryRowFields(info: HMRawDocumentInfo): Record<string, unknown> {
+  return {
+    ...(info.metadata ?? {}),
+    $path: info.path ?? '',
+    $created: info.createTime,
+    $updated: info.updateTime,
+    $authors: info.authors?.length ? info.authors.join(', ') : undefined,
+  }
+}
+
+/** Most documents a counting query reads before it reports a lower bound. */
+const AGENT_QUERY_COUNT_MAX_DOCUMENTS = 5000
+/** Most subtree pages one `childrenOf` listing reads to fill a page with direct children. */
+const AGENT_QUERY_CHILD_SCAN_PAGES = 20
+/** Rows of a listing stop here so the page token and the notes always fit the model's result. */
+const AGENT_QUERY_ROWS_BYTES = 24 * 1024
+
+/**
+ * Why a query that should have matched found nothing: attribute keys and string values compare
+ * exactly, so `priority=high` misses `Priority: High`. Looks the keys of `q` up among the names
+ * documents use, and an equality's value among the values that key takes. Best effort: a lookup
+ * that fails adds no hint.
+ */
+async function agentQueryEmptyHints(
+  client: ReturnType<typeof createSeedClient>,
+  predicates: ExplorePredicate[],
+  account: string | undefined,
+): Promise<string[]> {
+  const hints: string[] = []
+  const seen = new Set<string>()
+  const where = account ? ' in this space' : ''
+  for (const predicate of predicates) {
+    if (predicate.kind !== 'attribute' || seen.has(predicate.key) || seen.size >= 4) continue
+    seen.add(predicate.key)
+    const path = predicate.key.split('.')
+    const last = path[path.length - 1]!
+    const spelled = (name: string) => `\`${[...path.slice(0, -1), name].join('.')}\``
+    try {
+      const known = await client.request('ListDocumentAttributeNames', {
+        account,
+        parentPath: path.slice(0, -1),
+        prefix: last,
+        pageSize: 50,
+      })
+      const names = (known.names ?? []).map((entry) => entry.name)
+      const variants = names.filter((name) => name !== last && name.toLowerCase() === last.toLowerCase())
+      if (!names.includes(last)) {
+        hints.push(
+          variants.length
+            ? `No document has an attribute \`${predicate.key}\`. Keys are case-sensitive: did you mean ${variants
+                .map(spelled)
+                .join(' or ')}?`
+            : `No document has an attribute \`${predicate.key}\`; call attributes to list the names in use.`,
+        )
+        continue
+      }
+      // The names listing is network-wide (a space only orders it), so a key that exists somewhere
+      // may still be the wrong spelling here: the values, which a space does restrict, decide.
+      const listed = await client.request('ListDocumentAttributeValues', {
+        path,
+        kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING',
+        account,
+        pageSize: 30,
+      })
+      const values = (listed.values ?? []).flatMap((entry) =>
+        typeof entry.value?.stringValue === 'string' ? [entry.value.stringValue] : [],
+      )
+      const otherSpellings = variants.length
+        ? ` Keys are case-sensitive, and ${variants.map(spelled).join(' and ')} ${
+            variants.length === 1 ? 'is' : 'are'
+          } also in use: check which spelling these documents carry.`
+        : ''
+      if (!values.length) {
+        if (otherSpellings)
+          hints.push(`No document${where} has a text value for \`${predicate.key}\`.${otherSpellings}`)
+        continue
+      }
+      if (predicate.operator !== 'comparison' || predicate.comparison !== '=' || typeof predicate.value !== 'string') {
+        continue
+      }
+      const wanted = predicate.value
+      if (values.includes(wanted)) continue
+      const shown = (value: string) => (value === '' ? '"" (empty)' : `"${value}"`)
+      const closest = values.filter((value) => value.toLowerCase() === wanted.toLowerCase())
+      hints.push(
+        closest.length
+          ? `No document${where} has \`${
+              predicate.key
+            }\` exactly "${wanted}". Values compare exactly: did you mean ${closest.map(shown).join(' or ')}? (\`${
+              predicate.key
+            }:${wanted}\` matches ignoring case.)`
+          : `No document${where} has \`${predicate.key}\` exactly "${wanted}". Values in use${where}: ${values
+              .slice(0, 20)
+              .map(shown)
+              .join(', ')}${listed.nextPageToken || values.length > 20 ? ', …' : ''}.`,
+      )
+    } catch {
+      // A hint is a courtesy; the empty result stands on its own.
+    }
+  }
+  return hints
+}
+
 async function executeAgentServiceQuery(
   context: AgentServicePiToolContext,
   raw: unknown,
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
   const q = typeof input.q === 'string' ? input.q.trim() : ''
-  if (!q && input.filter === undefined) throw new APIError(400, 'query needs `q` (Explore grammar) or `filter`')
-  const {filter, warnings} = compileAgentQueryFilter(q, input.filter)
-  if (!filter) throw new APIError(400, `query has no attribute conditions: ${warnings.join(' ') || q}`)
-  const sort = agentQuerySort(input.sort)
-  const pageSize = boundedInteger(input.pageSize, 25, 1, 100)
-  const pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const childScope = agentQueryChildScope(input.childrenOf)
+  if (!q && input.filter === undefined && !childScope) {
+    throw new APIError(400, 'query needs `q` (Explore grammar), `filter`, or `childrenOf`')
+  }
+  const plan = compileAgentQueryFilter(q, input.filter)
+  const filters = [childScope?.filter, plan.filter].filter((part): part is HMDocumentFilter => !!part)
+  if (!filters.length) throw new APIError(400, `query has no attribute conditions: ${plan.warnings.join(' ') || q}`)
+  const filter = filters.length === 1 ? filters[0]! : {and: {filters}}
+  const sort = agentQuerySort(input.sort) ?? plan.sort
+  const select = agentQuerySelect(input.select)
+  const groupBy = typeof input.groupBy === 'string' && input.groupBy.trim() ? input.groupBy.trim() : undefined
+  const warnings = [...plan.warnings]
   const client = createSeedClient(context.hmServerUrl)
-  const output = await client.request('QueryDocuments', {filter, sort, pageSize, pageToken})
-  const results = (output.documents ?? []).map((info) => ({
+  const described = [q ? `\`${q}\`` : '', childScope ? `children of ${childScope.url}` : ''].filter(Boolean).join(', ')
+  const forWhat = described ? ` for ${described}` : ''
+  const notes = (extra: string[] = []) => [...warnings, ...extra].map((warning) => `Note: ${warning}`)
+
+  // Counting: read every match (bounded) and report how many there are, by value when grouped.
+  if (input.count === true || groupBy) {
+    let total = 0
+    let pageToken: string | undefined
+    const groups = new Map<string, number>()
+    do {
+      const output = await client.request('QueryDocuments', {filter, pageSize: 100, pageToken})
+      for (const info of output.documents ?? []) {
+        if (childScope && !childScope.isChild(info)) continue
+        total++
+        if (groupBy) {
+          const value = attributeText(attributeAtPath(agentQueryRowFields(info), groupBy))
+          groups.set(value, (groups.get(value) ?? 0) + 1)
+        }
+      }
+      pageToken = output.nextPageToken || undefined
+    } while (pageToken && total < AGENT_QUERY_COUNT_MAX_DOCUMENTS)
+    const complete = !pageToken
+    const counts = [...groups.entries()]
+      .map(([value, count]) => ({value, count}))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+    const hints =
+      total === 0 ? await agentQueryEmptyHints(client, plan.predicates, childScope?.account ?? plan.account) : []
+    const summary = `${complete ? '' : 'At least '}${total} document${total === 1 ? '' : 's'}${forWhat}.`
+    return {
+      summary,
+      total,
+      complete,
+      ...(groupBy ? {groupBy, counts} : {}),
+      markdown: [
+        summary,
+        ...(complete ? [] : [`Counting stopped at ${total} documents; narrow the query for an exact total.`]),
+        ...(groupBy ? ['', `By \`${groupBy}\`:`, ...counts.map((entry) => `- ${entry.value}: ${entry.count}`)] : []),
+        ...(warnings.length || hints.length ? ['', ...notes(hints)] : []),
+      ].join('\n'),
+      q: q || undefined,
+      childrenOf: childScope?.url,
+      filter,
+      ...(warnings.length || hints.length ? {warnings: [...warnings, ...hints]} : {}),
+    }
+  }
+
+  const pageSize = boundedInteger(input.pageSize, 50, 1, 100)
+  let pageToken = typeof input.pageToken === 'string' && input.pageToken ? input.pageToken : undefined
+  const documents: HMRawDocumentInfo[] = []
+  let pagesRead = 0
+  do {
+    const output = await client.request('QueryDocuments', {filter, sort, pageSize, pageToken})
+    pagesRead++
+    for (const info of output.documents ?? []) {
+      if (!childScope || childScope.isChild(info)) documents.push(info)
+    }
+    pageToken = output.nextPageToken || undefined
+    // Only a direct-children listing reads on: its pages lose the deeper descendants.
+  } while (childScope && pageToken && documents.length < pageSize && pagesRead < AGENT_QUERY_CHILD_SCAN_PAGES)
+  const nextPageToken = pageToken
+  const results = documents.map((info) => ({
     url: rawDocumentUrl(info),
     name: typeof info.metadata?.name === 'string' ? info.metadata.name : undefined,
     account: info.account,
     path: info.path ?? '',
     attributes: info.metadata ?? {},
     authors: info.authors ?? [],
+    createTime: info.createTime,
     updateTime: info.updateTime,
     version: info.version,
   }))
-  const nextPageToken = output.nextPageToken || undefined
-  const markdown = results.length
-    ? [
-        `Query results${q ? ` for \`${q}\`` : ''} (${results.length} document${results.length === 1 ? '' : 's'}${
-          nextPageToken ? ', more available' : ''
-        })`,
-        '',
-        ...results.flatMap((result, index) => [
-          `${index + 1}. [${result.name || result.url}](${result.url})`,
-          ...(result.updateTime ? [`   - Updated: ${result.updateTime}`] : []),
-          ...(Object.keys(result.attributes).length ? [`   - Attributes: ${attributesLine(result.attributes)}`] : []),
+  const hints =
+    results.length === 0 && !nextPageToken
+      ? await agentQueryEmptyHints(client, plan.predicates, childScope?.account ?? plan.account)
+      : []
+  const count = `${results.length} document${results.length === 1 ? '' : 's'}`
+  const summary = results.length
+    ? nextPageToken
+      ? `${count} on this page${forWhat}; more exist.`
+      : `Found ${count}${forWhat}; that is all of them.`
+    : nextPageToken
+      ? `No documents on this page${forWhat}; more pages exist.`
+      : `No documents match${described ? ` ${described}` : ' the filter'}.`
+  // One line per document. The rows are cut at a byte budget so the paging line above them and
+  // the notes below always reach the model.
+  const rows: string[] = []
+  let rowBytes = 0
+  for (const [index, info] of documents.entries()) {
+    const result = results[index]!
+    const attributes = select
+      ? attributesLine(agentQueryRowFields(info), 600, select)
+      : attributesLine(info.metadata, 300)
+    const row = `- [${result.name || result.url}](${result.url})${attributes ? ` — ${attributes}` : ''}`
+    rowBytes += Buffer.byteLength(row, 'utf8') + 1
+    if (rowBytes > AGENT_QUERY_ROWS_BYTES) break
+    rows.push(row)
+  }
+  const hidden = results.length - rows.length
+  const markdown = [
+    summary,
+    ...(nextPageToken
+      ? [
+          `Next page: call again with the same input plus pageToken "${nextPageToken}". For a total without paging, call with count: true.`,
+        ]
+      : []),
+    ...(rows.length ? ['', ...rows] : []),
+    ...(hidden > 0
+      ? [
           '',
-        ]),
-        ...(nextPageToken ? [`More results: call again with pageToken "${nextPageToken}".`] : []),
-        ...(warnings.length ? ['', ...warnings.map((warning) => `Note: ${warning}`)] : []),
-      ].join('\n')
-    : [`No documents match${q ? ` \`${q}\`` : ' the filter'}.`, ...warnings.map((warning) => `Note: ${warning}`)].join(
-        '\n',
-      )
+          `${hidden} more document${
+            hidden === 1 ? ' is' : 's are'
+          } on this page but not shown (the listing got too long). Call again with \`select\` naming the few attributes you need, or a smaller pageSize.`,
+        ]
+      : []),
+    ...(warnings.length || hints.length ? ['', ...notes(hints)] : []),
+  ].join('\n')
   return {
-    summary: results.length
-      ? `Found ${results.length}${nextPageToken ? '+' : ''} document${results.length === 1 ? '' : 's'}${
-          q ? ` for \`${q}\`` : ''
-        }.`
-      : `No documents match${q ? ` \`${q}\`` : ' the filter'}.`,
+    summary,
+    nextPageToken,
     markdown,
     q: q || undefined,
+    childrenOf: childScope?.url,
     filter,
     sort,
+    ...(warnings.length || hints.length ? {warnings: [...warnings, ...hints]} : {}),
     results,
-    nextPageToken,
-    ...(warnings.length ? {warnings} : {}),
   }
+}
+
+/**
+ * What the model keeps of a callable's result. `query` returns each document twice, as a markdown
+ * row and as a `results` record; scripts (ctx.call) read the records, the model reads the rows, so
+ * the records and the compiled filter are left out of the transcript the model pays for.
+ */
+export function modelFacingCallResult(toolName: unknown, output: Record<string, unknown>): Record<string, unknown> {
+  const name = typeof toolName === 'string' ? normalizeSeedToolName(toolName.trim()) : ''
+  if (name !== callableToolRegistry.query.name || typeof output.markdown !== 'string') return output
+  const {results: _results, filter: _filter, sort: _sort, ...rest} = output
+  return rest
 }
 
 // ── attributes: which keys exist, and their values (ListDocumentAttributeNames / Values) ────────
@@ -14558,7 +15049,12 @@ async function executeAgentServiceAttributes(
     ? [
         `Values of \`${key}\`${account ? ` in ${account}` : ''}:`,
         '',
-        ...values.map((entry) => `- ${entry.value === null ? 'null' : String(entry.value)} (${entry.kind})`),
+        ...values.map(
+          (entry) =>
+            `- ${entry.value === null ? 'null' : entry.value === '' ? '"" (an empty string)' : String(entry.value)} (${
+              entry.kind
+            })`,
+        ),
         ...(nextPageToken ? ['', `More values: call again with pageToken "${nextPageToken}".`] : []),
       ].join('\n')
     : `No values recorded for \`${key}\`.`
@@ -14693,6 +15189,9 @@ function withPageResult(
   folder: WritePageFolder | undefined,
   tool?: WriteToolFolder,
 ): Record<string, unknown> {
+  // A write that changed nothing published nothing: its message already says so, and "is
+  // published" beside it would read as a new revision.
+  const unchanged = result.unchanged === true
   if (tool && !result.error)
     return {
       ...result,
@@ -14700,8 +15199,12 @@ function withPageResult(
       code: tool.code,
       toolFiles: tool.files,
       toolBytes: tool.bytes,
-      instructions:
-        'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+      ...(unchanged
+        ? {}
+        : {
+            instructions:
+              'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+          }),
     }
   if (!folder) return result
   const id = typeof result.id === 'string' ? result.id : undefined
@@ -14714,7 +15217,7 @@ function withPageResult(
     pageBytes: folder.bytes,
     pageValidation: {...folder.validation, bundle: folder.html},
     ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
-    ...(id
+    ...(id && !(unchanged && !result.dryRun)
       ? {
           instructions:
             (result.dryRun
@@ -14869,7 +15372,7 @@ function readThreadAddress(
     context.agentId,
   )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
-  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
+  if (!hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
@@ -14917,7 +15420,7 @@ function readThreadAddress(
 function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
   const run = runs.getRun(context.db, context.accountId, runId)
   if (!run) throw new APIError(404, `No run ${runId}`)
-  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
+  if (!hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
   return {
     summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
     ...runInfoFromRecord(run),
@@ -15785,8 +16288,7 @@ const THREAD_SEARCH_EVENTS_PER_SESSION = 25
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
-  const visible = (sessionId: string) =>
-    agentMemory.hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
+  const visible = (sessionId: string) => hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
   const limit = boundedInteger(options.limit, 25, 1, 100)
   const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
@@ -16245,8 +16747,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
-  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData', 'tool', 'trigger', 'force', 'edits'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -16367,8 +16869,16 @@ async function writeIpfsObject(
       })
     : null
   const force = options.force === true
-  const violationsOf = (candidate: unknown): string[] =>
-    loaded ? validateSchema(loaded.schema, withoutSchemaLink(candidate), '$', {}, loaded.registry) : []
+  const violationsOf = (candidate: unknown): string[] => {
+    if (!loaded) return []
+    const bare = withoutSchemaLink(candidate)
+    const violations = validateSchema(loaded.schema, bare, '$', {}, loaded.registry)
+    // A schema's property defaults must match their own properties. The meta-schema cannot say
+    // that, so an object published as a schema gets the check on top.
+    if (!violations.length && loaded.schema === HM_SCHEMAS['schema'] && isPlainMap(bare))
+      violations.push(...validateDefaults(bare, '$', {}, loaded.registry))
+    return violations
+  }
   const refuse = (violations: string[]): never => {
     throw new APIError(
       400,
@@ -16771,6 +17281,7 @@ export async function executeWriteVerb(
         ...passthrough,
         ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
         ...(options.allowPlainMentions === true ? {allowPlainMentions: true} : {}),
+        ...(options.force === true ? {force: true} : {}),
         ...commandInput,
       },
     })
@@ -16853,6 +17364,7 @@ export async function executeWriteVerb(
                 ...(typeof options.name === 'string' ? {name: options.name} : {}),
                 ...(metadata ? {metadata} : {}),
                 ...(content !== undefined ? {content, format: 'markdown'} : {}),
+                ...(options.edits !== undefined ? {edits: options.edits} : {}),
               }),
               pageFolder?.blobs ?? toolFolder?.blobs ?? triggerFields?.blobs,
             ),
@@ -17167,17 +17679,12 @@ export async function executeCallVerb(
         throw new APIError(400, 'This model cannot view screenshots. Use snapshot or select a vision-capable model.')
       }
       const output = await context.browser(toolInput as api.BrowserCommand)
-      if (toolInput.action === 'archive' && typeof output.markdown === 'string') {
-        const entry = agentMemory.writeMemoryFile(
-          context.stateDir,
-          `private/browser/archive-${crypto.randomUUID()}.md`,
-          output.markdown,
-        )
-        context.onMemoryChange()
+      if (toolInput.action === 'archive') {
+        // Signed-in page content stays in the owner's local draft: memory is readable by anyone the
+        // agent is shared with, so the capture is neither saved there nor returned to the model.
         delete output.markdown
-        output.memoryPath = `~/memory/${entry.path}`
         output.publishInstructions =
-          'An editable desktop draft and an owner-only private/browser/ memory archive were created; nothing was published. Only the owner can read or publish this archive. Read memoryPath to review or revise the archive. To publish with your available write keys, read ~/tools/write/documents and use write with options.fromPath, preserving the source metadata.'
+          'An editable desktop draft was created; nothing was published. The owner can review and publish it from the app.'
       }
       if (
         isRecord(output.screenshot) &&
@@ -17247,8 +17754,8 @@ export async function executeCallVerb(
 
 function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRuntimeTool[] {
   const promoted = (context.expandedCallables ?? []).flatMap((name) => {
-    const execute = (params: unknown, toolCallId: string) =>
-      executeCallVerb(context, {tool: name, input: params}, toolCallId)
+    const execute = async (params: unknown, toolCallId: string) =>
+      modelFacingCallResult(name, await executeCallVerb(context, {tool: name, input: params}, toolCallId))
     if (context.callableTools.includes(name)) {
       const registryTool = getSeedTool(name)
       if (!registryTool) return []
@@ -17271,7 +17778,12 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
       paginateReadResult(await executeReadVerb(context, params), params),
     ),
     defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
-    defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),
+    defineSeedPiTool(seedVerbRegistry.call, async (params, toolCallId) =>
+      modelFacingCallResult(
+        isRecord(params) ? params.tool : undefined,
+        await executeCallVerb(context, params, toolCallId),
+      ),
+    ),
     defineSeedPiTool(seedVerbRegistry.delegate, (params, toolCallId) => {
       const input = isPlainRecord(params) ? params : {}
       if (typeof input.script === 'string' && input.script) {
@@ -17932,6 +18444,12 @@ async function writeDocumentCreate(
   )
     throw new APIError(400, APP_TRIGGER_NEEDS_TOOL)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  // A new typed document starts from its schema's property defaults: every attribute the type
+  // gives a default and this write does not set. They are written as ordinary attributes and
+  // reported back, so the author knows what the document now says.
+  const defaultsApplied = childId ? await newDocumentDefaults(client, childId, metadata as Record<string, unknown>) : {}
+  Object.assign(metadata as Record<string, unknown>, defaultsApplied)
+  const defaultsReport = Object.keys(defaultsApplied).length ? {defaultsApplied} : {}
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -17939,7 +18457,8 @@ async function writeDocumentCreate(
   const appCapability = app
     ? await requireWriteCapability(client, account, signer.publicKey, hmIdPathToEntityQueryPath(app.id.path))
     : undefined
-  const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  const {report: typed, problems} = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  refuseNonconformingWrite(request.command, `hm://${account}${path}`, problems, request)
   const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -17949,6 +18468,7 @@ async function writeDocumentCreate(
       ...(app ? {app: app.id.id} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
+      ...defaultsReport,
       dryRun: true,
     })
   // The SDK decides which genesis a new document gets, the way the daemon does: the
@@ -17978,39 +18498,72 @@ async function writeDocumentCreate(
     cids: published.cids,
     ...(app ? {app: app.id.id, listedInApp: true} : {}),
     ...typed,
+    ...defaultsReport,
     ...(await readBackDocumentAssets(client, `hm://${account}${path}`, created.version, assets)),
   })
 }
 
 /**
  * How a document fares against its effective attributes schema (its own `attributesSchema`, else the
- * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia schema — reported
- * beside the published id as `schema` and `warnings`, never as a refusal: conformance is advisory
- * (typed-documents.md), and a person may well build the type and its documents together.
+ * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia
+ * schema. The `report` goes beside the id as `schema` and `warnings`; `problems` are the lines a
+ * write refuses on (see `refuseNonconformingWrite`). A schema that cannot be loaded is only a
+ * warning: an unreachable type must not hold a document hostage.
  */
 async function documentSchemaReport(
   client: ReturnType<typeof createSeedClient>,
   id: string,
   metadata: HMMetadata,
-): Promise<Record<string, unknown>> {
+): Promise<{report: Record<string, unknown>; problems: string[]}> {
   const unpacked = unpackHmId(id)
-  if (!unpacked) return {}
-  const out: Record<string, unknown> = {}
+  if (!unpacked) return {report: {}, problems: []}
+  const report: Record<string, unknown> = {}
   const warnings: string[] = []
+  const problems: string[] = []
   const check = await checkDocumentSchema(client, unpacked, metadata as Record<string, unknown>).catch(() => null)
   if (check && check.via !== 'none') {
-    out.schema = check
+    report.schema = check
     if (check.error) warnings.push(`schema ${check.schema} could not be checked: ${check.error}`)
-    for (const violation of check.violations) warnings.push(`does not conform to ${check.schema}: ${violation}`)
+    for (const violation of check.violations) problems.push(`does not conform to ${check.schema}: ${violation}`)
   }
   const definition = (metadata as Record<string, unknown>).schemaDefinition
   if (typeof definition === 'string' && definition) {
     for (const violation of await checkSchemaDefinition(client, definition)) {
-      warnings.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
+      problems.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
     }
   }
-  if (warnings.length) out.warnings = warnings
-  return out
+  warnings.push(...problems)
+  if (warnings.length) report.warnings = warnings
+  return {report, problems}
+}
+
+/**
+ * A document that would not conform to its type is refused unless the write passes
+ * `options.force: true`: a warning beside a successful publish reads as success, and agents
+ * published off-type values that way (Clerk session 44422dd8 set a project's status to
+ * "In Progress" where the type allows "In Development"). A dry run reports instead of refusing.
+ * `existing` lists the problems the current version already has: an update is refused only for
+ * the ones it introduces, so a fix to an already-nonconforming document is never blocked by
+ * a field it did not touch.
+ */
+function refuseNonconformingWrite(
+  command: string,
+  id: string,
+  problems: string[],
+  request: {dryRun: boolean; input: Record<string, unknown>},
+  existing: string[] = [],
+): void {
+  if (request.dryRun || request.input.force === true) return
+  const introduced = problems.filter((problem) => !existing.includes(problem))
+  if (!introduced.length) return
+  throw new APIError(
+    400,
+    `${command} refused: ${id} would not conform to its type (${introduced.length} problem${
+      introduced.length === 1 ? '' : 's'
+    }): ${introduced.join(
+      '; ',
+    )}. Nothing was published. Fix the metadata to match the type (read the schema for its allowed values), or pass options.force: true to publish it anyway.`,
+  )
 }
 
 /**
@@ -18052,6 +18605,8 @@ async function writeDocumentUpdate(
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
   // Content changes follow redirects and publish at the final live document. The requested address
   // remains a redirect; publishing there would revive an old path as an independent document.
+  // (The document and its heads come from two reads; resolveEditableDocument reads both again,
+  // once, when a write landed between them.)
   const base = await resolveEditableDocument(client, id).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
@@ -18065,27 +18620,23 @@ async function writeDocumentUpdate(
   // No content at all means a metadata-only update: the body is left untouched. This must stay
   // distinct from empty content — diffing an absent body against the old tree would emit a
   // delete sweep of every block.
-  const hasContent =
-    request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
-  const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
-  if (parsed) await assertPublishableMermaid(parsed.blocks)
-  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
-  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
-  let contentOps: DocumentOperation[] = []
-  if (parsed) {
-    const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
-    const oldMap = createBlocksMap(oldNodes)
-    // Tables: markdown only carries table/column/row ids, so cell block ids and
-    // unexpressible attributes (column width, header column) are rebound from
-    // the old document before diffing.
-    const newTree = rebindTableIdentities(
-      oldNodes,
-      parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
-    )
-    contentOps = computeReplaceOps(oldMap, newTree)
+  const stored = resource.document.content || []
+  const contentUpdate = planContentUpdate(stored, request.input)
+  if (contentUpdate) {
+    // Only what this write stores is checked: a dead link in a block it leaves alone was published
+    // by an earlier write and is not this one's to refuse.
+    await assertPublishableMermaid(contentUpdate.written)
+    await assertHmContentLinks(client, contentUpdate.written, {skipResolve: request.input.skipLinkCheck === true})
   }
-  const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
-  if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
+  const contentOps = contentUpdate?.ops ?? []
+  const changes = contentUpdate?.changes
+  const metadata = mergeWriteMetadata(contentUpdate?.metadata ?? {}, request.input)
+  // Nothing asked for at all is a mistake in the call. Content or metadata that the document already
+  // holds is not: that write ends as "already up to date" below.
+  if (!contentUpdate && !Object.values(metadata).some((value) => value !== undefined))
+    throw new APIError(400, 'No document updates specified — provide content, edits and/or metadata')
+  const removal = contentUpdate?.refusal
+  if (removal && !request.dryRun && request.input.force !== true) throw new APIError(400, removal)
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -18095,13 +18646,29 @@ async function writeDocumentUpdate(
     signer.publicKey,
     hmIdPathToEntityQueryPath(targetId.path),
   )
-  const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
-  const assets = await preflightDocumentAssets(client, parsed?.blocks ?? resource.document.content ?? [], {
+  const {report: typed, problems} = await documentSchemaReport(client, packHmId(targetId), {
     ...resource.document.metadata,
     ...metadata,
   })
+  if (problems.length && !request.dryRun && request.input.force !== true) {
+    const existing = await documentSchemaReport(client, packHmId(targetId), resource.document.metadata)
+    refuseNonconformingWrite(request.command, packHmId(targetId), problems, request, existing.problems)
+  }
+  // The body as it will read: a block kept as stored keeps its stored links.
+  const body = contentUpdate?.body ?? stored
+  const assets = await preflightDocumentAssets(client, body, {...resource.document.metadata, ...metadata})
+  const plan = planDocumentUpdate(base, metadata, contentOps)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
+      // Known without asking the site: the body diffs to nothing and every attribute already
+      // holds the value written. (A write that does differ here can still end unchanged, when
+      // the site finds the document already reads that way.)
+      ...(plan.differs
+        ? {}
+        : {
+            unchanged: true,
+            message: `${request.command}: dry run — the document already holds this content and metadata, so the write would publish no new version.`,
+          }),
       id: packHmId(id),
       resolvedDocumentId: packHmId(targetId),
       redirectHops: base.redirects.map((hop) => ({
@@ -18109,54 +18676,396 @@ async function writeDocumentUpdate(
         to: packHmId(hop.to),
         republish: hop.republish,
       })),
-      ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      ...(contentUpdate ? {blockCount: body.length} : {metadataOnly: true}),
+      ...(changes ? {changes: contentChangeReport(changes)} : {}),
+      ...(removal && request.input.force !== true ? {wouldRefuse: removal} : {}),
       ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
     })
-  const state = base.state
-  const {unsignedBytes, ts} = createChangeOps({
-    ops,
-    genesisCid: CID.parse(state.genesis),
-    deps: state.heads.map((head) => CID.parse(head)),
-    depth: state.headDepth + 1,
+  const redirectHops = base.redirects.map((hop) => ({
+    from: packHmId(hop.from),
+    to: packHmId(hop.to),
+    republish: hop.republish,
+  }))
+  const update = await writeUpdateBlobs({
+    client,
+    signer: signer.signer,
+    base,
+    plan,
+    capability,
   })
-  const changeBlock = await createChange(unsignedBytes, signer.signer)
-  const refInput = await createVersionRef(
-    {
-      space: targetId.uid,
-      path: hmIdPathToEntityQueryPath(targetId.path),
-      genesis: state.genesis,
-      version: changeBlock.cid.toString(),
-      generation: Number(ts),
-      capability,
-    },
-    signer.signer,
-  )
-  const published = await client.publish({
-    blobs: [
-      {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-      ...refInput.blobs,
-      ...extraBlobs,
-    ],
-  })
+  // Blobs the document refers to (a page bundle, a code folder, uploaded files) are stored whether
+  // or not the document itself changes: they may be what an earlier attempt failed to store.
+  const blobs = [...update.blobs, ...extraBlobs]
+  const published = blobs.length ? await client.publish({blobs}) : {cids: []}
   // A tool, page or trigger its app or agent does not list (a card lost to a race, or never added)
   // is listed again when it is updated.
   const relisted = await relistInHost(client, signer, targetId, {...resource.document.metadata, ...metadata}.type)
+  const version = update.changed ? update.version : resource.document.version
   return writeToolResult(request.command, signer, {
+    ...(update.changed
+      ? {}
+      : {
+          // The site compared the write with the document and found nothing to change. Saying
+          // "completed" with a version would read as a new version having been published.
+          unchanged: true,
+          message: `${request.command}: the document is already up to date — it already holds this content and metadata, so no new version was published. \`version\` is its current version.`,
+        }),
     id: packHmId(id),
     resolvedDocumentId: packHmId(targetId),
     ...(relisted ? {listedInApp: true, app: relisted} : {}),
-    redirectHops: base.redirects.map((hop) => ({
-      from: packHmId(hop.from),
-      to: packHmId(hop.to),
-      republish: hop.republish,
-    })),
-    version: changeBlock.cid.toString(),
+    redirectHops,
+    version,
     cids: published.cids,
+    ...(changes ? {changes: contentChangeReport(changes)} : {}),
     ...typed,
-    ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
+    // Nothing was published when nothing changed, so there is no new version to read back; the
+    // assets were checked before the publish either way.
+    ...(update.changed ? await readBackDocumentAssets(client, packHmId(targetId), version, assets) : {}),
   })
+}
+
+type MarkdownBlockNode = ReturnType<typeof hmBlockNodeToBlockNode>
+
+/** What an update does to a document's body, worked out from the stored blocks and the write's input. */
+export type ContentUpdatePlan = {
+  /** Metadata a markdown body carries in its frontmatter. */
+  metadata: HMMetadata
+  /** The body as it will read. A block kept as stored keeps its stored form. */
+  body: HMBlockNode[]
+  /** The operations that turn the stored body into `body`; none when it already reads that way. */
+  ops: DocumentOperation[]
+  /** The blocks `ops` store (new or rewritten): the ones whose links and diagrams are checked. */
+  written: HMBlockNode[]
+  changes: ContentChange
+  /** Set when the write must not publish unless it passes `options.force` (see largeRemoval). */
+  refusal?: string
+}
+
+/**
+ * Plans the body of a document update. The body changes in one of two ways:
+ *
+ * - `edits` change blocks by id, starting from the stored blocks, so a block no edit names is
+ *   never parsed or compared;
+ * - `content` (also `body`, `text`) is a whole new body. Written as markdown, a block that reads as
+ *   the stored one is the stored one (markdownUpdateTree); given as JSON blocks, it is compared as
+ *   given, after table cells get their ids back.
+ *
+ * Returns undefined when the input carries neither: a metadata-only update, which leaves the body
+ * alone. That must stay distinct from an empty body, which deletes every block. Throws a 400 for
+ * input that cannot be applied. No network.
+ */
+export function planContentUpdate(
+  stored: HMBlockNode[],
+  input: Record<string, unknown>,
+): ContentUpdatePlan | undefined {
+  const hasBody = input.content !== undefined || input.body !== undefined || input.text !== undefined
+  const hasEdits = input.edits !== undefined
+  if (hasBody && hasEdits)
+    throw new APIError(
+      400,
+      'Pass either content (a whole new body) or options.edits (changes to blocks by id), not both.',
+    )
+  if (!hasBody && !hasEdits) return undefined
+  const oldNodes = stored.map((node) => toAPIBlockNode(node))
+  let metadata: HMMetadata = {}
+  let tree: MarkdownBlockNode[]
+  if (hasEdits) {
+    const edited = applyBlockEditsOrBadRequest(
+      stored.map((node) => hmBlockNodeToBlockNode(node)),
+      input.edits,
+    )
+    tree = rebindTableIdentities(oldNodes, edited.tree)
+  } else {
+    const parsed = parseWriteDocumentContent(input)
+    const written = parsed.blocks.map((node) => hmBlockNodeToBlockNode(node))
+    metadata = parsed.metadata
+    tree = parsed.format === 'markdown' ? markdownUpdateTree(stored, written) : rebindTableIdentities(oldNodes, written)
+  }
+  const ops = computeReplaceOps(createBlocksMap(oldNodes), tree)
+  const changes = describeContentChange(oldNodes, tree, ops)
+  return {
+    metadata,
+    body: markdownBlockNodesToHMBlockNodes(tree),
+    ops,
+    written: writtenBlockNodes(ops),
+    changes,
+    // Edits delete only the blocks they name, so only a whole body is checked for what it leaves out.
+    ...(hasBody ? {refusal: largeRemoval(changes)} : {}),
+  }
+}
+
+/** Applies `options.edits` to the stored blocks; an edit that cannot apply is the caller's mistake. */
+function applyBlockEditsOrBadRequest(tree: MarkdownBlockNode[], edits: unknown) {
+  if (Array.isArray(edits) && edits.length > MAX_BLOCK_EDITS)
+    throw new APIError(400, `Too many edits: at most ${MAX_BLOCK_EDITS} in one update.`)
+  try {
+    return applyBlockEdits(tree, edits, (markdown) => {
+      const content = normalizeWriteContent(markdown, 'Edit content')
+      refusePartialRead(content)
+      return parseMarkdownOrBadRequest(content).tree
+    })
+  } catch (error) {
+    if (error instanceof BlockEditError)
+      throw new APIError(400, `${error.message} Nothing was published; no edit in the list was applied.`)
+    throw error
+  }
+}
+
+const MAX_BLOCK_EDITS = 500
+
+/** The blocks an update stores (new or rewritten), as block nodes for the content checks. */
+function writtenBlockNodes(ops: DocumentOperation[]): HMBlockNode[] {
+  const nodes: HMBlockNode[] = []
+  for (const op of ops) {
+    if (op.type !== 'ReplaceBlock') continue
+    const {type, id, text, link, annotations, ...attributes} = op.block as Record<string, unknown>
+    nodes.push({block: {type, id, text, link, annotations, attributes}, children: []} as unknown as HMBlockNode)
+  }
+  return nodes
+}
+
+/** What a content update did, as the write result reports it. */
+function contentChangeReport(change: ContentChange) {
+  const {added, rewritten, moved, deleted} = change
+  return {added, rewritten, moved, deleted}
+}
+
+const LARGE_REMOVAL_MIN_BLOCKS = 6
+
+/**
+ * A new body deletes every block it leaves out. A body that leaves out most of the document is far
+ * more often a mistake (a summary, one section, a page of a paged read, a draft written from
+ * memory) than a rewrite, so it is refused unless the write passes `options.force: true`. Edits
+ * are not checked: they delete only the blocks they name.
+ */
+function largeRemoval(change: ContentChange): string | undefined {
+  if (change.deleted < LARGE_REMOVAL_MIN_BLOCKS || change.deleted * 2 <= change.blocks) return undefined
+  return `This body would delete ${change.deleted} of the document's ${change.blocks} blocks and keep ${
+    change.blocks - change.deleted
+  }: a block that a replacement body leaves out is deleted. Nothing was published. To change part of the document, send options.edits (changes to blocks by id) instead of content. To keep blocks, write them back as the read returned them. If the document should lose these blocks, repeat the write with options.force: true.`
+}
+
+type AttributeWrite = {key: string[]; value: unknown}
+
+/** The leaf writes that set `value` at `key`: a map is one write per entry, anything else is one value. */
+function attributeLeaves(key: string[], value: unknown, out: AttributeWrite[] = []): AttributeWrite[] {
+  if (isPlainMap(value))
+    for (const [child, childValue] of Object.entries(value)) attributeLeaves([...key, child], childValue, out)
+  else if (value !== undefined) out.push({key, value})
+  return out
+}
+
+/**
+ * Whether the site's `PrepareDocumentChange` can carry this attribute write. It takes strings, whole
+ * numbers, booleans and null under key segments without dots that do not start with `$`. A list, a
+ * fraction, an IPLD link or an unusual key can only be written in a Change built here.
+ */
+function preparableAttribute({key, value}: AttributeWrite): boolean {
+  if (!key.length || !key.every((segment) => segment && !segment.includes('.') && !segment.startsWith('$')))
+    return false
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isSafeInteger(value))
+  )
+}
+
+/** Whether two attribute values are the same value. A null and an absent key are: a null removes the key. */
+function sameAttributeValue(a: unknown, b: unknown): boolean {
+  if (a === b || ((a === undefined || a === null) && (b === undefined || b === null))) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, index) => sameAttributeValue(item, b[index]))
+    )
+  }
+  if (!isPlainRecord(a) || !isPlainRecord(b)) return false
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((key) => key in b && sameAttributeValue(a[key], b[key]))
+}
+
+/**
+ * The attribute writes that make a document's metadata hold `next` for every key `next` names,
+ * given the metadata it holds now (`current`), for an update the site prepares.
+ *
+ * A Change built here says "this key is exactly this map" as a clear followed by every entry
+ * ({@link metadataToWriteSetAttributes}). The site cannot be sent that: it leaves out every entry
+ * whose value is unchanged and keeps the clear, which then removes the whole map (seen on a real
+ * daemon, 2026-11-16). So a map is written as its entries plus a null for each entry the document
+ * has and the new map does not; an entry replaced by a map, or a map by an entry, needs no null,
+ * because a write at a key removes what was stored above and below it.
+ *
+ * `prepared` goes to `PrepareDocumentChange`, which drops what is already true. `verbatim` holds the
+ * writes it cannot carry (see {@link preparableAttribute}) whose value differs from the current one;
+ * they are stored as written, in a Change built here.
+ */
+export function metadataUpdateAttributes(
+  current: Record<string, unknown> | undefined,
+  next: HMMetadata,
+): {prepared: AttributeWrite[]; verbatim: AttributeWrite[]} {
+  const prepared: AttributeWrite[] = []
+  const verbatim: AttributeWrite[] = []
+  const currentAt = (key: string[]) => {
+    let value: unknown = current
+    for (const segment of key) value = isPlainRecord(value) ? value[segment] : undefined
+    return value
+  }
+  const related = (a: string[], b: string[]) => a.slice(0, b.length).every((segment, index) => segment === b[index])
+  for (const [key, value] of Object.entries(next)) {
+    if (value === undefined) continue
+    const writes = attributeLeaves([key], value)
+    if (isPlainMap(value)) {
+      const before = attributeLeaves([key], current?.[key])
+      if (!writes.length) {
+        // An empty map: whatever is there goes.
+        if (before.length) writes.push({key: [key], value: null})
+      } else {
+        const kept = writes.map((write) => write.key)
+        for (const leaf of before) {
+          const replaced = kept.some((keptKey) =>
+            keptKey.length <= leaf.key.length ? related(leaf.key, keptKey) : related(keptKey, leaf.key),
+          )
+          if (!replaced) writes.push({key: leaf.key, value: null})
+        }
+      }
+    }
+    for (const write of writes) {
+      if (preparableAttribute(write)) prepared.push(write)
+      else if (!sameAttributeValue(currentAt(write.key), write.value)) verbatim.push(write)
+    }
+  }
+  return {prepared, verbatim}
+}
+
+type DocumentUpdateBlobs =
+  | {changed: true; blobs: CollectedBlob[]; version: string}
+  | {changed: false; blobs: CollectedBlob[]}
+
+/** An update of a document, split by who can write each part. */
+type DocumentUpdatePlan = {
+  /** What the site is asked to prepare: the content ops and the attribute writes its API can carry. */
+  preparedOps: DocumentOperation[]
+  /** Attribute writes the site's API cannot carry that differ from the document; stored as written. */
+  verbatimOps: DocumentOperation[]
+  /** The whole update as a Change built here stores it, for when the site's Change is not used. */
+  wholeOps: DocumentOperation[]
+  /**
+   * Whether anything in the update differs from the document as it was read: a block to write,
+   * move or delete, or an attribute that does not already hold the value. False means the write
+   * publishes nothing, known without asking the site.
+   */
+  differs: boolean
+}
+
+/** Plans an update of `base.document` to hold `metadata` and the content `contentOps` produce. */
+function planDocumentUpdate(
+  base: Awaited<ReturnType<typeof resolveEditableDocument>>,
+  metadata: HMMetadata,
+  contentOps: DocumentOperation[],
+): DocumentUpdatePlan {
+  const {document, state} = base
+  const attributes = metadataUpdateAttributes(document.metadata, metadata)
+  const current = (key: string[]) =>
+    key.reduce<unknown>((value, segment) => (isPlainRecord(value) ? value[segment] : undefined), document.metadata)
+  const changes = (write: AttributeWrite) => !sameAttributeValue(current(write.key), write.value)
+  // The site compares whole numbers strictly and writes an equal one again. When the document read
+  // here is the version the change is prepared on, an unchanged number is left out.
+  const prepared = sameDocumentVersion(document.version, state.version)
+    ? attributes.prepared.filter((write) => typeof write.value !== 'number' || changes(write))
+    : attributes.prepared
+  const attrs = (writes: AttributeWrite[]): DocumentOperation[] =>
+    writes.length ? [{type: 'SetAttributes', attrs: writes} as DocumentOperation] : []
+  return {
+    preparedOps: attrs(prepared).concat(contentOps),
+    verbatimOps: attrs(attributes.verbatim),
+    wholeOps: metadataToWriteSetAttributes(metadata).concat(contentOps),
+    differs: contentOps.length > 0 || attributes.verbatim.length > 0 || attributes.prepared.some(changes),
+  }
+}
+
+/** The clock that stamps Changes built here. Tests replace it to stand in for a machine whose clock is off. */
+let documentUpdateNow: (() => number) | undefined
+
+/** Replaces the clock used for Changes the write tool builds itself; `undefined` restores `Date.now`. */
+export function setDocumentUpdateClockForTests(now: (() => number) | undefined) {
+  documentUpdateNow = now
+}
+
+/**
+ * The signed blobs for an update of an existing document: its next version, or nothing when the
+ * document already reads this way.
+ *
+ * The update goes through the client package's `documentUpdateBlobs`. The site computes the Change
+ * (`PrepareDocumentChange`), so only what differs from the document is stored: a block already in
+ * place is not moved again, an unchanged block is not replaced, an attribute already set is not set
+ * again. Two things are built here, each stored as written and stamped later than what it builds on:
+ *
+ * - attribute values the site's API cannot carry (lists, fractions, links, unusual keys): a second
+ *   Change on top of the prepared one, holding only those writes that differ from the document;
+ * - the whole update, in one Change, whenever the site's Change is not used. `documentUpdateBlobs`
+ *   lists when: the site cannot be asked for these ops, refuses or does not answer, or answers
+ *   with a Change that is not plausible for the request. The service logs the reason.
+ */
+async function writeUpdateBlobs({
+  client,
+  signer,
+  base,
+  plan,
+  capability,
+}: {
+  client: ReturnType<typeof createSeedClient>
+  signer: HMSigner
+  base: Awaited<ReturnType<typeof resolveEditableDocument>>
+  plan: DocumentUpdatePlan
+  capability?: string
+}): Promise<DocumentUpdateBlobs> {
+  const {state, targetId, document} = base
+  const target = {
+    signer,
+    account: targetId.uid,
+    path: hmIdPathToEntityQueryPath(targetId.path),
+    capability,
+    // An edit stays in the document's generation (see editRefGeneration); a document that reports
+    // none gets the new Change's timestamp.
+    currentGeneration: document.generationInfo?.generation,
+    now: documentUpdateNow,
+  }
+  const update = await documentUpdateBlobs({
+    ...target,
+    client,
+    state,
+    ops: plan.preparedOps,
+    localOps: plan.wholeOps,
+    content: document.content ?? [],
+    documentVersion: document.version,
+  })
+  if (update.changed && update.builtBy === 'local') {
+    // The whole update, the writes the site cannot carry included, is in this one Change.
+    console.warn('[Agents Write] Building the document change here instead of on the site', {
+      document: packHmId(targetId),
+      why: update.localReason,
+    })
+    return update
+  }
+  if (!plan.verbatimOps.length) return update.changed ? update : {changed: false, blobs: []}
+  // The writes the site could not carry go on top of what it prepared, or on the heads when it
+  // found nothing to change. One Ref, to this Change, so the document moves to its new version in
+  // one step. The Change is stamped after the one under it, which carries the site's clock.
+  const preparedChange = update.changed ? update.blobs.find((blob) => blob.cid === update.version) : undefined
+  if (update.changed && !preparedChange) throw new Error('The prepared change is missing from its own blobs')
+  const onTop = await clientBuiltDocumentUpdateBlobs({
+    ...target,
+    state: update.changed
+      ? {genesis: state.genesis, heads: [update.version], headDepth: update.depth, headTs: update.ts}
+      : state,
+    ops: plan.verbatimOps,
+  })
+  return {...onTop, blobs: preparedChange ? [preparedChange, ...onTop.blobs] : onTop.blobs}
 }
 
 /** Adds a child's missing card to its host after an update; returns the host id when it did. */
@@ -18803,7 +19712,12 @@ async function publishMemoryDocument(
     : `${existing ? 'Updated' : 'Published'} ${file.path} ${existing ? 'at' : 'as'} ${target}${imagesNote}.`
   return {
     ...result,
-    summary: result.published === true ? result.message : summary,
+    summary:
+      result.published === true
+        ? result.message
+        : result.unchanged === true
+          ? `${file.path} is already published at ${target}${imagesNote}: nothing changed, so no new version was published.`
+          : summary,
     memoryPath: file.path,
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
@@ -18898,9 +19812,15 @@ function sessionStatusBlock(session: api.SessionInfo | null): string | undefined
   return lines.join('\n')
 }
 
-/** The per-turn context measurement, framed for the model. Nothing when no turn has run yet. */
-function contextUsageBlock(promptTokens: number | undefined, contextWindow: number): string | undefined {
-  if (promptTokens === undefined || contextWindow <= 0) return undefined
+/** Which pressure threshold a context fraction has crossed: 0 none, 1 warn, 2 urgent. */
+function contextPressureBand(fraction: number): number {
+  if (fraction >= CONTEXT_PRESSURE_URGENT_FRACTION) return 2
+  return fraction >= CONTEXT_PRESSURE_WARN_FRACTION ? 1 : 0
+}
+
+/** The context measurement, framed for the model. */
+function contextUsageBlock(promptTokens: number, contextWindow: number): string | undefined {
+  if (contextWindow <= 0) return undefined
   const fraction = Math.min(1, promptTokens / contextWindow)
   const percent = Math.round(fraction * 100)
   const guidance =
@@ -18911,7 +19831,7 @@ function contextUsageBlock(promptTokens: number | undefined, contextWindow: numb
         : 'No pressure yet. Continue only at a semantic boundary (subject change, phase change, refocus, user request).'
   return [
     `<context_usage tokens="${promptTokens}" window="${contextWindow}" percent="${percent}">`,
-    `Your last turn's prompt was about ${percent}% of this model's ${contextWindow.toLocaleString(
+    `This prompt is about ${percent}% of this model's ${contextWindow.toLocaleString(
       'en-US',
     )}-token context window. ${guidance}`,
     '</context_usage>',
@@ -19389,9 +20309,10 @@ function getDraftRow(context: WriteToolContext, draftId: string) {
 /** Invalid frontmatter YAML is the caller's mistake, so it is reported as a 400 rather than a crash. */
 export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof parseMarkdown> {
   try {
-    return parseMarkdown(content)
+    return parseMarkdown(resolveDocsMarkdown(content))
   } catch (error) {
-    if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
+    if (error instanceof MarkdownFrontmatterError || error instanceof MarkdownResolvedRangeError)
+      throw new APIError(400, error.message)
     throw error
   }
 }
@@ -19421,12 +20342,35 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
   if (format !== 'markdown' && format !== 'json') throw new APIError(400, 'Document format must be markdown or json')
   if (format === 'markdown') {
     const content = normalizeWriteContent(rawContent, 'Document content')
+    refusePartialRead(content)
     const {tree, metadata} = parseMarkdownOrBadRequest(content)
     const blocks = markdownBlockNodesToHMBlockNodes(tree)
-    return {ops: flattenToOperations(tree), metadata, blocks}
+    return {ops: flattenToOperations(tree), metadata, blocks, format}
   }
   const blocks = parseWriteJsonBlocks(rawContent)
-  return {ops: hmBlockNodesToOperations(blocks), metadata: normalizeMetadataInput(input.metadata), blocks}
+  return {ops: hmBlockNodesToOperations(blocks), metadata: normalizeMetadataInput(input.metadata), blocks, format}
+}
+
+/**
+ * The line a paged read of a document's markdown ends with (see paginateReadResult). It marks the
+ * text as part of a document.
+ */
+function readPageMarker(offset: number, end: number, total: number): string {
+  return `<!-- page: characters ${offset}-${end} of ${total}; part of the document, not all of it -->`
+}
+
+const READ_PAGE_MARKER = /^[ \t]*<!-- page: characters \d+-\d+ of \d+;[^>]*-->[ \t]*$/m
+
+/**
+ * A page of a paged read written as a document's body would delete every block on the other
+ * pages, so a body that still holds a page marker is refused.
+ */
+function refusePartialRead(content: string): void {
+  if (!READ_PAGE_MARKER.test(content)) return
+  throw new APIError(
+    400,
+    'The content holds a `<!-- page: … -->` line from a paged read, so it is part of a document and not a whole body; writing it would delete the blocks on the other pages. Nothing was published. To change part of a long document, send options.edits, which names blocks by id and needs only the page that holds them. To replace the whole body, join every page and remove the page lines.',
+  )
 }
 
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
@@ -19473,7 +20417,7 @@ function commentMarkdownToBlocks(
       ],
       mentionedAccounts: [],
     }
-  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree))
+  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdownOrBadRequest(content).tree))
   if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
     throw new APIError(400, plainMentionsError(prepared.plainMentions))
   }
@@ -19735,10 +20679,48 @@ function utf8Prefix(text: string, maxBytes: number): string {
  * `options.offset: nextOffset` continues. Every page fits under MAX_MODEL_TOOL_RESULT_BYTES once serialized, so a paged read is never
  * truncated. Results with no long text field are left to boundModelToolResultText.
  */
-export function paginateReadResult(result: Record<string, unknown>, rawInput: unknown): Record<string, unknown> {
-  if (hasPiContent(result)) return result
+/**
+ * A hypermedia read takes one option, {offset}. Anything else an agent passes (a limit, a filter,
+ * a sort) used to be dropped in silence, and the agent read the unchanged result as if it had been
+ * honored. Say what was ignored and where that capability lives.
+ */
+function hypermediaReadOptionNotes(
+  result: Record<string, unknown>,
+  input: Record<string, unknown>,
+  options: Record<string, unknown>,
+): string[] {
+  if (typeof result.type !== 'string' || !result.type.startsWith('hypermedia_')) return []
+  const notes: string[] = []
+  const ignored = Object.keys(options).filter((key) => key !== 'offset')
+  if (ignored.length) {
+    notes.push(
+      `Ignored option${ignored.length === 1 ? '' : 's'} ${ignored
+        .map((key) => `\`${key}\``)
+        .join(
+          ', ',
+        )}: a hypermedia read only takes {offset}. To filter, sort, limit or count documents, call the query tool.`,
+    )
+  }
+  if (input.format === 'json' && result.type === 'hypermedia_directory') {
+    notes.push('A directory listing is always markdown; `format: "json"` does not apply to it.')
+  }
+  return notes
+}
+
+export function paginateReadResult(rawResult: Record<string, unknown>, rawInput: unknown): Record<string, unknown> {
+  if (hasPiContent(rawResult)) return rawResult
   const input = isRecord(rawInput) ? rawInput : {}
   const options = isRecord(input.options) ? input.options : {}
+  let result = rawResult
+  if (result.type === 'hypermedia_directory') {
+    // A directory names every child twice: a markdown row and a `documents` record. Scripts read
+    // the records; the model reads the rows. Left in, the records alone outgrow the model's result
+    // ceiling, so the page shrinks to nothing and the paging info is cut off with it.
+    const {documents: _documents, ...rows} = result
+    result = rows
+  }
+  const notes = hypermediaReadOptionNotes(result, input, options)
+  if (notes.length) result = {...result, notes}
   const field = READ_PAGE_FIELDS.find((key) => typeof result[key] === 'string')
   if (!field) return result
   const text = result[field] as string
@@ -19762,6 +20744,11 @@ export function paginateReadResult(result: Record<string, unknown>, rawInput: un
     const end = offset + chunk.length
     const more = end < total
     const range = `characters ${offset}–${end} of ${total}`
+    // A page of a document's markdown says so in the text itself, where a write can see it.
+    const marked =
+      result.type === 'hypermedia_document' && field === 'markdown'
+        ? `${chunk}${chunk.endsWith('\n') ? '' : '\n'}${readPageMarker(offset, end, total)}\n`
+        : chunk
     const paged = {
       ...result,
       summary: `${typeof result.summary === 'string' ? `${result.summary} ` : ''}${
@@ -19769,7 +20756,7 @@ export function paginateReadResult(result: Record<string, unknown>, rawInput: un
           ? `Showing ${range} of ${field}; read the same address with options {offset: ${end}} for the next page.`
           : `Showing ${range} of ${field} (the end).`
       }`,
-      [field]: chunk,
+      [field]: marked,
       page: {field, offset, end, total, ...(more ? {nextOffset: end} : {})},
     }
     // JSON escaping and the result's other fields count against the model ceiling too.
@@ -20288,7 +21275,8 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
     if (outputFormat === 'json') {
       result.resource = resource
     } else {
-      const markdown = await documentToResolvedMarkdown(resource.document, {client})
+      // `ipfs://` links stay as they are stored, so the markdown can be written back as it was read.
+      const markdown = await documentToResolvedMarkdown(resource.document, {client, ipfsGateway: false})
       result.markdown = ensureToolResultSize(markdown)
     }
     return result
@@ -20746,6 +21734,11 @@ async function readDirectoryHypermedia(input: {
     path: hmIdPathToEntityQueryPath(info.path),
     name: info.metadata?.name || undefined,
     summary: info.metadata?.summary || undefined,
+    // Every attribute the listing already carries: without them an agent cannot tell which
+    // children have a field set, and has to open each document to find out.
+    attributes: isRecord(info.metadata)
+      ? (JSON.parse(safeJSONStringify(info.metadata)) as Record<string, unknown>)
+      : {},
     updateTime:
       typeof info.updateTime === 'string'
         ? info.updateTime
@@ -20758,11 +21751,22 @@ async function readDirectoryHypermedia(input: {
     `# Directory of ${parentId}`,
     '',
     ...(entries.length
-      ? entries.map((entry) => {
-          const label = entry.name || entry.path || entry.id
-          const children = typeof entry.childrenCount === 'number' ? ` (${entry.childrenCount} children)` : ''
-          return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}`
-        })
+      ? [
+          `${entries.length} child document${
+            entries.length === 1 ? '' : 's'
+          }, each with its attributes. To filter, sort or count them by attribute, call the query tool with childrenOf: "${parentId}" (for example q: "empty:Priority", or groupBy: "Status").`,
+          '',
+          ...entries.map((entry) => {
+            const label = entry.name || entry.path || entry.id
+            // Only a child that has children of its own says so; "(0 children)" on every row is noise.
+            const children = entry.childrenCount ? ` (${entry.childrenCount} children)` : ''
+            const {name: _name, summary: _summary, ...rest} = entry.attributes
+            const attributes = attributesLine(rest, 240)
+            return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}${
+              attributes ? ` — ${attributes}` : ''
+            }`
+          }),
+        ]
       : ['(no child documents)']),
   ].join('\n')
   return {

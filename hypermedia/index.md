@@ -1,47 +1,170 @@
 ---
 name: Hypermedia
 icon: ipfs://bafkreicavdhyxlnlw5o67sbsq5lu5jiwsuvikmnh6r4m3kh3vckg6uzjpi
-summary: The developer knowledge base for the Hypermedia protocol and the Seed software that implements it, published from the Seed repository itself.
+summary: This site explains the Hypermedia protocol and the Seed software that runs it, in plain words first and exact detail after.
 ---
-Hypermedia is a protocol for publishing [documents](./protocol/documents.md) and [discussions](./protocol/comments.md) that belong to their authors, with no server in charge of them. Every document is a [signed](./protocol/blobs.md), content-addressed history of changes. Every [account](./protocol/identity.md) is a cryptographic key. Every [link](./protocol/urls.md) can point at an exact version, an exact [block](./protocol/blocks.md), or an exact range of text. Content stays readable and verifiable as long as anyone still holds a copy. <!-- id:-gK0HbNj -->
+Hypermedia is a way to publish [documents](./protocol/documents.md) and [discussions](./protocol/comments.md) that belong to the people who write them. No server is in charge. Your [account](./protocol/identity.md) is a key that you hold, and you [sign](./protocol/blobs.md) everything you publish with it. A [link](./protocol/urls.md) can point at one exact version of a document, at one [block](./protocol/blocks.md) such as a paragraph, or at a few words inside it. Anyone who holds a copy can serve it, and anyone can check that it is real. <!-- id:-gK0HbNj -->
 
-Seed is the open-source software that implements the protocol. It has a [daemon](./apps/daemon.md) that stores the data and syncs it over a [peer-to-peer network](./protocol/network.md), a [desktop app](./apps/desktop.md) and a [web app](./apps/web.md) for reading, writing and discussing, a [command-line tool](./build/cli.md), a [hosted agent runtime](./agent.md), and a TypeScript [SDK](./build/sdk.md). Think of the split as HTTP and a browser. The protocol defines identity, documents, changes, links and [permissions](./protocol/permissions.md). Seed is one implementation, and the team hopes it will not be the last. <!-- id:_G1k0qF- -->
+Seed is the open-source software that runs the protocol. Think of HTTP and a browser: Hypermedia is the protocol, and Seed is one program that speaks it. Seed has several parts: <!-- id:_G1k0qF- -->
 
-These pages are markdown files in the Seed repository under `hypermedia/`. A commit to the main branch publishes them to this site, and the Seed app can edit them in place, so what you read matches what the code ships with. Every page opens in plain language, links its terms to the [glossary](./glossary.md), and then gets precise. <!-- id:toSHUdAE -->
+- The [daemon](./software/daemon.md) stores the data and syncs it with other computers over a [peer-to-peer network](./protocol/network.md).
+- The [Seed app](./software/desktop.md) and the [web app](./software/web.md) are where you read, write and discuss.
+- The [CLI](./build/cli.md) is the command-line tool, and the [SDK](./build/sdk.md) is the TypeScript library.
+- [Agents](./agent.md) are language models that read and write Hypermedia with their own keys.
 
-# Where to start <!-- id:qquyu_Qe -->
+This site holds what stays true: the ideas, the types, the reference and the steps for common tasks. Every page opens in plain language and then gets precise. The [glossary](./glossary.md) defines every term in one place. New here? Start with [Why Hypermedia](./why.md), then read [the Hypermedia protocol](./protocol.md).
 
-- **Understand the protocol.** Start with [The Hypermedia protocol](./protocol.md). It is a layered tour from keys to blobs to documents, links, permissions, comments, privacy, the network and sites. Each stop links the page with the exact model and a worked example. <!-- id:m2GuhDRm -->
-- **Build on it.** Start with [Building on Hypermedia](./build.md). The [Seed API](./build/web-api.md) that every site serves and the [SDK](./build/sdk.md) are the main entry points. The [CLI](./build/cli.md) and [agent skills](./build/agents.md) are for scripting. The daemon [gRPC API](./build/grpc.md) and libp2p are for deep integration. <!-- id:4Fo9jG63 -->
-- **Run the software.** Start with [The Seed software](./apps.md), which has one page per app: desktop, web, daemon, CLI, notify, vault, mobile, explorer and agents. [Self-hosting](./build/self-hosting.md) explains how to run a [site](./protocol/sites.md) of your own. <!-- id:FqXY_ljX -->
+# The ideas
 
-# Why Hypermedia <!-- id:G9c9jn03 -->
+The protocol is a small set of ideas. Each idea has its own page, and [the Hypermedia protocol](./protocol.md) walks through them in order.
 
-[Why Hypermedia](./why.md) explains the motivation for any reader: [the end of broken links](./why/broken-links.md), [signed content instead of server trust](./why/signed-content.md), [open editing](./why/open-editing.md), [a network for thought](./why/network-for-thought.md), and [the lineage](./why/inspirations.md) from Engelbart and Xanadu to IPFS and Automerge. <!-- id:lsYfVMeq -->
+- **A key is an account, and an account is a space.** [Identity](./protocol/identity.md) explains keys and accounts. [Spaces and paths](./protocol/spaces.md) explains where documents live.
+- **Everything is a signed blob.** A blob is one piece of data that never changes. [Blobs](./protocol/blobs.md) covers the six kinds. [Integrity](./protocol/integrity.md) says what you can check yourself and what you must trust.
+- **A document is a history of changes.** [Documents](./protocol/documents.md) are built from [changes](./change.md), and [refs](./ref.md) place them at an address. Their content is a tree of [blocks](./protocol/blocks.md).
+- **A link can point at an exact version, block or range of text.** [URLs](./protocol/urls.md) shows how to write one. [Links and citations](./protocol/links-and-citations.md) covers backlinks and mentions.
+- **One key gives access to another key.** [Permissions](./protocol/permissions.md) covers capabilities and roles. [Contacts](./protocol/contacts.md) covers following people and joining sites. [Privacy](./protocol/privacy.md) covers private content.
+- **People talk about documents.** [Comments](./protocol/comments.md) are records in their author's space.
+- **Content moves between peers.** [Network](./protocol/network.md) covers how computers find and copy content. [Sites](./protocol/sites.md) put a space on a web domain. [Files](./protocol/files.md) covers images and attachments.
 
-# The map <!-- id:v3ihjVoi -->
+[Why Hypermedia](./why.md) explains the reasons behind these ideas, for any reader.
 
-<!-- id:B3k8aLrM -->
-| Section <!-- col:PuQ6FrT- --> | What lives there <!-- col:T2rXXR4T --> <!-- id:_qrkQ37L --> |
-| --- | --- |
-| [Why](./why.md) | The motivation and the inspirations, for any reader. <!-- id:AKFK6Vu- --> |
-| [Protocol](./protocol.md) | The Hypermedia protocol explained by concept: [identity](./protocol/identity.md), [blobs](./protocol/blobs.md), [documents](./protocol/documents.md), [blocks](./protocol/blocks.md), [URLs](./protocol/urls.md), [permissions](./protocol/permissions.md), [privacy](./protocol/privacy.md), [integrity](./protocol/integrity.md), [network](./protocol/network.md), [sites](./protocol/sites.md), [comments](./protocol/comments.md), [files](./protocol/files.md). <!-- id:Ag9KVF13 --> |
-| Term pages | Each blob and value type has its own page with the formal schema attached: [blob](./blob.md), [change](./change.md), [ref](./ref.md), [document](./document.md), [block](./block.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md), [metadata](./metadata.md), [query](./query.md), [cid](./cid.md), [principal](./principal.md), [visibility](./visibility.md) and more. <!-- id:tCyoXf1D --> |
-| [Schemas](./schema.md) | Hypermedia Schemas, the self-describing type system for content-addressed data, and how documents bind to a schema. <!-- id:Nvjpu90L --> |
-| [Build](./build.md) | Task guides: [getting started](./build/getting-started.md), [the web API](./build/web-api.md), [gRPC](./build/grpc.md), [the SDK](./build/sdk.md), [the CLI](./build/cli.md), [agents](./build/agents.md), [keys](./build/keys.md), [sign in with Seed](./build/sign-in.md), [publish a folder](./build/publish-a-folder.md), [self-hosting](./build/self-hosting.md), [the query grammar](./build/query-grammar.md), [contributing](./build/contributing.md). <!-- id:YvFfuP_o --> |
-| [Agents](./agent.md) | Seed Agents, the hosted agent runtime. An agent has a [space](./app-environment/space.md), tools and [triggers](./app-environment/triggers.md), and reads and writes Hypermedia through the Seed API with delegated keys. <!-- id:Jyf-DAx2 --> |
-| [Apps](./apps.md) | The Seed software, one page per program. <!-- id:IUS1Ivva --> |
-| [Examples](./example.md) | Example schemas and typed instances. <!-- id:xVNduUPu --> |
-| [Glossary](./glossary.md) | Every term in one line, with a table of retired names. <!-- id:dvqdYbSA --> |
+# What you make with it
 
-# Where this is going <!-- id:dP4wg_p_ -->
+Some documents are more than text. Each kind has its own page.
 
-The protocol is in active design. Concept pages describe what the daemon does today. Direction that is decided but not built lives on one dated page, [Where this is going](./protocol/roadmap.md), and the pages it affects link to it. Seed Agents keeps its own live [roadmap](./app-environment/roadmap.md). <!-- id:yJc-YqvE -->
+- An [app](./app.md) is a document that holds tools, pages and triggers.
+- A [tool](./tool.md) is a function that an [app environment](./software/app-environment.md) runs for an app or an agent. An app environment is the server that runs them.
+- A [page](./page.md) is a document that opens as a small web page in a sandbox.
+- A [trigger](./trigger.md) starts a tool or an agent when something happens.
+- An [agent](./agent.md) is a language model with a memory, tools and its own keys. It reads and writes Hypermedia like any other participant.
+
+[Hypermedia Schemas](./schema.md) is the type system behind all of them. The [catalogue of types](./schema/types.md) lists every type on this site. [Examples](./example.md) shows schemas and [typed documents](./schema/typed-documents.md), which are documents that follow a schema.
+
+# Doing things
+
+- **Build on Hypermedia.** [Building on Hypermedia](./build.md) has the references (the [Seed API](./build/web-api.md), the [SDK](./build/sdk.md), the [CLI](./build/cli.md)) and a guide for each task.
+- **Run it.** [Running Seed](./operate.md) covers a site, a node and an app environment.
+- **Change it.** [Working on Seed](./contribute.md) is for people who change the Seed code.
+- **Find a program.** [The Seed software](./software.md) has one page for each program.
 
 # For agents <!-- id:GB3nY3rU -->
 
-These pages are written for agents as well as people. Every concept page ends with a "Working with it" section that covers the Seed app, the CLI, the SDK, the web API, and agents. If you are an agent reading this site through the seed-cli skill or the Seed API, start with [Building with agents](./build/agents.md), [the CLI reference](./build/cli.md), and [the Seed API](./build/web-api.md). The `/api/Resource` request key on any Seed site returns a document as JSON, and appending `.md` to a page URL returns its markdown. <!-- id:myu_MyLi -->
+These pages are written for agents as well as people. Most concept pages have a "Working with …" section near the end. It shows how to do the thing in the Seed app, the CLI, the SDK, the Seed API and from an agent. If you are an agent, start with [Using Seed from your own agent](./build/agents.md), the [CLI](./build/cli.md) and the [Seed API](./build/web-api.md). Two requests help most. `/api/Resource` on any Seed site returns a document as JSON. Adding `.md` to a page URL returns the page as markdown. <!-- id:myu_MyLi -->
 
 # Where the source lives <!-- id:-YxSfaki -->
 
-The Seed repository is public at [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). This folder is `hypermedia/` in that repository. [Publish a folder](./build/publish-a-folder.md) explains the round trip between a git folder and a Hypermedia space that keeps these pages in sync. To contribute a correction, edit the markdown and open a pull request, or edit the page in the Seed app and let the sync bring it back to git. See [Contributing](./build/contributing.md). <!-- id:-H2vfuhJ -->
+These pages are markdown files in the folder `hypermedia/` of the public Seed repository, [github.com/seed-hypermedia/seed](https://github.com/seed-hypermedia/seed). A sync keeps that folder and this Hypermedia space the same, and [Publish a folder](./build/publish-a-folder.md) explains how. To correct a page, edit the markdown and open a pull request. To preview or edit a page in the Seed app, run the local dev loop (`./dev hm-sync`), which writes your edits back to the markdown. Never edit the published pages on hyper.media directly. See [Editing these docs](./contribute/editing-these-docs.md). <!-- id:-H2vfuhJ -->
+
+# Sections <!-- id:d4RLpinJ attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./why.md> <!-- id:Ynzjo94z type:Embed attrs:{"view":"Card"} -->
+
+<./protocol.md> <!-- id:lb6j814F type:Embed attrs:{"view":"Card"} -->
+
+<./schema.md> <!-- id:vtPgA4Zt type:Embed attrs:{"view":"Card"} -->
+
+<./example.md> <!-- id:vqXREeen type:Embed attrs:{"view":"Card"} -->
+
+<./agent.md> <!-- id:1KSMcFEJ type:Embed attrs:{"view":"Card"} -->
+
+<./build.md> <!-- id:YEuQdeP2 type:Embed attrs:{"view":"Card"} -->
+
+<./operate.md> <!-- id:oKTploE2 type:Embed attrs:{"view":"Card"} -->
+
+<./contribute.md> <!-- id:GSXkCzl0 type:Embed attrs:{"view":"Card"} -->
+
+<./software.md> <!-- id:Wyws1he9 type:Embed attrs:{"view":"Card"} -->
+
+<./glossary.md> <!-- id:rI01TQ8d type:Embed attrs:{"view":"Card"} -->
+
+# What you make <!-- id:VczIu7MR attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./app.md> <!-- id:IIE7bTHi type:Embed attrs:{"view":"Card"} -->
+
+<./tool.md> <!-- id:4YDtF6O2 type:Embed attrs:{"view":"Card"} -->
+
+<./page.md> <!-- id:oAdpusPX type:Embed attrs:{"view":"Card"} -->
+
+<./page-input.md> <!-- id:etM5VR1I type:Embed attrs:{"view":"Card"} -->
+
+<./trigger.md> <!-- id:zQPJyCZz type:Embed attrs:{"view":"Card"} -->
+
+# Protocol types <!-- id:dxTTxYQG attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./blob.md> <!-- id:H8b1EOtq type:Embed attrs:{"view":"Card"} -->
+
+<./change.md> <!-- id:2GRRUxZI type:Embed attrs:{"view":"Card"} -->
+
+<./ref.md> <!-- id:2vm6cHlW type:Embed attrs:{"view":"Card"} -->
+
+<./document.md> <!-- id:SA88lKwX type:Embed attrs:{"view":"Card"} -->
+
+<./block.md> <!-- id:dyTM3rP7 type:Embed attrs:{"view":"Card"} -->
+
+<./comment.md> <!-- id:jbjfiNMr type:Embed attrs:{"view":"Card"} -->
+
+<./capability.md> <!-- id:cU01thVr type:Embed attrs:{"view":"Card"} -->
+
+<./contact.md> <!-- id:Cv66othy type:Embed attrs:{"view":"Card"} -->
+
+<./profile.md> <!-- id:aW1n8U9O type:Embed attrs:{"view":"Card"} -->
+
+<./metadata.md> <!-- id:AqYbeSyi type:Embed attrs:{"view":"Card"} -->
+
+<./query.md> <!-- id:ffIQRmcH type:Embed attrs:{"view":"Card"} -->
+
+<./authority.md> <!-- id:BTkNe2g7 type:Embed attrs:{"view":"Card"} -->
+
+<./role.md> <!-- id:AfmitHEx type:Embed attrs:{"view":"Card"} -->
+
+<./visibility.md> <!-- id:eHK9gwvg type:Embed attrs:{"view":"Card"} -->
+
+# Value types <!-- id:1e0XUIvV attrs:{"childrenType":"Grid","columnCount":3} -->
+
+<./value.md> <!-- id:vwSdsYVl type:Embed attrs:{"view":"Card"} -->
+
+<./any.md> <!-- id:l7FfOUpa type:Embed attrs:{"view":"Card"} -->
+
+<./none.md> <!-- id:9wRxk0Sl type:Embed attrs:{"view":"Card"} -->
+
+<./null.md> <!-- id:i9vnOr0z type:Embed attrs:{"view":"Card"} -->
+
+<./boolean.md> <!-- id:f0gCNBsc type:Embed attrs:{"view":"Card"} -->
+
+<./integer.md> <!-- id:4IMEAeUm type:Embed attrs:{"view":"Card"} -->
+
+<./float.md> <!-- id:YOYRquAF type:Embed attrs:{"view":"Card"} -->
+
+<./string.md> <!-- id:1Qn47y02 type:Embed attrs:{"view":"Card"} -->
+
+<./bytes.md> <!-- id:z9mLUXCt type:Embed attrs:{"view":"Card"} -->
+
+<./cid.md> <!-- id:7ExynST9 type:Embed attrs:{"view":"Card"} -->
+
+<./link.md> <!-- id:8mi0zkbc type:Embed attrs:{"view":"Card"} -->
+
+<./account.md> <!-- id:4T0MZZee type:Embed attrs:{"view":"Card"} -->
+
+<./principal.md> <!-- id:rblSeWul type:Embed attrs:{"view":"Card"} -->
+
+<./signature.md> <!-- id:1BinpM6h type:Embed attrs:{"view":"Card"} -->
+
+<./list.md> <!-- id:DrjpV3Lo type:Embed attrs:{"view":"Card"} -->
+
+<./map.md> <!-- id:VQM6JPTe type:Embed attrs:{"view":"Card"} -->
+
+<./struct.md> <!-- id:03Bji5ux type:Embed attrs:{"view":"Card"} -->
+
+<./key-value.md> <!-- id:qPnqsQ9D type:Embed attrs:{"view":"Card"} -->
+
+<./date.md> <!-- id:sbH7PhTl type:Embed attrs:{"view":"Card"} -->
+
+<./date-time.md> <!-- id:f4Es55Qt type:Embed attrs:{"view":"Card"} -->
+
+<./timestamp.md> <!-- id:TAXvkYIj type:Embed attrs:{"view":"Card"} -->
+
+<./url.md> <!-- id:8NpfAYL4 type:Embed attrs:{"view":"Card"} -->
+
+<./hm-url.md> <!-- id:ZZNvvsCP type:Embed attrs:{"view":"Card"} -->
+
+<./ipfs-url.md> <!-- id:A4dLZuF1 type:Embed attrs:{"view":"Card"} -->

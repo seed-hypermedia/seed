@@ -1,8 +1,12 @@
 ---
 name: Fixpoint Problem
-summary: The impossibility of putting a block's own CID inside its own content, which also means a cycle of CIDs has no encoding order.
+summary: The fixpoint problem is that a stored object cannot hold its own CID, and two objects cannot hold each other's CIDs, so schemas refer to each other by name.
 ---
-**Fixpoint problem**: a block cannot contain its own [CID](../cid.md), because computing that CID would mean finding a hash preimage. For the same reason, a _cycle_ of CIDs has no encoding order. This is why schema references are **names**. [References and naming](./references.md) walks through it. <!-- id:rCmFoFNz -->
+The **fixpoint problem** is this: a stored object cannot hold its own [CID](../cid.md). The CID is a hash of the object's bytes. If the CID were inside the bytes, you would need the hash before you could compute it. <!-- id:rCmFoFNz -->
+
+A loop has the same problem. If A holds the CID of B and B holds the CID of A, neither can be finished first.
+
+This is why a schema refers to another schema by **name**, with an [`hm://` URL](../protocol/urls.md), and not by CID. The [meta-schema](../schema.md) can then name itself. [References and naming](./references.md) walks through it.
 
 # See also <!-- id:3L6-CoLu -->
 

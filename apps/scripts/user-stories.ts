@@ -254,11 +254,20 @@ try {
         Array.isArray(rehearsed.warnings) && rehearsed.warnings.some((w: string) => w.includes('born')),
         `dry run warnings = ${JSON.stringify(rehearsed.warnings)}`,
       )
-      const result = await verb('write', {
+      // A write that breaks the type is refused (Seed PR #1440); `options.force` publishes it.
+      const refused = await verb('write', {
         address: url('notes'),
         options: {action: 'update', metadata: {born: 'yesterday'}},
+      }).then(
+        () => null,
+        (error: Error) => error.message,
+      )
+      assert(refused && refused.includes('born') && refused.includes('options.force'), `refusal: ${refused}`)
+      const result = await verb('write', {
+        address: url('notes'),
+        options: {action: 'update', metadata: {born: 'yesterday'}, force: true},
       })
-      assert(typeof result.version === 'string', 'the document published despite the warning (advisory)')
+      assert(typeof result.version === 'string', 'the forced write did not publish')
       assert(result.schema?.via === 'own', `schema = ${JSON.stringify(result.schema)}`)
       assert(
         Array.isArray(result.warnings) && result.warnings.some((w: string) => w.includes('born')),

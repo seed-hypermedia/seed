@@ -1,6 +1,6 @@
 /**
  * Keeps an app's card embeds in step with the tools and pages written under it (see
- * hypermedia/apps/apps-and-tools.md). Creating a child of an app adds its embed in the same
+ * hypermedia/app.md). Creating a child of an app adds its embed in the same
  * publish; deleting one removes it. A tool or a trigger must be a child of an app or an agent.
  */
 
@@ -73,7 +73,8 @@ export async function appEmbedBlobs({
       : removeAppChildOps(app.id, app.document.content, childId)
   if (!ops.length) return null
   const update = await createDocumentUpdateBlobs({client, signer, id: app.id, ops, capability})
-  return update.blobs
+  // The daemon found the app already lists it this way: there is no change to publish.
+  return update.changed ? update.blobs : null
 }
 
 /** The app that lists `childId`, if its parent is one; used when a child is deleted. */

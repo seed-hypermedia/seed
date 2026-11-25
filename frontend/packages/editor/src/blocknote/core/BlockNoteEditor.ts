@@ -4,11 +4,7 @@ import {Node} from 'prosemirror-model'
 // @ts-ignore
 import {Editor as TiptapEditor} from '@tiptap/core/dist/packages/core/src/Editor'
 import * as Y from 'yjs'
-import {
-  // insertBlocks,
-  removeBlocks,
-  replaceBlocks,
-} from './api/blockManipulation/blockManipulation'
+import {removeBlocks} from './api/blockManipulation/blockManipulation'
 import {HTMLToBlocks, blocksToHTML, blocksToMarkdown, markdownToBlocks} from './api/formatConversions/formatConversions'
 import {blockToNode, nodeToBlock} from './api/nodeConversions/nodeConversions'
 import {getNodeById} from './api/util/nodeUtil'
@@ -760,7 +756,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blocksToInsert An array of partial blocks to replace the old ones with.
    */
   public replaceBlocks(blocksToRemove: BlockIdentifier[], blocksToInsert: PartialBlock<BSchema>[]) {
-    replaceBlocks(blocksToRemove, blocksToInsert, this._tiptapEditor)
+    // Replace in one transaction: inserting first exposes duplicate IDs and
+    // stale node-view positions while entering edit mode or reloading a draft.
+    newReplaceBlocks(this, blocksToRemove, blocksToInsert)
   }
 
   /**

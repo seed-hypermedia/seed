@@ -46,7 +46,7 @@ const useGatewayUrlHook: () => string | undefined = () => {
 }
 
 /**
- * Where a transcript's inline assets resolve from: the agent whose private memory holds them and
+ * Where a transcript's inline assets resolve from: the agent whose memory holds them and
  * the session whose attachments they came from. Provided per message bubble; absent outside a
  * transcript, where memory and attachment images render as labeled placeholders instead.
  */
@@ -63,7 +63,7 @@ export type MarkdownImageSource =
   | {kind: 'url'; url: string}
   /** An IPFS CID, served through the HM gateway. */
   | {kind: 'ipfs'; cid: string; url: string}
-  /** A file in the agent's private memory, fetched over the signed agents API. */
+  /** A file in the agent's memory, fetched over the signed agents API. */
   | {kind: 'memory'; path: string}
   /** A session-private attachment the user dropped into the chat. */
   | {kind: 'attachment'; id: string}

@@ -594,6 +594,34 @@ describe('QueryBlockContent Card attribute layout', () => {
   })
 })
 
+describe('QueryBlockContent Attributes popover saved attribute keys', () => {
+  it('lists saved keys including empty-on-all keys, omits schema-binding keys', () => {
+    const items = makeItems(2)
+    items[0].metadata.Priority = 'High'
+    items[0].metadata.childAttributesSchema = 'hm://hyper.media/example/article'
+    // Assignee is empty on every item
+    items[0].metadata.Assignee = ''
+    items[1].metadata.Assignee = ''
+
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent items={items} style="Table" accountsMetadata={{}} />
+        </TooltipProvider>,
+      )
+    })
+
+    const attributesButton = container.querySelector('button[aria-label="Attributes"]') as HTMLButtonElement
+    expect(attributesButton).toBeTruthy()
+    act(() => attributesButton.click())
+
+    const popoverText = document.body.textContent ?? ''
+    expect(popoverText).toContain('Priority')
+    expect(popoverText).toContain('Assignee')
+    expect(popoverText).not.toContain('Child Attributes Schema')
+  })
+})
+
 describe('QueryBlockContent list view with prepended draft items', () => {
   it('renders prepended draft items even when no published documents match the query', () => {
     act(() => {
@@ -875,6 +903,62 @@ describe('QueryBlockContent filter value labels', () => {
     expect(onViewerFiltersChange).toHaveBeenCalledWith([
       {columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'},
     ])
+  })
+
+  it('shows the resolved name instead of the raw URL in the applied filter pill', () => {
+    const items = makeItems(1)
+    items[0].metadata.owner = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: items[0].metadata.owner as string}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{
+            'metadata:owner': {
+              type: 'text',
+              values: [items[0].metadata.owner as string],
+              labels: {[items[0].metadata.owner as string]: 'horacio'},
+            },
+          }}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector('button[aria-label="Remove filter: Owner IS horacio"]') as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe('Owner IS horacio')
+  })
+
+  it('truncates long applied filter values to 18 characters with an ellipsis', () => {
+    const items = makeItems(1)
+    const url = 'hm://z6Mkvz9TgGtv9zsGsdrksfNk1ajbFancgHREJEz3Y2HsAVdk'
+    items[0].metadata.owner = url
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: url}]}
+          onViewerFiltersChange={vi.fn()}
+          filterOptions={{'metadata:owner': {type: 'text', values: [url]}}}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const pill = document.querySelector(`button[aria-label="Remove filter: Owner IS ${url}"]`) as HTMLButtonElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toBe(`Owner IS ${url.slice(0, 17)}…`)
+    expect(pill.title).toBe(`Owner IS ${url}`)
   })
 })
 

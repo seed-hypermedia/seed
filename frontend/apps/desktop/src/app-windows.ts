@@ -374,11 +374,18 @@ export function getLastFocusedWindow(): BrowserWindow | null {
   return anyWindow || null
 }
 
-/** Route for a user-requested new window: the focused window's sidebar space home, or the welcome page. */
+/**
+ * Route for a user-requested new window: the focused window's sidebar space
+ * home, or the welcome page. Falls back to the welcome page when a window is
+ * already showing that space home, since one document is kept in one window.
+ */
 export function getFocusedWindowNewWindowRoute(): NavRoute {
   const focusedWindow = getLastFocusedWindow()
   const focusedWindowId = Array.from(allWindows.entries()).find(([, window]) => window === focusedWindow)?.[0]
-  return getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+  const route = getNewWindowRoute(focusedWindowId ? windowNavState[focusedWindowId]?.sidebarSpaceUid : undefined)
+  // A window already showing the space home would absorb the request (one
+  // document per window), so open the welcome page instead.
+  return findWindowForRoute(route) ? defaultRoute : route
 }
 
 let isExpectingQuit = false
@@ -974,8 +981,8 @@ export function createLoadingWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay()
   const {width: screenWidth, height: screenHeight} = primaryDisplay.workAreaSize
 
-  // Keep the loading window compact, but give it standard window controls so
-  // a long-running migration does not block the rest of the desktop.
+  // Keep the loading window compact and frameless; its content provides the
+  // drag region so users can move it during a long-running migration.
   const windowWidth = 400
   const windowHeight = 480
 
@@ -986,7 +993,7 @@ export function createLoadingWindow(): BrowserWindow {
     y: Math.floor((screenHeight - windowHeight) / 2),
     title: 'Seed — Loading',
     show: true, // Show immediately for testing
-    frame: true,
+    frame: false,
     transparent: false,
     resizable: false,
     movable: true,

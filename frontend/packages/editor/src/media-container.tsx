@@ -7,7 +7,6 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection} from 'prosemirror-state'
-import type {ElementType} from 'react'
 import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -301,26 +300,6 @@ export const MediaContainer = ({
     view.focus()
   }
 
-  const handleImageCaptionKeyDown = (event: React.KeyboardEvent<ElementType>) => {
-    if (event.key !== 'Enter' || event.shiftKey) return
-
-    event.preventDefault()
-    event.stopPropagation()
-
-    const cursorPosition = editor.getTextCursorPosition()
-    if (cursorPosition.block.id !== block.id) return
-
-    if (cursorPosition.nextBlock) {
-      editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
-    } else {
-      editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
-      const nextBlock = editor.getTextCursorPosition().nextBlock
-      if (nextBlock) editor.setTextCursorPosition(nextBlock, 'start')
-    }
-
-    editor.focus()
-  }
-
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
@@ -342,26 +321,6 @@ export const MediaContainer = ({
       //   'relative flex w-full flex-col gap-2 self-center',
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
-      draggable={canAuthor ? 'true' : 'false'}
-      onMouseDownCapture={(e) => {
-        // Disable dragging for gestures that begin in the caption.
-        const inCaption = !!(e.target as Element | null)?.closest?.('[data-media-container-ignore-select]')
-        e.currentTarget.setAttribute('draggable', canAuthor && !inCaption ? 'true' : 'false')
-      }}
-      onDragStart={(e: any) => {
-        // Uncomment to allow drag only if block is selected
-        // if (!selected) {
-        //   e.preventDefault()
-        //   return
-        // }
-        e.stopPropagation()
-        beginEditIfNeeded()
-        editor.sideMenu!.blockDragStart(e)
-      }}
-      onDragEnd={(e: any) => {
-        e.stopPropagation()
-        editor.sideMenu!.blockDragEnd()
-      }}
       onClick={
         onPress
           ? (e) => {
@@ -404,6 +363,19 @@ export const MediaContainer = ({
         style={{width}}
         {...mediaProps}
         contentEditable={false}
+        // Block dragging lives on the media surface, never on the wrapper: an
+        // image's caption is a sibling of this element and a draggable
+        // ancestor would turn caption text drags into native drags.
+        draggable={canAuthor ? 'true' : 'false'}
+        onDragStart={(e: any) => {
+          e.stopPropagation()
+          beginEditIfNeeded()
+          editor.sideMenu!.blockDragStart(e)
+        }}
+        onDragEnd={(e: any) => {
+          e.stopPropagation()
+          editor.sideMenu!.blockDragEnd()
+        }}
       >
         {mediaType !== 'embed' && editor.renderType !== 'viewer' && canEdit && (mediaType !== 'file' || isEditing) && (
           <>
@@ -453,7 +425,6 @@ export const MediaContainer = ({
           className="image-caption"
           contentEditable={editor.isEditable}
           data-media-container-ignore-select
-          onKeyDown={handleImageCaptionKeyDown}
         />
       )}
     </div>

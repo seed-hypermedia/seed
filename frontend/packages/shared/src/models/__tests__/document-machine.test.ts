@@ -2640,3 +2640,144 @@ describe('working schema (schemaDraft) is draft state beside the metadata', () =
     legacy.stop()
   })
 })
+
+describe('draft hidden preview (draftHidden)', () => {
+  const draftBlocks: HMBlockNode[] = [
+    {block: {id: 'draft-b', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []},
+  ]
+  const publishedBlocks: HMBlockNode[] = [
+    {block: {id: 'pub-b', type: 'Paragraph', text: 'published text', attributes: {}}, children: []},
+  ]
+  const publishedDoc = {...mockDocument, content: publishedBlocks} as HMDocument
+
+  /** Load a published doc plus an existing draft → machine auto-enters editing. */
+  function startEditingWithDraft(actor: ReturnType<typeof createTestActor>) {
+    actor.send({type: 'document.loaded', document: publishedDoc})
+    actor.send({type: 'draft.resolved', draftId: 'draft-1', content: draftBlocks, cursorPosition: null})
+  }
+
+  it('hides the draft overlay while editing and returns to it on un-hide', () => {
+    const actor = createTestActor()
+    actor.start()
+    startEditingWithDraft(actor)
+    expect(actor.getSnapshot().value).toEqual({
+      editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle', rename: 'idle'},
+    })
+    expect(selectRenderableBlocks(actor.getSnapshot())).toBe(draftBlocks)
+
+    actor.send({type: 'draftHidden.set', hidden: true})
+    let snapshot = actor.getSnapshot()
+    expect(snapshot.value).toEqual({loaded: {rename: 'idle'}})
+    expect(snapshot.context.draftHidden).toBe(true)
+    // The draft is untouched: same id, same content, just not overlaid.
+    expect(snapshot.context.draftId).toBe('draft-1')
+    expect(snapshot.context.draftContent).toBe(draftBlocks)
+    expect(selectShouldUseDraftOverlay(snapshot)).toBe(false)
+    expect(selectRenderableBlocks(snapshot)).toBe(publishedBlocks)
+    expect(selectCanEditCurrentRoute(snapshot)).toBe(false)
+
+    actor.send({type: 'draftHidden.set', hidden: false})
+    snapshot = actor.getSnapshot()
+    expect(snapshot.context.draftHidden).toBe(false)
+    expect(snapshot.value).toEqual({
+      editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle', rename: 'idle'},
+    })
+    expect(selectRenderableBlocks(snapshot)).toBe(draftBlocks)
+    actor.stop()
+  })
+
+  it('saves unsaved changes before leaving editing to preview published', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'draft-safe'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, isLatest: true, routeVersion: null},
+    })
+    actor.start()
+    startEditingWithDraft(actor)
+    actor.send({type: 'change', metadata: {name: 'Unsaved title'}})
+    actor.send({type: 'draftHidden.set', hidden: true})
+    await new Promise((r) => setTimeout(r, 80))
+    const snapshot = actor.getSnapshot()
+    expect(writeInputs).toHaveLength(1)
+    expect(writeInputs[0].metadata).toMatchObject({name: 'Unsaved title'})
+    expect(snapshot.value).toEqual({loaded: {rename: 'idle'}})
+    expect(snapshot.context.draftHidden).toBe(true)
+    // An existing draft keeps its id; `saving` does not reassign it.
+    expect(snapshot.context.draftId).toBe('draft-1')
+    actor.stop()
+  })
+
+  it('does not hide when there is no published version to preview', () => {
+    const unpublishedDoc = {...publishedDoc, version: ''} as HMDocument
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'document.loaded', document: unpublishedDoc})
+    actor.send({type: 'draft.resolved', draftId: 'draft-1', content: draftBlocks, cursorPosition: null})
+    expect(actor.getSnapshot().matches('editing')).toBe(true)
+
+    actor.send({type: 'draftHidden.set', hidden: true})
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.context.draftHidden).toBe(false)
+    expect(snapshot.matches('editing')).toBe(true)
+    expect(selectShouldUseDraftOverlay(snapshot)).toBe(true)
+    actor.stop()
+  })
+
+  it('ignores stray edit.start while hidden instead of warning about old versions', () => {
+    const emitted: string[] = []
+    const actor = createTestActor()
+    actor.on('oldVersionEditBlocked', () => emitted.push('oldVersionEditBlocked'))
+    actor.start()
+    startEditingWithDraft(actor)
+    actor.send({type: 'draftHidden.set', hidden: true})
+    expect(actor.getSnapshot().value).toEqual({loaded: {rename: 'idle'}})
+
+    actor.send({type: 'edit.start'})
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toEqual({loaded: {rename: 'idle'}})
+    expect(emitted).toHaveLength(0)
+    actor.stop()
+  })
+
+  it('clears the hidden flag when the draft is discarded', async () => {
+    const actor = createTestActor()
+    actor.start()
+    startEditingWithDraft(actor)
+    actor.send({type: 'draftHidden.set', hidden: true})
+    expect(actor.getSnapshot().context.draftHidden).toBe(true)
+
+    actor.send({type: 'edit.discard'})
+    await vi.waitFor(() => expect(actor.getSnapshot().value).toEqual({loaded: {rename: 'idle'}}))
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.context.draftHidden).toBe(false)
+    expect(snapshot.context.draftId).toBeNull()
+    actor.stop()
+  })
+
+  it('keeps the flag when navigating to a pinned old version and back to latest', () => {
+    const actor = createTestActor()
+    actor.start()
+    startEditingWithDraft(actor)
+    actor.send({type: 'draftHidden.set', hidden: true})
+    expect(actor.getSnapshot().context.draftHidden).toBe(true)
+
+    // Side trip to an old published version: still hidden on return.
+    actor.send({type: 'version.changed', isLatest: false, routeVersion: 'old-version'})
+    actor.send({type: 'version.changed', isLatest: true, routeVersion: null})
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toEqual({loaded: {rename: 'idle'}})
+    expect(snapshot.context.draftHidden).toBe(true)
+    expect(selectRenderableBlocks(snapshot)).toBe(publishedBlocks)
+    actor.stop()
+  })
+})

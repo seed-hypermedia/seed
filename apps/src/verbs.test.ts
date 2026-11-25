@@ -13,7 +13,7 @@ import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
-import {BrowserPrivacy} from '@/browser-privacy'
+import {BrowserPrivacy, withOwnerAccess} from '@/browser-privacy'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
 import type {CodeExecutor} from '@/code-exec'
@@ -92,7 +92,7 @@ describe('browser callable', () => {
     expect(JSON.stringify(contract)).toContain('editable local Seed draft')
   })
 
-  test('archives privately without requiring or invoking publication', async () => {
+  test('archives to the owner draft only, without touching memory or publishing', async () => {
     const context = makeContext({
       callableTools: ['browser'],
       publishEnabled: false,
@@ -101,16 +101,15 @@ describe('browser callable', () => {
         markdown: '---\nname: Article\nsourceUrl: https://example.com\n---\nArchived content.',
       }),
     })
-    // Browser archives land in owner-only memory, so the call runs as the owner's interactive run.
-    const output = await agentMemory.withOwnerAccess(true, () =>
-      executeCallVerb(context, {tool: 'browser', input: {action: 'archive', document: 'observed'}}, 'call-1'),
+    const output = await executeCallVerb(
+      context,
+      {tool: 'browser', input: {action: 'archive', document: 'observed'}},
+      'call-1',
     )
     expect(output.draftId).toBe('desktop-draft')
     expect(output.markdown).toBeUndefined()
-    expect(output.memoryPath).toMatch(/^~\/memory\/private\/browser\/archive-/)
-    const saved = await agentMemory.withOwnerAccess(true, () => executeReadVerb(context, {address: output.memoryPath}))
-    expect(JSON.stringify(saved)).toContain('Archived content.')
-    expect(JSON.stringify(saved)).toContain('sourceUrl')
+    expect(output.memoryPath).toBeUndefined()
+    expect(agentMemory.listMemory(context.stateDir).entries).toEqual([])
     expect(output.publishInstructions).toContain('nothing was published')
   })
 
@@ -758,32 +757,6 @@ describe('space index and touch-expand pins', () => {
     }
   })
 
-  test('owner and reader Space indexes never share private memory summaries', async () => {
-    const context = makeContext()
-    apisvc.invalidateSpaceIndex(context.accountId, context.agentId)
-    agentMemory.withOwnerAccess(true, () =>
-      agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content'),
-    )
-    agentMemory.writeMemoryFile(context.stateDir, 'shared.md', 'shared content')
-    const index = () =>
-      apisvc.buildSpaceIndex({
-        db: context.db,
-        accountId: context.accountId,
-        agentId: context.agentId,
-        stateDir: context.stateDir,
-        callableTools: context.callableTools,
-      })
-    const owner = agentMemory.withOwnerAccess(true, index)
-    expect(owner).toContain('private/(')
-    const reader = agentMemory.withOwnerAccess(false, index)
-    expect(reader).not.toContain('private/(')
-    expect(reader).toContain('shared.md')
-    expect(reader).toContain('search —')
-    expect(agentMemory.withOwnerAccess(true, index)).toBe(owner)
-    // No scope at all is the reader view, never the owner's.
-    expect(index()).toBe(reader)
-  })
-
   test('expanded set derives from durable read/call events', () => {
     const context = makeContext()
     const now = Date.now()
@@ -1124,7 +1097,7 @@ describe('thread listing and search', () => {
     })()
     const decode = spyOn(cbor, 'decode')
     try {
-      const reader = () => agentMemory.withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
+      const reader = () => withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
       // Written without their append notifications (history from before transcript_privacy): a
       // reader's listing fails closed and reads no transcript to decide it.
       expect((await reader()).threads).toEqual([])
@@ -1139,7 +1112,7 @@ describe('thread listing and search', () => {
       expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
       decode.mockClear()
       expect((await reader()).threads).toEqual(first.threads)
-      const transcript = await agentMemory.withOwnerAccess(false, () =>
+      const transcript = await withOwnerAccess(false, () =>
         executeReadVerb(context, {address: 'thread:thread-0', options: {limit: 1}}),
       )
       expect(transcript.sessionId).toBe('thread-0')

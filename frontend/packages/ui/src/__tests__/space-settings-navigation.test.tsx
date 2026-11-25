@@ -8,9 +8,20 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 // The publish call, which each platform supplies, and the search that needs a backend.
 const mutateAsync = vi.hoisted(() => vi.fn())
+const navigate = vi.hoisted(() => vi.fn())
 vi.mock('../hm-doc-url-input', () => ({HMDocURLInput: () => null}))
+vi.mock('@shm/shared/utils/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared/utils/navigation')>()),
+  useNavigate: () => navigate,
+}))
 
-import {getNavigationPreviewItems, MAX_NAV_LINKS, SpaceSettingsNavigation} from '../space-settings-navigation'
+import {
+  getNavigationPreviewItems,
+  HeaderAddLink,
+  MAX_NAV_LINKS,
+  SpaceSettingsNavigation,
+} from '../space-settings-navigation'
+import {EditNavPanePlacementContext} from '../site-header'
 import {TooltipProvider} from '../tooltip'
 
 function navLink(id: string): HMNavigationItem {
@@ -294,14 +305,14 @@ describe('Add link dialog', () => {
 
     addExternalLink('not a url', 'Portfolio')
     const input = document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!
-    expect(document.body.textContent).not.toContain('Enter a web address')
+    expect(document.body.textContent).not.toContain('Enter a valid web address')
 
     act(() => {
       input.focus()
       input.blur()
     })
 
-    expect(document.body.textContent).toContain('Enter a web address')
+    expect(document.body.textContent).toContain('Enter a valid web address')
   })
 
   it('enables Save link only once the edited link differs', () => {
@@ -320,5 +331,75 @@ describe('Add link dialog', () => {
     addExternalLink('not a url', 'Portfolio')
 
     expect(dialogButton('Add link').disabled).toBe(true)
+  })
+})
+
+describe('Header add-link button', () => {
+  function renderHeaderButton(home: HMDocument, placement: 'header' | 'menu' = 'header') {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <EditNavPanePlacementContext.Provider value={placement}>
+            <HeaderAddLink siteId={hmId('space')} document={home} updateHome={{mutateAsync, isPending: false}} />
+          </EditNavPanePlacementContext.Provider>
+        </TooltipProvider>,
+      )
+    })
+    act(() => button('Add or edit links').click())
+  }
+  // The dialog renders in a portal, outside the button's container.
+  function dialogButton(label: string) {
+    return Array.from(document.body.querySelectorAll('button')).find((el) => el.textContent?.trim() === label)!
+  }
+  function type(input: HTMLInputElement, value: string) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', {bubbles: true}))
+  }
+
+  beforeEach(() => navigate.mockReset())
+
+  it('publishes a new link straight away, after the existing ones', async () => {
+    renderHeaderButton(homeWithLinks([navLink('a')]))
+
+    act(() => document.querySelector<HTMLButtonElement>('button[role="radio"][value="external"]')!.click())
+    act(() => type(document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!, 'example.com'))
+    act(() => type(document.querySelector<HTMLInputElement>('#nav-link-name')!, 'Example'))
+    await act(async () => dialogButton('Add link').click())
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0]![0].navigation).toEqual([
+      navLink('a'),
+      expect.objectContaining({text: 'Example', link: 'https://example.com'}),
+    ])
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('offers only the way to make room once the top bar is full', () => {
+    renderHeaderButton(homeWithLinks(Array.from({length: MAX_NAV_LINKS}, (_, i) => navLink(String(i)))))
+
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('The top bar is full')
+    expect(document.body.textContent).toContain(`The top bar can hold up to ${MAX_NAV_LINKS} links`)
+    expect(document.querySelector('[role="dialog"] input, [role="dialog"] [role="radio"]')).toBeNull()
+    expect(dialogButton('Add link')).toBeUndefined()
+    expect(dialogButton('Manage links')).toBeDefined()
+  })
+
+  it('appears as a list item in the phone menu and opens the same dialog', () => {
+    renderHeaderButton(homeWithLinks([navLink('a')]), 'menu')
+
+    expect(button('Add or edit links').className).toContain('w-full')
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Add link to the top bar')
+  })
+
+  it('sends the owner to the Navigation settings to edit links', () => {
+    renderHeaderButton(homeWithLinks([navLink('a')]))
+
+    act(() => dialogButton('Manage links').click())
+
+    expect(navigate).toHaveBeenCalledWith({key: 'site-settings', id: hmId('space'), tab: 'navigation'})
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 })

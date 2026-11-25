@@ -66,6 +66,8 @@ describe('documentMachine rebase transitions', () => {
     enterEditing(actor)
     expect(actor.getSnapshot().context.baseBlocks).toEqual(baseBlocks)
     expect(actor.getSnapshot().context.mineTouchedIds).toEqual([])
+    // Fresh edit (no draft): no stale-draft rebase to queue.
+    expect(actor.getSnapshot().context.pendingRemoteDocument).toBeNull()
     actor.stop()
   })
 
@@ -259,6 +261,81 @@ describe('documentMachine rebase transitions', () => {
     actor.send({type: 'rebase.dismiss'})
     actor.send({type: 'publish.start'})
     expect(actor.getSnapshot().matches('publishing')).toBe(true)
+    actor.stop()
+  })
+
+  it('queues a rebase when a saved draft is based on an older published version', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'document.loaded', document: remoteDocument})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'saved',
+      content: [
+        {block: {type: 'Paragraph', id: 'b1', text: 'one mine', attributes: {}} as HMBlockNode['block'], children: []},
+        {block: {type: 'Paragraph', id: 'b2', text: 'two', attributes: {}} as HMBlockNode['block'], children: []},
+      ],
+      cursorPosition: null,
+      deps: ['baseVersion'],
+      baseBlocks,
+      mineTouchedIds: ['b1'],
+    })
+    actor.send({type: 'edit.start'})
+    const snapshot = actor.getSnapshot()
+    const ctx = snapshot.context
+    expect(snapshot.matches({editing: {draft: 'idle'}})).toBe(true)
+    expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
+    expect(selectPendingRemoteVersion(snapshot)).toBe('remoteVersion')
+    // Draft keeps its own deps until the rebase is applied.
+    expect(ctx.deps).toEqual(['baseVersion'])
+    expect(ctx.baseBlocks).toEqual(baseBlocks)
+    actor.stop()
+  })
+
+  it('queues a rebase when draft.resolved arrives before document.loaded', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'saved',
+      content: [
+        {block: {type: 'Paragraph', id: 'b1', text: 'one mine', attributes: {}} as HMBlockNode['block'], children: []},
+        {block: {type: 'Paragraph', id: 'b2', text: 'two', attributes: {}} as HMBlockNode['block'], children: []},
+      ],
+      cursorPosition: null,
+      deps: ['baseVersion'],
+      baseBlocks,
+      mineTouchedIds: ['b1'],
+    })
+    actor.send({type: 'document.loaded', document: remoteDocument})
+    actor.send({type: 'edit.start'})
+    const snapshot = actor.getSnapshot()
+    const ctx = snapshot.context
+    expect(snapshot.matches({editing: {draft: 'idle'}})).toBe(true)
+    expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
+    expect(selectPendingRemoteVersion(snapshot)).toBe('remoteVersion')
+    expect(ctx.deps).toEqual(['baseVersion'])
+    expect(ctx.baseBlocks).toEqual(baseBlocks)
+    actor.stop()
+  })
+
+  it('does not queue a rebase when draft deps equal the published version (multi-head reorder)', () => {
+    const actor = createTestActor()
+    actor.start()
+    const multiHead = {...baseDocument, version: 'h1.h2'}
+    actor.send({type: 'document.loaded', document: multiHead})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'saved',
+      content: baseBlocks,
+      cursorPosition: null,
+      deps: ['h2', 'h1'],
+      baseBlocks,
+      mineTouchedIds: ['b1'],
+    })
+    actor.send({type: 'edit.start'})
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.context.pendingRemoteDocument).toBeNull()
     actor.stop()
   })
 })

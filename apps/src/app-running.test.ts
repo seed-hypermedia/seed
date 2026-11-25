@@ -38,6 +38,10 @@ describe('running apps', () => {
     const toolUrl = `hm://${space}/weather/get-weather`
     // Where the app says it runs; changed below to show it runs nowhere else.
     let appServer: string | undefined = SERVER
+    // Whether this server's node holds the app yet, and whether looking for it on the network finds it.
+    let held = true
+    let findable = false
+    let searches = 0
     const agentUrl = `hm://${space}/helper-agent`
     const agentToolUrl = `hm://${space}/helper-agent/summarize`
     const executions: CodeExecRequest[] = []
@@ -92,6 +96,13 @@ describe('running apps', () => {
       if (href.startsWith('http://this-server.test/hm/api/apps/health')) return Response.json({serverId: svc.serverId})
       if (href.startsWith('http://another-server.test/hm/api/apps/health'))
         return Response.json({serverId: 'someone-else'})
+      if (href.includes('/api/DiscoveryStatus')) {
+        searches++
+        if (findable) held = true
+        return Response.json(serialize(findable ? {state: 'found', version: 'bafyfound'} : {state: 'failed'}))
+      }
+      if (href.includes('/api/Resource') && href.includes('/weather') && !held)
+        return Response.json(serialize({type: 'not-found', id: unpackHmId(appUrl)}))
       if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
       if (href.includes('/api/Resource')) {
         if (href.includes('/helper-agent/summarize'))
@@ -138,6 +149,17 @@ describe('running apps', () => {
       }
     }
     try {
+      // An app this server's node does not hold is looked for on the network before it is refused.
+      held = false
+      expect(await send(owner, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({
+        allowed: false,
+        reason: expect.stringContaining('No app at'),
+      })
+      expect(searches).toBe(1)
+      findable = true
+      expect(await send(owner, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({allowed: true})
+      expect(held).toBe(true)
+
       // An app runs only on the server it names: none, or another one, and it does not run here.
       appServer = undefined
       expect(await send(owner, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
@@ -153,6 +175,14 @@ describe('running apps', () => {
       expect(await send(stranger, {_: 'RunApp', appId: appUrl, privateConfig: {apiKey: 'x'}})).toMatchObject({
         error: expect.stringContaining('write to the app'),
       })
+      // Asking first says the same without running anything.
+      expect(await send(stranger, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({
+        _: 'AppRunCheckResponse',
+        allowed: false,
+        reason: expect.stringContaining('write to the app'),
+        run: null,
+      })
+      expect(await send(owner, {_: 'CheckAppRun', appId: appUrl})).toMatchObject({allowed: true, run: null})
       // Calling before it runs says so.
       expect(
         await send(stranger, {_: 'CallAppTool', appId: appUrl, toolId: toolUrl, input: {city: 'Lisbon'}}),

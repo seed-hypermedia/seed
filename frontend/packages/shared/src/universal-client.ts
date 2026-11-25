@@ -106,6 +106,15 @@ export type UniversalClient = {
     scope?: 'all' | 'profile'
   }) => () => void
 
+  /**
+   * Keep the queries that show a resource (with `recursive`, its directory) fresh where the app
+   * has no feed of its own invalidating them: on the web, over the server's change stream.
+   * `onLive` is told when the signal starts and stops covering the resource (it starts out not
+   * live), so a caller polls only meanwhile. Returns how to stop. Call it from the browser, for
+   * data actually kept on screen: each tab holds one open connection while anything is watched.
+   */
+  watchChanges?: (opts: {id: UnpackedHypermediaId; recursive?: boolean}, onLive: (live: boolean) => void) => () => void
+
   // Discovery state tracking (desktop only - undefined on web)
   discovery?: DiscoveryService
 

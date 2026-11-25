@@ -9,6 +9,6 @@ This page describes the **example/blob** type, one of the [example schemas](../e
 # See also <!-- id:j_L98ZrK -->
 
 - [Bytes](../bytes.md): raw binary data. <!-- id:E2UiYFWw -->
-- [article](./article.md): links to a blob. <!-- id:F7SUOSzb -->
+- [article](./article.md): links to a [blob](../protocol/blobs.md). <!-- id:F7SUOSzb -->
 - [Files](../protocol/files.md): how Seed stores real files. <!-- id:pVGlAc7j -->
 - [Examples](../example.md): every example, grouped by feature. <!-- id:jjYJ2VWk -->

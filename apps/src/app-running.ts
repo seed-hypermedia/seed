@@ -1,5 +1,5 @@
 /**
- * Running apps on this server (hypermedia/apps/apps-and-tools.md). An app document names this server
+ * Running apps on this server (hypermedia/app.md). An app document names this server
  * with its `appEnvironmentUrl`; a writer of the app's space runs it here with its private config,
  * which the server keeps encrypted. While it runs, anyone may call its tools: each call runs the
  * tool's latest code in the sandbox as `(input, ctx)`, and is recorded for anyone who can read the
@@ -81,12 +81,45 @@ async function loadDocument(
   type: string | ((type: unknown) => boolean),
   what: string,
 ) {
-  const resource = await client.request('Resource', id).catch(() => null)
+  let resource = await client.request('Resource', id).catch(() => null)
+  // This server's node may simply not hold the document yet: it was published through another
+  // node (the author's desktop, another site). Ask the node to find it before saying it is not there.
+  if (resource?.type !== 'document' && (await discoverDocument(client, id))) {
+    resource = await client.request('Resource', id).catch(() => null)
+  }
   if (resource?.type !== 'document') throw new AppRunError(404, `No ${what} at ${id.id}`)
   const matches =
     typeof type === 'string' ? resource.document.metadata?.type === type : type(resource.document.metadata?.type)
   if (!matches) throw new AppRunError(400, `${id.id} is not ${what === 'app' ? 'an app or an agent' : 'a tool'}`)
   return resource.document as HMDocument
+}
+
+/** How long a request waits for this server's node to find a document it does not hold. */
+const DISCOVERY_TIMEOUT_MS = 25_000
+const DISCOVERY_POLL_MS = 1_500
+/** How long RunApp waits for a newer version of an app that names another server. */
+const STALE_APP_WAIT_MS = 8_000
+
+/**
+ * Asks this server's node to find the latest version of a document on the network and waits for
+ * it (`DiscoveryStatus` starts the search and reports on it). True once the node holds it; false
+ * when the search fails, runs out of time, or the node cannot be asked.
+ */
+async function discoverDocument(
+  client: SeedClient,
+  id: UnpackedHypermediaId,
+  timeoutMs = DISCOVERY_TIMEOUT_MS,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const status = await client
+      .request('DiscoveryStatus', {uid: id.uid, path: id.path ?? [], latest: true})
+      .catch(() => null)
+    if (!status || status.state === 'failed') return false
+    if (status.state === 'found') return true
+    if (Date.now() + DISCOVERY_POLL_MS > deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, DISCOVERY_POLL_MS))
+  }
 }
 
 /**
@@ -247,8 +280,16 @@ export async function runApp(
   action: {appId: string; privateConfig?: Record<string, unknown>},
 ): Promise<api.AppRunInfo> {
   const appId = versionless(action.appId, 'app')
-  const app = await loadDocument(deps.client, appId, isToolHostType, 'app')
-  await requireRunsHere(deps, appId, app)
+  let app = await loadDocument(deps.client, appId, isToolHostType, 'app')
+  try {
+    await requireRunsHere(deps, appId, app)
+  } catch (error) {
+    // A client names this server on the app and runs it straight away, so this node can still
+    // hold the version from before: look for a newer one once, then let the answer stand.
+    if (!(error instanceof AppRunError) || !(await discoverDocument(deps.client, appId, STALE_APP_WAIT_MS))) throw error
+    app = await loadDocument(deps.client, appId, isToolHostType, 'app')
+    await requireRunsHere(deps, appId, app)
+  }
   await requireSpaceWriter(deps.client, appId, signer)
   const existing = getRunRow(deps.db, appId.id)
   let privateConfig = existing ? readPrivateConfig(existing, deps) : {}
@@ -273,6 +314,28 @@ export async function runApp(
     )
     .run(appId.id, appId.uid, signer, ciphertext, existing?.created_at ?? now, now)
   return toRunInfo(getRunRow(deps.db, appId.id)!, deps)
+}
+
+/**
+ * Whether this server would run the app for `signer`, without running it: the app exists and is an
+ * app (or agent), and the signer can write its space. Which server the app names is not checked:
+ * a client asks this before it publishes the choice.
+ */
+export async function checkAppRun(
+  deps: AppRunDeps,
+  signer: string,
+  action: {appId: string},
+): Promise<{allowed: boolean; reason?: string; run: api.AppRunInfo | null}> {
+  const appId = versionless(action.appId, 'app')
+  const run = getAppRun(deps, action)
+  try {
+    await loadDocument(deps.client, appId, isToolHostType, 'app')
+    await requireSpaceWriter(deps.client, appId, signer)
+    return {allowed: true, run}
+  } catch (error) {
+    if (error instanceof AppRunError) return {allowed: false, reason: error.message, run}
+    throw error
+  }
 }
 
 /** Stops an app and forgets its private config. The signer must be able to write the app's space. */

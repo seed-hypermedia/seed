@@ -18,7 +18,7 @@ repository. Start with:
 
 - [The Hypermedia protocol](./hypermedia/protocol.md)
 - [Building on Hypermedia](./hypermedia/build.md): the Seed API, the SDK, the CLI and agents
-- [Contributing](./hypermedia/build/contributing.md): the repository map, dev setup, tests and releases
+- [Contributing](./hypermedia/contribute/contributing.md): the repository map, dev setup, tests and releases
 
 ## Stability
 
@@ -53,5 +53,5 @@ pnpm format:check
 pnpm test
 ```
 
-See [Contributing](./hypermedia/build/contributing.md) for Go tests, integration tests, migrations, protobuf generation,
-self-hosting and releasing.
+See [Contributing](./hypermedia/contribute/contributing.md) for Go tests, integration tests, migrations, protobuf
+generation, self-hosting and releasing.

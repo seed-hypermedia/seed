@@ -242,15 +242,25 @@ export function literalMembers(schema: HypermediaSchema, reg: SchemaRegistry = {
 
 // --- struct fields ----------------------------------------------------------
 //
-// A struct writes its fields as `properties[name] = {value, required?, description?}`.
+// A struct writes its fields as `properties[name] = {value, required?, description?, default?}`.
 // Schemas published before that wrote `properties[name] = <schema>` with a
 // separate `required` list; those blobs are immutable, so every reader goes
 // through these helpers and accepts both.
 
-/** A struct field entry: the field's schema, whether a value must include it, what it is for. */
-export type PropertyEntry = {value: HypermediaSchema; required?: boolean; description?: string}
-/** A struct field. */
-export type StructField = {name: string; schema: HypermediaSchema; required: boolean; description?: string}
+/** A struct field entry: the field's schema, whether a value must include it, what it is for, and the
+ * value a new struct starts with. */
+export type PropertyEntry = {value: HypermediaSchema; required?: boolean; description?: string; default?: unknown}
+/**
+ * A struct field. `default` is the value an editor writes into a NEW struct for this field; absent
+ * (undefined) means the field has none. It is never a fallback for a value that lacks the field.
+ */
+export type StructField = {
+  name: string
+  schema: HypermediaSchema
+  required: boolean
+  description?: string
+  default?: unknown
+}
 
 /** A struct's fields, in declaration order. A `properties` entry always wraps its
  * field's schema in `value` (a field whose schema is the literal `"x"` is `{value: "x"}`). */
@@ -261,6 +271,7 @@ export function structFields(schema: HypermediaSchema | undefined): StructField[
     schema: entry?.value === undefined ? {} : entry.value,
     required: entry?.required === true,
     description: typeof entry?.description === 'string' ? entry.description : undefined,
+    ...(entry && typeof entry === 'object' && entry.default !== undefined ? {default: entry.default} : {}),
   }))
 }
 
@@ -285,6 +296,7 @@ export function fieldsToProperties(fields: StructField[]): Record<string, Proper
     const e: PropertyEntry = {value: f.schema}
     if (f.required) e.required = true
     if (f.description) e.description = f.description
+    if (f.default !== undefined) e.default = f.default
     out[f.name] = e
   }
   return out
@@ -468,6 +480,160 @@ export function validate(
 /** Advisory (warn-don't-block) validation — identical checks to validate(). */
 export const validateAdvisory = validate
 
+// --- property defaults --------------------------------------------------------
+//
+// A struct property may carry a `default`: the value an editor writes into a NEW struct for that
+// field. It initializes; it is not a fallback. A value that lacks the field still lacks it, so a
+// missing required field is reported even when the property has a default, and a schema that gains
+// a default changes no existing value.
+
+const cloneValue = <T>(v: T): T => (v !== null && typeof v === 'object' ? (JSON.parse(JSON.stringify(v)) as T) : v)
+
+/**
+ * The value a new instance of a schema starts with. A struct gets every property that has a
+ * `default` (required or optional) set to a copy of it, and every required property without one
+ * seeded from its own schema, so nested structs pick up their own defaults. Optional properties
+ * without a default are left out. A property's default is used whole: it is not merged with the
+ * defaults of a nested struct, and it is never dereferenced when it is a link or a reference.
+ * A list starts empty; each item added later is seeded from the item schema. A union starts as
+ * its first arm.
+ */
+export function seedValue(schema: HypermediaSchema, registry: SchemaRegistry = {}): unknown {
+  return seedWithEnv(schema, {}, registry)
+}
+
+/** {@link seedValue} under bound type variables (the form passes its own `env` down). */
+export function seedWithEnv(schema0: HypermediaSchema, env: Record<string, any>, reg: SchemaRegistry): unknown {
+  return seedAt(schema0, env, reg, 0)
+}
+
+// A required field of a recursive schema could seed forever; past this depth a struct starts empty.
+const MAX_SEED_DEPTH = 24
+
+function seedAt(schema0: HypermediaSchema, env: Record<string, any>, reg: SchemaRegistry, depth: number): unknown {
+  const {schema, env: e} = resolveSchema(schema0, env, reg)
+  if (isLiteralSchema(schema)) return schema.value
+  if (schema.anyOf) return schema.anyOf.length ? seedAt(schema.anyOf[0], e, reg, depth + 1) : undefined
+  const kind = schema.type ? kindOf(schema.type) : null
+  switch (kind) {
+    case 'map':
+    case 'struct': {
+      const o: Record<string, unknown> = {}
+      for (const f of structFields(schema)) {
+        if (f.default !== undefined) o[f.name] = cloneValue(f.default)
+        else if (f.required && depth < MAX_SEED_DEPTH) o[f.name] = seedAt(f.schema, e, reg, depth + 1)
+      }
+      return o
+    }
+    case 'list':
+      return []
+    case 'string':
+      return ''
+    case 'integer':
+    case 'float':
+      return 0
+    case 'boolean':
+      return false
+    case 'null':
+      return null
+    case 'link':
+      return {'/': ''}
+    case 'bytes':
+      return {'/': {bytes: ''}}
+    default:
+      return null
+  }
+}
+
+/** The value a field starts with when it is added to a struct: its property default, else a seed of its schema. */
+export function seedField(field: StructField, env: Record<string, any> = {}, reg: SchemaRegistry = {}): unknown {
+  return field.default !== undefined ? cloneValue(field.default) : seedWithEnv(field.schema, env, reg)
+}
+
+/**
+ * The declared defaults of a struct's own properties, by field name, each a fresh copy. Only what
+ * the schema states: nothing is synthesized for a property without a default. This is what a new
+ * typed document's attributes start with.
+ */
+export function propertyDefaults(
+  schema: HypermediaSchema | undefined,
+  registry: SchemaRegistry = {},
+): Record<string, unknown> {
+  if (!schema) return {}
+  const {schema: resolved} = resolveSchema(schema, {}, registry)
+  const out: Record<string, unknown> = {}
+  for (const f of structFields(resolved)) if (f.default !== undefined) out[f.name] = cloneValue(f.default)
+  return out
+}
+
+/**
+ * The property defaults a NEW value still lacks: every declared default whose key `current` has
+ * never held. A key that is present counts as held whatever its value, a `null` tombstone included
+ * (the author removed it), so applying this twice never brings a removed field back.
+ */
+export function missingPropertyDefaults(
+  schema: HypermediaSchema | undefined,
+  current: Record<string, unknown> | null | undefined,
+  registry: SchemaRegistry = {},
+): Record<string, unknown> {
+  const defaults = propertyDefaults(schema, registry)
+  const held = current ?? {}
+  for (const key of Object.keys(defaults)) if (key in held && held[key] !== undefined) delete defaults[key]
+  return defaults
+}
+
+/**
+ * The violations of every property `default` in a schema against that property's `value` schema,
+ * at any depth (nested structs, list items, map values, union arms, type-parameter defaults).
+ * The meta-schema cannot say this, since the type of `default` depends on a sibling key, so it is
+ * its own check. Schemas the node only names (`type: <url>`) are checked where they are defined.
+ */
+export function validateDefaults(
+  schema: HypermediaSchema,
+  path = '$',
+  env: Record<string, any> = {},
+  reg: SchemaRegistry = {},
+): string[] {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return []
+  let scope = env
+  if (schema.params && typeof schema.params === 'object') {
+    scope = {...env}
+    for (const [p, def] of Object.entries(schema.params)) if (scope[p] === undefined) scope[p] = def
+  }
+  const errors: string[] = []
+  if (schema.properties && typeof schema.properties === 'object') {
+    for (const [name, entry] of Object.entries(schema.properties as Record<string, any>)) {
+      if (!entry || typeof entry !== 'object') continue
+      const at = `${path}.properties.${name}`
+      const value = entry.value === undefined ? {} : entry.value
+      if (entry.default !== undefined) errors.push(...validate(value, entry.default, `${at}.default`, scope, reg))
+      errors.push(...validateDefaults(value, `${at}.value`, scope, reg))
+    }
+  }
+  if (schema.items) errors.push(...validateDefaults(schema.items, `${path}.items`, scope, reg))
+  if (schema.values) errors.push(...validateDefaults(schema.values, `${path}.values`, scope, reg))
+  if (Array.isArray(schema.anyOf))
+    schema.anyOf.forEach((arm: HypermediaSchema, i: number) =>
+      errors.push(...validateDefaults(arm, `${path}.anyOf[${i}]`, scope, reg)),
+    )
+  if (schema.params && typeof schema.params === 'object')
+    for (const [p, def] of Object.entries<any>(schema.params))
+      errors.push(...validateDefaults(def, `${path}.params.${p}`, scope, reg))
+  return errors
+}
+
+/**
+ * Everything wrong with a value as a schema: its violations of the meta-schema, then, when it is
+ * well formed, the property defaults that do not match their own property's schema.
+ */
+export function schemaErrors(value: unknown, reg: SchemaRegistry = {}): string[] {
+  const meta = HM_SCHEMAS['schema']
+  if (!meta) return []
+  const errors = validate(meta, value, '$', {}, reg)
+  if (errors.length || !value || typeof value !== 'object') return errors
+  return validateDefaults(value as HypermediaSchema, '$', {}, reg)
+}
+
 /**
  * True when a value is itself a Hypermedia schema — i.e. it validates against the
  * meta-schema (`schema`). Replaces v1's `isSchemaBlob` (which matched a
@@ -526,6 +692,11 @@ export function collectRefs(schema: any, acc = new Set<string>()): Set<string> {
   if (typeof schema.target === 'string') acc.add(refToName(schema.target))
   for (const [k, v] of Object.entries(schema)) {
     if (k === 'ref' || k === 'type' || k === 'target') continue
+    if (k === 'properties' && v && typeof v === 'object' && !Array.isArray(v)) {
+      // A property's `default` is data, not a schema: only its `value` can name one.
+      for (const entry of Object.values(v as Record<string, any>)) collectRefs(entry?.value, acc)
+      continue
+    }
     if (v && typeof v === 'object') collectRefs(v, acc)
   }
   return acc

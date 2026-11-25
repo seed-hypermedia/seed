@@ -157,11 +157,83 @@ Omit \`options.action\` (or use \`document\`). Write markdown in \`content\`; pa
 
 ## Update
 
-Use \`options.action: "update"\` at the existing document address. Supplying \`content\` replaces the whole body, so first read the current document and preserve block/table identity comments for retained content. Omit \`content\` to change only \`name\` or \`metadata\`.
+Use \`options.action: "update"\` at the existing document address, and read the document first. Its body changes in one of two ways. Omit both to change only \`name\` or \`metadata\`.
+
+### Edits: change blocks by id
+
+\`options.edits\` is the usual way. It changes the blocks it names and nothing else, so it costs as much as the change, not as much as the document, and the page of a long document that holds a block is enough to edit it. A block's id is the \`X\` of its \`<!-- id:X -->\` comment in the read.
+
+- \`{"replace": "ID", "content": "…"}\` rewrites one block. Its children stay. When \`content\` holds several blocks, the rest follow it.
+- \`{"after": "ID", "content": "…"}\`, \`{"before": "ID", …}\` and \`{"into": "ID", …}\` add blocks beside a block, or as its last children. A heading's section is its children: \`into\` a heading adds at the end of its section, and \`after\` a heading comes after the whole section.
+- \`{"move": "ID", "after": "ID"}\` (or \`before\`, \`into\`) moves a block with its children.
+- \`{"delete": "ID"}\` or \`{"delete": ["ID", "ID"]}\` deletes blocks with their children.
+
+\`content\` is markdown as a read prints it. Leave id comments off new blocks. Edits apply in order, each to the result of the one before, and all or none.
+
+\`\`\`json
+{"address":"hm://TARGET_UID/notes","options":{"action":"update","edits":[{"replace":"Ab3xYz12","content":"The corrected sentence."},{"after":"Ab3xYz12","content":"A new paragraph."},{"delete":"Qr5tUv78"}],"signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
+\`\`\`
+
+### Content: a whole new body
+
+\`content\` replaces the body, for a rewrite. Write back the markdown of the read with your changes:
+
+- Keep each \`<!-- id:… -->\` comment whole. It is the block's identity, and for a block markdown cannot show (a video, a query, an embed) it also holds the type and attributes: \`<!-- id:X type:Query attrs:{…} -->\`. A block that keeps its comment and its text is not stored again.
+- A block you leave out is deleted. A body that would delete more than half of the document's blocks is refused; pass \`options.force: true\` only when the document should lose them.
+- The lines between \`<!-- resolved: … -->\` and \`<!-- /resolved -->\` under an embed or a query show what it points at. They are not part of the document: writing them back, or dropping them, changes nothing, and text edited inside them is ignored. To change an embed or a query, change its own line.
+- A page of a paged read ends with a \`<!-- page: … -->\` line and is refused as a body. Use edits for a long document.
 
 \`\`\`json
 {"address":"hm://TARGET_UID/notes","content":"Complete replacement body.","options":{"action":"update","name":"Renamed Notes","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
 \`\`\`
+
+### What the result says
+
+A content update, and a dry run of one, returns \`changes: {added, rewritten, moved, deleted}\` in blocks. Compare it with what you meant: a one-sentence fix that reports many blocks rewritten or deleted went wrong, and the previous version is still there to write back. Only what differs is stored (the site computes the change; when it cannot, the service builds it and a level whose order changed is stored whole, which reads the same). A write that changes nothing publishes nothing and returns \`unchanged: true\` with the document's current \`version\`; that is a success, do not retry it. Links and diagrams are checked only in the blocks the write stores.
+
+## Many documents at once
+
+A request such as "set Priority to High on every issue where it is empty" is one query and one script, not a document-by-document chat. Never answer that you cannot enumerate the documents.
+
+1. Find them with the \`query\` tool: \`{childrenOf: "hm://SPACE_UID/tasks", q: "empty:Priority", count: true}\` tells you how many, and the same call without \`count\` lists them.
+2. Delegate a script child that collects every page first (writing while paging skips documents), then updates each one. An update without \`content\` changes only the attributes you name and leaves the body and the other attributes alone.
+
+\`\`\`js
+export default async function (input, ctx) {
+  const docs = []
+  let pageToken
+  do {
+    const page = await ctx.call(
+      'query',
+      {childrenOf: input.parent, q: input.q, pageSize: 100, ...(pageToken ? {pageToken} : {})},
+      {description: 'Find the documents to change'},
+    )
+    docs.push(...page.results)
+    pageToken = page.nextPageToken
+  } while (pageToken)
+  const failed = []
+  for (let i = 0; i < docs.length; i += 8) {
+    await ctx.parallel(
+      docs.slice(i, i + 8).map((doc) => async () => {
+        try {
+          const result = await ctx.call(
+            'write',
+            {address: doc.url, options: {action: 'update', metadata: input.set}},
+            {description: 'Update ' + (doc.name || doc.url)},
+          )
+          if (result && result.type === 'hypermedia_write_error') failed.push({url: doc.url, error: result.message})
+        } catch (error) {
+          failed.push({url: doc.url, error: String((error && error.message) || error)})
+        }
+      }),
+    )
+    ctx.progress({fraction: Math.min(1, (i + 8) / docs.length), label: 'Updated ' + Math.min(i + 8, docs.length) + ' of ' + docs.length})
+  }
+  return {matched: docs.length, updated: docs.length - failed.length, failed}
+}
+\`\`\`
+
+Call it with \`delegate {title, script, input: {parent: "hm://SPACE_UID/tasks", q: "empty:Priority", set: {Priority: "High"}}}\`. Afterwards run the count again to confirm nothing is left, and report how many documents changed and any that failed.
 
 ## Other lifecycle actions
 
@@ -186,7 +258,7 @@ Any metadata key is allowed: \`options.metadata\` is merged into the document's 
 
 These keys already say what a document is. Don't add \`kind\` or \`type\` fields that repeat them, and don't give a folder a type of its own because it groups documents: a plain parent with \`childAttributesSchema\` is the collection.
 
-Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
+A write that would leave a document out of line with its type is refused, and nothing is published: the error lists each violation (a \`schemaDefinition\` that is not a valid schema is refused too). Fix the metadata to the type's allowed values: map the user's wording onto them ("in progress" is the type's "In Development" when that is the variant it offers) rather than writing their words verbatim. An update is refused only for violations it introduces, so editing a document that already violates its type in a field you don't touch still works. Pass \`options.force: true\` only when the user explicitly wants a nonconforming value; it publishes and returns the violations as \`warnings\`. A conforming or forced write reports \`schema\` ({schema, via, required, missing, violations}) beside the id, a \`dryRun\` reports the same without refusing, so check before publishing, and a \`read\` of a typed document returns the same \`schema\` block. A type that cannot be loaded only warns.
 
 \`\`\`json
 {"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","attributesSchema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
@@ -211,7 +283,7 @@ Every hm:// link in document content is resolved before publishing. Use \`option
 
 1. Infer the entities, fields, interactions, data owner/space and visibility from the user's specifications and current context. Model only what the current workflow needs: every type, field and constraint should serve a concrete action, query or invariant. Distinguish a shared collection from per-user collections. Follow **Resolve access before building the UI** below; do not ship a collection only the authoring agent can edit.
 2. Read ~/tools/write/ipfs. Publish each needed HM schema with write ipfs:// and options.schema: "schema"; bind the returned CID to a type document via metadata.schemaDefinition. These are Hypermedia schemas (type/properties/value/required), not JSON Schema. A record's fields are its document attributes, which hold text, whole numbers, booleans and nested fields — never lists: declare tags, ingredients or steps as a string field (one item per line, or comma-separated) or keep them in the record's body, and never as hm://hyper.media/list. Reuse existing types; to change one, update its type document in place rather than publishing a versioned sibling.
-3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a child document with structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. Schema conformance is advisory in today's document API: fix dry-run/read-back schema warnings before calling it valid.
+3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a child document with structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. A record that does not conform to the collection's type is refused; fix it rather than forcing it.
 4. Keep real collection/type HM URLs in one place: constants in the bundle, or page metadata only when the code actually reads that configuration. Do not add redundant dataRoot/type/collection attributes. Build the HTML against these resources through seed.directory (list a collection), seed.resource (read one record) and seed.publishDocument(recordUrl, {name, metadata}) (create or edit a record). When publishing, pass options.pageData: ["hm://DATA_OWNER/collection", ...] for every writable collection. The publisher checks child-record write access for the agent owner, not the agent signing key, and stops publication when access is missing. Its structured missingAccess result includes whether an enabled identity can grant access and exact dry-run grant inputs; use these to offer the repair, then recheck access after authorized publication of the grant. This is an access preflight, not an interaction test; shared apps must verify access for their other intended users too. Keep the URLs stable across page revisions and preserve existing records. Respect collection visibility and runtime protocol capabilities; do not silently publish private records publicly. UI permission approval is separate from having protocol write authority.
 5. Exercise create → read → edit → read-back against the actual target, then reopen with local page state empty. Verify the same record through an ordinary Seed document/attributes view. Test deletion/archive and denied/error states where offered. A second host reading the same resource is sync evidence; browser refresh alone is not. Report which checks ran. Never report local state as Seed persistence, and never fall back to local-only saves when permission is denied or Seed is unavailable.
 
@@ -248,8 +320,10 @@ Use seed.input.get() to get {values, schema, errors}. Incoming malformed or sche
 Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Configure the bundle with those real URLs; page metadata is optional and should only be added if the code reads it. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
 
 \`\`\`json
-{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true}}}
+{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true,"default":"todo"}}}
 \`\`\`
+
+A property may carry \`default\`: the value a new record starts with. It must match the property's \`value\` schema. Creating a document under the collection writes each default the write did not set as an ordinary attribute and returns them as \`defaultsApplied\`. Defaults only initialize: an update never applies them, a record that lacks the field still lacks it, and a required field stays required.
 
 The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection URL; its \`childAttributesSchema\` types every record, so records carry no type field of their own. The host resolves an existing writer capability for the selected viewer; it never creates a grant. No page approval can substitute for protocol write authority. Create parents and verify access during setup; never embed a secret or an agent signing key. If configuration lives in metadata, read the page document identified by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
 
@@ -264,6 +338,10 @@ async function createTaskData(seed, {dataRoot}) {
   return {
     async list() {
       return seed.directory(dataRoot)
+    },
+    // Calls render(records) now and after every change, whoever made it. Returns a stop function.
+    watch(render, onError) {
+      return seed.watch.directory(dataRoot, render, onError)
     },
     async create(name) {
       name = name.trim()
@@ -309,7 +387,7 @@ For pages that work on both web and desktop, use a single self-contained HTML pa
 
 Publication validates classic JavaScript syntax and rejects external assets for the default \`options.pageTarget: "web-desktop"\`. Only use \`pageTarget: "desktop"\` when the user explicitly wants a desktop-only bundle. A dry run returns the same \`pageValidation\` receipt, pinned to the bundle CID. This is static validation, not a startup or interaction test. Report evidence separately: generated, syntax-checked, published/read-back, opened, interaction-tested. Never say "verified" when you only read the published document. After a tool/session error, read the destination before retrying: publication may already have succeeded.
 
-Use \`seed.runtime()\` to discover the actual host's SDK version, implementation digest, method inventory and storage limits. This guide expects SDK 2.0.0. Feature-detect newer methods; if absent, show "Update Seed to use this feature" instead of guessing alternatives. The authoring server and the desktop/web host may run different builds.
+Use \`seed.runtime()\` to discover the actual host's SDK version, implementation digest, method inventory and storage limits. This guide expects SDK 2.1.0. Feature-detect newer methods; if absent, show "Update Seed to use this feature" instead of guessing alternatives. The authoring server and the desktop/web host may run different builds.
 
 For content links use ordinary \`<a href="hm://ACCOUNT/path?v=VERSION#BLOCK">Read the document</a>\` or \`await seed.open(hmUrl)\` in a click handler. Seed opens the content outside the page sandbox and preserves version/block references. Use \`{newWindow: true}\` when desired; anchors support Ctrl/Cmd/middle click and target="_blank". Explicit HTTP(S) URLs retain their original server, which matters for local and private networks. Do not replace window.location, invent gateway URLs, use parent DOM, or open the content inside the sandbox. Opening a link requires no account-write grant. Handle rejected opens visibly and preserve input. Use meaningful link labels.
 
@@ -334,8 +412,9 @@ Remembered rules belong to the selected viewer and canonical page document ID on
 The same APIs work on web and desktop, subject to those independent approvals:
 
 - \`seed.resource(hmUrl)\` and \`seed.directory(hmUrl, {all})\` read other documents/directories with the host's access.
+- Anything the page keeps on screen comes from a live read: \`seed.watch.directory(hmUrl, {all}?, listener, onError?)\` and \`seed.watch.resource(hmUrl, listener, onError?)\` call \`listener\` with the same value the one-shot read gives, now and again each time it changes (a save by this page, another viewer, an agent or a trigger). Each returns a function that stops it. Seed pushes the changes, so never poll with a timer or reload on focus.
 - \`seed.request(key, input)\` exposes every request in the HM TypeScript SDK's \`HMRequest\` union, including Resource, Account, Query, PrepareDocumentChange and PublishBlobs. Use the existing SDK's exact input shapes; no invented daemon methods.
-- App data, exactly: \`await seed.directory(collectionUrl)\` resolves to an **array** of records, each \`{url: "hm://…", id: {id: "hm://…", uid, path}, metadata: {…}, updateTime, …}\` (read \`record.metadata.status\`; \`record.url\` is its address, a string: use it for links, keys and comparisons). \`await seed.resource(recordUrl)\` (a URL, or a record from the list) resolves to \`{type: "document", document: {metadata, content, version}}\`, with \`metadata\`, \`content\` and \`version\` also on the result itself. \`seed.publishDocument(recordUrl, {name?, metadata?, content?, visibility?})\` creates the record at an hm:// address, or edits it when it exists (its history is kept); the viewer approves one save, not each signature. After saving, list the collection again to show the new record. \`metadata\` values are text, whole numbers, true/false or nested objects. A page cannot save a list: store a set as a map (\`tags: {dinner: true, quick: true}\`, which also lets each entry change on its own) and anything ordered in the body or as child records. To point at another record (a check-in's habit), put the record itself or its URL in the field: it is saved as the record's hm:// URL, and \`seed.app.call\` input does the same. \`content\` is the record's body as markdown, and saving it again replaces the body (so keep it in step with the fields): write the record out readably there (a recipe's ingredients and steps, an entry's notes), because owners also open records as documents.
+- App data, exactly: \`await seed.directory(collectionUrl)\` resolves to an **array** of records, each \`{url: "hm://…", id: {id: "hm://…", uid, path}, metadata: {…}, updateTime, …}\` (read \`record.metadata.status\`; \`record.url\` is its address, a string: use it for links, keys and comparisons). \`await seed.resource(recordUrl)\` (a URL, or a record from the list) resolves to \`{type: "document", document: {metadata, content, version}}\`, with \`metadata\`, \`content\` and \`version\` also on the result itself. \`seed.publishDocument(recordUrl, {name?, metadata?, content?, visibility?})\` creates the record at an hm:// address, or edits it when it exists (its history is kept); the viewer approves one save, not each signature. Show the collection with \`seed.watch.directory(collectionUrl, render)\`: a saved record arrives through it, so do not list again after saving. \`metadata\` values are text, whole numbers, true/false or nested objects. A page cannot save a list: store a set as a map (\`tags: {dinner: true, quick: true}\`, which also lets each entry change on its own) and anything ordered in the body or as child records. To point at another record (a check-in's habit), put the record itself or its URL in the field: it is saved as the record's hm:// URL, and \`seed.app.call\` input does the same. \`content\` is the record's body as markdown, and saving it again replaces the body (so keep it in step with the fields): write the record out readably there (a recipe's ingredients and steps, an entry's notes), because owners also open records as documents.
 - \`seed.publish({blobs: [{cid, data}]})\` publishes arbitrary blobs; \`data\` is a Uint8Array, not base64. The raw form \`seed.publishDocument({account, path, changes, baseVersion?, genesis?, generation?, capability?, visibility?})\` prepares, signs and publishes document changes using the selected viewer. The account field is the TARGET space; the signer cannot be selected by the page. Changes use SDK protobuf operation shapes, not markdown.
 - \`seed.signer.getPublicKey()\` and \`seed.signer.sign(new Uint8Array(bytes))\` implement the SDK's HMSigner interface. They return public key/signature bytes; private keys never leave Seed. Web sign-in may use a delegated device key, so its signing principal can differ from the selected account UID; existing protocol delegation still applies. A prebundled SDK can use this signer; do not fetch dependencies at runtime.
 - \`seed.hm.createComment(input)\`, \`updateComment\`, \`deleteComment\`, \`createDocumentBlobs\`, \`createVersionRef\`, \`createRedirectRef\`, \`createTombstoneRef\`, \`createCapability\`, \`createContact\`, \`updateContact\`, \`deleteContact\`, and \`signDocumentChange\` use the corresponding SDK input and return types, with the host supplying the signer. Helpers sign but do not publish. The signed-change result uses a string for \`changeCid\` so it survives the bridge. \`seed.hm.signBlob(body)\` signs a custom dag-json blob body, returning \`{cid, data, ts, signer}\`; publish its cid/data through \`seed.publish\`.
@@ -361,7 +440,7 @@ The app's **pages** are its interface and its **tools** are its server side. A p
 ## What runs where
 
 - A **tool** takes input and returns output. It runs in a sandbox with internet access but holds no signing key and cannot reach this server's Seed node: it cannot publish Seed documents, and it should not try to read them (no localhost, no guessed Seed endpoints). Give it the records it needs as input: a page reads them with \`seed.directory\` and passes them in \`seed.app.call\`, and you read them before calling it. A tool that fails to fetch or parse must throw, never return an empty result as if there were no data.
-- A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (ask your user for the key; never put it in code), or the work is yours, as your own trigger (under your document) whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
+- A tool has **no language model**. Work that needs judgment (summarizing, classifying, drafting text) is not tool code alone: either the tool calls a model API with a key from the app's private config (have a space writer enter the key under Private config in the app’s Settings), or the work is yours, as your own trigger (under your document) whose message asks you to do it. Never ship an excerpt as a "summary" without saying it is an excerpt.
 - A **page** runs in the viewer's browser and writes Seed records as the viewer (\`seed.publishDocument\`), within the viewer's access.
 - A **trigger** under an app calls one of the app's tools when something happens. Use it when the tool call itself is the work (post to a webhook, refresh an external service). Scheduled or event-driven work that reads or writes the app's Seed data or needs judgment (a daily digest of new records, a shopping list from this week's recipes) is your own trigger, under your document: its message tells you what to do, and you read the records, call the app's tools with them, and publish the result where the app keeps it (for a digest, a record in one of its collections).
 
@@ -403,7 +482,7 @@ Never put a secret in the code, the app or a tool document: declare it in the ap
 
 - An app declares its config as two HM struct schemas, referenced like tool schemas: \`metadata.publicConfigSchema\` (values anyone can read, stored on the app as \`metadata.publicConfig\`) and \`metadata.privateConfigSchema\` (secrets such as API keys, which the person running the app enters and the app server keeps; they are never published).
 - An app runs only on the server it names: its \`metadata.appEnvironmentUrl\`, or, without one, the app environment its space's site advertises. It cannot run, and its tools cannot be called, anywhere else. A person who can write the app's space runs it from the app's Settings (Run App), which sets that server and the private config.
-- You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SPACE/you/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. Never ask for a secret in a document or comment: when you do not have a private value, tell the user to run the app from its Settings instead.
+- You can run or stop an app only when it names the server you run on: write the app's address with \`options.action: "run"\` and its private config, \`{"address":"hm://SPACE/you/weather","options":{"action":"run","privateConfig":{"apiKey":"…"},"signer":{"publicKey":"SIGNER_UID"}}}\`. The signer must be able to write the app's space. Running again updates the private config fields you give and keeps the others; \`options.action: "stop"\` stops the app and forgets it. An app you can write (one in your own space, for example) that names no server: set its \`metadata.appEnvironmentUrl\` to the app server you run on (your prompt names it) with an update, then run it. An app that names another server runs only there: tell the user, who can run it from the app's Settings. Set public config first with an update of \`metadata.publicConfig\`. When a credential is missing, direct a space writer to Settings → Run App → Private config, or Settings → Private config if the app is already running. Never request the value in conversation or put it in a published resource.
 - A tool in an agent's document runs on the server that agent runs on (the document's \`agentServerUrl\`), with no run step.
 - A running app is also served over plain HTTP by its server: \`GET /hm/api/apps\` lists running apps, \`GET /hm/api/apps/SPACE/apps/weather\` is the app with its tools, and \`GET …/forecast\` a tool with its recent calls. Calls themselves are signed (the call verb signs yours as your account), so every run names who triggered it and the tool version that ran.
 - \`read <tool>/:calls\` lists a tool's recent calls on this server (any app's tool you can read, and yours), and \`read <tool>/:call/<id>\` one call with its input and output: check how a tool or its triggers have been doing before changing it.

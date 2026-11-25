@@ -34,7 +34,7 @@ vi.mock('../agents/models', () => ({
   useRememberAgentServer: () => ({mutate: mocks.rememberServer}),
   prefetchAgentDetail: vi.fn(async () => {}),
   useAgentServerHealth: () => ({
-    data: {defaultPromptUrl: 'hm://hyper.media/app-environment/guide'},
+    data: {defaultPromptUrl: 'hm://hyper.media/agent/guide'},
     isInitialLoading: false,
   }),
   useCreateAgent: () => ({mutateAsync: mocks.createAgent}),

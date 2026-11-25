@@ -7,14 +7,14 @@
 // tab. Readers see the same rows read-only — the value, or "not set" for a missing
 // one. The caller resolves the schema (see useEffectiveDocSchema) and passes its
 // metadata sub-schema as `conformanceSchema`.
-import {fieldSchema, requiredFieldNames, type SchemaRegistry} from './schema/engine'
+import {requiredFieldNames, type SchemaRegistry} from './schema/engine'
 import {useMemo} from 'react'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {seedValue} from './schema/data-editor'
 import type {HypermediaSchema} from './schema/engine'
 import {documentMetadataSchema} from './schema/metadata-schema-keys'
 import {SchemaRegistryProvider} from './schema/schema-context'
 import {RESERVED_METADATA_KEYS} from './schema/schema-document'
+import {unsetFieldValue} from './schema/value-editor-schema'
 import {FIELD_LABEL_CLASS, FieldRow, METADATA_VALUE_RULES, ValueDisplay, ValueEditorProvider} from './value-editor'
 
 /**
@@ -60,9 +60,9 @@ export function RequiredAttributesEditor({
     () =>
       requiredKeys.map((key) => ({
         key,
-        value: key in current && current[key] != null ? current[key] : seedValue(fieldSchema(schemaRoot, key) ?? {}),
+        value: key in current && current[key] != null ? current[key] : unsetFieldValue(schemaRoot, key, registry),
       })),
-    [requiredKeys, current, schemaRoot],
+    [requiredKeys, current, schemaRoot, registry],
   )
 
   if (requiredRows.length === 0) return null

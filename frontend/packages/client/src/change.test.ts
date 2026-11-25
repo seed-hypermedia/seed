@@ -10,6 +10,7 @@ import {
   signPreparedChange,
   signDocumentChange,
   visibilityToCbor,
+  type DocumentOperation,
 } from './change'
 import type {HMSigner} from './hm-types'
 
@@ -200,6 +201,20 @@ describe('createChangeOps', () => {
     expect(decoded['depth']).toBe(1)
     expect(decoded['genesis']).toBeDefined()
     expect(result.genesis?.toString()).toBe(genesisCID.toString())
+  })
+
+  it('signs the message into the change and omits an empty one', async () => {
+    const signer = createMockSigner()
+    const ops: DocumentOperation[] = [{type: 'SetAttributes', attrs: [{key: ['title'], value: 'Test'}]}]
+
+    const withMessage = createChangeOps({ops, ts: 1n, message: 'Fix typo'})
+    const signed = await createChange(withMessage.unsignedBytes, signer)
+    expect((cborDecode(signed.bytes) as Record<string, unknown>)['message']).toBe('Fix typo')
+
+    const plain = cborDecode(createChangeOps({ops, ts: 1n}).unsignedBytes) as Record<string, unknown>
+    const empty = cborDecode(createChangeOps({ops, ts: 1n, message: ''}).unsignedBytes) as Record<string, unknown>
+    expect('message' in plain).toBe(false)
+    expect('message' in empty).toBe(false)
   })
 })
 

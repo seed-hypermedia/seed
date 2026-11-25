@@ -98,7 +98,7 @@ describe('resolved markdown', () => {
       {client: c},
     )
 
-    expect(markdown).toContain('see [Named Document](hm://site/docs)')
+    expect(markdown).toContain('see [@Named Document](hm://site/docs)')
   })
 
   it('inlines block embeds as resolved markdown content', async () => {
@@ -110,10 +110,14 @@ describe('resolved markdown', () => {
     })
     const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://site/embedded')]), {client: c})
 
-    expect(markdown).toContain('<!-- embed: hm://site/embedded; title: Embedded Doc -->')
-    expect(markdown).toContain('embedded body')
-    expect(markdown).toContain('<!-- /embed: hm://site/embedded -->')
-    expect(markdown).not.toContain('> embedded body')
+    expect(markdown).toContain(
+      [
+        '<hm://site/embedded> <!-- id:emb1 type:Embed -->',
+        '<!-- resolved: Embedded Doc -->',
+        'embedded body <!-- id:e1 -->',
+        '<!-- /resolved -->',
+      ].join('\n'),
+    )
   })
 
   it('zooms block embeds to the referenced text range', async () => {
@@ -127,7 +131,7 @@ describe('resolved markdown', () => {
       client: c,
     })
 
-    expect(markdown).toContain('block: target[6:14]')
+    expect(markdown).toContain('<hm://site/embedded#target[6:14]> <!-- id:emb1 type:Embed -->')
     expect(markdown).toContain('selected')
     expect(markdown).not.toContain('hello selected world')
   })
@@ -147,7 +151,7 @@ describe('resolved markdown', () => {
     })
     const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://author/comment1')]), {client: c})
 
-    expect(markdown).toContain('<!-- embed: hm://author/comment1; title: Comment by Comment Author -->')
+    expect(markdown).toContain('<!-- resolved: Comment by Comment Author -->')
     expect(markdown).toContain('comment body')
   })
 
@@ -165,8 +169,8 @@ describe('resolved markdown', () => {
       },
     )
 
-    expect(markdown).toContain('version: old-version')
-    expect(markdown).not.toContain('latest is')
+    expect(markdown).toContain('<hm://site/embedded?v=old-version> <!-- id:emb1 type:Embed -->')
+    expect(markdown).toContain('old body')
   })
 
   it('block embeds prefer root document content over account profile metadata', async () => {
@@ -179,7 +183,7 @@ describe('resolved markdown', () => {
     })
     const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://site')]), {client: c})
 
-    expect(markdown).toContain('<!-- embed: hm://site; title: Home Document -->')
+    expect(markdown).toContain('<!-- resolved: Home Document -->')
     expect(markdown).toContain('home body')
     expect(c.request).not.toHaveBeenCalledWith('Account', 'site')
   })
@@ -220,7 +224,8 @@ describe('resolved markdown', () => {
       client: c,
     })
 
-    expect(markdown).toContain('<!-- Query: no space specified --> <!-- id:FQ17xO8a -->')
+    expect(markdown).toContain('<!-- id:FQ17xO8a type:Query attrs:')
+    expect(markdown).toContain('<!-- resolved: query with no space -->')
     expect(c.request).not.toHaveBeenCalled()
   })
 
@@ -287,7 +292,7 @@ describe('resolved markdown', () => {
       {client: c},
     )
 
-    expect(markdown).toContain('<!-- Query: no space specified -->')
+    expect(markdown).toContain('<!-- resolved: query with no space -->')
     expect(c.request).not.toHaveBeenCalled()
   })
 
@@ -301,8 +306,7 @@ describe('resolved markdown', () => {
     const markdown = await contentToResolvedMarkdown([embed('emb1', 'hm://site/embedded')], {client: c})
 
     expect(markdown).toContain('standalone embedded body')
-    expect(markdown).toContain('<!-- /embed: hm://site/embedded -->')
-    expect(markdown).not.toContain('> standalone embedded body')
+    expect(markdown).toContain('<!-- /resolved -->')
   })
 
   it('resolves embeds while rendering comments directly', async () => {
@@ -338,7 +342,7 @@ it('resolves an explicit home document independently from a legacy account at th
     {client: c},
   )
   expect(markdown).toContain('[@Alice](hm://alice)')
-  expect(markdown).toContain('[Home Page](hm://alice)')
+  expect(markdown).toContain('[@Home Page](hm://alice)')
 })
 
 it('does not duplicate the @ prefix in resolved account mention names', async () => {

@@ -1,6 +1,10 @@
 import {useLocalKeyPair} from '@/auth'
+import {useUpdateHomeDocument} from '@/models/site'
+import {hmId} from '@shm/shared'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {DropdownMenuItem} from '@shm/ui/components/dropdown-menu'
+import {useSpaceHome} from '@shm/ui/space-settings'
+import {HeaderAddLink} from '@shm/ui/space-settings-navigation'
 import {PanelsTopLeft} from 'lucide-react'
 
 /** Space Settings is offered only for the space owned by the active delegated identity. */
@@ -31,4 +35,13 @@ export function WebSpaceSettingsMenuItem({
       Space settings
     </DropdownMenuItem>
   )
+}
+
+/** The top bar's Add or edit links button, offered to the same owners as Space Settings. */
+export function WebHeaderAddLink({siteUid}: {siteUid: string}) {
+  const canManage = useCanOpenSpaceSettings(siteUid)
+  const home = useSpaceHome(siteUid)
+  const updateHome = useUpdateHomeDocument(siteUid)
+  if (!canManage || !home) return null
+  return <HeaderAddLink siteId={hmId(siteUid)} document={home} updateHome={updateHome} />
 }

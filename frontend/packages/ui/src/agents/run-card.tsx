@@ -344,23 +344,26 @@ function RunCardBody({
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={headerTitle}>
           {headerTitle}
         </span>
-        {/* Everything technical lives on the run's own page; the card offers only the way there,
-            in the same hover bubble every tool row uses for its quiet affordances. */}
+        {/* A script's technical detail lives on its run page; the card offers only the way there,
+            in the same hover bubble every tool row uses for its quiet affordances. A run with a
+            transcript has no run page: this card already sits in the session that records it. */}
         <span className="flex flex-none items-center gap-1.5">
           {isCompletedTranscript && issueCount ? (
             <span className="text-[10px] text-amber-700 dark:text-amber-300">
               {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
             </span>
           ) : null}
-          <button
-            type="button"
-            title="Open run page"
-            aria-label="Open run page"
-            onClick={() => navigate({key: 'agent-run', runId: run.id, serverUrl, agentId: run.agentId})}
-            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
-          >
-            <ArrowUpRight className="size-3" />
-          </button>
+          {run.sessionId ? null : (
+            <button
+              type="button"
+              title="Open run page"
+              aria-label="Open run page"
+              onClick={() => navigate({key: 'agent-run', runId: run.id, serverUrl, agentId: run.agentId})}
+              className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
+            >
+              <ArrowUpRight className="size-3" />
+            </button>
+          )}
         </span>
         {!showRunControls ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">

@@ -138,7 +138,9 @@ export function TriggerDocumentView({
     clearTimeout(messageTimer.current)
     messageTimer.current = setTimeout(() => {
       const blocks = text.trim()
-        ? markdownBlockNodesToHMBlockNodes(parseMarkdown(text, {strictFrontmatter: false}).tree)
+        ? markdownBlockNodesToHMBlockNodes(
+            parseMarkdown(text, {strictFrontmatter: false, strictResolvedRanges: false}).tree,
+          )
         : []
       written.current.content = blocks
       draft.change({}, blocks)

@@ -83,7 +83,9 @@ function attributeChanges(fields: Record<string, unknown>, path: string[]): unkn
  * out, so a list reads as indented lines rather than bullets.
  */
 function bodyChanges(text: string, doc: HMDocument | null): unknown[] {
-  const tree = hm.markdownBlockNodesToHMBlockNodes(hm.parseMarkdown(text, {strictFrontmatter: false}).tree)
+  const tree = hm.markdownBlockNodesToHMBlockNodes(
+    hm.parseMarkdown(text, {strictFrontmatter: false, strictResolvedRanges: false}).tree,
+  )
   // Every old block goes, children included, so none is left without its parent.
   const changes: unknown[] = []
   const remove = (nodes: NonNullable<HMDocument['content']>) => {

@@ -5,7 +5,6 @@
 import type {Command} from 'commander'
 import {existsSync, readFileSync, writeFileSync} from 'fs'
 import {extname} from 'path'
-import {CID} from 'multiformats/cid'
 import {
   createVersionRef,
   createTombstoneRef,
@@ -34,16 +33,17 @@ import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {
-  META_SCHEMA,
   encodeBlob,
   loadEffectiveSchema,
   metadataViolations,
+  newDocumentDefaults,
   readJsonFile,
+  schemaViolations,
   violations,
 } from '../utils/schema'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
-import {assertValidMermaid} from '@seed-hypermedia/client'
+import {assertValidMermaid, documentUpdateBlobs} from '@seed-hypermedia/client'
 import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {
@@ -412,6 +412,10 @@ export function registerDocumentCommands(program: Command) {
       '--schema-definition <file>',
       'Publish this dag-json schema file as a blob and bind it as the document’s schemaDefinition',
     )
+    .option(
+      '--no-defaults',
+      'Do not set the attributes the document’s schema gives a default (a new typed document starts from them)',
+    )
     .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
     .option('--dry-run', 'Preview extracted content without publishing')
     .option('--force', 'Overwrite existing document at the same path (creates new lineage)')
@@ -501,6 +505,16 @@ export function registerDocumentCommands(program: Command) {
               if ((e as Error).message.includes('already exists')) throw e
             }
           }
+        }
+
+        // A new typed document starts from its schema's property defaults: every attribute the type
+        // gives a default and this document does not set. Written as ordinary attributes.
+        const newId = options.defaults === false ? null : unpackHmId(`hm://${account}${path}`)
+        const defaults = newId ? await newDocumentDefaults(client, newId, resolvedMeta as Record<string, unknown>) : {}
+        const defaultKeys = Object.keys(defaults)
+        if (defaultKeys.length) {
+          Object.assign(resolvedMeta as Record<string, unknown>, defaults)
+          if (!globalOpts.quiet) printInfo(`Set from the schema's defaults: ${defaultKeys.join(', ')}`)
         }
 
         const ops: DocumentOperation[] = []
@@ -625,13 +639,6 @@ export function registerDocumentCommands(program: Command) {
         // target's DAG and the new Version Ref at THIS address supersedes the redirect.
         const base = await resolveEditableDocument(client, resourceId)
         const existingDoc = base.document
-        if (base.redirect && !globalOpts.quiet) {
-          printInfo(
-            `This address currently ${base.redirect.republish ? 'republishes' : 'redirects to'} ${packHmId(
-              base.redirect.target,
-            )}; updating it replaces the redirect with an edited copy of that document.`,
-          )
-        }
 
         // Collect content and metadata from file input
         let inputMeta: HMMetadata = {}
@@ -675,17 +682,29 @@ export function registerDocumentCommands(program: Command) {
           if (metaOp) ops.push(metaOp)
         }
 
+        let deleteRequested = false
         if (options.deleteBlocks) {
-          const blockIds = options.deleteBlocks
+          const blockIds: string[] = options.deleteBlocks
             .split(',')
             .map((blockId: string) => blockId.trim())
             .filter(Boolean)
-          if (blockIds.length > 0) {
-            ops.push({type: 'DeleteBlocks', blocks: blockIds})
+          deleteRequested = blockIds.length > 0
+          // A block that is not in the document has nothing to delete. (The server would store
+          // the delete anyway, as a new version that changes nothing.)
+          const existingBlocks = createBlocksMap((existingDoc.content || []).map(toAPIBlockNode))
+          const present = blockIds.filter((blockId) => existingBlocks[blockId])
+          const absent = blockIds.filter((blockId) => !existingBlocks[blockId])
+          if (absent.length > 0 && !globalOpts.quiet) {
+            printInfo(`Not in the document, nothing to delete: ${absent.join(', ')}`)
+          }
+          if (present.length > 0) {
+            ops.push({type: 'DeleteBlocks', blocks: present})
           }
         }
 
-        if (ops.length === 0) {
+        // Nothing was asked for at all. (A file that matches the document, or a block that is
+        // already gone, is a request with nothing left to do: reported below as up to date.)
+        if (ops.length === 0 && !hasFileInput && !deleteRequested) {
           printError(
             'No updates specified. Use --name, --summary, --metadata, --schema-definition, -f <file>, or --delete-blocks.',
           )
@@ -696,43 +715,72 @@ export function registerDocumentCommands(program: Command) {
         const docAccount = resourceId.uid
         const docPath = resourceId.path?.length ? `/${resourceId.path.join('/')}` : existingDoc.path || ''
 
-        const state = base.state
-        const genesisCid = CID.parse(state.genesis)
-        const depCids = state.heads.map((h) => CID.parse(h))
-        const newDepth = state.headDepth + 1
-
         const signer = createSignerFromKey(key)
         const capability = await resolveCapability(client, docAccount, key.accountId, docPath)
-        const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
-        const changeBlock = await createChange(unsignedBytes, signer)
-        const generation = Number(ts)
-        const refInput = await createVersionRef(
-          {
-            space: docAccount,
-            path: docPath,
-            genesis: state.genesis,
-            version: changeBlock.cid.toString(),
-            generation,
-            capability,
-          },
-          signer,
-        )
 
-        await client.publish({
-          blobs: [
-            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-            ...refInput.blobs,
-            ...(schemaBlob ? [schemaBlob] : []),
-            ...fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
-            ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
-          ],
+        // The server computes the Change from the document's real state, so only what differs is
+        // written; when it cannot be asked, or does not give a usable answer, the Change is built
+        // here as written (documentUpdateBlobs). For a redirected address the server is given THIS
+        // path and the target's heads: it builds on the target's history (loadDocumentForChange),
+        // and the Ref signed here, in a fresh generation, outranks the redirect Ref.
+        const update = await documentUpdateBlobs({
+          client,
+          signer,
+          account: docAccount,
+          path: docPath,
+          state: base.state,
+          ops,
+          content: existingDoc.content ?? [],
+          documentVersion: existingDoc.version,
+          capability,
+          // An edit stays in the document's generation; only taking a path over from a redirect
+          // opens a fresh one (left out, the Ref takes the new Change's timestamp).
+          currentGeneration: base.redirect ? undefined : existingDoc.generationInfo?.generation,
         })
 
-        if (!globalOpts.quiet) {
-          const serverUrl = getServerUrl(globalOpts)
-          const webUrl = `${serverUrl}/hm/${id.replace(/^hm:\/\//, '')}`
-          printSuccess(`Document updated: ${webUrl}`)
+        // Files and the schema are published either way: they are named by their content, so
+        // sending them again is harmless, and a run that follows a failed upload repairs it.
+        const attachedBlobs = [
+          ...(schemaBlob ? [schemaBlob] : []),
+          ...fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
+          ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
+        ]
+        const serverUrl = getServerUrl(globalOpts)
+        const webUrl = `${serverUrl}/hm/${id.replace(/^hm:\/\//, '')}`
+
+        if (!update.changed) {
+          // Every requested change is already true of the document: no Change, no Ref, no new
+          // version. A redirected address is left as it is, since there is no edit to take it over with.
+          if (attachedBlobs.length > 0) await client.publish({blobs: attachedBlobs})
+          if (!globalOpts.quiet) {
+            printSuccess(`Document already up to date, nothing to publish: ${webUrl}`)
+            if (base.redirect) {
+              printInfo(
+                `This address still ${base.redirect.republish ? 'republishes' : 'redirects to'} ${packHmId(
+                  base.redirect.target,
+                )}.`,
+              )
+            }
+          }
+          return
         }
+
+        if (!globalOpts.quiet) {
+          if (base.redirect) {
+            printInfo(
+              `This address currently ${base.redirect.republish ? 'republishes' : 'redirects to'} ${packHmId(
+                base.redirect.target,
+              )}; updating it replaces the redirect with an edited copy of that document.`,
+            )
+          }
+          if (update.builtBy === 'local') {
+            printInfo(`This change was built locally, as written, because ${update.localReason}.`)
+          }
+        }
+
+        await client.publish({blobs: [...update.blobs, ...attachedBlobs]})
+
+        if (!globalOpts.quiet) printSuccess(`Document updated: ${webUrl}`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -1233,7 +1281,7 @@ async function applySchemaDefinition(
   if (typeof file !== 'string') return null
   const schema = readJsonFile(file)
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error(`${file} does not hold a schema`)
-  const errors = violations(META_SCHEMA, schema)
+  const errors = schemaViolations(schema)
   if (errors.length)
     throw new Error(`${file} is not a valid Hypermedia schema:\n${errors.map((e) => `  ✗ ${e}`).join('\n')}`)
   const blob = await encodeBlob(schema)

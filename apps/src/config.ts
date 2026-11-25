@@ -229,7 +229,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'public-url': v('PUBLIC_URL') || '',
     'ipfs-server-url': v('IPFS_SERVER_URL') || '',
     'default-prompt-url':
-      v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/app-environment/guide',
+      v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
     'docs-account': v('DOCS_ACCOUNT') || '',
     'docs-account-file': v('DOCS_ACCOUNT_FILE') || '',
     'activity-poll-interval-ms': Number(v('ACTIVITY_POLL_INTERVAL_MS')) || 5_000,

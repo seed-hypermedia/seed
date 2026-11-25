@@ -127,6 +127,37 @@ describe('activity trigger matching', () => {
     ).toBe(true)
   })
 
+  test('matches the resolved feed event of a document attribute naming the account', () => {
+    // What /api/ListEvents returns when a task document sets `Owner` to the agent's account.
+    const cid = 'bafyreih34oqhzivq6xhrsetg3tgrcnrmg4giwysh34wktgcz6ph736kxka'
+    const event = {
+      type: 'citation',
+      citationType: 'd',
+      metadataKey: 'Owner',
+      feedEventId: `mention-${cid}--hm://z6Mkagent`,
+      author: {id: {uid: 'z6Mkuser', id: 'hm://z6Mkuser', path: []}},
+      source: {id: {id: 'hm://z6Mksite/tasks/fix-it', uid: 'z6Mksite', path: ['tasks', 'fix-it'], version: cid}},
+      target: {id: {id: 'hm://z6Mkagent', uid: 'z6Mkagent', path: []}},
+    }
+    const source = {type: 'user-mention' as const, mentionedAccounts: ['z6Mkagent']}
+
+    expect(triggers.activityMatchesTriggerSource(source, event)).toBe(true)
+    expect(triggers.activityMatchesTriggerSource({...source, mentionedAccounts: ['z6Mkother']}, event)).toBe(false)
+    // The agent naming itself as the owner is not someone summoning it.
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {...source, mentionedAccounts: ['self']},
+        {...event, author: {id: {uid: 'z6Mkagent', id: 'hm://z6Mkagent', path: []}}},
+        {ownAccounts: ['z6Mkagent']},
+      ),
+    ).toBe(false)
+    expect(
+      triggers.activityMatchesTriggerSource({...source, mentionedAccounts: ['self']}, event, {
+        ownAccounts: ['z6Mkagent'],
+      }),
+    ).toBe(true)
+  })
+
   test('matches comments on documents an account authored, but not its own comments', () => {
     const source = {type: 'document-author-comment' as const, documentAuthors: ['z6Mkagent']}
     const comment = (author: string, targetAuthorUids: string[] | undefined, type = 'comment') => ({

@@ -850,7 +850,10 @@ function isCBORRequest(req: Request): boolean {
 }
 
 // Compiled executables don't reliably set import.meta.main (false on Windows in bun 1.3,
-// oven-sh/bun#6009), so the binary build injects SEED_AGENTS_STANDALONE via define instead.
-if (import.meta.main || config.envVar(process.env, 'STANDALONE') === '1') {
+// oven-sh/bun#6009), so the binary build injects SEED_APPS_STANDALONE via define instead.
+// It must be read as this literal expression: define rewrites source text at build time, so a
+// lookup through config.envVar (a computed key) is never replaced, and the Windows binary then
+// starts nothing and exits 0 without a word.
+if (import.meta.main || process.env.SEED_APPS_STANDALONE === '1') {
   main()
 }

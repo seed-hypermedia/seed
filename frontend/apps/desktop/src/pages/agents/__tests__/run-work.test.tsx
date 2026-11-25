@@ -244,7 +244,7 @@ describe('integrated step rows', () => {
     title: 'Notion researcher',
   } as never)
 
-  it('the step with an attached child IS the link into its run page — no duplicate row below', () => {
+  it('the step with an attached child IS the link into its transcript — no duplicate row below', () => {
     const onOpenSession = vi.fn()
     render(
       <RunWorkHierarchy
@@ -265,8 +265,8 @@ describe('integrated step rows', () => {
     expect(stepRow).toBeTruthy()
     click(stepRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-1',
+      key: 'agent-session',
+      sessionId: 'child-session-1',
       serverUrl: 'http://localhost:3050',
     })
     // The child does not ALSO render as a separate loose row beneath the list.
@@ -315,8 +315,8 @@ describe('integrated step rows', () => {
     expect(stepRow).toBeTruthy()
     click(stepRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-1',
+      key: 'agent-session',
+      sessionId: 'child-session-1',
       serverUrl: 'http://localhost:3050',
     })
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
@@ -341,8 +341,8 @@ describe('integrated step rows', () => {
     )
     click(stepRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-1',
+      key: 'agent-session',
+      sessionId: 'child-session-1',
       serverUrl: 'http://localhost:3050',
     })
   })
@@ -395,7 +395,7 @@ describe('integrated step rows', () => {
     )
     expect(stepButton).toBeUndefined()
 
-    // Both children are there, each its own click target into its own run page.
+    // Both children are there, each its own click target into its own transcript.
     const notionRow = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Notion researcher',
     )
@@ -410,14 +410,14 @@ describe('integrated step rows', () => {
 
     click(notionRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-notion',
+      key: 'agent-session',
+      sessionId: 'session-notion',
       serverUrl: 'http://localhost:3050',
     })
     click(codaRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-coda',
+      key: 'agent-session',
+      sessionId: 'session-coda',
       serverUrl: 'http://localhost:3050',
     })
 
@@ -474,12 +474,46 @@ describe('integrated step rows', () => {
     expect(stepRow).toBeTruthy()
     click(stepRow)
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-1',
+      key: 'agent-session',
+      sessionId: 'child-session-1',
       serverUrl: 'http://localhost:3050',
     })
     // No peer row below it — the step is the only place the child appears.
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
+  })
+
+  it('a script child, which has no transcript, opens its run page', () => {
+    const script = makeRun({
+      id: 'child-script',
+      status: 'running',
+      kind: 'workflow',
+      rootRunId: 'root-1',
+      parentRunId: 'root-1',
+      planStepId: 's1',
+      title: 'Import script',
+    } as never)
+    render(
+      <RunWorkHierarchy
+        serverUrl="http://localhost:3050"
+        run={parent}
+        childRuns={[script]}
+        plan={plan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={vi.fn()}
+        onCancelRun={vi.fn()}
+      />,
+    )
+    click(
+      Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.includes('Research Notion'),
+      ),
+    )
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'agent-run',
+      runId: 'child-script',
+      serverUrl: 'http://localhost:3050',
+    })
   })
 
   it('a live attached child exposes its cancel on the step row', () => {
@@ -602,7 +636,7 @@ describe('delegate expanded view', () => {
     })
   })
 
-  it('opens a step’s run page by navigating, with no synthetic event to preventDefault', () => {
+  it('opens a step’s transcript by navigating, with no synthetic event to preventDefault', () => {
     mockState.run = makeRun({
       id: 'wf-run-2',
       status: 'running',
@@ -631,8 +665,8 @@ describe('delegate expanded view', () => {
     click(container.querySelector('button[title="Show tool details"]'))
     click(Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Research Notion')))
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
-      key: 'agent-run',
-      runId: 'child-2',
+      key: 'agent-session',
+      sessionId: 'child-session-2',
       serverUrl: 'http://localhost:3050',
     })
   })

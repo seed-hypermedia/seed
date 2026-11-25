@@ -83,7 +83,6 @@ import {
   useIsLatest,
   useResource,
   useResources,
-  useSiteMembers,
 } from '@shm/shared/models/entity'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
@@ -125,7 +124,7 @@ import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {DocumentPageView, documentPageCid} from './document-page'
-import {usePublishError} from './editing-toolbar'
+import {DraftHiddenActions, usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
@@ -145,6 +144,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
+  ChevronDown,
   Braces,
   FileText,
   Grid3X3,
@@ -156,7 +156,6 @@ import {
   Users,
   LayoutGrid,
   List as ListIcon,
-  MoreHorizontal,
   Pencil,
   Plus,
   Quote,
@@ -165,7 +164,7 @@ import {
   Table as TableIcon,
   Trash,
 } from 'lucide-react'
-import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactNode, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {ActivityContent, ActivityHeader} from './activity-panel'
@@ -186,7 +185,9 @@ import {
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
-import {Tabs, TabsList, TabsTrigger} from './components/tabs'
+import {Input} from './components/input'
+import {Label} from './components/label'
+import {Switch} from './components/switch'
 import {DirectoryPageContent} from './directory-page'
 import {CommentsFooterContext, DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -203,12 +204,11 @@ import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-ve
 import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
-import {SelectField, SwitchField, TextField} from './form-fields'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {HMIcon} from './hm-icon'
 import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
 import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
@@ -221,7 +221,7 @@ import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
 import {buildSlotItems} from './query-block-draft-items'
 import {RequiredAttributesEditor} from './required-attributes-editor'
-import {HM_SCHEMAS, nameForCid, nameToUrl} from './schema/engine'
+import {HM_SCHEMAS, missingPropertyDefaults, nameForCid, nameToUrl} from './schema/engine'
 import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
 import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
@@ -235,7 +235,7 @@ import {
   useResolvedSchema,
 } from './schema/schema-resolve'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
-import {SiteHeader} from './site-header'
+import {EditNavPanePlacementContext, SiteHeader} from './site-header'
 import {useSpaceHome, useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
 import {SizableText, Text} from './text'
@@ -246,6 +246,14 @@ import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+
+/** Checks a block reference against published content or an editor draft snapshot. */
+export function hasRenderableBlock(content: HMBlockNode[] | EditorBlock[], blockRef: string): boolean {
+  return content.some((node) => {
+    const id = 'block' in node ? node.block.id : node.id
+    return id === blockRef || hasRenderableBlock(node.children ?? [], blockRef)
+  })
+}
 
 /** Build a draft breadcrumb while preserving published metadata omitted by partial draft edits. */
 export function getDraftBreadcrumbEntry({
@@ -1177,6 +1185,7 @@ function ResourcePageContent({
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
   const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
+  const [editNavMenuPortalElement, setEditNavMenuPortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
@@ -1573,6 +1582,7 @@ function ResourcePageContent({
       fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
       fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
       editNavPanePortalRef={setEditNavPanePortalElement}
+      editNavMenuPortalRef={setEditNavMenuPortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
@@ -1602,6 +1612,12 @@ function ResourcePageContent({
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
+        {editNavPane && editNavMenuPortalElement
+          ? createPortal(
+              <EditNavPanePlacementContext.Provider value="menu">{editNavPane}</EditNavPanePlacementContext.Provider>,
+              editNavMenuPortalElement,
+            )
+          : null}
         <AttributeAutocompleteProvider value={attributeAutocomplete}>
           <DocumentBody
             routeDocId={docId}
@@ -1759,6 +1775,7 @@ export interface PageShellProps {
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from an active document machine. */
@@ -1780,6 +1797,7 @@ export function PageShell({
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1843,6 +1861,7 @@ export function PageShell({
           rightActions={rightActions}
           editNavPane={editNavPanePortalRef ? undefined : editNavPane}
           editNavPanePortalRef={editNavPanePortalRef}
+          editNavMenuPortalRef={editNavMenuPortalRef}
         />
         <TransientResourceBanner error={transientResourceError ?? null} />
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
@@ -1861,6 +1880,7 @@ export function PageWrapper({
   rightActions,
   editNavPane,
   editNavPanePortalRef,
+  editNavMenuPortalRef,
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
@@ -1876,6 +1896,7 @@ export function PageWrapper({
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  editNavMenuPortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from a document machine mounted inside this wrapper. */
@@ -1887,7 +1908,7 @@ export function PageWrapper({
   fileBrowserGetIncludeDocumentState?: import('./site-file-browser').SiteFileBrowserProps['getIncludeDocumentState']
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
-  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // navigation changes held in a home draft show immediately in
   // the visible site header. Mirrors the legacy draft route at
   // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
   // outside DocumentMachineProvider (loading/error/discovery branches), in
@@ -1906,6 +1927,7 @@ export function PageWrapper({
       rightActions={rightActions}
       editNavPane={editNavPane}
       editNavPanePortalRef={editNavPanePortalRef}
+      editNavMenuPortalRef={editNavMenuPortalRef}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveItems}
       onPrefetchDocument={onPrefetchDocument}
@@ -1940,6 +1962,23 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
     <div role="status" className={cn('px-4 py-2 text-xs', tone)} data-testid="transient-resource-banner">
       {message}
     </div>
+  )
+}
+
+/**
+ * The metadata to render for the current route: draft overrides apply only
+ * while the draft overlay is allowed — a hidden draft previews the published
+ * metadata untouched.
+ */
+function useRenderedMetadata(document: HMDocument | null | undefined): HMMetadata {
+  const ctx = useDocumentSelector(selectContext)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  return useMemo(
+    () =>
+      draftOverlayAllowed
+        ? {...(ctx.document?.metadata || document?.metadata || {}), ...ctx.metadata}
+        : ctx.document?.metadata || document?.metadata || {},
+    [draftOverlayAllowed, ctx.document?.metadata, ctx.metadata, document?.metadata],
   )
 }
 
@@ -2134,6 +2173,7 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  useNewDocumentSchemaDefaults(docId, document)
   const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
   const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
   const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
@@ -2332,7 +2372,7 @@ function DocumentBody({
   const blockExists = useMemo(
     () =>
       routeBlockRef && !documentIsPlaceholderData && (!shouldUseDraftOverlay || draftResolution !== undefined)
-        ? !!findContentBlock(sourceBlocks ?? [], routeBlockRef)
+        ? hasRenderableBlock(sourceBlocks ?? [], routeBlockRef)
         : undefined,
     [routeBlockRef, documentIsPlaceholderData, shouldUseDraftOverlay, draftResolution, sourceBlocks],
   )
@@ -2386,10 +2426,8 @@ function DocumentBody({
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const versionHeadCount = getVersionHeads(document.version).length
-  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
-  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
   const commentsPanelSummary = useInteractionSummary(
@@ -2400,12 +2438,6 @@ function DocumentBody({
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
-  const showMembersFacepile =
-    isHomeDoc &&
-    showDocumentChrome &&
-    activeView !== 'all-documents' &&
-    !siteMembers.isInitialLoading &&
-    siteMembers.members.length > 0
   const citationsTargetId = useMemo(
     () => getCitationsTargetId({docId, documentVersion: document.version}),
     [docId, document.version],
@@ -3071,7 +3103,7 @@ function DocumentBody({
       </AlertDialogContent>
     </AlertDialog>
   )
-  const documentContentAction = getDocumentContentAction({
+  const baseDocumentContentAction = getDocumentContentAction({
     activeView,
     isEditing,
     hasDraft: draftOverlayAllowed && ctx.draftId !== null,
@@ -3080,11 +3112,24 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // While the draft is hidden the draft chrome is suppressed, so the action slot falls back
+  // to the plain options menu; pair it with the "Show changes" restore controls then.
+  const documentContentAction =
+    baseDocumentContentAction === actionButtons ? (
+      <>
+        <DraftHiddenActions />
+        {actionButtons}
+      </>
+    ) : (
+      baseDocumentContentAction
+    )
   // A document that DEFINES a type (carries a `schemaDefinition`) gets header
   // actions: New Document / New Collection typed by it (or Create, for a signed type).
   // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
-  // (same source the Attributes tab reads).
-  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // (same source the Attributes tab reads); a hidden draft previews published metadata.
+  const headerMetadata = draftOverlayAllowed
+    ? {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+    : ctx.document?.metadata || document.metadata || {}
   const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
     <SchemaDocumentHeaderActions
       metadata={headerMetadata}
@@ -3195,11 +3240,6 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
             style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {showMembersFacepile && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
             {!isHomeDoc &&
               !isAgentDocument &&
               !appKind &&
@@ -3233,11 +3273,6 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
           style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
-          {showMembersFacepile && (
-            <div className="pt-4">
-              <MembersFacepile members={siteMembers.members} siteId={siteId} />
-            </div>
-          )}
           {!isHomeDoc &&
             !isAgentDocument &&
             !appKind &&
@@ -3934,8 +3969,9 @@ function HomeDocumentMetadataControls({
  */
 function DocumentSchemaSection({document, canEdit}: {document: HMDocument; canEdit: boolean}) {
   const ctx = useDocumentSelector(selectContext)
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const hasDraft = !!ctx.schemaDraft && canEdit
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const metadata = useRenderedMetadata(document)
+  const hasDraft = draftOverlayAllowed && !!ctx.schemaDraft && canEdit
   if (!hasDraft && !schemaDefinitionCid(metadata)) return null
   return (
     <section className="border-border/60 bg-muted/20 mb-6 rounded-lg border p-4" data-testid="document-schema-section">
@@ -3972,11 +4008,12 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const navigate = useNavigate()
   const openUrl = useOpenUrl()
   // Draft metadata (partial) overrides published metadata, same as the Attributes tab.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
-  const draftSchema = ctx.schemaDraft
+  const metadata = useRenderedMetadata(document)
+  const draftSchema = draftOverlayAllowed ? ctx.schemaDraft : null
   const cid = schemaDefinitionCid(metadata)
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   // Write access to the document is write access to its schema: the published schema seeds the
@@ -4056,6 +4093,43 @@ function DocumentSchemaPage({document}: {document: HMDocument}) {
 }
 
 /**
+ * A NEW document starts from its schema's property defaults. While the document has never been
+ * published, every attribute its effective schema gives a default and the draft has never held is
+ * written into the draft once, as ordinary data the author can then edit or remove. A removed
+ * attribute stays a `null` tombstone in the draft, so it is not brought back. A published
+ * document is never touched: a schema that gains a default changes no existing value.
+ */
+function useNewDocumentSchemaDefaults(docId: UnpackedHypermediaId, document: HMDocument) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const isNew = useDocumentSelector(selectIsUnpublishedDraft)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const canEdit = useDocumentSelector(selectCanEditCurrentRoute)
+  const active = isNew && isEditing && !!canEdit
+  const metadata = useMemo(
+    () => ({...(document.metadata || {}), ...ctx.metadata}) as Record<string, unknown>,
+    [document.metadata, ctx.metadata],
+  )
+  // An attributes schema being authored on this very draft is still changing under the author's
+  // hands; its defaults are for the documents that will follow it, not a moving target for this one.
+  const authoringOwnSchema = !!ctx.bindingSchemaDrafts?.attributesSchema
+  const {schema, registry, isLoading} = useConformanceSchema(
+    active && !authoringOwnSchema ? docId : null,
+    metadata,
+    null,
+  )
+  const defaults = useMemo(
+    () =>
+      active && !authoringOwnSchema && schema && !isLoading ? missingPropertyDefaults(schema, metadata, registry) : {},
+    [active, authoringOwnSchema, schema, isLoading, metadata, registry],
+  )
+  const pending = Object.keys(defaults).length ? JSON.stringify(defaults) : ''
+  useEffect(() => {
+    if (pending) send({type: 'change', metadata: JSON.parse(pending)})
+  }, [pending, send])
+}
+
+/**
  * One of the two attributes-schema bindings, below the attribute rows on the Attributes tab — this
  * document's own (`attributesSchema`: the fields it carries) or its children's
  * (`childAttributesSchema`: the fields every document created inside it carries). Nothing bound:
@@ -4079,12 +4153,13 @@ function BindingSchemaSection({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const route = useNavRoute()
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const raw = (metadata as Record<string, unknown>)[bindingKey]
   const ref = typeof raw === 'string' && raw ? raw : null
-  const draft = ctx.bindingSchemaDrafts?.[bindingKey] ?? null
+  const draft = draftOverlayAllowed ? ctx.bindingSchemaDrafts?.[bindingKey] ?? null : null
   const cls = classifyRef(ref)
   const owned = cls.kind === 'cid'
   const {schema: published, isLoading} = useResolvedSchema(draft ? null : ref)
@@ -4289,10 +4364,11 @@ function SchemaDefinitionSection({document}: {document: HMDocument}) {
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   const cid = schemaDefinitionCid(metadata)
-  const draft = ctx.schemaDraft ?? null
+  const draft = draftOverlayAllowed ? ctx.schemaDraft ?? null : null
   const {schema: published, isLoading} = useResolvedSchema(draft || !cid ? null : `ipfs://${cid}`)
   const edit = useCallback(
     (next: Record<string, any>) => {
@@ -4388,10 +4464,11 @@ function DocumentMetadataPage({
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = useRenderedMetadata(document)
   // The schema this document conforms to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives required-field rows + advisory validation. While the
   // document's own attributes schema is being drafted below, the draft is the schema: every edit
@@ -4400,7 +4477,7 @@ function DocumentMetadataPage({
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     docId,
     metadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
@@ -4415,7 +4492,7 @@ function DocumentMetadataPage({
   // for a field the draft has already changed — the draft would win on publish.
   const navigate = useNavigate()
   const isPublished = !!(ctx.document?.version || document.version)
-  const draftPatch = ctx.metadata || {}
+  const draftPatch = draftOverlayAllowed ? ctx.metadata || {} : {}
   const directEdit = useMemo(
     () =>
       isPublished && canEditCurrentRoute
@@ -4599,39 +4676,13 @@ export function DocumentCollection({
       <QueryBlockContent
         showControls={showCollectionControls}
         toolbarActions={
-          <div className="flex items-center gap-2">
-            <Tabs
-              value={style}
-              onValueChange={(value) => updateQueryProps({style: value as 'Card' | 'List' | 'Table'})}
-            >
-              <TabsList>
-                <TabsTrigger value="Table">
-                  <TableIcon />
-                  Table
-                </TabsTrigger>
-                <TabsTrigger value="List">
-                  <ListIcon />
-                  List
-                </TabsTrigger>
-                <TabsTrigger value="Card">
-                  <LayoutGrid />
-                  Cards
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Popover>
-              <Tooltip content="Query settings">
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Query settings">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-              </Tooltip>
-              <PopoverContent align="end" className="w-80">
-                <CollectionQuerySettings props={props} onChange={updateQueryProps} />
-              </PopoverContent>
-            </Popover>
-          </div>
+          <CollectionViewControls
+            key={docId.id}
+            style={style}
+            props={props}
+            canEdit={canEdit}
+            onChange={updateQueryProps}
+          />
         }
         items={query.data?.results ?? []}
         style={style}
@@ -4670,11 +4721,85 @@ export function DocumentCollection({
   )
 }
 
-function CollectionQuerySettings({
+function CollectionViewControls({
+  style,
   props,
+  canEdit,
   onChange,
 }: {
+  style: 'Card' | 'List' | 'Table'
   props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
+  onChange: (changes: Partial<EditorQueryBlock['props']>) => void
+}) {
+  const [settingsView, setSettingsView] = useState<string | null>(null)
+  const id = useId()
+
+  return (
+    <div role="group" aria-label="Collection views" className="bg-muted flex items-center rounded-lg p-[3px]">
+      {(
+        [
+          {value: 'Table', label: 'Table', Icon: TableIcon},
+          {value: 'List', label: 'List', Icon: ListIcon},
+          {value: 'Card', label: 'Cards', Icon: LayoutGrid},
+        ] as const
+      ).map(({value, label, Icon}) => {
+        const active = style === value
+        return (
+          <Popover
+            key={value}
+            open={active && settingsView === value}
+            onOpenChange={(open) => {
+              if (open && !active) {
+                setSettingsView(null)
+                onChange({style: value})
+              } else {
+                setSettingsView(open ? value : null)
+              }
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                disabled={!active && !canEdit}
+                aria-pressed={active}
+                aria-label={active ? `${label} view settings` : `${label} view`}
+                className={cn(active && 'bg-background shadow-sm')}
+              >
+                <Icon />
+                {label}
+                {active ? (
+                  <ChevronDown className="size-3 transition-transform motion-reduce:transition-none [[data-state=open]>&]:rotate-180" />
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] p-0" aria-labelledby={`${id}-title`}>
+              <h3 id={`${id}-title`} className="px-4 pt-4 pb-3 text-sm font-medium">
+                {label} view
+              </h3>
+              <CollectionQuerySettings id={id} style={style} props={props} canEdit={canEdit} onChange={onChange} />
+              <p className="bg-muted/50 text-muted-foreground border-t px-4 py-3 text-xs">
+                {canEdit ? 'Applies to this collection.' : 'Only editors can change these settings.'}
+              </p>
+            </PopoverContent>
+          </Popover>
+        )
+      })}
+    </div>
+  )
+}
+
+function CollectionQuerySettings({
+  id,
+  style,
+  props,
+  canEdit,
+  onChange,
+}: {
+  id: string
+  style: 'Card' | 'List' | 'Table'
+  props?: Partial<EditorQueryBlock['props']>
+  canEdit: boolean
   onChange: (changes: Partial<EditorQueryBlock['props']>) => void
 }) {
   const limit = props?.queryLimit || ''
@@ -4682,34 +4807,54 @@ function CollectionQuerySettings({
   const banner = props?.banner === 'true'
 
   return (
-    <div className="flex flex-col gap-3 p-1">
-      <SelectField
-        id="query-column-count"
-        label="Columns"
-        options={[
-          {value: '1', label: '1 column'},
-          {value: '2', label: '2 columns'},
-          {value: '3', label: '3 columns'},
-        ]}
-        value={columnCount}
-        onValue={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
-      />
-      <TextField
-        id="query-limit"
-        label="Limit"
-        type="number"
-        value={limit}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-          onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})
-        }
-      />
-      <SwitchField
-        id="query-banner"
-        label="Show banner"
-        checked={banner}
-        onCheckedChange={(checked: boolean) => onChange({banner: checked ? 'true' : 'false'})}
-      />
-    </div>
+    <>
+      {style === 'Card' ? (
+        <div className="space-y-3 px-4 pb-4">
+          <p className="text-muted-foreground text-xs">Layout</p>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-columns`}>Columns</Label>
+            <Select
+              value={columnCount}
+              disabled={!canEdit}
+              onValueChange={(value) => onChange({columnCount: value as '1' | '2' | '3'})}
+            >
+              <SelectTrigger id={`${id}-columns`} className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 column</SelectItem>
+                <SelectItem value="2">2 columns</SelectItem>
+                <SelectItem value="3">3 columns</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${id}-banner`}>Show banner</Label>
+            <Switch
+              id={`${id}-banner`}
+              disabled={!canEdit}
+              checked={banner}
+              onCheckedChange={(checked) => onChange({banner: checked ? 'true' : 'false'})}
+            />
+          </div>
+        </div>
+      ) : null}
+      <div className={cn('space-y-3 px-4 pb-4', style === 'Card' && 'border-t pt-3')}>
+        <p className="text-muted-foreground text-xs">Results</p>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={`${id}-limit`}>Document limit</Label>
+          <Input
+            id={`${id}-limit`}
+            className="w-28"
+            type="number"
+            placeholder="No limit"
+            disabled={!canEdit}
+            value={limit}
+            onChange={(e) => onChange({queryLimit: e.target.value ? String(Number.parseInt(e.target.value, 10)) : ''})}
+          />
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -5072,23 +5217,22 @@ function ContentViewWithOutline({
   fileUpload?: (file: File) => Promise<string>
 }) {
   const ctx = useDocumentSelector(selectContext)
-  const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const rootChildrenType =
+    ((draftOverlayAllowed ? ctx.metadata?.childrenType : undefined) ?? document.metadata?.childrenType) || 'Group'
   // Required custom attributes (from the doc's schema) render above the body.
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
-  const requiredAttrMetadata = useMemo(
-    () => ({...document.metadata, ...ctx.metadata}),
-    [document.metadata, ctx.metadata],
-  )
+  const requiredAttrMetadata = useRenderedMetadata(document)
   // The schema this document must conform to (own `attributesSchema`, else parent's
   // `childAttributesSchema`) — drives the always-visible required attributes. A drafted own
   // attributes schema (Attributes tab) takes precedence, so the rows follow it live.
   const {schema: conformanceSchema, registry: conformanceRegistry} = useConformanceSchema(
     resourceId,
     requiredAttrMetadata,
-    ctx.bindingSchemaDrafts?.attributesSchema,
+    draftOverlayAllowed ? ctx.bindingSchemaDrafts?.attributesSchema : undefined,
   )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
