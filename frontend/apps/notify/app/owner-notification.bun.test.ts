@@ -8,6 +8,8 @@ import {cleanup, getAllNotifications, initDatabase, registerInboxAccount} from '
 
 const owner = 'z6MkOwnerFixture'
 const writer = 'z6MkWriterFixture'
+const ownerSession = 'z6MkOwnerSessionFixture'
+const writerSession = 'z6MkWriterSessionFixture'
 const space = 'z6MkSpaceFixture'
 const cid = 'bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum'
 mock.module('./notify-request', () => ({
@@ -15,7 +17,10 @@ mock.module('./notify-request', () => ({
   requestAPI: async (kind: string, uid: string) => {
     if (kind === 'Resource') return {type: 'document', document: {metadata: {name: 'Issue'}, content: []}}
     if (kind === 'ResourceMetadata') return {metadata: {name: 'Issue'}}
-    if (kind === 'Account') return {type: 'account', id: {uid}, metadata: {name: uid}}
+    if (kind === 'Account') {
+      const accountUid = uid === ownerSession ? owner : uid === writerSession ? writer : uid
+      return {type: 'account', id: {uid: accountUid}, metadata: {name: accountUid}}
+    }
     throw new Error(`Unexpected request: ${kind}`)
   },
 }))
@@ -38,6 +43,8 @@ afterEach(() => {
 it.each([
   ['Owner', owner, 0],
   ['Owner', writer, 1],
+  ['Owner', ownerSession, 0],
+  ['Owner', writerSession, 1],
   ['Reviewer', owner, 1],
 ] as const)('routes %s metadata set by %s (%i inbox rows)', async (sourceContext, author, count) => {
   const stamp = new Timestamp({seconds: BigInt(Math.floor(Date.now() / 1000))})

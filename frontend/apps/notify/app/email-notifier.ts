@@ -1431,15 +1431,6 @@ async function evaluateMentionEventForNotifications(
   }
 
   const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
-  const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
-  // Metadata citations carry the attribute key in sourceContext. Only skip assigning yourself as Owner.
-  if (
-    sourceType === 'metadata/link' &&
-    mentionEvent.sourceContext === 'Owner' &&
-    authorAccountId === targetAccountUid
-  ) {
-    return
-  }
   const isCommentMention = sourceType.startsWith('comment/')
   const sourceHref = isCommentMention && mentionEvent.sourceDocument ? mentionEvent.sourceDocument : mentionEvent.source
   const sourceId = unpackHmId(sourceHref)
@@ -1474,12 +1465,24 @@ async function evaluateMentionEventForNotifications(
     }
   }
 
+  const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
+  let effectiveAuthorUid = authorAccountId
   let authorMeta: HMMetadata | null = null
   try {
-    const authorResult = await requestAPI('Account', authorAccountId)
-    authorMeta = authorResult.type === 'account' ? authorResult.metadata : null
+    const author = await resolveNotificationAccount((uid) => requestAPI('Account', uid), authorAccountId)
+    effectiveAuthorUid = author.uid
+    authorMeta = author.metadata
   } catch (error: any) {
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
+  }
+
+  // Owner is the metadata link's anchor; a web session may have signed on the assignee's behalf.
+  if (
+    sourceType === 'metadata/link' &&
+    mentionEvent.sourceContext === 'Owner' &&
+    effectiveAuthorUid === targetAccountUid
+  ) {
+    return
   }
 
   let siteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
