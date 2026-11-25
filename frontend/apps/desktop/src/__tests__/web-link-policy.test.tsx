@@ -1,6 +1,8 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
+import {createWindowNavigation} from '../window-navigation-machine'
+import type {NavState} from '@shm/shared/utils/navigation'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -12,6 +14,10 @@ const mocks = vi.hoisted(() => {
     browserEnabled: false,
     externalOpen: vi.fn(),
     send: vi.fn(),
+    listeners: new Map<string, (event: any) => void>(),
+    state: undefined as NavState | undefined,
+    activeRoutes: new Set<string>(),
+    routesAtAck: [] as string[][],
     invoke: vi.fn().mockResolvedValue(undefined),
     openUrl: null as null | ((url: string, newWindow?: boolean) => void),
   }
@@ -22,7 +28,16 @@ vi.mock('../models/experiments', () => ({
   readWebBrowserEnabled: async () => mocks.browserEnabled,
 }))
 vi.mock('../app-context', () => ({useAppContext: () => ({externalOpen: mocks.externalOpen})}))
-vi.mock('../ipc', () => ({ipc: {send: mocks.send, invoke: mocks.invoke}}))
+vi.mock('../ipc', () => ({
+  ipc: {
+    send: mocks.send,
+    invoke: mocks.invoke,
+    listen: async (channel: string, handler: (event: any) => void) => {
+      mocks.listeners.set(channel, handler)
+      return () => mocks.listeners.delete(channel)
+    },
+  },
+}))
 vi.mock('../trpc', () => ({client: {}}))
 vi.mock('../grpc-client', () => ({domainResolver: {}}))
 vi.mock('../desktop-universal-client', () => ({desktopUniversalClient: {}}))
@@ -45,10 +60,19 @@ function Probe() {
   mocks.openUrl = useUniversalAppContext().openUrl!
   const route = useNavRoute()
   const state = useNavigationState()
+  mocks.state = state
+  useEffect(() => {
+    const key = JSON.stringify(route)
+    mocks.activeRoutes.add(key)
+    return () => {
+      mocks.activeRoutes.delete(key)
+    }
+  }, [route])
   return <output>{JSON.stringify({route, count: state?.routes.length})}</output>
 }
 
 describe('web links with the integrated browser toggle', () => {
+  let coordinator: ReturnType<typeof createWindowNavigation>
   let root: Root
   let container: HTMLDivElement
   const shown = () => JSON.parse(container.querySelector('output')!.textContent!)
@@ -68,9 +92,31 @@ describe('web links with the integrated browser toggle', () => {
         </NavigationContainer>,
       ),
     )
+    coordinator = createWindowNavigation({
+      getDraft: () => undefined,
+      apply: (_id, requestId, state) => mocks.listeners.get('navigation_commit')?.({payload: {requestId, state}}),
+      commit: () => {},
+      focus: () => {},
+      close: () => {},
+      error: (_id, error) => {
+        throw error
+      },
+    })
+    coordinator.register('test', mocks.state!)
+    coordinator.ready('test')
+    mocks.routesAtAck = []
+    mocks.send.mockClear()
+    mocks.send.mockImplementation((channel, payload) => {
+      if (channel === 'navigation_request') coordinator.request('test', payload)
+      if (channel === 'navigation_ack') {
+        mocks.routesAtAck.push(Array.from(mocks.activeRoutes))
+        coordinator.acknowledge('test', payload)
+      }
+    })
   })
 
   afterEach(() => {
+    coordinator.actor.stop()
     act(() => root.unmount())
     container.remove()
   })
@@ -88,6 +134,9 @@ describe('web links with the integrated browser toggle', () => {
     mocks.browserEnabled = true
     await act(async () => mocks.openUrl?.('https://example.com'))
     expect(shown().route).toEqual({key: 'web', url: 'https://example.com'})
+    expect(coordinator.actor.getSnapshot().value).toBe('idle')
+    expect(mocks.routesAtAck.at(-1)).toEqual([JSON.stringify(shown().route)])
+    expect(coordinator.state('test')?.routes.at(-1)).toEqual(shown().route)
     await act(async () => mocks.openUrl?.('https://example.com/new', true))
     expect(mocks.invoke).toHaveBeenCalledWith('plugin:window|open', expect.objectContaining({path: expect.any(String)}))
     expect(mocks.externalOpen).not.toHaveBeenCalled()
@@ -102,6 +151,13 @@ describe('web links with the integrated browser toggle', () => {
     expect(mocks.externalOpen).toHaveBeenCalledWith('https://example.com/b')
     expect(shown()).toEqual(afterFirst)
     expect(afterFirst.route).toEqual({key: 'web', url: 'https://example.com/a'})
+  })
+
+  it('does not change local navigation if the main process has not authorized it', async () => {
+    const before = shown()
+    mocks.send.mockImplementation(() => {})
+    await act(async () => mocks.openUrl?.('hm://uid1/awaiting-authorization'))
+    expect(shown()).toEqual(before)
   })
 
   it('still opens Hypermedia addresses natively with the toggle off', async () => {

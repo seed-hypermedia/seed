@@ -139,3 +139,5 @@ Each guide names a goal, lists what you need, and walks through real commands.
 <./build/building-an-app.md> <!-- id:AaJgjlAz type:Embed attrs:{"view":"Card"} -->
 
 <./build/custom-pages.md> <!-- id:FhAlk7k7 type:Embed attrs:{"view":"Card"} -->
+
+<./build/desktop-navigation.md> <!-- id:Sd3VUB7v type:Embed attrs:{"view":"Card"} -->

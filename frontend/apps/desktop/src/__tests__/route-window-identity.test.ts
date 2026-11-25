@@ -10,32 +10,32 @@ import {
 describe('getRouteWindowResourceKeys', () => {
   it('identifies a document by its version-independent id', () => {
     const route = {key: 'document', id: hmId('alice', {path: ['doc']})} as const
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['doc:hm://alice/doc']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['doc:hm://alice/doc'])
   })
 
   it('ignores the version, so pinned and latest views of a document share a window', () => {
     const route = {key: 'document', id: hmId('alice', {path: ['doc'], version: 'bafyv1'})} as const
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['doc:hm://alice/doc']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['doc:hm://alice/doc'])
   })
 
   it('identifies a draft placeholder document by its draft id', () => {
     const route = {key: 'document', id: hmId('alice', {path: ['docs', '-d1']})} as const
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['draft:d1']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['draft:d1'])
   })
 
   it('identifies a private draft placeholder by its draft id', () => {
     const route = {key: 'document', id: hmId('alice', {path: ['docs', '-private-d2']})} as const
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['draft:d2']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['draft:d2'])
   })
 
-  it('identifies a bare draft route by its draft id', () => {
+  it('refuses an unresolved bare draft route', () => {
     const route = {key: 'draft', id: 'd1'} as const
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['draft:d1']))
+    expect(() => getRouteWindowResourceKeys(route)).toThrow('Cannot resolve window identity for draft d1')
   })
 
   it('adds the edited document key for edit drafts', () => {
     const route: NavRoute = {key: 'draft', id: 'd1', editUid: 'alice', editPath: ['doc']}
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['draft:d1', 'doc:hm://alice/doc']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['draft:d1', 'doc:hm://alice/doc'])
   })
 
   it('resolves bare draft routes through the draft lookup', () => {
@@ -43,23 +43,23 @@ describe('getRouteWindowResourceKeys', () => {
     const keys = getRouteWindowResourceKeys(route, (id) =>
       id === 'd1' ? {id: 'd1', editUid: 'alice', editPath: ['doc']} : undefined,
     )
-    expect(keys).toEqual(new Set(['draft:d1', 'doc:hm://alice/doc']))
+    expect(keys).toEqual(['draft:d1', 'doc:hm://alice/doc'])
   })
 
   it('adds no document key for location drafts because the placeholder is the draft id itself', () => {
     const route: NavRoute = {key: 'draft', id: 'd1', locationUid: 'alice', locationPath: ['docs']}
-    expect(getRouteWindowResourceKeys(route)).toEqual(new Set(['draft:d1']))
+    expect(getRouteWindowResourceKeys(route)).toEqual(['draft:d1'])
   })
 
   it('identifies singleton routes by their key', () => {
-    expect(getRouteWindowResourceKeys({key: 'settings'})).toEqual(new Set(['route:settings']))
-    expect(getRouteWindowResourceKeys({key: 'contacts'})).toEqual(new Set(['route:contacts']))
+    expect(getRouteWindowResourceKeys({key: 'settings'})).toEqual(['route:settings'])
+    expect(getRouteWindowResourceKeys({key: 'contacts'})).toEqual(['route:contacts'])
   })
 
-  it('returns null for routes that may open in several windows', () => {
-    expect(getRouteWindowResourceKeys({key: 'library'})).toBeNull()
-    expect(getRouteWindowResourceKeys({key: 'drafts'})).toBeNull()
-    expect(getRouteWindowResourceKeys({key: 'comments', id: hmId('alice')})).toBeNull()
+  it('distinguishes unrestricted pages from document tabs', () => {
+    expect(getRouteWindowResourceKeys({key: 'library'})).toEqual([])
+    expect(getRouteWindowResourceKeys({key: 'drafts'})).toEqual([])
+    expect(getRouteWindowResourceKeys({key: 'comments', id: hmId('alice')})).toEqual(['doc:hm://alice'])
   })
 })
 
@@ -79,7 +79,9 @@ describe('routesShareWindowResource', () => {
   it('shares a window between a draft route and its document placeholder', () => {
     const draft = {key: 'draft', id: 'd1'} as const
     const doc = {key: 'document', id: hmId('alice', {path: ['docs', '-d1']})} as const
-    expect(routesShareWindowResource(draft, doc)).toBe(true)
+    expect(routesShareWindowResource(draft, doc, (id) => ({id, locationUid: 'alice', locationPath: ['docs']}))).toBe(
+      true,
+    )
   })
 
   it('shares a window between an edit draft and the published document', () => {
@@ -96,8 +98,8 @@ describe('routeUsesWindowDedupe', () => {
     expect(routeUsesWindowDedupe({key: 'settings'})).toBe(true)
   })
 
-  it('does not dedupe other routes', () => {
+  it('dedupes document tabs but leaves onboarding unrestricted', () => {
     expect(routeUsesWindowDedupe({key: 'onboarding'})).toBe(false)
-    expect(routeUsesWindowDedupe({key: 'comments', id: hmId('alice')})).toBe(false)
+    expect(routeUsesWindowDedupe({key: 'comments', id: hmId('alice')})).toBe(true)
   })
 })

@@ -386,24 +386,24 @@ function MainApp({}: {}) {
             windowUtils={windowUtils}
             darkMode={isDarkMode}
           >
-            <Suspense fallback={<SpinnerWithText message="" />}>
-              <ErrorBoundary
-                FallbackComponent={RootAppError}
-                onReset={() => {
-                  window.location.reload()
-                }}
-              >
-                <NavigationContainer>
+            <NavigationContainer>
+              <Suspense fallback={<SpinnerWithText message="" />}>
+                <ErrorBoundary
+                  FallbackComponent={RootAppError}
+                  onReset={() => {
+                    window.location.reload()
+                  }}
+                >
                   {mainContent}
                   <DomainPublishingInvitation />
-                </NavigationContainer>
 
-                <Toaster />
+                  <Toaster />
 
-                {/* Dev tool: floating button to test loading window */}
-                {/* {!IS_PROD_DESKTOP && <LoadingWindowTestButton />} */}
-              </ErrorBoundary>
-            </Suspense>
+                  {/* Dev tool: floating button to test loading window */}
+                  {/* {!IS_PROD_DESKTOP && <LoadingWindowTestButton />} */}
+                </ErrorBoundary>
+              </Suspense>
+            </NavigationContainer>
           </AppContextProvider>
         </ReadOnlyViewerProvider>
       </QueryClientProvider>

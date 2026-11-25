@@ -1,10 +1,10 @@
+import type {WindowNavigationCommit} from '../window-navigation-machine'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {domainResolver} from '@/grpc-client'
-import {reconcileBrowserNavigation, type BrowserLocation} from '@/browser-navigation'
+import {type BrowserLocation} from '@/browser-navigation'
 import {ipc} from '@/ipc'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {client} from '@/trpc'
 import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {usePushAfterAction} from '@/models/push-after-action'
@@ -22,73 +22,42 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/shared/use-stream'
 import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
-import {ReactNode, useRef} from 'react'
+import {ReactNode, useEffect, useRef} from 'react'
 import {useAppContext} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
-import {routeUsesWindowDedupe} from './route-window-identity'
 import {AppWindowEvent} from './window-events'
 
-const [updateNavState, navState] = writeableStateStream(window.initNavState)
+const [updateNavState, navState] = writeableStateStream<NavState>(window.initNavState)
+let pendingCommit: number | undefined
 
 /** Records a committed browser location in the same history as native Seed pages. */
 export function commitBrowserLocation(location: BrowserLocation, requested: boolean) {
-  updateNavState(reconcileBrowserNavigation(navState.get(), location, requested))
+  ipc.send('navigation_request', {type: 'browserLocation', location, requested})
 }
 
 /** Converts the active website to its resolved Seed route without losing forward history. */
 export function resolveBrowserRoute(url: string, route: NavRoute) {
-  const state = navState.get()
-  const current = state.routes[state.routeIndex]
-  if (current?.key !== 'web' || current.url !== url) return
-  const routes = [...state.routes]
-  routes[state.routeIndex] = route
-  updateNavState({...state, routes})
+  ipc.send('navigation_request', {type: 'resolveBrowser', url, route})
 }
 
 // Developer-only React Query devtools panel. Toggled from the DEVELOPERS section of the account dropdown.
 export const [setQueryDevtoolsOpen, queryDevtoolsOpen] = writeableStateStream<boolean>(false)
 
-function applyNavAction(action: NavAction) {
-  if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
-    reportRouteLinkClick(action.route)
-  }
-  const prevState = navState.get()
-  const newState = navStateReducer(prevState, action)
-  if (prevState !== newState) {
-    updateNavState(newState)
-  } else if (action.type === 'closeBack') {
-    // @ts-expect-error
-    client.closeAppWindow.mutate(window.windowId)
-  }
-}
-
-// Serializes the "is this route already open in another window?" checks so
-// queued pushes apply in dispatch order.
-let windowDedupeQueue: Promise<unknown> = Promise.resolve()
-
 const navigation = {
   dispatch(action: NavAction) {
-    if (action.type === 'push' && routeUsesWindowDedupe(action.route)) {
-      windowDedupeQueue = windowDedupeQueue
-        .then(async () => {
-          let handled = false
-          try {
-            handled = await client.focusWindowForRoute.mutate({
-              windowId: window.windowId || '',
-              route: action.route,
-            })
-          } catch {
-            // The main process could not answer; navigate in this window below.
-          }
-          if (!handled) applyNavAction(action)
-        })
-        .catch((error) => {
-          // Keep the queue usable for later dispatches even if one fails.
-          console.error('Failed to dispatch navigation', error)
-        })
-      return
+    if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
+      reportRouteLinkClick(action.route)
     }
-    applyNavAction(action)
+    if (
+      action.type === 'sidebarLocked' ||
+      action.type === 'sidebarWidth' ||
+      action.type === 'accessoryWidth' ||
+      action.type === 'selectedIdentity'
+    ) {
+      updateNavState(navStateReducer(navState.get(), action))
+    } else {
+      ipc.send('navigation_request', action)
+    }
   },
   state: navState,
   selectedIdentity: streamSelector<NavState, string | null>(navState, (state) => state.selectedIdentity || null),
@@ -98,6 +67,21 @@ navigation.state.subscribe(() => {
   const state = navigation.state.get()
   ipc.send('windowNavState', state)
 })
+
+// The handshake follows listener installation, so a loading window cannot lose a navigation command.
+ipc
+  .listen<{payload: WindowNavigationCommit}>('navigation_commit', ({payload}) => {
+    pendingCommit = payload.requestId
+    const current = navState.get()
+    updateNavState({
+      ...current,
+      routes: payload.state.routes,
+      routeIndex: payload.state.routeIndex,
+      lastAction: payload.state.lastAction,
+    })
+  })
+  .then(() => ipc.send('navigation_ready'))
+ipc.listen<{payload: string}>('navigation_error', ({payload}) => toast.error(payload))
 
 window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
   if (event.type === 'open_web_url') {
@@ -136,6 +120,15 @@ function reportRouteLinkClick(route: NavRoute) {
 }
 
 export function NavigationContainer({children}: {children: ReactNode}) {
+  const committedState = useStream(navState)
+  useEffect(() => {
+    // Passive cleanup stops the outgoing document actor before ownership is released.
+    if (pendingCommit !== undefined && navState.get() === committedState) {
+      const requestId = pendingCommit
+      pendingCommit = undefined
+      ipc.send('navigation_ack', requestId)
+    }
+  }, [committedState])
   const {externalOpen} = useAppContext()
 
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL

@@ -5,6 +5,9 @@ import type {IpcRenderer} from 'electron'
 // exports, updates, onboarding, tRPC) have their own channels.
 export const SEND_COMMANDS: ReadonlySet<string> = new Set([
   'windowNavState',
+  'navigation_ready',
+  'navigation_request',
+  'navigation_ack',
   'windowAssistantState',
   'windowSidebarSpace',
   'new_window',
@@ -25,7 +28,7 @@ export const SEND_COMMANDS: ReadonlySet<string> = new Set([
   'find_in_page_query',
   'find_in_page_cancel',
 ])
-const LISTEN_COMMANDS = new Set(['open_route', 'query_invalidation'])
+const LISTEN_COMMANDS = new Set(['open_route', 'query_invalidation', 'navigation_commit', 'navigation_error'])
 const FIND_SEND_COMMANDS = new Set(['find_in_page_query', 'find_in_page_cancel'])
 
 /** Restrict the generic preload bridge to the channels used by its renderer. */
