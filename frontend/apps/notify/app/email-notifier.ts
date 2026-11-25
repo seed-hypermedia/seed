@@ -1431,6 +1431,11 @@ async function evaluateMentionEventForNotifications(
   }
 
   const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
+  const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
+  // Metadata citations carry the attribute key in sourceContext. Only skip assigning yourself as Owner.
+  if (sourceType === 'metadata/link' && mentionEvent.sourceContext === 'Owner' && authorAccountId === targetAccountUid) {
+    return
+  }
   const isCommentMention = sourceType.startsWith('comment/')
   const sourceHref = isCommentMention && mentionEvent.sourceDocument ? mentionEvent.sourceDocument : mentionEvent.source
   const sourceId = unpackHmId(sourceHref)
@@ -1465,7 +1470,6 @@ async function evaluateMentionEventForNotifications(
     }
   }
 
-  const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
   let authorMeta: HMMetadata | null = null
   try {
     const authorResult = await requestAPI('Account', authorAccountId)
