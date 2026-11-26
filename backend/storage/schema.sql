@@ -391,6 +391,13 @@ CREATE TABLE blob_links (
     PRIMARY KEY (source, type, target)
 ) WITHOUT ROWID;
 
+-- Links with the types of their ends, for the visibility rules.
+-- A target has a type only once we have its data: the type it was indexed as, or
+-- Raw for a stored blob with the raw codec (85), which is never indexed. A target
+-- we don't have or haven't indexed matches no rule, so no visibility is assigned
+-- to it until it arrives, and then its own visibility check picks up the links.
+-- A stored blob with any other codec that isn't indexed stays untyped, so it never
+-- inherits visibility. No such codecs are in use.
 CREATE VIEW blob_links_with_types (
     source,
     source_type,
@@ -403,10 +410,11 @@ SELECT
     COALESCE(sb1.type, 'Raw') AS source_type,
     bl.type AS link_type,
     bl.target,
-    COALESCE(sb2.type, 'Raw') AS target_type
+    COALESCE(sb2.type, CASE WHEN b2.codec = 85 AND b2.size >= 0 THEN 'Raw' END) AS target_type
 FROM blob_links bl
 LEFT JOIN structural_blobs sb1 ON sb1.id = bl.source
-LEFT JOIN structural_blobs sb2 ON sb2.id = bl.target;
+LEFT JOIN structural_blobs sb2 ON sb2.id = bl.target
+LEFT JOIN blobs b2 ON b2.id = bl.target;
 
 CREATE UNIQUE INDEX blob_backlinks ON blob_links (target, type, source);
 

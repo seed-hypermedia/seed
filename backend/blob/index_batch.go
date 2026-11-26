@@ -40,8 +40,8 @@ type indexBatch struct {
 	// refs are the effects of the Refs indexed since the last flush.
 	refs []refEffect
 
-	// indexed are the blobs indexed since the last flush, whose visibility
-	// propagates when the batch flushes.
+	// indexed are the blobs indexed since the last flush, and the raw media
+	// stored since then, whose visibility propagates when the batch flushes.
 	indexed []int64
 
 	// commentDocs and commentSpaces are the documents, by genesis, and the

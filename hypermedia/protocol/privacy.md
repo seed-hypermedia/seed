@@ -19,7 +19,7 @@ The daemon keeps a table that says in which spaces each blob is visible. A publi
 - A Change takes it from the Change or Ref that depends on it.
 - A file blob takes it from anything that links to it.
 
-The order in which blobs arrive does not matter. One public record wins: if any public Ref leads to a Change, that Change is public for everyone. <!-- id:WDS8_NWk -->
+The order in which blobs arrive does not matter. A blob gets no visibility while the daemon doesn't hold it. When it arrives, it takes its visibility from the blobs that already link to it. Other links, such as an embed pinned to a document version, never change a Change's visibility. One public record wins: if any public Ref leads to a Change, that Change is public for everyone. <!-- id:WDS8_NWk -->
 
 <!-- id:BMJ0IJ8B -->
 | Blob <!-- col:sXtenxBO --> | Visibility <!-- col:AM-xyQOk --> <!-- id:SSO2_ONf --> |

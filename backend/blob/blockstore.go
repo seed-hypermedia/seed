@@ -519,7 +519,7 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 		}
 		mPutBlockOutcome.WithLabelValues("update").Inc()
 		mPutBlockBytes.WithLabelValues("update").Add(float64(len(data)))
-		return newID, false, blobsUpdateMissingData(conn, compressed, int64(len(data)), newID, size.BlobsID)
+		return newID, false, blobsUpdateMissingData(conn, compressed, int64(len(data)), int64(codec), newID, size.BlobsID) //nolint:gosec // Multicodec codes are small varints.
 	}
 
 	ins, err := dbBlobsInsert(conn, inID, hash, int64(codec), compressed, int64(len(data)))
@@ -553,15 +553,19 @@ var qAllocateBlobID = dqb.Str(`
 	RETURNING seq;
 `)
 
-// blobsUpdateMissingData updates a blob.
-func blobsUpdateMissingData(conn *sqlite.Conn, blobsData []byte, blobsSize int64, newID, blobsID int64) error {
-	return sqlitex.Exec(conn, qBlobsUpdateMissingData(), nil, blobsData, blobsSize, newID, blobsID)
+// blobsUpdateMissingData stores the data of a blob we only knew from a link.
+// The codec comes from the CID the data arrived with: the placeholder took the
+// codec of whichever link named it first, and a link can name the same
+// multihash with any codec.
+func blobsUpdateMissingData(conn *sqlite.Conn, blobsData []byte, blobsSize, blobsCodec, newID, blobsID int64) error {
+	return sqlitex.Exec(conn, qBlobsUpdateMissingData(), nil, blobsData, blobsSize, blobsCodec, newID, blobsID)
 }
 
 var qBlobsUpdateMissingData = dqb.Str(`
 	UPDATE blobs
 	SET data = :blobsData,
 		size = :blobsSize,
+		codec = :blobsCodec,
 		id = :newID
 	WHERE id = :oldID;
 `)

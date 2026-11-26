@@ -109,6 +109,13 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 							Bytes: int64(len(blk.RawData())),
 						})
 					}
+
+					// Nothing assigns visibility to a blob we don't have, so raw
+					// media takes it from the blobs linking to it once it's
+					// stored, as indexed blobs do once they're indexed.
+					if !indexable {
+						wc.indexed = append(wc.indexed, id)
+					}
 				}
 
 				if exists || !indexable {

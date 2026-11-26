@@ -62,6 +62,38 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Assign no visibility to a blob until we have it. The view typed every
+	// blob we hadn't indexed as Raw, so a link to a Change or DagPB blob that
+	// hadn't arrived matched the Raw visibility rule, and a private Change
+	// embedded by a public blob became public once it arrived. Now only a stored
+	// raw-codec blob, which is never indexed, is Raw, and a blob we don't have
+	// matches no rule. The reindex recomputes the visibility those links leaked.
+	{Version: "2026-11-26.083541", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := scheduleReindex(conn); err != nil {
+			return err
+		}
+
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP VIEW blob_links_with_types;
+			CREATE VIEW blob_links_with_types (
+			    source,
+			    source_type,
+			    link_type,
+			    target,
+			    target_type
+			) AS
+			SELECT
+			    bl.source,
+			    COALESCE(sb1.type, 'Raw') AS source_type,
+			    bl.type AS link_type,
+			    bl.target,
+			    COALESCE(sb2.type, CASE WHEN b2.codec = 85 AND b2.size >= 0 THEN 'Raw' END) AS target_type
+			FROM blob_links bl
+			LEFT JOIN structural_blobs sb1 ON sb1.id = bl.source
+			LEFT JOIN structural_blobs sb2 ON sb2.id = bl.target
+			LEFT JOIN blobs b2 ON b2.id = bl.target;
+		`))
+	}},
 	// Drop the per-generation comment columns. document_comment_stats replaced
 	// them, and indexing kept writing them for every comment while nothing read
 	// them. last_comment is a foreign key, which SQLite can't drop as a column,
