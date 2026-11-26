@@ -85,6 +85,7 @@ func run(args []string, envFlags string, helpOut io.Writer, runDaemon func(confi
 					return fmt.Errorf("unknown subcommand %q: run 'seed-daemon -help' for the list of subcommands", arg)
 				}
 			}
+
 			for _, arg := range args {
 				_, _ = fmt.Fprintf(helpOut, "seed-daemon: ignoring positional argument %q: the daemon takes none\n", arg)
 			}
