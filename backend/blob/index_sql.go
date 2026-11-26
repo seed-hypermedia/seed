@@ -1,6 +1,7 @@
 package blob
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"seed/backend/util/dqb"
@@ -51,151 +52,161 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 	VALUES (:blobLinksSource, :blobLinksType, :blobLinksTarget)
 `)
 
-// The raw-content lookups return only the most recently indexed non-empty row
-// for the block. fts_index is WITHOUT ROWID with the fts rowid as its primary
-// key, so within one genesis (or blob) the index is ordered by rowid and the
-// reverse scan stops at the first hit without a sort. Scanning the whole group
-// instead used to dominate reindexing: the group grows with every indexed move
-// of the block, and every move triggered one such scan.
-var qFTSGetRawContentByGenesis = dqb.Str(`
-	SELECT
-	fts.raw_content,
-	ftsi.version
-FROM fts_index ftsi
-JOIN fts ON fts.rowid = ftsi.rowid
-WHERE ftsi.block_id = :FTSBlockID
-AND ftsi.genesis_blob = :FTSGenesisBlob
-AND fts.raw_content != ''
-ORDER BY ftsi.rowid DESC
-LIMIT 1
+// The latest-text lookups return the text of the most recently indexed
+// non-empty occurrence of the block. fts_index_by_genesis_block and
+// fts_index_by_blob end in the occurrence ID, so within one genesis (or blob)
+// the reverse scan stops at the first hit without a sort.
+var qFTSLatestTextByGenesis = dqb.Str(`
+	SELECT text
+	FROM fts_index INDEXED BY fts_index_by_genesis_block
+	WHERE genesis_blob = ?
+	AND block_id = ?
+	AND text IS NOT NULL
+	ORDER BY id DESC
+	LIMIT 1
 `)
 
-var qFTSGetRawContentByBlobID = dqb.Str(`
-	SELECT
-	fts.raw_content,
-	ftsi.version
-FROM fts_index ftsi
-JOIN fts ON fts.rowid = ftsi.rowid
-WHERE ftsi.block_id = :FTSBlockID
-AND ftsi.blob_id = :FTSBlobID
-AND fts.raw_content != ''
-ORDER BY ftsi.rowid DESC
-LIMIT 1
+var qFTSLatestTextByBlobID = dqb.Str(`
+	SELECT text
+	FROM fts_index INDEXED BY fts_index_by_blob
+	WHERE blob_id = ?
+	AND block_id = ?
+	AND text IS NOT NULL
+	ORDER BY id DESC
+	LIMIT 1
 `)
 
-// dbFTSGetRawContent returns the latest non-empty indexed content of a block
-// within the document identified by its genesis multihash (or, when that is
-// empty, within the given blob), along with the version it was indexed under.
-func dbFTSGetRawContent(conn *sqlite.Conn, FTSBlobID int64, FTSBlockID, FTSGenesisMultihash string) (string, string, error) {
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":FTSBlockID", FTSBlockID)
-		stmt.SetInt64(":FTSBlobID", FTSBlobID)
-	}
-	getRawContent := qFTSGetRawContentByBlobID()
-	if strings.Replace(FTSGenesisMultihash, " ", "", -1) != "" {
-		beforeInner := func(stmt *sqlite.Stmt) {
-			stmt.SetText(":FTSMultihash", strings.ToUpper(FTSGenesisMultihash))
-		}
-		var genesisID int64
-		err := sqlitegen.ExecStmt(conn, qGetGenesisID(), beforeInner, func(_ int, stmt *sqlite.Stmt) error {
-			genesisID = stmt.ColumnInt64(0)
-			return nil
-		})
+// dbFTSLatestText returns the full-text row of a block's latest non-empty
+// indexed content within the document identified by its genesis multihash (or,
+// when that is empty, within the given blob), or 0 if it has none.
+func dbFTSLatestText(conn *sqlite.Conn, blobID int64, blockID, genesisMultihash string) (text int64, err error) {
+	q, args := qFTSLatestTextByBlobID(), []any{blobID, blockID}
+
+	if strings.TrimSpace(genesisMultihash) != "" {
+		genesisID, err := dbGenesisID(conn, genesisMultihash)
 		if err != nil {
-			err = fmt.Errorf("failed query: qGetGenesisID: %w", err)
-			return "", "", err
+			return 0, err
 		}
-		before = func(stmt *sqlite.Stmt) {
-			stmt.SetText(":FTSBlockID", FTSBlockID)
-			stmt.SetInt64(":FTSGenesisBlob", genesisID)
-		}
-		getRawContent = qFTSGetRawContentByGenesis()
+
+		q, args = qFTSLatestTextByGenesis(), []any{genesisID, blockID}
 	}
 
-	var rawContent, ftsVersion string
-	var err error
-	onStep := func(_ int, stmt *sqlite.Stmt) error {
-		rawContent = stmt.ColumnText(0)
-		ftsVersion = stmt.ColumnText(1)
+	if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+		text = stmt.ColumnInt64(0)
 		return nil
+	}, args...); err != nil {
+		return 0, fmt.Errorf("failed query: FTSLatestText: %w", err)
 	}
 
-	err = sqlitegen.ExecStmt(conn, getRawContent, before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: FTSGetRawContent: %w", err)
-		return "", "", err
-	}
-	return rawContent, ftsVersion, nil
+	return text, nil
 }
 
-func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string, FTSTs time.Time, FTSGenesisMultihash string) error {
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":FTSContent", FTSContent)
-		stmt.SetText(":FTSType", FTSType)
-		stmt.SetInt64(":FTSBlobID", FTSBlobID)
-		stmt.SetText(":FTSBlockID", FTSBlockID)
-		stmt.SetText(":FTSVersion", FTSVersion)
-	}
-
-	onStep := func(_ int, _ *sqlite.Stmt) error {
+func dbGenesisID(conn *sqlite.Conn, genesisMultihash string) (id int64, err error) {
+	if err := sqlitex.Exec(conn, qGetGenesisID(), func(stmt *sqlite.Stmt) error {
+		id = stmt.ColumnInt64(0)
 		return nil
+	}, strings.ToUpper(genesisMultihash)); err != nil {
+		return 0, fmt.Errorf("failed query: qGetGenesisID: %w", err)
 	}
 
-	err := sqlitegen.ExecStmt(conn, qFTSInsert(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: FTSInsert: %w", err)
-		return err
-	}
-	lastRowID := conn.LastInsertRowID()
-	var genesisID int64
-	if FTSGenesisMultihash != "" {
-		before = func(stmt *sqlite.Stmt) {
-			stmt.SetText(":FTSMultihash", strings.ToUpper(FTSGenesisMultihash))
-		}
+	return id, nil
+}
 
-		err = sqlitegen.ExecStmt(conn, qGetGenesisID(), before, func(_ int, stmt *sqlite.Stmt) error {
-			genesisID = stmt.ColumnInt64(0)
-			return nil
-		})
+// dbFTSInsertOrReplace records an occurrence of content, indexing the content
+// itself only if no occurrence of the same text was indexed before. Empty
+// content records an occurrence with no text, which marks a deleted block.
+func dbFTSInsertOrReplace(conn *sqlite.Conn, content, ftsType string, blobID int64, blockID, version string, ts time.Time, genesisMultihash string) error {
+	var text int64
+
+	if content != "" {
+		var err error
+
+		text, err = dbFTSEnsureText(conn, content)
 		if err != nil {
-			err = fmt.Errorf("failed query: qGetGenesisID: %w", err)
 			return err
 		}
-	} else {
-		genesisID = FTSBlobID
-	}
-	before = func(stmt *sqlite.Stmt) {
-		stmt.SetText(":FTSType", FTSType)
-		stmt.SetInt64(":FTSBlobID", FTSBlobID)
-		stmt.SetText(":FTSBlockID", FTSBlockID)
-		stmt.SetText(":FTSVersion", FTSVersion)
-		stmt.SetInt64(":FTSRowID", lastRowID)
-		stmt.SetInt64(":FTSTs", FTSTs.UnixMilli())
-		stmt.SetInt64(":FTSGenesisBlob", genesisID)
 	}
 
-	err = sqlitegen.ExecStmt(conn, qFTSIndexInsert(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: FTSIndexInsert: %w", err)
-		return err
+	return dbFTSInsertOccurrence(conn, text, ftsType, blobID, blockID, version, ts, genesisMultihash)
+}
+
+// dbFTSEnsureText returns the full-text row holding content, inserting it if
+// no row holds the same text yet.
+func dbFTSEnsureText(conn *sqlite.Conn, content string) (text int64, err error) {
+	hash := sha256.Sum256([]byte(content))
+
+	if err := sqlitex.Exec(conn, qFTSTextByHash(), func(stmt *sqlite.Stmt) error {
+		text = stmt.ColumnInt64(0)
+		return nil
+	}, hash[:]); err != nil {
+		return 0, fmt.Errorf("failed query: FTSTextByHash: %w", err)
 	}
+
+	if text != 0 {
+		return text, nil
+	}
+
+	if err := sqlitex.Exec(conn, qFTSInsert(), nil, content); err != nil {
+		return 0, fmt.Errorf("failed query: FTSInsert: %w", err)
+	}
+
+	text = conn.LastInsertRowID()
+
+	if err := sqlitex.Exec(conn, qFTSTextInsert(), nil, text, hash[:]); err != nil {
+		return 0, fmt.Errorf("failed query: FTSTextInsert: %w", err)
+	}
+
+	return text, nil
+}
+
+// dbFTSInsertOccurrence records that the full-text row text (0 for empty
+// content) occurs in a blob, block and version.
+func dbFTSInsertOccurrence(conn *sqlite.Conn, text int64, ftsType string, blobID int64, blockID, version string, ts time.Time, genesisMultihash string) error {
+	genesisID := blobID
+
+	if genesisMultihash != "" {
+		var err error
+
+		genesisID, err = dbGenesisID(conn, genesisMultihash)
+		if err != nil {
+			return err
+		}
+	}
+
+	var textArg any // NULL for empty content.
+
+	if text != 0 {
+		textArg = text
+	}
+
+	if err := sqlitex.Exec(conn, qFTSIndexInsert(), nil, textArg, ftsType, blobID, blockID, version, ts.UnixMilli(), genesisID); err != nil {
+		return fmt.Errorf("failed query: FTSIndexInsert: %w", err)
+	}
+
 	return nil
 }
 
 var qGetGenesisID = dqb.Str(`
 SELECT id FROM blobs
-WHERE multihash = unhex(:FTSMultihash)
+WHERE multihash = unhex(?)
 LIMIT 1;
 `)
 
+var qFTSTextByHash = dqb.Str(`
+	SELECT id FROM fts_texts WHERE hash = ?;
+`)
+
 var qFTSInsert = dqb.Str(`
-	INSERT OR REPLACE INTO fts(raw_content, type, blob_id, block_id, version)
-	VALUES (:FTSContent, :FTSType, :FTSBlobID, :FTSBlockID, :FTSVersion)
+	INSERT INTO fts (raw_content) VALUES (?);
+`)
+
+var qFTSTextInsert = dqb.Str(`
+	INSERT INTO fts_texts (id, hash) VALUES (?, ?);
 `)
 
 var qFTSIndexInsert = dqb.Str(`
-	INSERT OR REPLACE INTO fts_index(rowid, type, blob_id, block_id, version, ts, genesis_blob)
-	VALUES (:FTSRowID, :FTSType, :FTSBlobID, :FTSBlockID, :FTSVersion, :FTSTs, :FTSGenesisBlob)
+	INSERT INTO fts_index (text, type, blob_id, block_id, version, ts, genesis_blob)
+	VALUES (?, ?, ?, ?, ?, ?, ?);
 `)
 
 func dbResourceLinksInsert(conn *sqlite.Conn, sourceBlob, targetResource int64, ltype string, isPinned bool, meta []byte) error {

@@ -535,20 +535,24 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		}
 	}
 
-	// Blocks that were only moved keep their latest indexed content, re-recorded
-	// under this change's version so search can point at it.
+	// Blocks that were only moved keep their latest indexed text, recorded as an
+	// occurrence under this change's version so search can point at it. The
+	// text itself is not indexed again.
 	for _, blk := range movedBlocks {
 		if _, done := ftsWritten[blk]; done {
 			continue
 		}
-		content, _, err := dbFTSGetRawContent(ictx.conn, id, blk, sb.GenesisBlob.Hash().String())
+
+		text, err := dbFTSLatestText(ictx.conn, id, blk, sb.GenesisBlob.Hash().String())
 		if err != nil {
-			return fmt.Errorf("failed to get raw content for block %s: %w", blk, err)
+			return fmt.Errorf("failed to get latest text for block %s: %w", blk, err)
 		}
-		if content == "" {
+
+		if text == 0 {
 			continue
 		}
-		if err := dbFTSInsertOrReplace(ictx.conn, content, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
+
+		if err := dbFTSInsertOccurrence(ictx.conn, text, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 			return fmt.Errorf("failed to insert record in fts table: %w", err)
 		}
 		ftsWritten[blk] = struct{}{}

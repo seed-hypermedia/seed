@@ -56,6 +56,7 @@ var tableSpecs = []TableSpec{
 	{Name: T_EmbeddingsIndex, Kind: TableKindDerived},
 	{Name: T_Fts, Kind: TableKindDerived},
 	{Name: T_FtsIndex, Kind: TableKindDerived},
+	{Name: T_FtsTexts, Kind: TableKindDerived},
 	{Name: T_BlobVisibility, Kind: TableKindDerived},
 	// The maintained RBSR index is derived: drop it on reindex and let it
 	// re-materialize lazily on the next reconcile.

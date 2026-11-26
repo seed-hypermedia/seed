@@ -444,24 +444,26 @@ WITH RECURSIVE
 fts_data AS MATERIALIZED (
   SELECT
     fts.raw_content,
-    fts.type,
-    fts.block_id,
-    fts.version,
-    fts.blob_id,
+    fi.type,
+    fi.block_id,
+    fi.version,
+    fi.blob_id,
     structural_blobs.genesis_blob,
     structural_blobs.resource,
     structural_blobs.extra_attrs->>'tsid' AS tsid,
-    fts.rowid
-  FROM fts
+    fi.id AS rowid
+  FROM fts_index fi
+    JOIN fts
+      ON fts.rowid = fi.text
     JOIN structural_blobs
-      ON structural_blobs.id = fts.blob_id
+      ON structural_blobs.id = fi.blob_id
     JOIN blobs INDEXED BY blobs_metadata
       ON blobs.id = structural_blobs.id
     JOIN public_keys
       ON public_keys.id = COALESCE(structural_blobs.extra_attrs->>'account', structural_blobs.author)
     LEFT JOIN resources
       ON resources.id = structural_blobs.resource
-  WHERE fts.rowid IN (SELECT value FROM json_each(?))
+  WHERE fi.id IN (SELECT value FROM json_each(?))
 	AND blobs.size > 0
 ),
 -- Where each hit was published. A comment carries its resource on the blob.
@@ -635,22 +637,23 @@ const keywordSearchHead = `
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
   SELECT
-    fts.rowid,
+    fi.id AS rowid,
     fts.rank,
-    fts.blob_id,
-    fts.type
+    fi.blob_id,
+    fi.type
   FROM fts
-  JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
+  JOIN fts_index fi INDEXED BY fts_index_by_text ON fi.text = fts.rowid
+  JOIN blobs ON blobs.id = fi.blob_id AND blobs.size > 0
   WHERE fts.raw_content MATCH ?
-    AND fts.type IN (?, ?, ?, ?, ?)
+    AND fi.type IN (?, ?, ?, ?, ?)
     AND (? = 0
-         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
+         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fi.blob_id AND v.space = 0))
     AND (? = 0
          OR EXISTS (
            SELECT 1
            FROM structural_blobs root_sb
            JOIN resources root_r ON root_r.id = root_sb.resource
-           WHERE root_sb.id = fts.blob_id
+           WHERE root_sb.id = fi.blob_id
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
          )
@@ -659,7 +662,7 @@ matched_fts AS MATERIALIZED (
            FROM blob_links root_bl
            JOIN structural_blobs root_ref ON root_ref.id = root_bl.source
            JOIN resources root_r ON root_r.id = root_ref.resource
-           WHERE root_bl.target = fts.blob_id
+           WHERE root_bl.target = fi.blob_id
              AND root_bl.type = 'ref/head'
              AND root_r.iri GLOB 'hm://*'
              AND root_r.iri NOT GLOB 'hm://*/*'
@@ -668,7 +671,7 @@ matched_fts AS MATERIALIZED (
     -- superseded name is not what the query names today: keep a profile hit only
     -- when its blob is the newest Profile for that account by that author, the
     -- same rule GetAccount reads the current profile by.
-    AND (fts.type != 'profile'
+    AND (fi.type != 'profile'
          OR NOT EXISTS (
            SELECT 1
            FROM structural_blobs mine
@@ -677,10 +680,10 @@ matched_fts AS MATERIALIZED (
             AND newer.resource = mine.resource
             AND newer.author = mine.author
             AND newer.ts > mine.ts
-           WHERE mine.id = fts.blob_id
+           WHERE mine.id = fi.blob_id
          ))
   ORDER BY
-    (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    (fi.type = 'contact' OR fi.type = 'title' OR fi.type = 'profile') DESC,
     fts.rank ASC
   LIMIT ?
 ),
@@ -689,16 +692,17 @@ matched_fts AS MATERIALIZED (
 // keywordSearchNamesHead is keywordSearchHead for searches over name types only
 // (title, contact, profile: the mention picker's path).
 //
-// fts.type is UNINDEXED, so the head above applies the type filter by reading
-// the FTS content row of every row the MATCH produced. A two-letter prefix
-// such as "is"* matches 100k rows on a desktop database to keep a few hundred,
-// and from a cold page cache that walk took 10 s. Here the filter is the set of
-// name-type rowids from the fts_index_by_type covering index (18k entries,
-// materialized once per query), tested in memory per matched rowid, and type
-// and blob_id are read from fts_index for the survivors only. Measured on the
-// same database under the vendored SQLite 3.45: "is"* 82 ms -> 34 ms warm and
-// 10 s -> 0.7 s cold, "a"* 555 ms -> 391 ms, at the price of ~2 ms of fixed
-// set-up on rare prefixes.
+// The head above probes the occurrences of every text the MATCH produced. A
+// two-letter prefix such as "is"* matches 100k texts on a desktop database to
+// keep a few hundred, and from a cold page cache that walk took 10 s when the
+// type was read from the FTS content row. Here the filter is the set of texts
+// with a name-type occurrence (materialized once per query), tested in memory
+// per matched text, and occurrences are read for the survivors only. The second
+// type test (?2 to ?6, the same arguments) drops a survivor's occurrences of
+// other types. Measured on the same database under the vendored SQLite 3.45,
+// before texts were deduplicated: "is"* 82 ms -> 34 ms warm and 10 s -> 0.7 s
+// cold, "a"* 555 ms -> 391 ms, at the price of ~2 ms of fixed set-up on rare
+// prefixes.
 //
 // The unary + on fts.rowid is load-bearing: without it the planner may drive
 // from fts_index and probe the FTS table once per rowid, and FTS5 evaluates a
@@ -712,15 +716,16 @@ const keywordSearchNamesHead = `
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
   SELECT
-    fts.rowid,
+    fi.id AS rowid,
     fts.rank,
     fi.blob_id,
     fi.type
   FROM fts
-  CROSS JOIN fts_index fi ON fi.rowid = fts.rowid
+  CROSS JOIN fts_index fi INDEXED BY fts_index_by_text ON fi.text = fts.rowid
   JOIN blobs ON blobs.id = fi.blob_id AND blobs.size > 0
   WHERE fts.raw_content MATCH ?
-    AND +fts.rowid IN (SELECT rowid FROM fts_index WHERE type IN (?, ?, ?, ?, ?))
+    AND +fts.rowid IN (SELECT text FROM fts_index WHERE type IN (?, ?, ?, ?, ?) AND text IS NOT NULL)
+    AND fi.type IN (?2, ?3, ?4, ?5, ?6)
     AND (? = 0
          OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fi.blob_id AND v.space = 0))
     AND (? = 0

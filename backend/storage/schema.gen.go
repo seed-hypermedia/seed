@@ -357,25 +357,17 @@ const (
 // Table fts.
 const (
 	Fts           sqlitegen.Table  = "fts"
-	FtsBlobID     sqlitegen.Column = "fts.blob_id"
-	FtsBlockID    sqlitegen.Column = "fts.block_id"
 	FtsFts        sqlitegen.Column = "fts.fts"
 	FtsRank       sqlitegen.Column = "fts.rank"
 	FtsRawContent sqlitegen.Column = "fts.raw_content"
-	FtsType       sqlitegen.Column = "fts.type"
-	FtsVersion    sqlitegen.Column = "fts.version"
 )
 
 // Table fts. Plain strings.
 const (
 	T_Fts           = "fts"
-	C_FtsBlobID     = "fts.blob_id"
-	C_FtsBlockID    = "fts.block_id"
 	C_FtsFts        = "fts.fts"
 	C_FtsRank       = "fts.rank"
 	C_FtsRawContent = "fts.raw_content"
-	C_FtsType       = "fts.type"
-	C_FtsVersion    = "fts.version"
 )
 
 // Table fts_config.
@@ -396,10 +388,6 @@ const (
 const (
 	FtsContent   sqlitegen.Table  = "fts_content"
 	FtsContentC0 sqlitegen.Column = "fts_content.c0"
-	FtsContentC1 sqlitegen.Column = "fts_content.c1"
-	FtsContentC2 sqlitegen.Column = "fts_content.c2"
-	FtsContentC3 sqlitegen.Column = "fts_content.c3"
-	FtsContentC4 sqlitegen.Column = "fts_content.c4"
 	FtsContentID sqlitegen.Column = "fts_content.id"
 )
 
@@ -407,10 +395,6 @@ const (
 const (
 	T_FtsContent   = "fts_content"
 	C_FtsContentC0 = "fts_content.c0"
-	C_FtsContentC1 = "fts_content.c1"
-	C_FtsContentC2 = "fts_content.c2"
-	C_FtsContentC3 = "fts_content.c3"
-	C_FtsContentC4 = "fts_content.c4"
 	C_FtsContentID = "fts_content.id"
 )
 
@@ -464,7 +448,8 @@ const (
 	FtsIndexBlobID      sqlitegen.Column = "fts_index.blob_id"
 	FtsIndexBlockID     sqlitegen.Column = "fts_index.block_id"
 	FtsIndexGenesisBlob sqlitegen.Column = "fts_index.genesis_blob"
-	FtsIndexRowid       sqlitegen.Column = "fts_index.rowid"
+	FtsIndexID          sqlitegen.Column = "fts_index.id"
+	FtsIndexText        sqlitegen.Column = "fts_index.text"
 	FtsIndexTs          sqlitegen.Column = "fts_index.ts"
 	FtsIndexType        sqlitegen.Column = "fts_index.type"
 	FtsIndexVersion     sqlitegen.Column = "fts_index.version"
@@ -476,10 +461,25 @@ const (
 	C_FtsIndexBlobID      = "fts_index.blob_id"
 	C_FtsIndexBlockID     = "fts_index.block_id"
 	C_FtsIndexGenesisBlob = "fts_index.genesis_blob"
-	C_FtsIndexRowid       = "fts_index.rowid"
+	C_FtsIndexID          = "fts_index.id"
+	C_FtsIndexText        = "fts_index.text"
 	C_FtsIndexTs          = "fts_index.ts"
 	C_FtsIndexType        = "fts_index.type"
 	C_FtsIndexVersion     = "fts_index.version"
+)
+
+// Table fts_texts.
+const (
+	FtsTexts     sqlitegen.Table  = "fts_texts"
+	FtsTextsHash sqlitegen.Column = "fts_texts.hash"
+	FtsTextsID   sqlitegen.Column = "fts_texts.id"
+)
+
+// Table fts_texts. Plain strings.
+const (
+	T_FtsTexts     = "fts_texts"
+	C_FtsTextsHash = "fts_texts.hash"
+	C_FtsTextsID   = "fts_texts.id"
 )
 
 // Table keyline_delegations.
@@ -913,20 +913,12 @@ var Schema = sqlitegen.Schema{
 		EmbeddingsRowidsRowid:                   {Table: EmbeddingsRowids, SQLType: "INTEGER"},
 		EmbeddingsVectorChunks00Rowid:           {Table: EmbeddingsVectorChunks00, SQLType: ""},
 		EmbeddingsVectorChunks00Vectors:         {Table: EmbeddingsVectorChunks00, SQLType: "BLOB"},
-		FtsBlobID:                               {Table: Fts, SQLType: ""},
-		FtsBlockID:                              {Table: Fts, SQLType: ""},
 		FtsFts:                                  {Table: Fts, SQLType: ""},
 		FtsRank:                                 {Table: Fts, SQLType: ""},
 		FtsRawContent:                           {Table: Fts, SQLType: ""},
-		FtsType:                                 {Table: Fts, SQLType: ""},
-		FtsVersion:                              {Table: Fts, SQLType: ""},
 		FtsConfigK:                              {Table: FtsConfig, SQLType: ""},
 		FtsConfigV:                              {Table: FtsConfig, SQLType: ""},
 		FtsContentC0:                            {Table: FtsContent, SQLType: ""},
-		FtsContentC1:                            {Table: FtsContent, SQLType: ""},
-		FtsContentC2:                            {Table: FtsContent, SQLType: ""},
-		FtsContentC3:                            {Table: FtsContent, SQLType: ""},
-		FtsContentC4:                            {Table: FtsContent, SQLType: ""},
 		FtsContentID:                            {Table: FtsContent, SQLType: "INTEGER"},
 		FtsDataBlock:                            {Table: FtsData, SQLType: "BLOB"},
 		FtsDataID:                               {Table: FtsData, SQLType: "INTEGER"},
@@ -938,10 +930,13 @@ var Schema = sqlitegen.Schema{
 		FtsIndexBlobID:                          {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexBlockID:                         {Table: FtsIndex, SQLType: "TEXT"},
 		FtsIndexGenesisBlob:                     {Table: FtsIndex, SQLType: "INTEGER"},
-		FtsIndexRowid:                           {Table: FtsIndex, SQLType: "INTEGER"},
+		FtsIndexID:                              {Table: FtsIndex, SQLType: "INTEGER"},
+		FtsIndexText:                            {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexTs:                              {Table: FtsIndex, SQLType: "INTEGER"},
 		FtsIndexType:                            {Table: FtsIndex, SQLType: "TEXT"},
 		FtsIndexVersion:                         {Table: FtsIndex, SQLType: "TEXT"},
+		FtsTextsHash:                            {Table: FtsTexts, SQLType: "BLOB"},
+		FtsTextsID:                              {Table: FtsTexts, SQLType: "INTEGER"},
 		KeylineDelegationsAudience:              {Table: KeylineDelegations, SQLType: "INTEGER"},
 		KeylineDelegationsBlobID:                {Table: KeylineDelegations, SQLType: "INTEGER"},
 		KeylineDelegationsID:                    {Table: KeylineDelegations, SQLType: "TEXT"},

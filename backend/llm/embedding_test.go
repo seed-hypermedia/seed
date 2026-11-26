@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"net/url"
@@ -162,16 +163,13 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 			fts2: {alreadyEmbeddedText, "document"},
 			fts3: {shortText, "title"},
 		} {
-			if err := sqlitex.Exec(conn,
-				`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-				nil, id, entry[0], entry[1],
-			); err != nil {
+			if err := insertFTSText(conn, id, entry[0]); err != nil {
 				return err
 			}
-			// The indexer always writes fts and fts_index in lockstep;
-			// the pending query drives from fts_index.
+			// One text with one occurrence, as the indexer writes them;
+			// the pending query drives from fts_texts.
 			if err := sqlitex.Exec(conn,
-				`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+				`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 				nil, id, id*100, fmt.Sprintf("block%d", id), fmt.Sprintf("v%d", id), entry[1], id*1000,
 			); err != nil {
 				return err
@@ -284,10 +282,7 @@ func TestEmbedderRunOnce_RequiresDaemonActive(t *testing.T) {
 
 	db := storage.MakeTestMemoryDB(t)
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-			nil, int64(1), "hello world", "document",
-		)
+		return insertFTSText(conn, int64(1), "hello world")
 	}))
 
 	// Default is State_STARTING; runOnce must refuse to run.
@@ -323,16 +318,13 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 
 	db := storage.MakeTestMemoryDB(t)
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-			nil, int64(1), "this is a test document", "document",
-		); err != nil {
+		if err := insertFTSText(conn, int64(1), "this is a test document"); err != nil {
 			return err
 		}
 		// The indexer always writes fts and fts_index in lockstep;
 		// the pending query drives from fts_index.
 		return sqlitex.Exec(conn,
-			`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+			`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 			nil, int64(1), int64(100), "block1", "v1", "document", int64(1000),
 		)
 	}))
@@ -471,15 +463,12 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 				return err
 			}
 			// Insert FTS entry
-			if err := sqlitex.Exec(conn,
-				`INSERT INTO fts(rowid, raw_content, type, blob_id, block_id, version) VALUES (?, ?, ?, ?, ?, ?);`,
-				nil, s.id, s.text, s.contentType, s.id*100, fmt.Sprintf("block%d", s.id), fmt.Sprintf("v%d", s.id),
-			); err != nil {
+			if err := insertFTSText(conn, s.id, s.text); err != nil {
 				return err
 			}
 			// Insert fts_index entry
 			if err := sqlitex.Exec(conn,
-				`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+				`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 				nil, s.id, s.id*100, fmt.Sprintf("block%d", s.id), fmt.Sprintf("v%d", s.id), s.contentType, s.id*1000,
 			); err != nil {
 				return err
@@ -726,40 +715,33 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 		}
 
 		// Insert FTS entries
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type, blob_id, block_id, version) VALUES (?, ?, ?, ?, ?, ?);`,
-			nil, int64(1), "machine learning algorithms", "document", 100, "block1", "v1",
-		); err != nil {
+		if err := insertFTSText(conn, int64(1), "machine learning algorithms"); err != nil {
 			return err
 		}
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type, blob_id, block_id, version) VALUES (?, ?, ?, ?, ?, ?);`,
-			nil, int64(2), "deep neural networks", "document", 101, "block2", "v2",
-		); err != nil {
+
+		if err := insertFTSText(conn, int64(2), "deep neural networks"); err != nil {
 			return err
 		}
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type, blob_id, block_id, version) VALUES (?, ?, ?, ?, ?, ?);`,
-			nil, int64(3), "cooking recipes for beginners", "title", 102, "block3", "v3",
-		); err != nil {
+
+		if err := insertFTSText(conn, int64(3), "cooking recipes for beginners"); err != nil {
 			return err
 		}
 
 		// Insert fts_index entries (required for join)
 		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+			`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 			nil, int64(1), 100, "block1", "v1", "document", 1000,
 		); err != nil {
 			return err
 		}
 		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+			`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 			nil, int64(2), 101, "block2", "v2", "document", 2000,
 		); err != nil {
 			return err
 		}
 		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+			`INSERT INTO fts_index(id, text, blob_id, block_id, version, type, ts) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6);`,
 			nil, int64(3), 102, "block3", "v3", "title", 3000,
 		); err != nil {
 			return err
@@ -1165,4 +1147,14 @@ func TestCosineSimilarityInt8(t *testing.T) {
 		sim := cosineSimilarityInt8(v1, v2)
 		require.Equal(t, float32(0), sim)
 	})
+}
+
+// insertFTSText stores content as the full-text row id, as the indexer does.
+func insertFTSText(conn *sqlite.Conn, id int64, content string) error {
+	if err := sqlitex.Exec(conn, `INSERT INTO fts(rowid, raw_content) VALUES (?, ?);`, nil, id, content); err != nil {
+		return err
+	}
+
+	hash := sha256.Sum256([]byte(content))
+	return sqlitex.Exec(conn, `INSERT INTO fts_texts(id, hash) VALUES (?, ?);`, nil, id, hash[:])
 }

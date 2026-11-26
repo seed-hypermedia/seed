@@ -514,33 +514,32 @@ CREATE TABLE domains (
     last_error TEXT
 ) WITHOUT ROWID;
 
--- Stores text content to to a full text search
+-- Full-text search. Each distinct non-empty text has one row, however many
+-- blocks, versions and documents carry it, so a text is tokenized and embedded
+-- once. Where a text occurs is recorded in fts_index.
 -- https://sqlite.org/fts5.html.
-
 CREATE VIRTUAL TABLE fts USING fts5(
     -- The text content to be indexed.
-    raw_content,
-    -- The type of the content being indexed. It could be
-    -- a title, a document body, or a comment.
-    type UNINDEXED,
-    -- The id of the blob of the blob containting the change.
-    -- With the raw_contnet in it.
-    blob_id UNINDEXED,
-    -- The ID of the block that contains the content.
-    -- Only relevant on type=document,comment.
-    block_id UNINDEXED,
-    -- The version of the document that contains
-    -- the change. Only relevant on type=document,comment
-    version UNINDEXED
+    raw_content
 );
 
--- Since we cannot create indexes on virtual tables,
--- we create a separate table to store the FTS index.
--- This is needed to speed up the search of what FTSentries
--- we have to update when a blob is updated.
+-- The hash of each fts row's text, to find an already indexed text on insert.
+CREATE TABLE fts_texts (
+    -- The rowid of the fts row.
+    id INTEGER PRIMARY KEY,
+    -- SHA-256 of the text.
+    hash BLOB UNIQUE NOT NULL
+);
+
+-- One row per occurrence of a text: a block, title, comment, profile or
+-- contact at a version. A block that only moves gets an occurrence pointing at
+-- its existing text instead of a copy of the text.
 CREATE TABLE fts_index (
-    -- The rowid of the FTS entry.
-    rowid INTEGER PRIMARY KEY,
+    -- The occurrence ID.
+    id INTEGER PRIMARY KEY,
+    -- The fts rowid of the text, or NULL for empty content, which marks a
+    -- deleted block.
+    text INTEGER,
     -- The blob ID of the blob that contains the content.
     blob_id INTEGER NOT NULL,
     -- The version of the document that contains the content.
@@ -553,7 +552,10 @@ CREATE TABLE fts_index (
     ts INTEGER,
     -- The genesis blob ID of the content being indexed.
     genesis_blob INTEGER
-) WITHOUT ROWID;
+);
+CREATE INDEX fts_index_by_text ON fts_index (text, type) WHERE text IS NOT NULL;
+-- The newest text of a block within a document, read when the block moves.
+CREATE INDEX fts_index_by_genesis_block ON fts_index (genesis_blob, block_id) WHERE text IS NOT NULL;
 CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
 CREATE INDEX fts_index_by_version ON fts_index (version);
 CREATE INDEX fts_index_by_block ON fts_index (block_id);
