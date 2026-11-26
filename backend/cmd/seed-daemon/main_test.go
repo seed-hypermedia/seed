@@ -106,6 +106,26 @@ func TestRootRejectsPositionalArgs(t *testing.T) {
 	require.Nil(t, cfg, "daemon must not start on a mistyped subcommand")
 }
 
+// Deployments have long passed the site URL as a trailing argument, and the daemon ignored it.
+// It must still start (2026.11.8 refused it and every such site crash-looped).
+func TestRootIgnoresTrailingSiteURL(t *testing.T) {
+	clearSeedEnv(t)
+
+	cfg, help, err := runRoot(t, []string{"-data-dir=/tmp/x", "-http.port=56000", "https://hyper.media"}, "")
+	require.NoError(t, err)
+	require.NotNil(t, cfg, "daemon must start despite a trailing site URL")
+	require.Equal(t, 56000, cfg.HTTP.Port)
+	require.Contains(t, help, `ignoring positional argument "https://hyper.media"`)
+}
+
+func TestRootRejectsWordAfterURL(t *testing.T) {
+	clearSeedEnv(t)
+
+	cfg, _, err := runRoot(t, []string{"https://hyper.media", "reindx"}, "")
+	require.ErrorContains(t, err, `unknown subcommand "reindx"`)
+	require.Nil(t, cfg)
+}
+
 func TestRootRejectsUnknownFlag(t *testing.T) {
 	clearSeedEnv(t)
 
