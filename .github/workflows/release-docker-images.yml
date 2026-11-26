@@ -184,7 +184,15 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build Web App
-        run: pnpm web:prod
+        run: |
+          test -n "$SITE_SENTRY_DSN"
+          pnpm web:prod
+          node frontend/apps/web/scripts/verify-sentry-client-build.mjs
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SITE_SENTRY_DSN: ${{ secrets.SITE_SENTRY_DSN }}
+          SITE_SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_RELEASE: ${{ github.sha }}
 
       # Notify runs on Bun: its database tests use bun:sqlite and its build is a `bun build` bundle.
       - name: Install Bun

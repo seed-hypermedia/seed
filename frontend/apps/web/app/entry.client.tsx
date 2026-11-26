@@ -13,7 +13,7 @@ import {hydrateRoot} from 'react-dom/client'
 import {sentryTokenScrubOptions} from './sentry-scrub.mjs'
 import {restoreSSRContentHTML} from './ssr-content-handoff'
 
-if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
+if (import.meta.env.MODE === 'production' && process.env.SITE_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SITE_SENTRY_DSN,
     release: process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || undefined,
