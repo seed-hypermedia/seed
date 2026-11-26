@@ -169,6 +169,11 @@ describe('query block table model', () => {
   it('labels known account refs and preserves non-account and unknown refs in mixed values', () => {
     const context = {accountsMetadata: {alice: {id: hmId('alice'), metadata: {name: 'Alice'}}}}
     expect(queryTableValueToDisplayString('hm://alice', context)).toBe('Alice')
+    expect(queryTableValueToDisplayString('hm://alice?v=version', context)).toBe('Alice')
+    expect(queryTableValueToDisplayString('hm://alice#block', context)).toBe('Alice')
+    expect(queryTableValueToDisplayString('hm://missing?v=version', context)).toBe('hm://missing?v=version')
+    expect(queryTableValueToDisplayString('hm://alice/note?v=version', context)).toBe('hm://alice/note?v=version')
+    expect(queryTableValueToDisplayString('hm://alice')).toBe('hm://alice')
     expect(queryTableValueToDisplayString(['hm://alice', 'hm://missing', 'hm://alice/note', 'Ready'], context)).toBe(
       'Alice, hm://missing, hm://alice/note, Ready',
     )
