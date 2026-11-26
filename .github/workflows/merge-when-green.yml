@@ -1,0 +1,71 @@
+name: Merge when green
+
+# A pull request's author (or a maintainer) comments `/merge-when-green`. The pull request is
+# then squash-merged as soon as a maintainer has approved its current head commit and every check
+# on that commit has passed. `/merge-cancel` leaves the queue. A push after the approval needs a
+# new approval, because the approval must be for the commit that merges.
+#
+# This lets contributors without write access (forks, the Ion agent) land an approved change
+# without a maintainer returning to press the button. The decision is in
+# .github/scripts/merge-when-green.cjs. The job runs default-branch code only and never checks
+# out a pull request.
+#
+# Optional secret MERGE_QUEUE_TOKEN: a token with contents and pull-requests write access. A merge
+# made with the default workflow token does not start the workflows that run on pushes to main
+# (dev images, package publishing, docs sync), so set this secret to keep those running.
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_run:
+    workflows:
+      - Frontend Tests (Parallel)
+      - Desktop security e2e
+      - Desktop Test
+      - Test Go
+      - Lint Go
+      - Agents Tests
+      - Check hypermedia
+      - Security Audit
+    types: [completed]
+  schedule:
+    # Catches approvals, which cannot start a workflow with write access for fork pull requests.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+  actions: read
+
+concurrency:
+  group: merge-when-green
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Merge when green
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Comment events: only the two commands, and only on pull requests.
+    if: >-
+      github.event_name != 'issue_comment' || (github.event.issue.pull_request && (startsWith(github.event.comment.body,
+      '/merge-when-green') || startsWith(github.event.comment.body, '/merge-cancel')))
+    steps:
+      - name: Check out the default branch's script
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Evaluate the queue
+        uses: actions/github-script@v7
+        env:
+          MERGE_QUEUE_TOKEN: ${{ secrets.MERGE_QUEUE_TOKEN }}
+        with:
+          script: |
+            const {run} = require('./.github/scripts/merge-when-green.cjs')
+            await run({github, context, core, mergeToken: process.env.MERGE_QUEUE_TOKEN || ''})
