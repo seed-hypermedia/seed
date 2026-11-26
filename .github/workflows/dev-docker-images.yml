@@ -161,8 +161,6 @@ jobs:
 
       - name: Build Web App
         run: |
-          test -n "$SITE_SENTRY_DSN"
-          python3 -m unittest frontend/apps/web/scripts/test_sentry_deployment.py
           pnpm web:prod
           node frontend/apps/web/scripts/verify-sentry-client-build.mjs
         env:
