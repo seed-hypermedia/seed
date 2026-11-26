@@ -39,6 +39,16 @@ import {SchemaDataEditor} from './data-editor'
 import {kindColor, refChipColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {useHydratedRegistry} from './schema-resolve'
+import {InheritedFields} from './explorer'
+import {
+  emptyOwnArm,
+  fromIntersection,
+  intersectionOf,
+  isBlankPart,
+  isInlineStructArm,
+  toIntersection,
+  withOwnFields,
+} from './intersection'
 import {SchemaTypeInput, type TypeOption} from './schema-type-input'
 
 /** The field kinds a struct property can take (friendly labels). */
@@ -95,8 +105,9 @@ function customLabel(ps: any): string {
 
 /** Whether the struct form can show (and safely rewrite) this schema. */
 export function structFormFits(schema: HypermediaSchema): boolean {
-  // An intersection is edited as JSON: its fields come from its arms, not from a list of its own.
-  if (isLiteralSchema(schema) || schema.args || Array.isArray(schema.allOf)) return false
+  // An intersection has its own form when every part is a named type or an inline struct.
+  if (Array.isArray(schema.allOf)) return schema.allOf.every((a: any) => isInlineStructArm(a) || isNamedPart(a))
+  if (isLiteralSchema(schema) || schema.args) return false
   if (Array.isArray(schema.anyOf)) return true
   // A base not chosen yet (the Extend flow starts blank) is still a struct to fill in.
   if (schema.type === '') return true
@@ -104,6 +115,20 @@ export function structFormFits(schema: HypermediaSchema): boolean {
   if (schema.type) return ['struct', 'map', 'list'].includes(kindOf(schema.type))
   return false
 }
+
+/** A part of an intersection that just names a type (no refinements, no type arguments). */
+const isNamedPart = (node: any): boolean =>
+  !!node &&
+  typeof node === 'object' &&
+  Object.keys(node).every((k) => k === 'type') &&
+  (!!namedSchemaUrl(node) || isBlankPart(node))
+
+/** An intersection, offered at the root: the schema's fields stay, as the part added here. */
+const intersectionOption = (): TypeOption => ({
+  label: 'Intersection',
+  hint: 'all fields of several types',
+  schema: {allOf: []},
+})
 
 /** A union, offered to fields and to the root alike; the picked entry starts with one open option. */
 const unionOption = (): TypeOption => ({
@@ -321,7 +346,7 @@ export function SchemaEditor({
               m === 'form'
                 ? fits
                   ? 'Edit as fields'
-                  : 'This shape (union, list, open map, instantiation) is edited as JSON'
+                  : 'This shape (instantiation, literal, or an intersection of other shapes) is edited as JSON'
                 : 'Edit the raw schema JSON'
             }
           >
@@ -347,7 +372,9 @@ export function SchemaEditor({
   )
   return (
     <div className="flex flex-col gap-2" onKeyDown={onKeyDown} data-testid="schema-editor-root">
-      {showForm ? (
+      {showForm && Array.isArray(schema.allOf) ? (
+        <IntersectionSchemaForm schema={schema} onSchema={onSchema} toolbar={hideModeToggle ? null : modeToggle} />
+      ) : showForm ? (
         <StructSchemaForm schema={schema} onSchema={onSchema} toolbar={hideModeToggle ? null : modeToggle} />
       ) : (
         <>
@@ -710,6 +737,7 @@ function StructSchemaForm({
   const rootUrl: string = rootIsUnion ? '' : nodeUrl(schema)
   const rootTypeOptions: TypeOption[] = [
     unionOption(),
+    intersectionOption(),
     ...FIELD_KINDS.filter(({kind}) => !isReferenceKind(kind)).map(({kind, label}) => ({
       label: HM_SCHEMA_PAGES[kind]?.name ?? label,
       hint: 'core type',
@@ -733,6 +761,8 @@ function StructSchemaForm({
   }
   /** A picked option carrying a schema (Union): the root becomes that shape, keeping generics and description. */
   const setRootSchema = (next: HypermediaSchema) => {
+    // An intersection keeps the struct's fields as its own part, and the type it extended as a part.
+    if (Array.isArray(next.allOf)) return onSchema(toIntersection(schema))
     const keep: HypermediaSchema = {}
     if (schema.params) keep.params = schema.params
     if (schema.description) keep.description = schema.description
@@ -864,6 +894,132 @@ function StructSchemaForm({
       {!rootIsUnion && !rootIsList && (
         <StructFieldsEditor schema={schema} onSchema={onSchema} options={fieldTypeOptions} />
       )}
+    </div>
+  )
+}
+
+/**
+ * An intersection (`allOf`) as a form: the types it combines as chips ("all fields of [Employee] &
+ * [+]"), their fields read-only beneath, and the fields added here as an ordinary field list. The
+ * first field added creates the inline struct part that holds them; removing the last one drops it.
+ */
+function IntersectionSchemaForm({
+  schema,
+  onSchema,
+  toolbar,
+}: {
+  schema: HypermediaSchema
+  onSchema: (s: HypermediaSchema) => void
+  toolbar?: React.ReactNode
+}) {
+  const {registry, isLoading} = useHydratedRegistry(schema)
+  const parts = intersectionOf(schema, registry)
+  const nodes: HypermediaSchema[] = schema.allOf
+  const ownArm = parts.own?.node ?? emptyOwnArm()
+  const fieldTypeOptions = useMemo(coreFieldTypeOptions, [])
+  const setPart = (index: number, url: string) =>
+    onSchema({...schema, allOf: nodes.map((n, i) => (i === index ? {type: url} : n))})
+  const removePart = (index: number) => onSchema({...schema, allOf: nodes.filter((_, i) => i !== index)})
+  // A new part starts blank, before the inline part, for the user to search a type into.
+  const addPart = () => {
+    const at = nodes.findIndex(isInlineStructArm)
+    const next = [...nodes]
+    next.splice(at === -1 ? next.length : at, 0, {type: ''})
+    onSchema({...schema, allOf: next})
+  }
+  const rootTypeOptions: TypeOption[] = [
+    intersectionOption(),
+    ...FIELD_KINDS.filter(({kind}) => kind === 'struct' || kind === 'map').map(({kind, label}) => ({
+      label: HM_SCHEMA_PAGES[kind]?.name ?? label,
+      hint: 'core type',
+      url: kindUrl(kind),
+    })),
+  ]
+  const clash = parts.merged.__invalid
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="schema-intersection-form">
+      <div className="flex flex-wrap items-start justify-between gap-2" data-testid="schema-root-type">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm">
+            <SchemaTypeInput
+              chip
+              value=""
+              label="Intersection"
+              options={rootTypeOptions}
+              // Leaving the intersection: one struct with the fields added here, extending the
+              // picked type when it is a type rather than a kind; the other parts are dropped.
+              onChange={(url) => onSchema(fromIntersection(schema, url))}
+              onPick={() => {}}
+              ariaLabel="Root type"
+              className={kindColor.union}
+            />
+            <span className="text-muted-foreground">all fields of</span>
+            {nodes.map((node, i) =>
+              isInlineStructArm(node) ? null : (
+                <span key={i} className="group/arm inline-flex items-center">
+                  <SchemaTypeInput
+                    chip
+                    value={nodeUrl(node)}
+                    onChange={(url) => setPart(i, url)}
+                    ariaLabel={`Intersection part ${i + 1}`}
+                    placeholder="search a type"
+                    className={chipColor(node)}
+                  />
+                  <Tooltip content="Remove this part">
+                    <button
+                      type="button"
+                      aria-label={`Remove intersection part ${i + 1}`}
+                      onClick={() => removePart(i)}
+                      className="text-muted-foreground hover:text-foreground w-0 cursor-pointer overflow-hidden opacity-0 transition-[width] group-focus-within/arm:w-4 group-focus-within/arm:opacity-100 group-hover/arm:w-4 group-hover/arm:opacity-100"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Tooltip>
+                </span>
+              ),
+            )}
+            <IconAction
+              label="Add a type to combine"
+              tooltip="Add a type whose fields this one includes"
+              onClick={addPart}
+            >
+              <Plus className="size-3.5" />
+            </IconAction>
+          </p>
+          <Textarea
+            value={schema.description ?? ''}
+            aria-label="Schema description"
+            placeholder="Describe what this schema is for"
+            rows={1}
+            className="min-h-8 resize-none text-sm"
+            data-testid="schema-description"
+            onChange={(e) => {
+              const {description: _d, ...rest} = schema
+              onSchema(e.target.value.trim() ? {...rest, description: e.target.value} : rest)
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-1">{toolbar}</div>
+      </div>
+
+      {clash && <p className="text-destructive text-sm">{clash}</p>}
+
+      {parts.named.length > 0 && (
+        <div className="flex flex-col gap-1" data-testid="schema-intersection-included">
+          <InheritedFields schema={schema} registry={registry} isLoading={isLoading} />
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1" data-testid="schema-intersection-own">
+        <StructFieldsEditor
+          schema={ownArm}
+          onSchema={(next) => onSchema(withOwnFields(schema, next))}
+          options={fieldTypeOptions}
+          emptyLabel={parts.named.length ? 'No fields of its own yet.' : 'No fields yet.'}
+          closed
+        />
+      </div>
     </div>
   )
 }
