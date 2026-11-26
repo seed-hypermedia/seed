@@ -40,6 +40,12 @@ FROM node:22-alpine AS production
 ARG COMMIT_HASH
 ARG BRANCH
 ARG DATE
+ARG SITE_SENTRY_DSN
+ARG SITE_SENTRY_ENVIRONMENT=production
+
+# Defaults baked into the image; runtime -e overrides these, even with an empty DSN.
+ENV SITE_SENTRY_DSN=${SITE_SENTRY_DSN}
+ENV SITE_SENTRY_ENVIRONMENT=${SITE_SENTRY_ENVIRONMENT}
 
 COPY --from=builder /app/frontend/apps/web /app/frontend/apps/web
 # COPY --from=builder /app/frontend/apps/web/node_modules /app/frontend/apps/web/node_modules
