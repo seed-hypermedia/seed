@@ -188,10 +188,13 @@ test.describe('Shift+Arrow selection', () => {
       tiptap.commands.setTextSelection(start + 2)
     })
 
+    // Inside text the browser moves the selection and reports it later, so wait for each move before reading it.
+    const cursor = await selection(page)
     await press(page, 'Shift+ArrowDown')
+    await expect.poll(async () => (await selection(page)).end).not.toBe(cursor.end)
     const oneLine = await selection(page)
     await press(page, 'Shift+ArrowDown')
-    expect((await selection(page)).end).not.toBe(oneLine.end)
+    await expect.poll(async () => (await selection(page)).end).not.toBe(oneLine.end)
 
     await press(page, 'Shift+ArrowUp')
     await expect.poll(() => selection(page)).toEqual(oneLine)
