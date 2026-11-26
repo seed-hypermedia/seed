@@ -396,9 +396,9 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		sb.GenesisBlob = v.Genesis
 	}
 
-	// Dependencies must be indexed Changes of the same document. Refs rely on
-	// it: they check only their heads, and the history below is then indexed
-	// and consistent. See crossLinkRefMaybe.
+	// Dependencies must be older, shallower indexed Changes of the same
+	// document. Refs rely on it: they check only their heads, and the history
+	// below is then indexed and consistent. See crossLinkRefMaybe.
 	if len(v.Deps) > 0 {
 		genesis, err := ictx.ensureBlob(v.Genesis)
 		if err != nil {
@@ -429,11 +429,32 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				}
 			}
 
+			// Replay rejects a Change that isn't newer and deeper than its
+			// dependencies, and timestamp order is then causal, which applying
+			// Refs relies on.
+			if v.Ts.UnixMilli() <= depChange.Ts {
+				return stashError{
+					Reason: stashReasonBadData,
+					Metadata: stashMetadata{
+						Details: fmt.Sprintf("change is not newer than its dependency %s", dep),
+					},
+				}
+			}
+
+			if v.Depth <= depChange.Depth {
+				return stashError{
+					Reason: stashReasonBadData,
+					Metadata: stashMetadata{
+						Details: fmt.Sprintf("change is not deeper than its dependency %s", dep),
+					},
+				}
+			}
+
 			sb.AddBlobLink("change/dep", dep)
 		}
 	}
 
-	extra := changeIndexedAttrs{Actor: uint64(author.ActorID())}
+	extra := changeIndexedAttrs{Actor: uint64(author.ActorID()), Depth: v.Depth}
 	opIndex := -1
 
 	// Each block gets at most one fts row per change.
@@ -575,7 +596,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		ftsWritten[blk] = struct{}{}
 	}
 
-	if extra.Title != "" || len(extra.Metadata) > 0 || len(extra.Attributes) > 0 {
+	if extra.Title != "" || len(extra.Metadata) > 0 || len(extra.Attributes) > 0 || extra.Depth > 0 {
 		sb.ExtraAttrs = extra
 	}
 
@@ -647,6 +668,8 @@ type changeIndexedAttrs struct {
 	Metadata   map[string]any           `json:"metadata,omitempty"`
 	Attributes []indexedAttributeChange `json:"attributes,omitempty"`
 	Actor      uint64                   `json:"actor,omitempty"`
+	// Depth is the Change's depth, which Changes depending on it must exceed.
+	Depth int `json:"depth,omitempty"`
 }
 
 type indexedAttributeChange struct {
