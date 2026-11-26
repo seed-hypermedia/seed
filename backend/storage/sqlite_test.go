@@ -687,3 +687,37 @@ func TestBase58BTC(t *testing.T) {
 		})
 	}
 }
+
+func TestSqliteVecMetadataIn(t *testing.T) {
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 1)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	require.NoError(t, sqlitex.ExecScript(conn, `CREATE VIRTUAL TABLE vecs USING vec0(embedding float[2], meta int);`))
+	metas := []int64{math.MinInt64, -5, 0, 7, 1 << 40, math.MaxInt64}
+	for i, meta := range metas {
+		require.NoError(t, sqlitex.Exec(conn, dqb.Str(`INSERT INTO vecs(rowid, embedding, meta) VALUES (?, ?, ?);`)(), nil,
+			i+1, fmt.Sprintf("[%d, 1]", i), meta))
+	}
+
+	// The list is unsorted and its values are further apart than an int can hold.
+	in := []int64{math.MaxInt64, 3, -5, 1 << 40, math.MinInt64, 7}
+	args := []any{"[0, 1]"}
+	for _, v := range in {
+		args = append(args, v)
+	}
+
+	var got []int64
+
+	require.NoError(t, sqlitex.Exec(conn, dqb.Str(`SELECT rowid FROM vecs
+		WHERE embedding MATCH ? AND k = 10 AND meta IN (?, ?, ?, ?, ?, ?);`)(), func(stmt *sqlite.Stmt) error {
+		got = append(got, stmt.ColumnInt64(0))
+		return nil
+	}, args...))
+	slices.Sort(got)
+	require.Equal(t, []int64{1, 2, 4, 5, 6}, got)
+}
