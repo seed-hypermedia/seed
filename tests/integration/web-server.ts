@@ -3,7 +3,7 @@
  * Builds and starts the Remix web app server.
  */
 
-import {spawn, ChildProcess, execSync} from 'child_process'
+import {spawn, ChildProcess, execFileSync, execSync} from 'child_process'
 import * as readline from 'node:readline'
 import path from 'path'
 
@@ -25,6 +25,35 @@ export type WebServerInstance = {
   kill: () => Promise<void>
   waitForReady: () => Promise<void>
   baseUrl: string
+}
+
+function getProcessTree(pid: number): number[] {
+  let children: number[] = []
+  try {
+    children = execFileSync('ps', ['-o', 'pid=', '--ppid', String(pid)], {encoding: 'utf-8'})
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(Number)
+  } catch {}
+  return [...children.flatMap(getProcessTree), pid]
+}
+
+function signalProcesses(pids: number[], signal: NodeJS.Signals): void {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, signal)
+    } catch {}
+  }
+}
+
+function processIsRunning(pid: number): boolean {
+  try {
+    const state = execFileSync('ps', ['-p', String(pid), '-o', 'stat='], {encoding: 'utf-8'}).trim()
+    return state.length > 0 && !state.startsWith('Z')
+  } catch {
+    return false
+  }
 }
 
 export async function buildWebApp(): Promise<void> {
@@ -73,8 +102,14 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     cwd: webAppDir,
     stdio: 'pipe',
     env,
-    shell: true,
+    shell: process.platform === 'win32',
+    detached: process.platform !== 'win32',
   })
+  const ownedProcessIds = new Set(webProcess.pid ? [webProcess.pid] : [])
+  const captureProcessTree = () => {
+    if (!webProcess.pid || process.platform === 'win32') return
+    for (const pid of getProcessTree(webProcess.pid)) ownedProcessIds.add(pid)
+  }
 
   let isReady = false
   let readyResolve: (() => void) | null = null
@@ -87,11 +122,13 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     // The web app outputs "Server initialized and cache warmed" when ready
     if (line.includes('Server initialized')) {
       isReady = true
+      captureProcessTree()
       readyResolve?.()
     }
     // Fallback: remix-serve outputs "http://localhost:xxxx"
     if (line.includes('[remix-serve]') && line.includes('http://localhost:')) {
       isReady = true
+      captureProcessTree()
       readyResolve?.()
     }
   })
@@ -139,22 +176,32 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
       stdout.close()
       stderr.close()
 
-      if (webProcess.exitCode !== null) {
-        // Already exited
-        resolve()
-        return
-      }
-
-      webProcess.once('close', () => resolve())
-      webProcess.kill()
-
-      // Force kill after 5s if graceful shutdown fails
-      setTimeout(() => {
-        if (webProcess.exitCode === null) {
-          webProcess.kill('SIGKILL')
+      const exited = new Promise<void>((done) => webProcess.once('close', () => done()))
+      captureProcessTree()
+      const signalOwnedProcesses = (signal: NodeJS.Signals) => {
+        signalProcesses([...ownedProcessIds], signal)
+        if (process.platform !== 'win32' && webProcess.pid) {
+          try {
+            process.kill(-webProcess.pid, signal)
+          } catch {}
         }
+        try {
+          webProcess.kill(signal)
+        } catch {}
+      }
+      void (async () => {
+        signalOwnedProcesses('SIGTERM')
+        await Promise.race([exited, new Promise((done) => setTimeout(done, 5000))])
+        const stillRunning = [...ownedProcessIds].filter(processIsRunning)
+        if (stillRunning.length) signalProcesses(stillRunning, 'SIGKILL')
+        if (webProcess.exitCode === null && webProcess.signalCode === null) {
+          try {
+            webProcess.kill('SIGKILL')
+          } catch {}
+        }
+        await Promise.race([exited, new Promise((done) => setTimeout(done, 1000))])
         resolve()
-      }, 5000)
+      })()
     })
   }
 
