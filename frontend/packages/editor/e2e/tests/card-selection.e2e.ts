@@ -204,6 +204,56 @@ test.describe('Card selection', () => {
       ])
   })
 
+  test('turns a selected bulleted list of cards into a grid with the chosen column count', async ({
+    editorHelpers,
+    page,
+  }) => {
+    void editorHelpers
+    await page.evaluate(
+      (blocks: any[]) => {
+        const editor = window.TEST_EDITOR?.editor
+        const firstBlock = editor?.topLevelBlocks?.[0]
+        if (!editor || !firstBlock) throw new Error('Editor not ready')
+        editor.insertBlocks(blocks, firstBlock.id, 'after')
+      },
+      [
+        {
+          ...fileCard(
+            'list-parent',
+            ['item-1', 'item-2', 'item-3'].map((name) => fileCard(name)),
+          ),
+          props: {...fileCard('list-parent').props, childrenType: 'Unordered'},
+        },
+      ],
+    )
+
+    await card(page, 'item-1').click({position: {x: 8, y: 8}})
+    await card(page, 'item-3').click({position: {x: 8, y: 8}, modifiers: ['Shift']})
+    await expectSelected(page, ['item-1', 'item-2', 'item-3'])
+
+    await page.getByTestId('style-options-trigger').click()
+    await page.getByTestId('grid-cols-2').click()
+
+    // Turning the list into a grid used to collapse the selection, so the column count went nowhere.
+    await expect.poll(() => grids(page)).toEqual([{columnCount: 2, cards: ['item-1', 'item-2', 'item-3']}])
+    await expectSelected(page, ['item-1', 'item-2', 'item-3'])
+  })
+
+  test('selected grid cards stay selected when the column count changes', async ({editorHelpers, page}) => {
+    void editorHelpers
+    await insertCards(page)
+
+    await card(page, 'grid-1').click({position: {x: 8, y: 8}})
+    await card(page, 'grid-2').click({position: {x: 8, y: 8}, modifiers: ['Shift']})
+    await expectSelected(page, ['grid-1', 'grid-2'])
+
+    await page.getByTestId('style-options-trigger').click()
+    await page.getByTestId('grid-cols-2').click()
+
+    await expect.poll(() => grids(page)).toEqual([{columnCount: 2, cards: ['grid-1', 'grid-2', 'grid-3']}])
+    await expectSelected(page, ['grid-1', 'grid-2'])
+  })
+
   test('shift-click extends from and to an empty upload placeholder', async ({editorHelpers, page}) => {
     void editorHelpers
     await page.evaluate(
@@ -395,6 +445,61 @@ test.describe('Card selection', () => {
           'paragraph',
         ])
     })
+  })
+})
+
+test.describe('Card selection drag preview', () => {
+  // The drag handle only shows while editing.
+  test.use({editorEditMode: true})
+
+  test('counts the cards of a root grid, not the Slot holding them', async ({editorHelpers, page}) => {
+    void editorHelpers
+    await page.evaluate(
+      (blocks: any[]) => {
+        const editor = window.TEST_EDITOR?.editor
+        const firstBlock = editor?.topLevelBlocks?.[0]
+        if (!editor || !firstBlock) throw new Error('Editor not ready')
+        editor.insertBlocks(blocks, firstBlock.id, 'after')
+      },
+      [
+        fileCard('root-a'),
+        {
+          type: 'slot',
+          props: {childrenType: 'Grid', columnCount: '3'},
+          children: ['slot-1', 'slot-2', 'slot-3'].map((name) => fileCard(name)),
+        },
+      ],
+    )
+    // The preview is rendered into an element added to the body for the drag image, then removed.
+    await page.evaluate(() => {
+      const w = window as any
+      w.dragPreviewSummaries = []
+      new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of Array.from(record.addedNodes)) {
+            if (!(node instanceof HTMLElement)) continue
+            setTimeout(() => {
+              if (!node.querySelector('[data-node-type="blockNode"]')) return
+              w.dragPreviewSummaries.push(node.textContent?.match(/\+\d+ more/)?.[0] ?? null)
+            })
+          }
+        }
+      }).observe(document.body, {childList: true})
+    })
+
+    await card(page, 'root-a').click({position: {x: 8, y: 8}})
+    await card(page, 'slot-3').click({position: {x: 8, y: 8}, modifiers: ['Shift']})
+    await card(page, 'root-a').hover({position: {x: 20, y: 10}})
+    const dragHandle = page.locator('[data-drag-handle]').first()
+    await expect(dragHandle).toBeVisible()
+    const handle = (await dragHandle.boundingBox())!
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle.x + 5, handle.y + 300, {steps: 5})
+
+    // root-a, slot-1 and slot-2 are shown; only slot-3 is left.
+    await expect.poll(() => page.evaluate(() => (window as any).dragPreviewSummaries)).toEqual(['+1 more'])
+    await page.mouse.up()
   })
 })
 

@@ -15,7 +15,6 @@ import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
 import type {BlockSchema} from '../Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from '../Blocks/helpers/getBlockInfoFromPos'
-import {MultipleNodeSelection} from '../SideMenu/MultipleNodeSelection'
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
 import './full-block-selection.css'
@@ -61,17 +60,6 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
   const fullySelected: string[] = []
 
   if (selection.empty) return fullySelected
-
-  // MultipleNodeSelection: each node in the selection is a fully-selected block.
-  if (selection instanceof MultipleNodeSelection) {
-    for (const node of selection.nodes) {
-      if (node.type.name === 'blockNode' || node.type.isInGroup('blockNodeChild')) {
-        const id = node.attrs['id'] as string | undefined
-        if (id) fullySelected.push(id)
-      }
-    }
-    return fullySelected
-  }
 
   // NodeSelection: the selected node itself (or its parent block) is fully selected.
   if (selection instanceof NodeSelection) {

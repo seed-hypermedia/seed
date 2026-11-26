@@ -18,7 +18,6 @@ import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelect
 import {executeBlockMove} from './block-move-executor'
 import type {DragStateManager} from './drag-state'
 import {attachHitboxData, extractDropInstruction, getBlockLevel, getContainerType, getItemMode} from './hitbox-strategy'
-import {MultipleNodeSelection} from './MultipleNodeSelection'
 
 type CleanupFn = () => void
 
@@ -66,25 +65,9 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
         return {type: EDITOR_TEXT_TYPE, editorId: editorDragId}
       }
 
-      const selection = editor.prosemirrorView.state.selection
-      let blockIds: string[] = [blockId]
-
-      if (selection instanceof MultipleNodeSelection) {
-        const selectedIds: string[] = []
-        selection.content().content.forEach((node) => {
-          if (node.type.name === 'blockNode' && node.attrs.id) {
-            selectedIds.push(node.attrs.id)
-          }
-        })
-        if (selectedIds.length > 0 && selectedIds.includes(blockId)) {
-          blockIds = selectedIds
-        }
-      } else {
-        const fullBlockState = fullBlockSelectionPluginKey.getState(editor.prosemirrorView.state)
-        if (fullBlockState && fullBlockState.blockIds.length > 0 && fullBlockState.blockIds.includes(blockId)) {
-          blockIds = fullBlockState.blockIds
-        }
-      }
+      // Dragging one of the selected blocks drags them all.
+      const fullBlockState = fullBlockSelectionPluginKey.getState(editor.prosemirrorView.state)
+      const blockIds = fullBlockState?.blockIds.includes(blockId) ? fullBlockState.blockIds : [blockId]
 
       return {type: EDITOR_BLOCK_TYPE, blockIds, editorId: editorDragId}
     },
