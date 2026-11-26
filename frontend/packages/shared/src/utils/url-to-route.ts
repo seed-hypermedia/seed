@@ -1,32 +1,38 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
-  INSPECT_TABS,
-  type InspectTab,
-  type NavRoute,
   createDocumentNavRoute,
   createInspectIpfsNavRoute,
   createInspectNavRoute,
+  INSPECT_TABS,
+  type InspectTab,
+  type NavRoute,
   type SiteSettingsTab,
 } from '../routes'
+import {agentsRouteFromAbsoluteUrl} from './agents-routing'
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
   parseCustomURL,
   routeToUrl,
+  unpackHmId,
   viewTermToRouteKey,
 } from './entity-id-url'
 import {appRouteOfId} from './navigation'
-import {agentsRouteFromAbsoluteUrl} from './agents-routing'
-import {unpackHmId} from './entity-id-url'
 
 const EXPLORE_SORTS = ['relevance', 'recently_updated', 'newest', 'oldest', 'title'] as const
 type ExploreSort = (typeof EXPLORE_SORTS)[number]
+
+// True for a `/hm/create-site` link on any host.
+export function isCreateSpaceUrl(url: string): boolean {
+  return /^(?:https?:\/\/[^/]+)?\/hm\/create-site\/?(?:[?#].*)?$/.test(url)
+}
 
 /**
  * Converts a directly parseable Hypermedia app URL into an application route.
  */
 export function hypermediaUrlToRoute(url: string): NavRoute | null {
   if (/^(?:https?:\/\/[^/]+)?\/hm\/drafts\/?(?:[?#].*)?$/.test(url)) return {key: 'drafts'}
+  if (isCreateSpaceUrl(url)) return null
   // A link to the web agents UI (what "Copy trigger link" and friends produce) is an app route.
   const agentsRoute = agentsRouteFromAbsoluteUrl(url)
   if (agentsRoute) return agentsRoute

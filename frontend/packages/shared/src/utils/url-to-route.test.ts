@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {navStateReducer} from './navigation'
 import {hmId, unpackHmId, routeToHmUrl, routeToUrl} from './entity-id-url'
-import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
+import {hypermediaUrlToHref, hypermediaUrlToRoute, isCreateSpaceUrl} from './url-to-route'
 import {routeToHref} from '../routing'
 
 describe('hypermediaUrlToRoute', () => {
@@ -450,4 +450,23 @@ test('navigation never opens two Comments views', () => {
     },
   )
   expect(state.routes[1]).toMatchObject({key: 'comments', openComment: 'root', replyCommentId: 'child', panel: null})
+})
+
+describe('create-space links', () => {
+  test.each([
+    'https://hyper.media/hm/create-site',
+    'https://seed.hyper.media/hm/create-site/',
+    'https://example.com/hm/create-site?ref=home#cta',
+    '/hm/create-site',
+  ])('recognizes %s as the create-space action, not a document', (url) => {
+    expect(isCreateSpaceUrl(url)).toBe(true)
+    expect(hypermediaUrlToRoute(url)).toBeNull()
+  })
+
+  test.each(['https://hyper.media/hm/create-site-guide', 'https://hyper.media/create-site', 'hm://uid1/create-site'])(
+    'leaves %s alone',
+    (url) => {
+      expect(isCreateSpaceUrl(url)).toBe(false)
+    },
+  )
 })

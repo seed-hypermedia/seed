@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mockState = vi.hoisted(() => ({
   externalOpen: vi.fn(),
+  ipcSend: vi.fn(),
   browserEnabled: false,
   pushNavigate: vi.fn(),
   spawnNavigate: vi.fn(),
@@ -15,6 +16,7 @@ const mockState = vi.hoisted(() => ({
 vi.mock('../app-context', () => ({
   useAppContext: () => ({
     externalOpen: mockState.externalOpen,
+    ipc: {send: mockState.ipcSend},
   }),
 }))
 
@@ -56,6 +58,7 @@ describe('useOpenUrl', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockState.externalOpen.mockReset()
+    mockState.ipcSend.mockReset()
     mockState.pushNavigate.mockReset()
     mockState.spawnNavigate.mockReset()
     mockState.latestOpenUrl = null
@@ -173,4 +176,18 @@ describe('useOpenUrl', () => {
 
     cleanupRendered(root, container)
   })
+
+  it.each([false, true])(
+    "opens this window's create-space flow for a site's create-space link (new window: %s)",
+    async (newWindow) => {
+      mockState.browserEnabled = true
+      const {container, root} = renderHarness()
+      await act(async () => mockState.latestOpenUrl?.('https://hyper.media/hm/create-site', newWindow))
+      expect(mockState.ipcSend).toHaveBeenCalledWith('focusedWindowAppEvent', {type: 'open_create_space'})
+      expect(mockState.pushNavigate).not.toHaveBeenCalled()
+      expect(mockState.spawnNavigate).not.toHaveBeenCalled()
+      expect(mockState.externalOpen).not.toHaveBeenCalled()
+      cleanupRendered(root, container)
+    },
+  )
 })

@@ -7,6 +7,10 @@ import {createContext, useContext, type ReactNode} from 'react'
 import {Button} from './button'
 import {PageMessageBox, PageNotFound} from './page-message-states'
 
+export const SPACE_EXISTS_TITLE = 'You already have a space'
+export const SPACE_EXISTS_BODY =
+  'Each account can only have one space. You can go to your existing space, or sign in with a different account to create a new one.'
+
 const CreateSpaceContext = createContext<(() => void) | null>(null)
 
 /** Lets shared UI launch the platform's "Create a space" flow. */

@@ -134,6 +134,10 @@ The desktop app shows the agents interface. It talks to the hosted [app environm
 
 The inbox page reads a local copy of the account's notification state. The main process syncs that copy with the [notify service](./notify.md) and signs its requests through the daemon. You can mark things as read offline, and the app syncs the change later. [Notify](./notify.md) describes the store. [The notify API](../build/notify-api.md) describes how the app finds its notify service, and the read-state rules. <!-- id:rYGtdY_I -->
 
+## Creating a space
+
+A link to a site's `/hm/create-site` page opens the app's own **Create a space** panel instead of a page. As on the [web app](./web.md), the form comes first. Without an identity, the app asks you to sign in or create one when you submit. If the account already has a [space](../protocol/spaces.md), the panel offers **Go to your space** or **Use a different account**, which creates a new identity.
+
 ## Publishing to a domain
 
 After you first publish a new [space](../protocol/spaces.md) in public, the app offers to publish it to a web domain. The space settings also have a **Web Domain** page. The [web app](./web.md) has the same flow, and one page describes it: [Publishing a space to a domain](../operate/publishing-to-a-domain.md).

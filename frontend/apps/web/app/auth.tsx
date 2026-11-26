@@ -9,6 +9,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {SPACE_EXISTS_BODY, SPACE_EXISTS_TITLE} from '@shm/ui/create-space-context'
 import {DocumentMaintenanceTrigger} from '@shm/ui/document-maintenance'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {SiteMetaFields} from '@shm/ui/edit-profile-form'
@@ -470,10 +471,6 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
     </>
   )
 }
-
-export const SPACE_EXISTS_TITLE = 'You already have a space'
-export const SPACE_EXISTS_BODY =
-  'Each account can only have one space. You can go to your existing space, or sign in with a different account to create a new one.'
 
 type VaultSuccessInput = {variant: 'space-exists'; spaceUrl: string | null; draftId: string | null}
 

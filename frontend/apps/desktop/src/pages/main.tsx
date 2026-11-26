@@ -1,6 +1,6 @@
-import {getNavigationResourceKey, NavigationRouteBoundary} from '../utils/navigation-route-boundary'
-import {ActivityPanelProvider, ActivityPanelOutlet} from '@shm/ui/activity-panel-layout'
 import {useAppContext, useListen} from '@/app-context'
+import {ActivityPanelOutlet, ActivityPanelProvider} from '@shm/ui/activity-panel-layout'
+import {getNavigationResourceKey, NavigationRouteBoundary} from '../utils/navigation-route-boundary'
 
 import {BookmarksPanel, BookmarksPanelProvider, useBookmarksPanel} from '@/components/bookmarks-panel'
 import {CloseButton} from '@/components/window-controls'
@@ -28,6 +28,7 @@ import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/as
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {windowContainerStyles} from '@shm/ui/container'
+import {CreateSpaceProvider} from '@shm/ui/create-space-context'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from '@shm/ui/resizable-panels'
 import {SidePanelSlotContent, useSidePanelSlot} from '@shm/ui/side-panel-slot'
 import {Spinner} from '@shm/ui/spinner'
@@ -40,13 +41,12 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {Group, Panel} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
+import {useCreateSpaceDialog} from '../components/create-space-dialog'
+import {DesktopDraftBreadcrumbProvider} from '../components/desktop-draft-breadcrumb-provider'
 import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
-import {useCreateSpaceDialog} from '../components/create-space-dialog'
-import {DesktopDraftBreadcrumbProvider} from '../components/desktop-draft-breadcrumb-provider'
 import {AppSidebar} from '../components/sidebar'
-import {CreateSpaceProvider} from '@shm/ui/create-space-context'
 import {TitleBar} from '../components/titlebar'
 import {WindowTitle} from '../components/window-title'
 import {BaseLoading, NotFoundPage} from './base'
@@ -223,6 +223,8 @@ export default function Main({className}: {className?: string}) {
     [isAssistantAvailable, shouldRenderAssistantPanel, assistantSessionId, handleSessionChange, handleCloseAssistant],
   )
   const createSpaceDialog = useCreateSpaceDialog()
+  // hm/create-site url opens this window's create-space panel.
+  useListenAppEvent('open_create_space', createSpaceDialog.open)
   const windowType = getWindowType()
   let titlebar: ReactElement | null = null
   let sidebar: ReactElement | null = null

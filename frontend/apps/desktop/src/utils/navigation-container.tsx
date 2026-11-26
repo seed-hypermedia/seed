@@ -12,7 +12,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
-import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
+import {hypermediaUrlToRoute, isCreateSpaceUrl} from '@shm/shared/utils/url-to-route'
 import {getParentRoute} from '@shm/shared/utils/parent-route'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {isHttpUrl} from '@shm/shared/utils/navigation'
@@ -163,6 +163,10 @@ export function NavigationContainer({children}: {children: ReactNode}) {
       }}
       openUrl={(url: string, newWindow?: boolean) => {
         if (!url) return
+        if (isCreateSpaceUrl(url)) {
+          ipc.send('focusedWindowAppEvent', {type: 'open_create_space'} satisfies AppWindowEvent)
+          return
+        }
         const route = hypermediaUrlToRoute(url)
         if (route) {
           if (newWindow) {

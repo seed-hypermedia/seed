@@ -61,6 +61,7 @@ export type AppWindowEvent =
     }
   | {type: 'document_path_changed'; oldId: string; newId: string}
   | {type: 'create_new_document'}
+  | {type: 'open_create_space'}
 
 // Helper type to extract payload for a given key
 type EventPayload<K extends AppWindowEvent['type']> = Extract<AppWindowEvent, {type: K}>
