@@ -178,7 +178,7 @@ func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetC
 			}
 
 			if icmt.Comment.Visibility == blob.VisibilityPrivate {
-				if err := srv.denyPrivateComment(ctx, icmt.Comment.Space(), icmt.Comment.Path); err != nil {
+				if err := srv.denyPrivateCommentConn(ctx, conn, icmt.Comment.Space()); err != nil {
 					return nil, err
 				}
 			}
@@ -212,7 +212,7 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 
 		q := qIterComments()
 
-		if filterPrivate, err := srv.shouldFilterPrivate(ctx, acc, in.TargetPath); err != nil {
+		if filterPrivate, err := srv.shouldFilterPrivateConn(ctx, conn, acc); err != nil {
 			return nil, err
 		} else if filterPrivate {
 			q = qIterCommentsServerMode()
@@ -903,7 +903,7 @@ func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCo
 				return err
 			}
 			if icmt.Comment.Visibility == blob.VisibilityPrivate {
-				return srv.denyPrivateComment(ctx, icmt.Comment.Space(), icmt.Comment.Path)
+				return srv.denyPrivateCommentConn(ctx, conn, icmt.Comment.Space())
 			}
 		}
 		if err := sqlitex.Exec(conn, qGetReplyCountByID(), func(stmt *sqlite.Stmt) error {
@@ -946,7 +946,7 @@ func (srv *Server) ListCommentVersions(ctx context.Context, in *documents.ListCo
 			}
 
 			if v.Comment.Visibility == blob.VisibilityPrivate {
-				if err := srv.denyPrivateComment(ctx, v.Comment.Space(), v.Comment.Path); err != nil {
+				if err := srv.denyPrivateCommentConn(ctx, conn, v.Comment.Space()); err != nil {
 					return nil, err
 				}
 			}

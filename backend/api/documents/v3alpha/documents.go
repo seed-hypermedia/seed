@@ -1115,11 +1115,12 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 				return fmt.Errorf("failed to get document info for %s: %w", iri, err)
 			}
 			if info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-				acc, path, err := iri.SpacePath()
+				acc, _, err := iri.SpacePath()
 				if err != nil {
 					return err
 				}
-				if err := srv.denyPrivateDocument(ctx, acc, path); err != nil {
+
+				if err := srv.denyPrivateDocumentConn(ctx, conn, acc); err != nil {
 					return err
 				}
 			}
@@ -3199,12 +3200,44 @@ func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, p
 	return srv.idx.IsValidWriter(ctx, account, "", caller)
 }
 
+// canReadPrivateConn is canReadPrivate on a connection the caller already holds.
+// Code that holds a pooled connection must use it: taking a second connection
+// from the pool while holding one lets concurrent requests exhaust the pool and
+// wait on each other forever.
+func (srv *Server) canReadPrivateConn(ctx context.Context, conn *sqlite.Conn, account core.Principal) (bool, error) {
+	if !srv.cfg.ServerMode {
+		return true, nil
+	}
+
+	caller, ok := blob.GetAuthenticatedCaller(ctx)
+	if !ok {
+		return false, nil
+	}
+
+	if account.Equal(caller) {
+		return true, nil
+	}
+
+	iri, err := blob.NewIRI(account, "")
+	if err != nil {
+		return false, err
+	}
+
+	return blob.IsValidWriterInDB(conn, iri, caller)
+}
+
 func (srv *Server) shouldFilterPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
 	if !srv.cfg.ServerMode {
 		return false, nil
 	}
 
 	ok, err := srv.canReadPrivate(ctx, account, path)
+	return !ok, err
+}
+
+// shouldFilterPrivateConn is shouldFilterPrivate on a connection the caller already holds.
+func (srv *Server) shouldFilterPrivateConn(ctx context.Context, conn *sqlite.Conn, account core.Principal) (bool, error) {
+	ok, err := srv.canReadPrivateConn(ctx, conn, account)
 	return !ok, err
 }
 
@@ -3220,6 +3253,20 @@ func (srv *Server) denyPrivateDocument(ctx context.Context, account core.Princip
 	return nil
 }
 
+// denyPrivateDocumentConn is denyPrivateDocument on a connection the caller already holds.
+func (srv *Server) denyPrivateDocumentConn(ctx context.Context, conn *sqlite.Conn, account core.Principal) error {
+	filterPrivate, err := srv.shouldFilterPrivateConn(ctx, conn, account)
+	if err != nil {
+		return err
+	}
+
+	if filterPrivate {
+		return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+
+	return nil
+}
+
 func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principal, path string) error {
 	filterPrivate, err := srv.shouldFilterPrivate(ctx, account, path)
 	if err != nil {
@@ -3229,6 +3276,21 @@ func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principa
 	if filterPrivate {
 		return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
 	}
+	return nil
+}
+
+// denyPrivateCommentConn rejects reading a private comment in account's space
+// unless the caller may read it, on a connection the caller already holds.
+func (srv *Server) denyPrivateCommentConn(ctx context.Context, conn *sqlite.Conn, account core.Principal) error {
+	filterPrivate, err := srv.shouldFilterPrivateConn(ctx, conn, account)
+	if err != nil {
+		return err
+	}
+
+	if filterPrivate {
+		return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+	}
+
 	return nil
 }
 
