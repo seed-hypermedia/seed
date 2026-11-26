@@ -93,7 +93,7 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
         setMovedUrl(newUrl)
         await updateMovedSitePublication(siteId, action.site.url, newUrl)
         await host.clearPendingSiteMove(action.site.id)
-        toast.success('Site address updated')
+        toast.success('Space address updated')
       } else {
         const result = await host.transferSite.mutateAsync({
           id: action.site.id,
@@ -118,7 +118,7 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
       const newUrl = await host.recoverSiteMove.mutateAsync(move)
       await updateMovedSitePublication(siteId, move.oldUrl, newUrl)
       await host.clearPendingSiteMove(move.id)
-      toast.success('Site address updated')
+      toast.success('Space address updated')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to finish the move. Try again.')
     } finally {
@@ -131,7 +131,7 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
     <>
       {pendingMoves.map((move) => (
         <div className="border-border flex flex-col gap-2 rounded-lg border p-4" key={move.id}>
-          <SizableText weight="medium">Finish site address change</SizableText>
+          <SizableText weight="medium">Finish space address change</SizableText>
           <SizableText size="sm" color="muted">
             The move from {move.oldName} to {move.newName} still needs to be completed.
           </SizableText>
@@ -197,7 +197,7 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
                 disabled={dedicatedService || pendingMove}
                 onClick={() => openAction('rename', site)}
               >
-                Change Site Address
+                Change Space Address
               </Button>
               <Button
                 variant="outline"
@@ -237,11 +237,11 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
               }}
             >
               <DialogHeader>
-                <DialogTitle>{action.type === 'rename' ? 'Change Site Address' : 'Transfer Hosting'}</DialogTitle>
+                <DialogTitle>{action.type === 'rename' ? 'Change Space Address' : 'Transfer Hosting'}</DialogTitle>
                 <DialogDescription>
                   {action.type === 'rename'
                     ? 'The old hosting address will stop working. Your space and its content stay the same.'
-                    : 'Move this site to another Seed Hosting account. This does not transfer ownership of the Seed space.'}
+                    : 'Move hosting for this space to another Seed Hosting account. This does not transfer ownership of the space.'}
                 </DialogDescription>
               </DialogHeader>
               {action.type === 'rename' ? (
@@ -283,7 +283,7 @@ function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; si
                     />
                   </label>
                   <SizableText size="sm" color="muted">
-                    The recipient must have signed in to Seed Hosting. You will lose hosting controls for this site.
+                    The recipient must have signed in to Seed Hosting. You will lose hosting controls for this space.
                   </SizableText>
                 </>
               )}
@@ -828,9 +828,9 @@ function HostingDialogContent({
           <div className="flex flex-col gap-3">
             <p>
               {host.sites.isInitialLoading
-                ? 'Loading your hosted sites…'
+                ? 'Loading your hosted spaces…'
                 : siteUrl
-                  ? 'Sign in to the Seed Hosting account that owns this site to add a custom domain.'
+                  ? 'Sign in to the Seed Hosting account that owns this space to add a custom domain.'
                   : 'Create a free Seed address before connecting your domain.'}
             </p>
             {!siteUrl ? <Button onClick={() => setStep('free')}>Choose a Seed Address</Button> : null}

@@ -60,7 +60,7 @@ export function pagePermissionLabel(
         ? 'Always allow all tools in this app'
         : 'Allow running any tool'
   if (scope === 'resource') return 'Allow reading this resource'
-  if (scope === 'site') return 'Allow reading this site'
+  if (scope === 'site') return 'Allow reading this space'
   if (scope === 'all')
     return request.kind === 'read'
       ? 'Allow all reading'
@@ -83,7 +83,7 @@ export function pagePermissionLabel(
                 : request.type === 'Profile'
                   ? 'profile changes'
                   : 'publishing'
-  return scope === 'type-site' ? `Allow ${type} on this site` : `Allow all ${type}`
+  return scope === 'type-site' ? `Allow ${type} on this space` : `Allow all ${type}`
 }
 
 /** Stable host-owned persistence key; code updates intentionally inherit the page's rules. */

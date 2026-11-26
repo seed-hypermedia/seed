@@ -127,7 +127,7 @@ export function WebSidebarLayout({siteHomeId, children}: {siteHomeId: UnpackedHy
         <SiteFileBrowserLayout
           siteId={siteHomeId}
           activeDocumentId={null}
-          siteName="Site"
+          siteName="Space"
           mobileOpen={mobileOpen}
           onMobileOpenChange={setMobileOpen}
           createMenuItem={menuItem}

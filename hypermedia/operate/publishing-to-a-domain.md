@@ -55,7 +55,7 @@ When you use your own domain, the app shows the DNS records to make and checks t
 
 # Changing the address and transferring hosting
 
-**Change Site Address** and **Transfer Hosting** show only when two things are true. The hosting account you are signed in with owns a site registered to this space. And the space's published URL matches that site's address or custom domain. Sites you host yourself do not have these controls. <!-- id:Gmvlux4S -->
+**Change Space Address** and **Transfer Hosting** show only when two things are true. The hosting account you are signed in with owns a site registered to this space. And the space's published URL matches that site's address or custom domain. Sites you host yourself do not have these controls. <!-- id:Gmvlux4S -->
 
 - A transfer moves the management of the hosting to another hosting account that already exists. It does not move the Seed identity, and it does not change who may edit the content.
 - Paid services that are active must stop before a transfer.

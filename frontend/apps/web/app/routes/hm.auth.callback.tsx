@@ -238,7 +238,7 @@ export default function AuthCallbackRoute() {
             </SizableText>
             <SizableText color="muted" size="sm">
               Your sign-in may have expired or been started in a different browser or tab. Please try signing in again
-              from the site.
+              from the space.
             </SizableText>
           </div>
           <div className="flex w-full flex-col gap-2">

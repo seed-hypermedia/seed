@@ -10,7 +10,7 @@ export async function resolveSiteHomeUid(serverUrl: string): Promise<string> {
   if (cached) return cached
   const config = await fetchSiteConfig(serverUrl)
   if (!config.registeredAccountUid) {
-    throw new Error('This server has no registered site.')
+    throw new Error('This server has no registered space.')
   }
   homeUidByServer.set(serverUrl, config.registeredAccountUid)
   return config.registeredAccountUid

@@ -64,7 +64,7 @@ afterEach(async () => {
 it('public sign-in keeps its existing text, button, and explicit interaction', async () => {
   await act(async () => root.render(<SignInPage />))
   expect(mocks.redirect).not.toHaveBeenCalled()
-  expect(container.textContent).toBe('Sign in to Test SiteThis site is only available to signed-in members.Sign in')
+  expect(container.textContent).toBe('Sign in to Test SiteThis space is only available to signed-in members.Sign in')
   await act(async () => container.querySelector('button')!.click())
   expect(mocks.redirect).toHaveBeenCalledOnce()
   expect(mocks.redirect).toHaveBeenCalledWith(

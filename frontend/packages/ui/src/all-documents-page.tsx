@@ -287,7 +287,7 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
           <SizableText size="3xl" weight="bold">
             All Documents
           </SizableText>
-          <p className="text-muted-foreground text-xs">{directory.data?.length ?? 0} documents in this site</p>
+          <p className="text-muted-foreground text-xs">{directory.data?.length ?? 0} documents in this space</p>
         </div>
         {/* Bulk selection is hidden until bulk actions exist.
         {selectedPaths.size > 0 ? (

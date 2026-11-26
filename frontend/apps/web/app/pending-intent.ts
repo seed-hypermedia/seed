@@ -28,7 +28,7 @@ let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 export async function getSiteMembershipStatus(siteUid: string, accountUid?: string): Promise<SiteMembershipStatus> {
   accountUid ??= (await getCurrentAccountUidWithDelegation()) ?? undefined
   if (!accountUid) {
-    throw new Error('No account UID available to check site membership')
+    throw new Error('No account UID available to check space membership')
   }
   if (accountUid === siteUid) {
     return 'own-site'
@@ -49,7 +49,7 @@ async function joinSite(signer: HMSigner, siteUid: string): Promise<JoinSiteResu
 
   const accountUid = await getCurrentAccountUidWithDelegation()
   if (!accountUid) {
-    throw new Error('No account UID available to join site')
+    throw new Error('No account UID available to join space')
   }
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
   console.log('[joinSite] Existing Contacts', contacts)

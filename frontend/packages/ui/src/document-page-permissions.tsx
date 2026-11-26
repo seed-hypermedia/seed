@@ -31,7 +31,7 @@ function PermissionTarget({site, resource}: {site?: string; resource?: string}) 
   const path = resource?.replace(/^hm:\/\/[^/]+/, '')
   return site || path ? (
     <div className="border-border flex flex-col gap-1 border-b pb-3 text-sm">
-      {site && <span className="font-medium">{account.data?.metadata?.name || 'Unnamed site'}</span>}
+      {site && <span className="font-medium">{account.data?.metadata?.name || 'Unnamed space'}</span>}
       {path && (
         <span className="text-muted-foreground break-all">
           {path === '/:profile' ? 'Account identity' : path || 'Home'}
@@ -110,7 +110,7 @@ export function DocumentPageRunPrompt({
           Run {pageName}?
         </h2>
         <p className="text-muted-foreground text-sm">
-          This page is from a site you haven’t joined
+          This page is from a space you haven’t joined
           {authors.length ? (
             <>
               , by <AccountNames uids={authors} />
@@ -183,7 +183,7 @@ export function DocumentPagePermissionPrompt({
         : choice === 'resource'
           ? 'This page can read this resource without asking again.'
           : choice === 'site'
-            ? 'This page can read content on this site without asking again.'
+            ? 'This page can read content on this space without asking again.'
             : choice === 'all'
               ? request.kind === 'read'
                 ? 'This page can read everything available to your account without asking again.'
@@ -191,7 +191,7 @@ export function DocumentPagePermissionPrompt({
                   ? 'This page can sign anything as your account, including lasting account permissions, without asking again.'
                   : 'This page can publish any data without asking again.'
               : `This page can ${request.kind === 'sign' ? 'sign' : 'publish'} future requests of this type${
-                  choice === 'type-site' ? ' on this site' : ' on any site'
+                  choice === 'type-site' ? ' on this space' : ' on any space'
                 } without asking again.`
   const Icon =
     request.kind === 'read' ? Eye : request.kind === 'call' ? Play : request.kind === 'sign' ? PenLine : Upload
@@ -339,7 +339,9 @@ export function DocumentPagePermissionSettings({
           <section className="border-border flex flex-col gap-3 border-t pt-4">
             <h3 className="text-sm font-semibold">Running</h3>
             {run.implicit && (
-              <p className="text-sm">This page is from your account or a site you joined, so it runs without asking.</p>
+              <p className="text-sm">
+                This page is from your account or a space you joined, so it runs without asking.
+              </p>
             )}
             {!run.implicit && !run.page && !run.trustedAuthors.length && (
               <p className="text-muted-foreground text-sm">Ask before running</p>

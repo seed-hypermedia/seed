@@ -48,7 +48,7 @@ export const action: ActionFunction = async ({request}) => {
     if (!config) throw new Error(`No config defined for ${hostname}`)
     const accountUid = config.registeredAccountUid
     if (!accountUid) {
-      return json({message: 'This site is not registered to a space yet'}, {status: 409})
+      return json({message: 'This server is not registered to a space yet'}, {status: 409})
     }
     const siteUrl = SITE_BASE_URL
     if (!siteUrl) throw new Error('SEED_BASE_URL is not set')

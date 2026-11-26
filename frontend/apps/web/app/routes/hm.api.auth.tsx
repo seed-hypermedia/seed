@@ -61,11 +61,11 @@ export async function action({request}: ActionFunctionArgs) {
       // membership is decided here, before any cookie leaves the server.
       const secret = webSessionSecret()
       if (!secret) {
-        return withCors(new Response('Sign-in is not configured on this site', {status: 503}))
+        return withCors(new Response('Sign-in is not configured on this space', {status: 503}))
       }
       const account = await resolveMemberAccount(principalToString(authRequest.account))
       if (!account) {
-        return withCors(new Response('This account is not a member of this site', {status: 403}))
+        return withCors(new Response('This account is not a member of this space', {status: 403}))
       }
       headers.append('Set-Cookie', webSessionSetCookie(signWebSession({account, exp: expiresAt}, secret), expiresAt))
     }

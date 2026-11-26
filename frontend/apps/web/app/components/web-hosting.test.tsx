@@ -190,7 +190,7 @@ describe('browser hosting workflows', () => {
   })
   it('lets a delegated owner manage hosting when the current site excludes them from editing', () => {
     render(<WebDomainSettings siteId={id} />)
-    expect(container.textContent).toContain('Change Site Address')
+    expect(container.textContent).toContain('Change Space Address')
     expect(container.textContent).not.toContain('Sign in as the space owner')
   })
   it('lets a delegated owner start hosting immediately after first publication on another site', () => {
@@ -285,7 +285,7 @@ describe('browser hosting workflows', () => {
   it('only shows rename and transfer for a site owned by the signed-in hosting account', () => {
     state.host.sites.data[0].activeConfig.registeredAccountUid = 'other-space'
     render(<WebDomainSettings siteId={id} />)
-    expect(container.textContent).not.toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Change Space Address')
     expect(container.textContent).not.toContain('Transfer Hosting')
     expect(container.textContent).not.toContain('Publish Custom Domain')
   })
@@ -355,7 +355,7 @@ describe('browser hosting workflows', () => {
   it('disables ownership transfer while a paid service is active', () => {
     state.host.sites.data[0].services = [{serviceEnd: null, plan: {dedicatedServerType: 'server'}}]
     render(<WebDomainSettings siteId={id} />)
-    for (const label of ['Transfer Hosting', 'Change Site Address'])
+    for (const label of ['Transfer Hosting', 'Change Space Address'])
       expect(
         [...container.querySelectorAll('button')].find(
           (button) => button.textContent?.startsWith(label) || button.getAttribute('aria-label') === label,
@@ -369,7 +369,7 @@ describe('hosting ownership mutations', () => {
     state.host.renameSite.mutateAsync.mockResolvedValue({url: 'https://new.seed.host'})
     state.update.mockRejectedValueOnce(new Error('Publication offline')).mockResolvedValueOnce(undefined)
     render(<WebDomainSettings siteId={id} />)
-    await click('Change Site Address')
+    await click('Change Space Address')
     await input('New subdomain', 'new')
     await input('Type old to confirm', 'old')
     await submit()
@@ -404,7 +404,7 @@ describe('hosting recovery after reopening', () => {
     state.host.sites.data[0].customDomains = ['existing.example.com']
     render(<WebDomainSettings siteId={id} />)
     expect(container.textContent).toContain('Publish Custom Domain')
-    expect(container.textContent).toContain('Change Site Address')
+    expect(container.textContent).toContain('Change Space Address')
   })
   it('shows the domain publication error and retries without creating a new domain', async () => {
     state.host.pendingDomains = [

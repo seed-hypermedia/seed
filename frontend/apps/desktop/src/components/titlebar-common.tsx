@@ -456,7 +456,7 @@ export function AccountProfileButton() {
             </>
           ) : null}
           <DropdownMenuSeparator />
-          <AccountMenuSection>My sites</AccountMenuSection>
+          <AccountMenuSection>My spaces</AccountMenuSection>
           {accountHome.data?.type === 'document' ? (
             <DropdownMenuItem
               onSelect={() => {
@@ -477,7 +477,7 @@ export function AccountProfileButton() {
               onSelect={() => createSpaceDialog.open()}
             >
               <Plus className="size-5 text-green-600 dark:text-green-500" />
-              Create new site
+              Create new space
             </DropdownMenuItem>
           )}
           {canLogOut ? (

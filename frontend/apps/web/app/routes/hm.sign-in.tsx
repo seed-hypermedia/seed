@@ -21,7 +21,7 @@ import {useEffect, useState} from 'react'
 export const meta: MetaFunction<typeof loader> = ({data}) => {
   const homeIcon = data?.siteIcon ? getOptimizedImageUrl(extractIpfsUrlCid(data.siteIcon), 'S') : null
   return [
-    {title: `Sign in to ${data?.siteName || 'this site'}`},
+    {title: `Sign in to ${data?.siteName || 'this space'}`},
     {tagName: 'link', rel: 'icon', href: homeIcon || defaultSiteIcon, type: 'image/png'},
   ]
 }
@@ -71,7 +71,7 @@ export default function SignInPage() {
         const message = e instanceof Error ? e.message : String(e)
         setError(
           message.includes(' 403 ')
-            ? 'This account is not a member of this site. Sign in with a member account.'
+            ? 'This account is not a member of this space. Sign in with a member account.'
             : 'Your saved sign-in no longer works here. Please sign in again.',
         )
       })
@@ -131,7 +131,7 @@ export default function SignInPage() {
           <SizableText color="muted" size="sm">
             {invite
               ? `Setting up your account${inviteEmail ? ` for ${inviteEmail}` : ''}…`
-              : 'This site is only available to signed-in members.'}
+              : 'This space is only available to signed-in members.'}
           </SizableText>
         </div>
         {error ? (

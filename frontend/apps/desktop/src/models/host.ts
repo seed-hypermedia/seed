@@ -274,7 +274,7 @@ export function useHostSession({
         throw new Error('Sign in to the hosting account that started this move.')
       const site = HostedSiteSchema.parse(await hostAPI(`sites/${encodeURIComponent(move.id)}`, 'GET'))
       if (site.activeConfig?.registeredAccountUid !== move.siteUid)
-        throw new Error('This hosted site is no longer registered to the space.')
+        throw new Error('This hosting is no longer registered to this space.')
       if (site.name === move.newName) return site.url
       if (site.name !== move.oldName)
         throw new Error('The hosting address changed again. Review it in Seed Hosting before updating publication.')

@@ -98,7 +98,7 @@ function openSelector() {
   act(() => root.render(<Page />))
   act(() =>
     container
-      .querySelector('[aria-label="Select site"]')!
+      .querySelector('[aria-label="Select space"]')!
       .dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true})),
   )
 }
@@ -118,7 +118,7 @@ describe('site selector', () => {
     viewer.hasSpace = false
     act(() => root.render(<Page initialSite="own" />))
     expect(container.querySelector('main')).toBeNull()
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toContain('Select a space')
+    expect(container.querySelector('[aria-label="Select space"]')?.textContent).toContain('Select a space')
     const button = Array.from(container.querySelectorAll('button')).find((el) => el.textContent === 'Create my space')
     act(() => button!.click())
     expect(createSpace).toHaveBeenCalledTimes(1)
@@ -127,7 +127,7 @@ describe('site selector', () => {
   it.each(['own', ''])('hides site switching on personal domains for viewer %s', (uid) => {
     viewer.uid = uid
     act(() => root.render(<Page isGateway={false} />))
-    expect(container.querySelector('[aria-label="Select site"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Select space"]')).toBeNull()
     expect(container.querySelector('main')?.textContent).toBe('current home')
     expect(container.textContent).toContain('Explore')
   })
@@ -135,7 +135,7 @@ describe('site selector', () => {
   it('keeps site switching available in desktop even without a web gateway', () => {
     viewer.desktop = true
     act(() => root.render(<Page isGateway={false} />))
-    expect(container.querySelector('[aria-label="Select site"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Select space"]')).not.toBeNull()
   })
 
   it('includes the selected account and joined sites once and navigates to the selected home', () => {
@@ -144,7 +144,7 @@ describe('site selector', () => {
     expect(options.map((option) => option.textContent)).toEqual(['own', 'joined', 'older', 'missing'])
     act(() => options.find((option) => option.textContent === 'joined')!.click())
     expect(container.querySelector('main')?.textContent).toBe('joined home')
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('joined')
+    expect(container.querySelector('[aria-label="Select space"]')?.textContent).toBe('joined')
   })
 
   it('keeps the own space first, sorts joined spaces by latest activity, and keeps missing sites last', async () => {
@@ -162,10 +162,10 @@ describe('site selector', () => {
     const groups = Array.from(document.querySelectorAll('[role="group"]'))
     expect(groups.map((group) => group.firstElementChild?.textContent)).toEqual(['My Space', 'Joined Spaces'])
     expect(groups[0]?.querySelectorAll('[role="menuitem"]')).toHaveLength(1)
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('current')
+    expect(container.querySelector('[aria-label="Select space"]')?.textContent).toBe('current')
     act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
     expect(container.querySelector('main')?.textContent).toBe('older home')
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('older')
+    expect(container.querySelector('[aria-label="Select space"]')?.textContent).toBe('older')
   })
 
   it('updates membership when switching accounts and leaving sites', () => {
@@ -181,7 +181,7 @@ describe('site selector', () => {
     expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
       'other-own',
     ])
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('current')
+    expect(container.querySelector('[aria-label="Select space"]')?.textContent).toBe('current')
   })
 
   it('shows the own site only once when it is also joined', () => {

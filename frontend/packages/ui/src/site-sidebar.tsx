@@ -103,7 +103,7 @@ export function SiteSidebar({
       >
         <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={isOwn ? 40 : 24} />
         <span className="min-w-0 flex-1 truncate">
-          {metadata?.name || (isCurrent ? 'Current site' : 'Untitled site')}
+          {metadata?.name || (isCurrent ? 'Current space' : 'Untitled space')}
         </span>
         {unreadCount > 0 && (
           <>
@@ -127,7 +127,7 @@ export function SiteSidebar({
     },
   )
   return (
-    <aside aria-label="Site sidebar" className="bg-background text-sidebar-foreground flex h-full min-h-0 flex-col">
+    <aside aria-label="Space sidebar" className="bg-background text-sidebar-foreground flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col px-2 py-4">
         {explore ?? (
           <Button
@@ -152,7 +152,7 @@ export function SiteSidebar({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  aria-label="Select site"
+                  aria-label="Select space"
                   className="bg-card border-border hover:bg-card/80 text-card-foreground h-15 w-full justify-start gap-3 rounded-xl px-3 py-2 shadow-xs"
                 >
                   {showingMissingOwnSpace ? null : (
@@ -160,7 +160,7 @@ export function SiteSidebar({
                   )}
                   <span className="flex min-w-0 flex-1 flex-col items-start text-left">
                     <span className="w-full truncate text-sm font-semibold">
-                      {showingMissingOwnSpace ? 'Select a space' : current?.metadata?.name || 'Current site'}
+                      {showingMissingOwnSpace ? 'Select a space' : current?.metadata?.name || 'Current space'}
                     </span>
                     {directory.data && !showingMissingOwnSpace && (
                       <span className="text-icon text-xs font-normal">

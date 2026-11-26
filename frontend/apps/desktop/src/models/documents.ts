@@ -938,7 +938,7 @@ export async function pushResource(
       destinationHosts,
     })
     const hostStatuses = status.hosts.map(({host, status, message}) => ({host, status, message}))
-    reportError(new Error('Failed to connect to any sites.'), {
+    reportError(new Error('Failed to connect to any spaces.'), {
       feature: 'push-resource',
       operation: 'no-peers',
       resourceId: id.id,
@@ -946,7 +946,7 @@ export async function pushResource(
       destinationHosts: Array.from(destinationHosts),
       hostStatuses,
     })
-    throw new Error('Failed to connect to any sites.')
+    throw new Error('Failed to connect to any spaces.')
   }
 
   const pushResourceUrl = hmIdToURL({
