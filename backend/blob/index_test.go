@@ -445,7 +445,7 @@ func TestWriterValidityCache(t *testing.T) {
 	_, ok = nilc.get("k")
 	require.False(t, ok)
 
-	c := newIndexBatch()
+	c := newIndexBatch(nil)
 	_, ok = c.get("k")
 	require.False(t, ok, "empty cache misses")
 
@@ -497,7 +497,7 @@ func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
 	other := must.Do2(NewIRI(alice.Principal(), "/other"))   // bob has no capability here
 
 	// (a) Correct results with a live cache.
-	cache := newIndexBatch()
+	cache := newIndexBatch(nil)
 	got, err := isValidWriter(conn, bobID, shared, cache)
 	require.NoError(t, err)
 	require.True(t, got, "bob holds a WRITER capability on /shared")

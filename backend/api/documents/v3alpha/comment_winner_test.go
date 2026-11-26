@@ -237,26 +237,30 @@ func TestCommentWinnerGenesisArrivalOrder(t *testing.T) {
 	}
 }
 
-// A reply can be indexed before its document. Reply counts must not depend on
-// comments_live, whose rows require resolved document attribution.
-func TestReplyCountWithoutDocumentGenesis(t *testing.T) {
+// A reply can be indexed before any Ref publishes its document. Reply counts
+// must not depend on the document existing.
+func TestReplyCountWithoutDocument(t *testing.T) {
 	t.Parallel()
 	srv := newTestDocsAPI(t, "alice")
 	ctx := t.Context()
 	owner := srv.me.Account.Principal()
 	now := time.Now().Add(-time.Minute).Round(blob.ClockPrecision)
+	target, err := blob.NewChange(srv.me.Account, cid.Undef, nil, 0, blob.ChangeBody{}, now.Add(-time.Second))
+	require.NoError(t, err)
+	require.NoError(t, srv.idx.Put(ctx, target))
+	version := []cid.Cid{target.CID}
 	body := []blob.CommentBlock{{Block: blob.Block{ID_Good: "body", Type: "paragraph", Text: "comment"}}}
-	root, err := blob.NewComment(srv.me.Account, "", owner, owner, "/missing", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, now)
+	root, err := blob.NewComment(srv.me.Account, "", owner, owner, "/missing", version, cid.Undef, cid.Undef, body, blob.VisibilityPublic, now)
 	require.NoError(t, err)
 	require.NoError(t, srv.idx.Put(ctx, root))
-	reply, err := blob.NewComment(srv.me.Account, "", owner, owner, "/missing", nil, root.CID, root.CID, body, blob.VisibilityPublic, now.Add(time.Second))
+	reply, err := blob.NewComment(srv.me.Account, "", owner, owner, "/missing", version, root.CID, root.CID, body, blob.VisibilityPublic, now.Add(time.Second))
 	require.NoError(t, err)
 	require.NoError(t, srv.idx.Put(ctx, reply))
 	id := blob.RecordID{Authority: owner, TSID: root.TSID()}.String()
 	count, err := srv.GetCommentReplyCount(ctx, &pb.GetCommentReplyCountRequest{Id: id})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, count.ReplyCount)
-	tombstone, err := blob.NewComment(srv.me.Account, reply.TSID(), owner, owner, "/missing", nil, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, now.Add(2*time.Second))
+	tombstone, err := blob.NewComment(srv.me.Account, reply.TSID(), owner, owner, "/missing", version, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, now.Add(2*time.Second))
 	require.NoError(t, err)
 	require.NoError(t, srv.idx.Put(ctx, tombstone))
 	count, err = srv.GetCommentReplyCount(ctx, &pb.GetCommentReplyCountRequest{Id: id})

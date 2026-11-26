@@ -7,12 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"maps"
 	"net/url"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
-	"seed/backend/keyline"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
@@ -397,12 +395,6 @@ type indexOpts struct {
 	// TrackUnreads marks affected resources unread as they're indexed.
 	TrackUnreads bool
 
-	// DeferPropagation skips the per-blob propagateVisibility call; the caller
-	// must then run propagateVisibilityBatch once the whole batch is indexed.
-	// This is what PutMany uses to coalesce many tiny CTE walks into one walk
-	// per space.
-	DeferPropagation bool
-
 	// ObservedAt is when this blob arrived from the network. Zero means it
 	// didn't (local publish, reindex) and no arrival delay is recorded.
 	//
@@ -433,16 +425,26 @@ type indexOpts struct {
 	// the caller flushes it only after the transaction commits, so a rolled-back
 	// batch contributes nothing. May be nil (no accounting).
 	Kinds *[]syncperf.KindSample
-
-	// DeriveDocFields, when set, computes a document's derived fields during
-	// Ref indexing. Threaded from the owning Index via docFieldsDeriver().
-	// May be nil (derivation skipped).
-	DeriveDocFields DeriveDocFields
 }
 
-// indexBlob runs the per-blob indexers and (optionally) forward visibility
-// propagation.
+// indexBlob runs the per-blob indexers, recording the blob's deferred effects
+// in wc. See indexBatch.
 func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *indexBatch, hookIDs *[]int64) (err error) {
+	// A stashed blob rolls back its savepoint, which also undoes the blobs its
+	// unstash cascade indexed, so what they left in memory goes too: their
+	// effects, hook entries and write samples. See indexBatch.rollback.
+	mark := wc.mark()
+
+	hookMark := 0
+	if hookIDs != nil {
+		hookMark = len(*hookIDs)
+	}
+
+	kindsMark := 0
+	if opts.Kinds != nil {
+		kindsMark = len(*opts.Kinds)
+	}
+
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -469,6 +471,16 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 			// because we've already extracted the necessary metadata from it.
 			err = nil
 
+			wc.rollback(mark)
+
+			if hookIDs != nil {
+				*hookIDs = (*hookIDs)[:hookMark]
+			}
+
+			if opts.Kinds != nil {
+				*opts.Kinds = (*opts.Kinds)[:kindsMark]
+			}
+
 			// Declaring data here to avoid shadowing the err variable.
 			var data []byte
 			data, err = json.Marshal(serr.Metadata)
@@ -476,6 +488,12 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 				return
 			}
 			extraJSON := unsafeutil.StringFromBytes(data)
+
+			// Rolling back restored any stash row the blob had before this
+			// attempt, which Unstash deleted. Only the latest reason stands.
+			if err = sqlitex.Exec(conn, qUnstashBlob(), nil, id); err != nil {
+				return
+			}
 
 			err = sqlitex.Exec(conn, qStashBlob(), nil, id, serr.Reason, extraJSON)
 			return
@@ -493,7 +511,6 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 	ictx.kinds = opts.Kinds
 	ictx.batch = wc
 	ictx.hookIDs = hookIDs
-	ictx.deriveDocFields = opts.DeriveDocFields
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -516,18 +533,14 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 
 	// The blob is now indexed (a stash error would have returned above). Record it
 	// so the indexed hook sees it — including blobs re-indexed by the unstash
-	// cascade below, which reach here through their own nested indexBlob call.
+	// cascade, which reach here through their own nested indexBlob call.
 	if hookIDs != nil {
 		*hookIDs = append(*hookIDs, id)
 	}
 
-	if !opts.DeferPropagation {
-		if err := propagateVisibility(ictx, id); err != nil {
-			return fmt.Errorf("failed to propagate visibility for blob: %s (%d): %w", c.String(), id, err)
-		}
-	}
+	wc.indexed = append(wc.indexed, id)
 
-	return err
+	return nil
 }
 
 // CanEditResource checks whether author can edit the resource.
@@ -635,9 +648,6 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 		"dg.last_alive_ref_time",
 		"dg.generation",
 		"dg.genesis",
-		"dg.last_comment",
-		"dg.last_comment_time",
-		"dg.comment_count",
 		"dg.heads",
 		"dg.changes",
 		"dg.change_count",
@@ -1023,9 +1033,6 @@ func resolveVersionGeneration(conn *sqlite.Conn, resource IRI, heads []cid.Cid) 
 		"dg.last_alive_ref_time",
 		"dg.generation",
 		"dg.genesis",
-		"dg.last_comment",
-		"dg.last_comment_time",
-		"dg.comment_count",
 		"dg.heads",
 		"dg.changes",
 		"dg.change_count",
@@ -1251,55 +1258,6 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 	}
 
 	return out, nil
-}
-
-// indexBatch is state shared by every blob indexed in one write transaction:
-// one PutMany batch, a single Put, or a full reindex, plus the unstash cascades
-// they trigger. The transaction runs single-threaded over a consistent
-// snapshot, so the batch needs no locking and never sees another connection's
-// uncommitted state.
-//
-// It memoizes isValidWriter results and collects the delegates that new
-// capabilities named. Indexing a capability stores its delegations and updates
-// Keyline's stored edges at once; flushAuthority later drops the memoized
-// writer results and retries blobs that were denied before the grants arrived.
-// It also defers per-space comment totals. Callers must flush before relying on
-// the index and before committing.
-type indexBatch struct {
-	writers map[string]bool
-
-	// authorityDelegates are key nodes that received a grant. Blobs they, or
-	// keys acting for them, signed may now be authorized.
-	authorityDelegates map[keyline.Node]bool
-
-	// commentSpaces are spaces whose comment totals are stale.
-	commentSpaces map[string]bool
-}
-
-func newIndexBatch() *indexBatch {
-	return &indexBatch{
-		writers:            make(map[string]bool),
-		authorityDelegates: make(map[keyline.Node]bool),
-		commentSpaces:      make(map[string]bool),
-	}
-}
-
-// flush finishes the batch's deferred work before the caller relies on the
-// index or commits: the authority refresh with its unstash cascade, then the
-// comment totals of every space a settled comment touched.
-func (b *indexBatch) flush(opts indexOpts, conn *sqlite.Conn, bs *blockStore, log *zap.Logger, hookIDs *[]int64) error {
-	if err := b.flushAuthority(opts, conn, bs, log, hookIDs); err != nil {
-		return err
-	}
-
-	for _, space := range slices.Sorted(maps.Keys(b.commentSpaces)) {
-		if err := updateSpaceCommentStats(conn, space); err != nil {
-			return err
-		}
-	}
-
-	clear(b.commentSpaces)
-	return nil
 }
 
 // writerCacheKey builds the memoized writer-validity key from the exact inputs
@@ -1694,10 +1652,6 @@ type indexingCtx struct {
 	// updates the legacy tables but not the maintained RBSR index. Shared across
 	// the cascade via the threaded pointer. May be nil (no accumulation).
 	hookIDs *[]int64
-
-	// deriveDocFields, when set, computes a document's derived
-	// image during Ref indexing. Threaded from the owning Index. May be nil.
-	deriveDocFields DeriveDocFields
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1722,11 +1676,10 @@ func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *index
 // describe the whole transaction.
 func (idx *indexingCtx) childOpts() indexOpts {
 	return indexOpts{
-		TrackUnreads:    idx.mustTrackUnreads,
-		ObservedAt:      idx.observedAt,
-		FromNetwork:     idx.fromNetwork,
-		Kinds:           idx.kinds,
-		DeriveDocFields: idx.deriveDocFields,
+		TrackUnreads: idx.mustTrackUnreads,
+		ObservedAt:   idx.observedAt,
+		FromNetwork:  idx.fromNetwork,
+		Kinds:        idx.kinds,
 	}
 }
 
@@ -1754,8 +1707,12 @@ func (se stashError) Error() string {
 }
 
 func (idx *indexingCtx) Unstash() error {
-	return sqlitex.Exec(idx.conn, "DELETE FROM stashed_blobs WHERE id = ?", nil, idx.blobID)
+	return sqlitex.Exec(idx.conn, qUnstashBlob(), nil, idx.blobID)
 }
+
+var qUnstashBlob = dqb.Str(`
+	DELETE FROM stashed_blobs WHERE id = ?;
+`)
 
 var qStashBlob = dqb.Str(`
 	INSERT OR IGNORE INTO stashed_blobs (id, reason, extra_attrs) VALUES (?, ?, ?);
@@ -1928,6 +1885,46 @@ func (idx *indexingCtx) IsBlobIndexed(c cid.Cid) (indexed bool, err error) {
 
 var qIsBlobIndexed = dqb.Str(`
 	SELECT sb.id
+	FROM structural_blobs sb
+	JOIN blobs b INDEXED BY blobs_metadata_by_hash ON b.id = sb.id
+	WHERE (b.codec, b.multihash) = (:codec, :multihash)
+`)
+
+// indexedBlobChange describes an indexed blob as a document change.
+type indexedBlobChange struct {
+	// ID is the blob's ID, or 0 if the blob isn't indexed.
+	ID int64
+
+	// IsChange reports whether the blob is a Change.
+	IsChange bool
+
+	// Genesis is the blob ID of the genesis change of the Change's document,
+	// which is ID itself for a genesis change.
+	Genesis int64
+}
+
+// indexedChange looks up c among indexed blobs, as a document change.
+func (idx *indexingCtx) indexedChange(c cid.Cid) (out indexedBlobChange, err error) {
+	codec, hash := ipfs.DecodeCID(c)
+	rows, discard, check := sqlitex.Query(idx.conn, qIndexedChange(), codec, hash).All()
+	defer discard(&err)
+	for row := range rows {
+		out.ID = row.ColumnInt64(0)
+		out.IsChange = row.ColumnText(1) == string(TypeChange)
+
+		out.Genesis = row.ColumnInt64(2)
+		if out.Genesis == 0 {
+			out.Genesis = out.ID
+		}
+
+		break
+	}
+
+	return out, check()
+}
+
+var qIndexedChange = dqb.Str(`
+	SELECT sb.id, sb.type, sb.genesis_blob
 	FROM structural_blobs sb
 	JOIN blobs b INDEXED BY blobs_metadata_by_hash ON b.id = sb.id
 	WHERE (b.codec, b.multihash) = (:codec, :multihash)
@@ -2383,10 +2380,6 @@ func reindexStashedBlobs(opts indexOpts, conn *sqlite.Conn, reason stashReason, 
 	childOpts := opts
 	countAsDeferred := !opts.ObservedAt.IsZero()
 	childOpts.ObservedAt = time.Time{}
-
-	// A caller that defers propagation seeds its pass only with the blobs it
-	// indexed itself, so unstashed blobs propagate their own visibility.
-	childOpts.DeferPropagation = false
 
 	// We collect the stashed blobs into closures, to avoid nested SQLite queries,
 	// because the result set here would select and update the same table, which sometimes gives unexpected results.

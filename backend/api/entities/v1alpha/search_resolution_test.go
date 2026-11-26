@@ -159,11 +159,15 @@ func TestCommentDeletionTieBreak(t *testing.T) {
 	account := svc.me.Account
 	ts := time.Now().UTC().Add(-time.Minute).Round(blob.ClockPrecision)
 	body := []blob.CommentBlock{{Block: blob.Block{ID_Good: "body", Type: "paragraph", Text: "comment"}}}
-	seed, err := blob.NewComment(account, "", account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts.Add(-time.Second))
+	target, err := blob.NewChange(account, cid.Undef, nil, 0, blob.ChangeBody{}, ts.Add(-2*time.Second))
 	require.NoError(t, err)
-	live, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts)
+	require.NoError(t, svc.idx.Put(ctx, target))
+	version := []cid.Cid{target.CID}
+	seed, err := blob.NewComment(account, "", account.Principal(), account.Principal(), "/target", version, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts.Add(-time.Second))
 	require.NoError(t, err)
-	deleted, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", nil, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, ts)
+	live, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", version, cid.Undef, cid.Undef, body, blob.VisibilityPublic, ts)
+	require.NoError(t, err)
+	deleted, err := blob.NewComment(account, seed.TSID(), account.Principal(), account.Principal(), "/target", version, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, ts)
 	require.NoError(t, err)
 	winner, loser := blocks.Block(live), blocks.Block(deleted)
 	wantDeleted := false

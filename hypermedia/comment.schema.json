@@ -42,7 +42,8 @@
           "type": "hm://hyper.media/cid"
         }
       },
-      "description": "CIDs of the document heads the author was looking at; empty means the document at this path."
+      "required": true,
+      "description": "CIDs of the document heads the author was looking at; a comment without them is invalid."
     },
     "threadRoot": {
       "value": {

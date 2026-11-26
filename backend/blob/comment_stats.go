@@ -230,34 +230,13 @@ var qUpsertSpaceCommentStats = dqb.Str(`
 		(SELECT blob_id FROM live ORDER BY ts DESC, hash DESC LIMIT 1),
 		COALESCE((SELECT MAX(ts) FROM live), 0),
 		(SELECT COUNT(*) FROM live)
+	-- A space without comments gets no row of its own here: recounting must not
+	-- create it, as when a rolled-back comment marked its space.
+	WHERE EXISTS (SELECT 1 FROM live) OR EXISTS (SELECT 1 FROM spaces WHERE id = :space)
 	ON CONFLICT (id) DO UPDATE SET
 		last_comment = excluded.last_comment,
 		last_comment_time = excluded.last_comment_time,
 		comment_count = excluded.comment_count;
-`)
-
-// lookupResourceGenesis returns the genesis of the document currently at a
-// resource, or "" if it has no generation yet.
-//
-// Used for comments that pin no target version: they mean "the document at this
-// path", so their identity is whatever genesis that path currently resolves to.
-func lookupResourceGenesis(conn *sqlite.Conn, resource int64) (out string, err error) {
-	rows, discard, check := sqlitex.Query(conn, qResourceGenesis(), resource).All()
-	defer discard(&err)
-	for row := range rows {
-		out = row.ColumnText(0)
-		break
-	}
-
-	return out, check()
-}
-
-var qResourceGenesis = dqb.Str(`
-	SELECT dg.genesis
-	FROM document_generations dg
-	WHERE dg.resource = ?1
-	GROUP BY dg.resource
-	HAVING dg.generation = MAX(dg.generation);
 `)
 
 // lookupBlobCID returns the CID string of a blob id. Used to turn the genesis blob

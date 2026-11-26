@@ -296,6 +296,33 @@ func TestMixedGenesisCommentIsBadData(t *testing.T) {
 	}
 }
 
+// A version that names a blob other than a Change, such as a Ref, doesn't
+// identify a document. Such a comment is invalid, and must not crash indexing.
+func TestCommentVersionNotChangeIsBadData(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{}, clock.MustNow())
+	require.NoError(t, err)
+	ref, err := NewRef(alice, 0, change.CID, alice.Principal(), "/doc", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+	body := []CommentBlock{{Block: Block{ID_Good: "body", Type: "paragraph", Text: "not a change"}}}
+	comment, err := NewComment(alice, "", alice.Principal(), alice.Principal(), "/doc", []cid.Cid{ref.CID}, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref, comment}))
+
+	badData, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM stashed_blobs WHERE reason = 'BadData'`)
+	require.NoError(t, err)
+	require.Equal(t, 1, badData)
+	indexed, err := sqlitex.QueryOnePool[int](t.Context(), db, `SELECT COUNT(*) FROM structural_blobs WHERE type = 'Comment'`)
+	require.NoError(t, err)
+	require.Zero(t, indexed)
+}
+
 func TestCommentStatsLatestTieBreak(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	db := storage.MakeTestDB(t)

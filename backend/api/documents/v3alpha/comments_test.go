@@ -2111,10 +2111,14 @@ func TestCommentAuthorListingTimestampTie(t *testing.T) {
 			ctx := t.Context()
 			account := srv.me.Account.Principal()
 			now := time.Now().Round(blob.ClockPrecision)
-			first, err := blob.NewComment(srv.me.Account, "", account, account, "", nil, cid.Undef, cid.Undef,
+			target, err := blob.NewChange(srv.me.Account, cid.Undef, nil, 0, blob.ChangeBody{}, now)
+			require.NoError(t, err)
+			require.NoError(t, srv.idx.Put(ctx, target))
+			version := []cid.Cid{target.CID}
+			first, err := blob.NewComment(srv.me.Account, "", account, account, "", version, cid.Undef, cid.Undef,
 				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "First"}}}, blob.VisibilityPublic, now)
 			require.NoError(t, err)
-			second, err := blob.NewComment(srv.me.Account, first.TSID(), account, account, "", nil, cid.Undef, cid.Undef,
+			second, err := blob.NewComment(srv.me.Account, first.TSID(), account, account, "", version, cid.Undef, cid.Undef,
 				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Second"}}}, blob.VisibilityPublic, now)
 			require.NoError(t, err)
 

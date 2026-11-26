@@ -396,24 +396,41 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		sb.GenesisBlob = v.Genesis
 	}
 
-	// TODO(burdiyan): ensure deps are indexed, not just known.
-	// Although in practice deps must always be indexed first, but need to make sure.
-	for _, dep := range v.Deps {
-		ok, err := ictx.IsBlobIndexed(dep)
+	// Dependencies must be indexed Changes of the same document. Refs rely on
+	// it: they check only their heads, and the history below is then indexed
+	// and consistent. See crossLinkRefMaybe.
+	if len(v.Deps) > 0 {
+		genesis, err := ictx.ensureBlob(v.Genesis)
 		if err != nil {
 			return err
 		}
 
-		if !ok {
-			return stashError{
-				Reason: stashReasonFailedPrecondition,
-				Metadata: stashMetadata{
-					MissingBlobs: []cid.Cid{dep},
-				},
+		for _, dep := range v.Deps {
+			depChange, err := ictx.indexedChange(dep)
+			if err != nil {
+				return err
 			}
-		}
 
-		sb.AddBlobLink("change/dep", dep)
+			if depChange.ID == 0 {
+				return stashError{
+					Reason: stashReasonFailedPrecondition,
+					Metadata: stashMetadata{
+						MissingBlobs: []cid.Cid{dep},
+					},
+				}
+			}
+
+			if !depChange.IsChange || depChange.Genesis != genesis {
+				return stashError{
+					Reason: stashReasonBadData,
+					Metadata: stashMetadata{
+						Details: fmt.Sprintf("dependency %s is not a Change of genesis %s", dep, v.Genesis),
+					},
+				}
+			}
+
+			sb.AddBlobLink("change/dep", dep)
+		}
 	}
 
 	extra := changeIndexedAttrs{Actor: uint64(author.ActorID())}

@@ -11,7 +11,6 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/util/attrkey"
 	"seed/backend/util/dqb"
-	"seed/backend/util/maybe"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -269,11 +268,16 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	return nil
 }
 
+// crossLinkRefMaybe validates a Ref against its document and records its
+// effect on the document's generation, which the batch applies when it flushes.
+//
+// Everything that decides whether the Ref is valid happens here, so an invalid
+// Ref is stashed like any other blob: its signer must be a writer, and its
+// heads must be indexed Changes of its genesis. Indexing a Change requires its
+// dependencies to be indexed Changes of the same genesis, so the whole history
+// below valid heads is indexed and consistent, and applying the effect can't
+// fail on missing or foreign changes.
 func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
-	if err := ictx.Unstash(); err != nil {
-		return err
-	}
-
 	conn := ictx.conn
 
 	memberID, err := DbPublicKeysLookupID(conn, v.Signer)
@@ -310,202 +314,396 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		return err
 	}
 
-	resourceID := resDB.ResourcesID
-
-	if resourceID == 0 {
+	if resDB.ResourcesID == 0 {
 		panic("BUG: resource ID is not indexed")
 	}
 
-	var dg documentGeneration
-	if err := dg.load(conn, resourceID, v.Generation, v.GenesisBlob.String()); err != nil {
-		return err
-	}
-
-	isTombstone := v.IsTombstone()
-	refTime := v.Ts.UnixMilli()
-
-	// Whether this Ref advanced the generation's state (applied at least one
-	// change the generation hadn't seen). Duplicate and out-of-date Refs leave
-	// it false, letting the cover-image derivation below skip its full history
-	// replay when the merged heads are unchanged.
-	var appliedNewChanges bool
-
-	if !isTombstone {
-		var queue []int64
-		for _, h := range v.Heads {
-			bsize, err := dbBlobsGetSize(conn, h.Hash(), false)
-			if err != nil {
-				return err
-			}
-
-			// If any of the heads is missing (i.e. wasn't indexed before),
-			// we don't want to index this Ref.
-			// I.e. this Ref won't be visible until all the heads are indexed first,
-			// so we have to stop here and avoid saving the document generation data.
-			if bsize.BlobsID == 0 || bsize.BlobsSize < 0 {
-				return stashError{
-					Reason: stashReasonFailedPrecondition,
-					Metadata: stashMetadata{
-						MissingBlobs: []cid.Cid{h},
-					},
-				}
-			}
-
-			queue = append(queue, bsize.BlobsID)
-		}
-
-		pendingChangesMap := make(map[int64]changeMetadata)
-
-		for len(queue) > 0 {
-			change := queue[0]
-			queue = queue[1:]
-
-			if dg.Changes.Contains(uint64(change)) {
-				continue
-			}
-
-			if _, ok := pendingChangesMap[change]; ok {
-				continue
-			}
-
-			var cm changeMetadata
-			if err := cm.load(conn, change); err != nil {
-				return err
-			}
-
-			if cm.ID == 0 {
-				c, err := ictx.lookup.CID(change)
-				if err != nil {
-					return err
-				}
-
-				return stashError{
-					Reason: stashReasonFailedPrecondition,
-					Metadata: stashMetadata{
-						MissingBlobs: []cid.Cid{c},
-					},
-				}
-			}
-
-			changeGenesis, err := ictx.lookup.CID(cm.Genesis())
-			if err != nil {
-				return err
-			}
-
-			if !v.GenesisBlob.Equals(changeGenesis) {
-				c, err := ictx.lookup.CID(change)
-				if err != nil {
-					return err
-				}
-				return fmt.Errorf("genesis mismatch in Ref for Change %s: %s != %s", c, v.GenesisBlob, changeGenesis)
-			}
-
-			pendingChangesMap[cm.ID] = cm
-
-			queue = append(queue, cm.Deps...)
-		}
-
-		// We have to apply changes in causal order (not necessarily total order)
-		// to ensure correct heads tracking.
-		pendingChanges := slices.Collect(maps.Values(pendingChangesMap))
-		slices.SortFunc(pendingChanges, func(a, b changeMetadata) int {
-			if c := cmp.Compare(a.Ts, b.Ts); c != 0 {
-				return c
-			}
-			return cmp.Compare(a.ID, b.ID)
-		})
-
-		for _, cm := range pendingChanges {
-			dg.ensureChangeApplied(cm)
-		}
-
-		if len(pendingChanges) > 0 {
-			appliedNewChanges = true
-			last := pendingChanges[len(pendingChanges)-1]
-			if err := touchSpaceStats(conn, v.Space().String(), last.Ts); err != nil {
-				return fmt.Errorf("failed to touch space stats: %w", err)
-			}
-
-			if ictx.mustTrackUnreads && !isTombstone {
-				if err := ensureUnread(conn, iri); err != nil {
-					return err
-				}
-			}
-		}
+	effect := refEffect{
+		gen: generationKey{
+			Resource:   resDB.ResourcesID,
+			Generation: v.Generation,
+			Genesis:    v.GenesisBlob.String(),
+			IRI:        iri,
+		},
+		space:        v.Space().String(),
+		tombstone:    v.IsTombstone(),
+		ts:           v.Ts.UnixMilli(),
+		visibility:   v.Visibility,
+		trackUnreads: ictx.mustTrackUnreads,
 	}
 
 	if v.Redirect != nil {
-		redirectTarget, err := v.RedirectIRI()
+		effect.redirect, err = v.RedirectIRI()
+		if err != nil {
+			return err
+		}
+	}
+
+	if !effect.tombstone {
+		genesis, err := ictx.ensureBlob(v.GenesisBlob)
 		if err != nil {
 			return err
 		}
 
-		dg.attrs().set("$db.redirect", redirectTarget, refTime)
+		for _, h := range v.Heads {
+			head, err := ictx.indexedChange(h)
+			if err != nil {
+				return err
+			}
+
+			// A head that isn't indexed yet, stored or not, holds the Ref back:
+			// it won't be visible until all of its heads are indexed.
+			if head.ID == 0 {
+				return stashError{
+					Reason:   stashReasonFailedPrecondition,
+					Metadata: stashMetadata{MissingBlobs: []cid.Cid{h}},
+				}
+			}
+
+			if !head.IsChange || head.Genesis != genesis {
+				return stashError{
+					Reason: stashReasonBadData,
+					Metadata: stashMetadata{
+						Details: fmt.Sprintf("Ref head %s is not a Change of genesis %s", h, v.GenesisBlob),
+					},
+				}
+			}
+
+			effect.heads = append(effect.heads, head.ID)
+		}
 	}
 
-	dg.attrs().set("$db.visibility", string(v.Visibility), refTime)
+	ictx.batch.refs = append(ictx.batch.refs, effect)
+
+	return nil
+}
+
+// refEffect is what one Ref contributes to its document generation. See
+// crossLinkRefMaybe and indexBatch.applyRefs.
+type refEffect struct {
+	gen          generationKey
+	space        string
+	heads        []int64
+	tombstone    bool
+	ts           int64
+	redirect     IRI
+	visibility   Visibility
+	trackUnreads bool
+}
+
+// refStats counts the work of applying Refs, for diagnosing slow indexing.
+type refStats struct {
+	// Generations is how many times a generation was applied: once per
+	// generation per flush that had Refs for it.
+	Generations int
+
+	// Seeded counts generations that started from the previous generation of
+	// their document instead of replaying its history.
+	Seeded int
+
+	// ChangesApplied counts changes applied to generations.
+	ChangesApplied int
+
+	// Derived counts generations whose document fields were derived, and
+	// ChangesDerived the changes those derivations replayed.
+	Derived        int
+	ChangesDerived int
+}
+
+// generationSeed is the state of a generation that comes from its changes
+// alone, before any Ref sets its redirect, visibility, or times. The next
+// generation of the same document can start from it.
+type generationSeed struct {
+	heads             map[int64]struct{}
+	changes           *roaring64.Bitmap
+	changeCount       int64
+	genesisChangeTime int64
+	lastChangeTime    int64
+	authors           []int64
+	attrs             DocIndexedAttrs
+}
+
+// applyRefs applies the batch's Ref effects to their document generations,
+// loading and saving each generation once, and derives the document fields of
+// the current generation of every document whose heads changed.
+//
+// It's equivalent to applying the Refs one by one in any order: a generation's
+// changes are the union of what its Refs' heads reach, applied in timestamp
+// order; ref times are maximums; redirect, visibility and authored attributes
+// are last-writer-wins registers; and derived fields depend only on the final
+// heads.
+func (b *indexBatch) applyRefs(conn *sqlite.Conn, bs *blockStore, log *zap.Logger) error {
+	if len(b.refs) == 0 {
+		return nil
+	}
+
+	effects := make(map[generationKey][]refEffect)
+	for _, e := range b.refs {
+		effects[e.gen] = append(effects[e.gen], e)
+	}
+
+	b.refs = nil
+
+	// Generations of one document are applied in order, so a later one can
+	// start from an earlier one.
+	keys := slices.SortedFunc(maps.Keys(effects), func(a, b generationKey) int {
+		return cmp.Or(
+			cmp.Compare(a.Resource, b.Resource),
+			cmp.Compare(a.Genesis, b.Genesis),
+			cmp.Compare(a.Generation, b.Generation),
+		)
+	})
+
+	// The newest generation of each resource, among the stored ones and the
+	// ones this flush applies. Only that one keeps its attributes, so only
+	// that one is derived. See documentGeneration.save.
+	current := make(map[int64]int64)
+	for _, k := range keys {
+		if _, ok := current[k.Resource]; !ok {
+			stored, err := sqlitex.QueryOne[int64](conn, qMaxGeneration(), k.Resource)
+			if err != nil {
+				return err
+			}
+			current[k.Resource] = stored
+		}
+
+		current[k.Resource] = max(current[k.Resource], k.Generation)
+	}
+
+	var seed *generationSeed
+
+	for i, k := range keys {
+		// A seed comes only from the previous generation of the same document.
+		if i > 0 && (keys[i-1].Resource != k.Resource || keys[i-1].Genesis != k.Genesis) {
+			seed = nil
+		}
+
+		next, err := b.applyGeneration(conn, bs, log, k, effects[k], seed, current[k.Resource] == k.Generation)
+		if err != nil {
+			return err
+		}
+
+		seed = next
+	}
+
+	return nil
+}
+
+var qMaxGeneration = dqb.Str(`
+	SELECT COALESCE(MAX(generation), 0) FROM document_generations WHERE resource = ?1;
+`)
+
+// applyGeneration applies the effects of one generation's Refs, and returns the
+// seed for the next generation of the same document, which is nil when the
+// generation wasn't built from scratch in this flush.
+func (b *indexBatch) applyGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, k generationKey, effects []refEffect, prev *generationSeed, isCurrent bool) (*generationSeed, error) {
+	b.stats.Generations++
+
+	var dg documentGeneration
+
+	if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
+		return nil, err
+	}
+
+	// A seed holds what its generation's changes produced and nothing else,
+	// which is exact only for a generation built from scratch, as this one is
+	// when its row doesn't exist yet.
+	fromScratch := !dg.shouldUpdate
+	if !fromScratch {
+		prev = nil
+	}
+
+	var heads []int64
+
+	for _, e := range effects {
+		heads = append(heads, e.heads...)
+	}
+
+	pending, seeded, err := b.walkChanges(conn, &dg, heads, prev)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply Refs of %s: %w", k.IRI, err)
+	}
+
+	if seeded {
+		b.stats.Seeded++
+		dg.Heads = maps.Clone(prev.heads)
+		dg.Changes = prev.changes.Clone()
+		dg.ChangeCount = prev.changeCount
+		dg.GenesisChangeTime = prev.genesisChangeTime
+		dg.LastChangeTime = prev.lastChangeTime
+		dg.Authors = slices.Clone(prev.authors)
+		dg.setMetadata(maps.Clone(prev.attrs))
+	}
+
+	// Changes are applied in causal order (not necessarily total order) to
+	// track heads correctly.
+	slices.SortFunc(pending, func(a, b changeMetadata) int {
+		return cmp.Or(cmp.Compare(a.Ts, b.Ts), cmp.Compare(a.ID, b.ID))
+	})
+
+	for _, cm := range pending {
+		dg.ensureChangeApplied(cm)
+	}
+
+	b.stats.ChangesApplied += len(pending)
+
+	var next *generationSeed
+
+	if fromScratch {
+		next = &generationSeed{
+			heads:             maps.Clone(dg.Heads),
+			changes:           dg.Changes.Clone(),
+			changeCount:       dg.ChangeCount,
+			genesisChangeTime: dg.GenesisChangeTime,
+			lastChangeTime:    dg.LastChangeTime,
+			authors:           slices.Clone(dg.Authors),
+			attrs:             maps.Clone(dg.Metadata),
+		}
+	}
+
+	trackUnreads := false
+	for _, e := range effects {
+		if e.redirect != "" {
+			dg.attrs().set("$db.redirect", e.redirect, e.ts)
+		}
+
+		dg.attrs().set("$db.visibility", string(e.visibility), e.ts)
+
+		if e.tombstone {
+			dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, e.ts)
+		} else {
+			dg.LastAliveRefTime = max(dg.LastAliveRefTime, e.ts)
+			trackUnreads = trackUnreads || e.trackUnreads
+		}
+	}
+
 	resolvedVisibility := dg.Metadata["$db.visibility"]
 	dg.Visibility = Visibility(resolvedVisibility.Value.(string))
 	dg.VisibilityTimestamp = resolvedVisibility.Ts
 
-	// Derive the document-level fields that need the full change history: the
-	// fallback cover image (first image block in reading order) and the
-	// collection flag. Both are stored under internal "$db." keys (stripped by
-	// PublicMap, so they never pollute user-authored metadata) and exposed as
-	// typed DocumentInfo fields. Best-effort: a derivation failure is logged but
-	// must not fail Ref indexing.
-	//
-	// Derives from the generation's MERGED heads (what the read path renders),
-	// and only when this Ref actually advanced them — duplicate and out-of-date
-	// Refs can't change the result, so they skip the full history replay.
-	//
-	// Note the replay is NOT gated on cover/icon the way it once was. That gate
-	// existed when the cover image was the only derived field and an explicit
-	// cover made it moot; IsCollection is needed for every document, and a
-	// collection may well carry an icon. Only the storing of FirstImage stays
-	// gated.
-	if !isTombstone && appliedNewChanges && ictx.deriveDocFields != nil && len(dg.Heads) > 0 {
-		headIDs := slices.Collect(maps.Keys(dg.Heads))
-		changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
-		if cerr != nil {
-			ictx.log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(iri)), zap.Error(cerr))
-		} else if fields, derr := ictx.deriveDocFields(iri, changes); derr != nil {
-			ictx.log.Warn("FailedToDeriveDocFields", zap.String("iri", string(iri)), zap.Error(derr))
-		} else {
-			// Derived values replace the previous ones outright (see setDerived), so
-			// the timestamp is only informational.
-			ts := max(refTime, dg.LastAliveRefTime)
+	// The heads changed when changes were applied, and when a new generation
+	// started from the previous one, even with nothing on top of it: a
+	// replay from scratch would have applied the whole history. Every change
+	// applied before this one touched the same space, so touching it with
+	// the newest change time is the same as touching it with each new one.
+	if len(pending) > 0 || seeded {
+		if err := touchSpaceStats(conn, effects[0].space, dg.LastChangeTime); err != nil {
+			return nil, fmt.Errorf("failed to touch space stats: %w", err)
+		}
 
-			// Always record the result — empty means "derived: no image" — so a
-			// value derived at older heads can never outlive the image's removal,
-			// and clients can skip the fallback document fetch entirely.
-			if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-				dg.attrs().setDerived(FirstImageInContentAttr, fields.FirstImage, ts)
+		if trackUnreads {
+			if err := ensureUnread(conn, k.IRI); err != nil {
+				return nil, err
 			}
+		}
 
-			dg.attrs().setDerived(IsCollectionAttr, fields.IsCollection, ts)
-			dg.attrs().setDerived(NavigationCardsAttr, navigationCardsJSON(fields.NavigationCards), ts)
+		// Derived fields depend only on the final heads, so they're derived
+		// once, and only when the heads changed.
+		if isCurrent && b.deriveDocFields != nil && len(dg.Heads) > 0 {
+			b.stats.Derived++
+			b.stats.ChangesDerived += deriveDocFields(conn, bs, log, b.deriveDocFields, k.IRI, &dg)
 		}
 	}
 
-	if isTombstone {
-		dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, refTime)
-	} else {
-		dg.LastAliveRefTime = max(dg.LastAliveRefTime, refTime)
-	}
-
 	if err := dg.save(conn); err != nil {
-		return err
+		return nil, err
 	}
 
-	// Comments on this path that pin no version are attributed to whatever
-	// generation the path resolves to. Ones that arrived before any generation
-	// existed are still waiting for one.
-	if err := resettleComments(ictx, qPendingCommentsOnResource(), resourceID); err != nil {
-		return err
+	return next, nil
+}
+
+// walkChanges collects the changes that the heads reach and dg doesn't have
+// yet. With prev, the walk stops at prev's changes; seeded reports that it
+// reached all of prev's heads, in which case dg must start from prev, and
+// pending holds only what's new on top of it. If it didn't, the walk is redone
+// without prev.
+func (b *indexBatch) walkChanges(conn *sqlite.Conn, dg *documentGeneration, heads []int64, prev *generationSeed) (pending []changeMetadata, seeded bool, err error) {
+	if len(heads) == 0 {
+		return nil, false, nil
 	}
 
-	return nil
+	genesis, err := b.genesisID(conn, dg.Genesis)
+	if err != nil {
+		return nil, false, err
+	}
+
+	walk := func(prev *generationSeed) (pending []changeMetadata, reachedPrev int, err error) {
+		seen := make(map[int64]bool)
+		queue := slices.Clone(heads)
+		for len(queue) > 0 {
+			change := queue[len(queue)-1]
+			queue = queue[:len(queue)-1]
+
+			if seen[change] || dg.Changes.Contains(uint64(change)) {
+				continue
+			}
+			seen[change] = true
+
+			if prev != nil && prev.changes.Contains(uint64(change)) {
+				if _, ok := prev.heads[change]; ok {
+					reachedPrev++
+				}
+				continue
+			}
+
+			cm, err := b.changeMetadata(conn, change)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			// Refs check their heads, and Changes their dependencies, so a
+			// valid head's history is indexed and belongs to its genesis.
+			if cm.ID == 0 {
+				return nil, 0, fmt.Errorf("BUG: change %d reachable from valid heads is not indexed", change)
+			}
+
+			if cm.Genesis() != genesis {
+				return nil, 0, fmt.Errorf("BUG: change %d reachable from valid heads has genesis %d, not %d", change, cm.Genesis(), genesis)
+			}
+
+			pending = append(pending, cm)
+			queue = append(queue, cm.Deps...)
+		}
+
+		return pending, reachedPrev, nil
+	}
+
+	if prev != nil {
+		pending, reached, err := walk(prev)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if reached == len(prev.heads) {
+			return pending, true, nil
+		}
+	}
+
+	pending, _, err = walk(nil)
+	return pending, false, err
+}
+
+// genesisID returns the blob ID of a genesis change given its CID string. It's
+// asked only for genesises with indexed heads, which are indexed themselves, so
+// their IDs don't change for the rest of the transaction.
+func (b *indexBatch) genesisID(conn *sqlite.Conn, genesis string) (int64, error) {
+	if id, ok := b.genesises[genesis]; ok {
+		return id, nil
+	}
+
+	c, err := cid.Decode(genesis)
+	if err != nil {
+		return 0, fmt.Errorf("invalid genesis %q: %w", genesis, err)
+	}
+
+	res, err := dbBlobsGetSize(conn, c.Hash(), false)
+	if err != nil {
+		return 0, err
+	}
+
+	b.genesises[genesis] = res.BlobsID
+
+	return res.BlobsID, nil
 }
 
 func touchSpaceStats(conn *sqlite.Conn, spaceID string, lastChangeTime int64) error {
@@ -531,9 +729,6 @@ type documentGeneration struct {
 	Visibility           Visibility
 	VisibilityTimestamp  int64
 	Genesis              string
-	LastComment          int64
-	LastCommentTime      int64
-	CommentCount         int64
 	Changes              *roaring64.Bitmap
 	ChangeCount          int64
 	Authors              []int64
@@ -584,37 +779,15 @@ func (dg *documentGeneration) load(conn *sqlite.Conn, resource, generation int64
 	return nil
 }
 
-func (dg documentGeneration) loadAllByResource(conn *sqlite.Conn, resource int64) (out []documentGeneration, err error) {
-	rows, discard, check := sqlitex.Query(conn, qLoadGenerationsForResource(), resource).All()
-	defer discard(&err)
-	for row := range rows {
-		var dg documentGeneration
-		if err := dg.fromRow(row); err != nil {
-			return nil, fmt.Errorf("failed to decode document generation from row: %w", err)
-		}
-
-		out = append(out, dg)
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-	for i := range out {
-		if err := out[i].loadAttributes(conn); err != nil {
-			return nil, err
-		}
-	}
-
-	return out, nil
-}
-
 func (dg *documentGeneration) loadAttributes(conn *sqlite.Conn) (err error) {
 	attrs, err := readDocumentAttributes(conn, dg.ResourceID, dg.Generation, dg.Genesis)
 	if err != nil {
 		return err
 	}
-	if dg.Visibility != "" {
-		attrs["$db.visibility"] = IndexedValue{Key: "$db.visibility", Value: string(dg.Visibility), Ts: dg.VisibilityTimestamp, Kind: documentAttributeString}
-	}
+	// Visibility is a last-writer-wins register stored in its own columns. It's
+	// loaded back as an attribute even when public, the empty value, so a Ref
+	// older than the stored one can't overwrite it.
+	attrs["$db.visibility"] = IndexedValue{Key: "$db.visibility", Value: string(dg.Visibility), Ts: dg.VisibilityTimestamp, Kind: documentAttributeString}
 	dg.setMetadata(attrs)
 	return nil
 }
@@ -684,9 +857,6 @@ func (dg *documentGeneration) fromRow(row *sqlite.Stmt) error {
 	dg.LastAliveRefTime = row.ColumnInt64(inc())
 	dg.Generation = row.ColumnInt64(inc())
 	dg.Genesis = row.ColumnText(inc())
-	dg.LastComment = row.ColumnInt64(inc())
-	dg.LastCommentTime = row.ColumnInt64(inc())
-	dg.CommentCount = row.ColumnInt64(inc())
 	dg.Heads = make(map[int64]struct{})
 
 	headsJSON := row.ColumnBytesUnsafe(inc())
@@ -734,9 +904,6 @@ var qLoadDocumentGeneration = dqb.Str(`
 		last_alive_ref_time,
 		generation,
 		genesis,
-		last_comment,
-		last_comment_time,
-		comment_count,
 		heads,
 		changes,
 		change_count,
@@ -747,28 +914,6 @@ var qLoadDocumentGeneration = dqb.Str(`
 	WHERE resource = ?1
 	AND generation = ?2
 	AND genesis = ?3;
-`)
-
-var qLoadGenerationsForResource = dqb.Str(`
-	SELECT
-		resource,
-		genesis_change_time,
-		last_change_time,
-		last_tombstone_ref_time,
-		last_alive_ref_time,
-		generation,
-		genesis,
-		last_comment,
-		last_comment_time,
-		comment_count,
-		heads,
-		changes,
-		change_count,
-		authors,
-		visibility,
-		visibility_timestamp
-	FROM document_generations
-	WHERE resource = ?1;
 `)
 
 func (dg *documentGeneration) save(conn *sqlite.Conn) error {
@@ -785,11 +930,6 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 		return fmt.Errorf("failed to serialize bitmap: %w", err)
 	}
 
-	var lastComment maybe.Value[int64]
-	if dg.LastComment != 0 {
-		lastComment = maybe.New(dg.LastComment)
-	}
-
 	headsJSON := "[]"
 	if len(dg.Heads) > 0 {
 		heads := slices.Collect(maps.Keys(dg.Heads))
@@ -802,9 +942,6 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 		dg.ResourceID,
 		dg.Generation,
 		dg.Genesis,
-		lastComment.Any(),
-		dg.LastCommentTime,
-		dg.CommentCount,
 		dg.ChangeCount,
 		authorsJSON,
 		changesBitmap,
@@ -886,9 +1023,6 @@ var qInsertDocumentGeneration = dqb.Str(`
 		resource,
 		generation,
 		genesis,
-		last_comment,
-		last_comment_time,
-		comment_count,
 		change_count,
 		authors,
 		changes,
@@ -900,25 +1034,22 @@ var qInsertDocumentGeneration = dqb.Str(`
 		visibility,
 		visibility_timestamp
 	)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 `)
 
 var qUpdateDocumentGeneration = dqb.Str(`
 	UPDATE document_generations
 	SET
-		last_comment = ?4,
-		last_comment_time = ?5,
-		comment_count = ?6,
-		change_count = ?7,
-		authors = ?8,
-		changes = ?9,
-		last_tombstone_ref_time = ?10,
-		last_alive_ref_time = ?11,
-		last_change_time = ?12,
-		genesis_change_time = ?13,
-		heads = ?14,
-		visibility = ?15,
-		visibility_timestamp = ?16
+		change_count = ?4,
+		authors = ?5,
+		changes = ?6,
+		last_tombstone_ref_time = ?7,
+		last_alive_ref_time = ?8,
+		last_change_time = ?9,
+		genesis_change_time = ?10,
+		heads = ?11,
+		visibility = ?12,
+		visibility_timestamp = ?13
 	WHERE (resource, generation, genesis) = (?1, ?2, ?3);
 `)
 
@@ -951,16 +1082,6 @@ func documentAttributeValue(value any) (kind string, out any, err error) {
 	default:
 		return "", nil, fmt.Errorf("unsupported value type %T", value)
 	}
-}
-
-func (dg *documentGeneration) containsAllChanges(changes []int64) bool {
-	for _, c := range changes {
-		if !dg.Changes.Contains(uint64(c)) {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (dg *documentGeneration) ensureChangeApplied(cm changeMetadata) {
@@ -1025,7 +1146,7 @@ type IndexedValue struct {
 // "$db." prefix keeps it out of the public metadata map; it reaches clients
 // as the typed DocumentInfo.first_image_in_content field instead. An empty
 // value means "derived: the document has no content image"; a missing key
-// means derivation hasn't run.
+// means derivation hasn't run, or the document has an explicit cover or icon.
 const FirstImageInContentAttr = "$db.firstImageInContent"
 
 // IsCollectionAttr is the internal indexed-attrs key holding the derived
@@ -1057,49 +1178,32 @@ func navigationCardsJSON(cards []string) string {
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
 
-// deriveDocFieldsForGeneration derives and stores the document-level derived
-// fields (fallback cover image, collection flag) for a single generation, from
-// that generation's final merged heads.
+// deriveDocFields derives the document-level fields (fallback cover image,
+// collection flag, navigation Cards) of dg from its merged heads, and stores
+// them in dg's attributes. It returns how many changes it replayed.
 //
-// A generation whose changes fail to load, or whose derivation fails, is logged
-// and still records the collection flag and navigation Cards as empty: the
-// model cannot rebuild it, so it has no navigation and no Collection shape.
-// See the failure branch for why the cover image is left alone.
-func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields, k generationKey) (changesReplayed int, stored bool, err error) {
-	var dg documentGeneration
-	if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
-		return 0, false, err
-	}
-
-	// Callers filter out empty head sets in SQL, but load() synthesizes a blank
-	// generation when the row is missing, so re-check the same condition the
-	// per-Ref path guards on.
-	if len(dg.Heads) == 0 {
-		return 0, false, nil
-	}
+// Derivation is best-effort: a document whose changes fail to load or whose
+// derivation fails is logged, and still records the collection flag and
+// navigation Cards as empty: the model cannot rebuild it, so it has no
+// navigation and no Collection shape. See the failure branch for why the cover
+// image is left alone.
+func deriveDocFields(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields, iri IRI, dg *documentGeneration) (changesReplayed int) {
+	// Derived values replace the previous ones outright (see setDerived), so
+	// the timestamp is only informational: the newest alive Ref.
+	ts := dg.LastAliveRefTime
 
 	headIDs := slices.Collect(maps.Keys(dg.Heads))
 	changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
 	if cerr != nil {
-		log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(k.IRI)), zap.Error(cerr))
-		// An unreadable document has no navigation and no Collection shape.
-		dg.attrs().setDerived(IsCollectionAttr, false, dg.LastAliveRefTime)
-		dg.attrs().setDerived(NavigationCardsAttr, navigationCardsJSON(nil), dg.LastAliveRefTime)
-		if err := dg.save(conn); err != nil {
-			return 0, false, err
-		}
-		return 0, true, nil
+		log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(iri)), zap.Error(cerr))
+		dg.attrs().setDerived(IsCollectionAttr, false, ts)
+		dg.attrs().setDerived(NavigationCardsAttr, navigationCardsJSON(nil), ts)
+		return 0
 	}
-	changesReplayed = len(changes)
 
-	// LastAliveRefTime is already the max over every alive Ref of this
-	// generation, which is exactly what max(refTime, dg.LastAliveRefTime) in the
-	// per-Ref path resolves to once the last Ref has been applied.
-	ts := dg.LastAliveRefTime
-
-	fields, derr := derive(k.IRI, changes)
+	fields, derr := derive(iri, changes)
 	if derr != nil {
-		log.Warn("FailedToDeriveDocFields", zap.String("iri", string(k.IRI)), zap.Error(derr))
+		log.Warn("FailedToDeriveDocFields", zap.String("iri", string(iri)), zap.Error(derr))
 
 		// A document the model cannot rebuild has no navigation Cards and, in
 		// practice, is an enormous one, which is overwhelmingly unlikely to have
@@ -1111,70 +1215,27 @@ func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Lo
 		// failure gives no grounds to make.
 		dg.attrs().setDerived(IsCollectionAttr, false, ts)
 		dg.attrs().setDerived(NavigationCardsAttr, navigationCardsJSON(nil), ts)
-		if err := dg.save(conn); err != nil {
-			return changesReplayed, false, err
-		}
-
-		return changesReplayed, true, nil
+		return len(changes)
 	}
 
-	// The cover/icon gate must be evaluated in Go, not folded into a SQL filter:
-	// hasNonEmptyAttr treats a nil value and an empty string as absent but any
-	// non-string value as present, which metadata->>'$.cover.v' cannot express.
+	// Always record the result — empty means "derived: no image" — so a value
+	// derived at older heads can never outlive the image's removal, and clients
+	// can skip the fallback document fetch entirely. An explicit cover or icon
+	// makes the fallback moot, so it's dropped, which also keeps a value
+	// derived before the cover was set from depending on whether both arrived
+	// in one batch.
+	//
+	// The cover/icon gate must be evaluated in Go: hasNonEmptyAttr treats a nil
+	// value and an empty string as absent but any non-string value as present.
 	if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
 		dg.attrs().setDerived(FirstImageInContentAttr, fields.FirstImage, ts)
+	} else {
+		dg.attrs().remove(FirstImageInContentAttr)
 	}
 	dg.attrs().setDerived(IsCollectionAttr, fields.IsCollection, ts)
 	dg.attrs().setDerived(NavigationCardsAttr, navigationCardsJSON(fields.NavigationCards), ts)
 
-	if err := dg.save(conn); err != nil {
-		return changesReplayed, false, err
-	}
-
-	return changesReplayed, true, nil
-}
-
-// deriveAllDocFields derives the document-level derived fields once per document
-// generation.
-//
-// This is the full-reindex counterpart of the per-Ref derivation in
-// crossLinkRefMaybe. Incrementally, deriving per Ref is correct and cheap: a
-// new Ref replays a history that grew by one change. In a full reindex it is
-// quadratic per document — every Ref that advances the heads replays the whole
-// history again. On a real 82k-blob database that is ~680k change replays
-// against ~19k changes, and it dominated the entire reindex.
-//
-// Running once at the end is equivalent because the derivation only ever reads
-// the merged head set, and heads merge commutatively: whatever order the blob
-// loop visited Refs in, the final head set is the same one the last advancing
-// Ref would have derived from.
-func deriveAllDocFields(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields) (scanned, derived, changesReplayed int, err error) {
-	if derive == nil {
-		return 0, 0, 0, nil
-	}
-
-	// Collect every key before writing anything: dg.save below writes to
-	// document_generations, which is the same table this query scans. See the
-	// same hazard called out in reindexStashedBlobs.
-	keys, err := loadGenerationKeys(conn)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
-	for _, k := range keys {
-		scanned++
-
-		replayed, stored, err := deriveDocFieldsForGeneration(conn, bs, log, derive, k)
-		if err != nil {
-			return scanned, derived, changesReplayed, err
-		}
-		changesReplayed += replayed
-		if stored {
-			derived++
-		}
-	}
-
-	return scanned, derived, changesReplayed, nil
+	return len(changes)
 }
 
 // generationKey identifies one document_generations row plus the IRI of its
@@ -1185,41 +1246,6 @@ type generationKey struct {
 	Genesis    string
 	IRI        IRI
 }
-
-func loadGenerationKeys(conn *sqlite.Conn) (keys []generationKey, err error) {
-	rows, discard, check := sqlitex.Query(conn, qLoadGenerationKeys()).All()
-	defer discard(&err)
-	for row := range rows {
-		inc := sqlite.NewIncrementor(0)
-		keys = append(keys, generationKey{
-			Resource:   row.ColumnInt64(inc()),
-			Generation: row.ColumnInt64(inc()),
-			Genesis:    row.ColumnText(inc()),
-			IRI:        IRI(row.ColumnText(inc())),
-		})
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-
-	return keys, nil
-}
-
-// Deliberately does not filter on is_deleted: a tombstone Ref never derives
-// (the !isTombstone guard) but also never clears what earlier alive Refs set,
-// and it leaves heads intact — deleted generations legitimately carry the
-// derived value and must keep being refreshed.
-var qLoadGenerationKeys = dqb.Str(`
-	SELECT
-		dg.resource,
-		dg.generation,
-		dg.genesis,
-		r.iri
-	FROM document_generations dg
-	JOIN resources r ON r.id = dg.resource
-	WHERE json_array_length(dg.heads) > 0
-	ORDER BY dg.resource, dg.generation;
-`)
 
 // hasNonEmptyAttr reports whether the indexed metadata map holds an effective
 // (client-visible, non-empty) value for key k. A key can be present with a nil

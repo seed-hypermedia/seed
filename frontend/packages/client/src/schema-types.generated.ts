@@ -689,8 +689,8 @@ export type HMComment = HMBlob & {
   space?: HMPrincipal
   /** Path of the commented document within `space`. */
   path?: string
-  /** CIDs of the document heads the author was looking at; empty means the document at this path. */
-  version?: HMCid[]
+  /** CIDs of the document heads the author was looking at; a comment without them is invalid. */
+  version: HMCid[]
   /** CID of the first comment of the thread; present on every reply. */
   threadRoot?: HMCid
   /** CID of the comment this one replies to; omitted when it equals `threadRoot`. */
