@@ -1,7 +1,6 @@
 package blob
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -800,43 +799,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		outErr = errors.Join(outErr, check())
 	}
 
-	return causalOrder(it), check
-}
-
-// causalOrder puts dependencies first among changes with the same timestamp.
-// qIterChangesFromHeads orders changes by timestamp, but a change may carry
-// the same timestamp as a change it depends on, and its depth is always
-// greater. Only runs of equal timestamps are buffered.
-func causalOrder(changes iter.Seq[ChangeRecord]) iter.Seq[ChangeRecord] {
-	return func(yield func(ChangeRecord) bool) {
-		var run []ChangeRecord
-
-		flush := func() bool {
-			slices.SortStableFunc(run, compareChangeDepth)
-			for _, c := range run {
-				if !yield(c) {
-					return false
-				}
-			}
-
-			run = run[:0]
-			return true
-		}
-
-		for c := range changes {
-			if len(run) > 0 && !run[0].Data.Ts.Equal(c.Data.Ts) && !flush() {
-				return
-			}
-
-			run = append(run, c)
-		}
-
-		flush()
-	}
-}
-
-func compareChangeDepth(a, b ChangeRecord) int {
-	return cmp.Compare(a.Data.Depth, b.Data.Depth)
+	return it, check
 }
 
 var qIterChangesFromHeads = dqb.Str(`
@@ -948,7 +911,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		outErr = errors.Join(outErr, check())
 	}
 
-	return causalOrder(it), check
+	return it, check
 }
 
 // ResolveVersion resolves the generation and visibility an explicit version of
@@ -1137,9 +1100,9 @@ func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, 
 		return nil, err
 	}
 
-	// Rows come in timestamp order; ties put dependencies first. See causalOrder.
+	// A Change is newer than its dependencies, so timestamp order is causal.
 	slices.SortStableFunc(out, func(a, b ChangeRecord) int {
-		return cmp.Or(a.Data.Ts.Compare(b.Data.Ts), compareChangeDepth(a, b))
+		return a.Data.Ts.Compare(b.Data.Ts)
 	})
 
 	return out, nil
@@ -1901,6 +1864,12 @@ type indexedBlobChange struct {
 	// Genesis is the blob ID of the genesis change of the Change's document,
 	// which is ID itself for a genesis change.
 	Genesis int64
+
+	// Ts is the blob's timestamp in Unix milliseconds.
+	Ts int64
+
+	// Depth is the Change's depth, which is 0 for a genesis change.
+	Depth int
 }
 
 // indexedChange looks up c among indexed blobs, as a document change.
@@ -1917,6 +1886,9 @@ func (idx *indexingCtx) indexedChange(c cid.Cid) (out indexedBlobChange, err err
 			out.Genesis = out.ID
 		}
 
+		out.Ts = row.ColumnInt64(3)
+		out.Depth = row.ColumnInt(4)
+
 		break
 	}
 
@@ -1924,7 +1896,7 @@ func (idx *indexingCtx) indexedChange(c cid.Cid) (out indexedBlobChange, err err
 }
 
 var qIndexedChange = dqb.Str(`
-	SELECT sb.id, sb.type, sb.genesis_blob
+	SELECT sb.id, sb.type, sb.genesis_blob, sb.ts, sb.extra_attrs->>'depth'
 	FROM structural_blobs sb
 	JOIN blobs b INDEXED BY blobs_metadata_by_hash ON b.id = sb.id
 	WHERE (b.codec, b.multihash) = (:codec, :multihash)

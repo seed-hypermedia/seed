@@ -536,7 +536,8 @@ func (b *indexBatch) applyGeneration(conn *sqlite.Conn, bs *blockStore, log *zap
 	}
 
 	// Changes are applied in causal order (not necessarily total order) to
-	// track heads correctly.
+	// track heads correctly. A Change is newer than its dependencies (see
+	// indexChange), so timestamp order is causal.
 	slices.SortFunc(pending, func(a, b changeMetadata) int {
 		return cmp.Or(cmp.Compare(a.Ts, b.Ts), cmp.Compare(a.ID, b.ID))
 	})
