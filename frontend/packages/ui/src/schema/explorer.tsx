@@ -114,8 +114,10 @@ export const customFieldsTitle = (node: HypermediaSchema) => `Custom Fields (${k
 /** One part of an intersection: a heading and its fields. */
 export function PartSection({title, children}: {title: React.ReactNode; children: React.ReactNode}) {
   return (
-    <section className="flex flex-col gap-1" data-testid="schema-intersection-part">
-      <h3 className="flex flex-wrap items-center gap-1.5 text-sm font-medium">{title}</h3>
+    <section className="flex flex-col gap-1.5 pt-1" data-testid="schema-intersection-part">
+      <h3 className="text-muted-foreground flex flex-wrap items-center gap-2 font-sans text-[11px] font-semibold tracking-[0.08em] uppercase [&_button]:font-normal [&_button]:tracking-normal [&_button]:normal-case [&_input]:font-normal [&_input]:tracking-normal [&_input]:normal-case">
+        {title}
+      </h3>
       {children}
     </section>
   )
