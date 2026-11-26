@@ -44,6 +44,18 @@ export function getQueryTableAccountIds(value: unknown, context?: QueryTableValu
   })
 }
 
+/** Display labels for account references already included in the query payload.
+ * Keep the original values for filtering/sorting, and retain unknown or document refs verbatim.
+ */
+export function queryTableValueToDisplayString(value: unknown, context?: QueryTableValueContext): string {
+  if (Array.isArray(value)) return value.map((part) => queryTableValueToDisplayString(part, context)).join(', ')
+  if (typeof value === 'string' && value.startsWith('hm://') && context?.accountsMetadata) {
+    const id = unpackHmId(value)
+    if (id && !id.path?.length) return context.accountsMetadata[id.uid]?.metadata?.name || value
+  }
+  return queryTableValueToString(value)
+}
+
 /** Infers one simple table type from the non-empty values of an attribute. */
 export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
   const present = values.filter((value) => value !== null && value !== undefined && value !== '')
