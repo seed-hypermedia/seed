@@ -65,6 +65,7 @@ import {
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
   queryTableValueToString,
+  queryTableValueToDisplayString,
   type QueryTableColumn,
   type QueryTableFilter,
   type QueryTableValueContext,
@@ -1467,7 +1468,7 @@ function SelectedAttributes({
             ? value
               ? formattedDate(value as any)
               : ''
-            : queryTableValueToString(value)
+            : queryTableValueToDisplayString(value, context)
         if (!displayValue) return null
         return (
           <Tooltip key={descriptor.id} content={`${descriptor.label}: ${displayValue}`} asChild>

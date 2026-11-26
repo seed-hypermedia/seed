@@ -564,6 +564,36 @@ describe.each(['List', 'Card'] as const)('QueryBlockContent %s selected attribut
   })
 })
 
+describe.each(['List', 'Card'] as const)('QueryBlockContent %s account labels', (style) => {
+  it('shows resolved owner names rather than account URLs without changing other values', () => {
+    const items = makeItems(1)
+    const eric = 'hm://z6MkgisVMELvqnsCo3dYmtVpy8PiqPGMVwfAyBWFn84vebq4'
+    items[0].metadata.Owner = eric
+    items[0].metadata.Status = 'To Do'
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style={style}
+          accountsMetadata={{
+            [eric.slice(5)]: {id: hmId(eric.slice(5)), metadata: {name: 'Eric Vicenti'}},
+          }}
+          tableConfig={{
+            columns: [
+              {id: 'title', visible: true},
+              {id: 'metadata:Owner', visible: true},
+              {id: 'metadata:Status', visible: true},
+            ],
+          }}
+        />,
+      )
+    })
+    expect(container.textContent).toContain('Eric Vicenti')
+    expect(container.textContent).toContain('To Do')
+    expect(container.textContent).not.toContain(eric)
+  })
+})
+
 describe('QueryBlockContent Card attribute layout', () => {
   it('renders count attributes in the card action row', () => {
     const items = makeItems(1)

@@ -11,6 +11,7 @@ import {
   inferAttributeType,
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
+  queryTableValueToDisplayString,
 } from '../query-block-table-model'
 
 function item(name: string, metadata: Record<string, unknown>): HMDocumentInfo {
@@ -163,6 +164,17 @@ describe('query block table model', () => {
     expect(getQueryTableAccountIds(['hm://alice', 'hm://missing'], context)).toEqual([hmId('alice')])
     expect(getQueryTableAccountIds('hm://alice/document', context)).toEqual([])
     expect(getQueryTableAccountIds('Ready', context)).toEqual([])
+  })
+
+  it('labels known account refs and preserves non-account and unknown refs in mixed values', () => {
+    const context = {accountsMetadata: {alice: {id: hmId('alice'), metadata: {name: 'Alice'}}}}
+    expect(queryTableValueToDisplayString('hm://alice', context)).toBe('Alice')
+    expect(queryTableValueToDisplayString(['hm://alice', 'hm://missing', 'hm://alice/note', 'Ready'], context)).toBe(
+      'Alice, hm://missing, hm://alice/note, Ready',
+    )
+    expect(
+      queryTableValueToDisplayString('hm://alice', {accountsMetadata: {alice: {id: hmId('alice'), metadata: {}}}}),
+    ).toBe('hm://alice')
   })
 
   it('searches all row data, including values belonging to hidden columns', () => {
