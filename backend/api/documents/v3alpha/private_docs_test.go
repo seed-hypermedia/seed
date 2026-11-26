@@ -10,6 +10,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -626,4 +627,92 @@ func TestPrivateDocSecurity_ServerModeListingsExcludePrivateDocs(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"/public-a", "/public-b"}, collectPaths(query.Documents))
+}
+
+// TestPrivateChecksReuseTheHeldConnection checks that private-access checks made
+// while a request holds a pooled connection run on that connection. Taking a
+// second one from the pool lets concurrent requests exhaust the pool and wait on
+// each other forever. With one free reader left, every request must still answer.
+func TestPrivateChecksReuseTheHeldConnection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
+	account := alice.me.Account.PublicKey.String()
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/secret",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	comment, err := alice.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  account,
+		TargetPath:     "/secret",
+		TargetVersion:  doc.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "Secret comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Hold every reader but one.
+	var held []func()
+
+	t.Cleanup(func() {
+		for _, release := range held {
+			release()
+		}
+	})
+	for {
+		probe, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		_, release, err := alice.db.ReadConn(probe)
+		cancel()
+
+		if err != nil {
+			break
+		}
+
+		held = append(held, release)
+	}
+
+	require.NotEmpty(t, held)
+	held[len(held)-1]()
+	held = held[:len(held)-1]
+
+	// A caller that isn't the owner, so the check has to look up its capabilities.
+	caller := blob.WithAuthenticatedCaller(ctx, coretest.NewTester("bob").Account.Principal())
+	calls := map[string]func(context.Context) error{
+		"ListCommentVersions": func(ctx context.Context) error {
+			_, err := alice.ListCommentVersions(ctx, &documents.ListCommentVersionsRequest{Id: comment.Id})
+			return err
+		},
+		"BatchGetComments": func(ctx context.Context) error {
+			_, err := alice.BatchGetComments(ctx, &documents.BatchGetCommentsRequest{Ids: []string{comment.Id}})
+			return err
+		},
+		"BatchGetDocumentInfo": func(ctx context.Context) error {
+			_, err := alice.BatchGetDocumentInfo(ctx, &documents.BatchGetDocumentInfoRequest{
+				Requests: []*documents.GetDocumentInfoRequest{{Account: account, Path: "/secret"}},
+			})
+			return err
+		},
+		"ListComments": func(ctx context.Context) error {
+			_, err := alice.ListComments(ctx, &documents.ListCommentsRequest{TargetAccount: account, TargetPath: "/secret"})
+			return err
+		},
+	}
+	for name, call := range calls {
+		ctx, cancel := context.WithTimeout(caller, 5*time.Second)
+		err := call(ctx)
+		cancel()
+		require.NotEqual(t, codes.DeadlineExceeded, status.Code(err), "%s waited for a second pooled connection: %v", name, err)
+		require.NotErrorIs(t, err, context.DeadlineExceeded, "%s waited for a second pooled connection", name)
+	}
 }
