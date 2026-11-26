@@ -39,7 +39,7 @@ import {SchemaDataEditor} from './data-editor'
 import {kindColor, refChipColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {useHydratedRegistry} from './schema-resolve'
-import {InheritedFields} from './explorer'
+import {customFieldsTitle, IntersectionPartFields, PartSection} from './explorer'
 import {
   emptyOwnArm,
   fromIntersection,
@@ -947,45 +947,13 @@ function IntersectionSchemaForm({
               value=""
               label="Intersection"
               options={rootTypeOptions}
-              // Leaving the intersection: one struct with the fields added here, extending the
-              // picked type when it is a type rather than a kind; the other parts are dropped.
+              // Leaving the intersection: one struct with the custom fields, extending the picked
+              // type when it is a type rather than a kind; the other parts are dropped.
               onChange={(url) => onSchema(fromIntersection(schema, url))}
               onPick={() => {}}
               ariaLabel="Root type"
               className={kindColor.union}
             />
-            <span className="text-muted-foreground">all fields of</span>
-            {nodes.map((node, i) =>
-              isInlineStructArm(node) ? null : (
-                <span key={i} className="group/arm inline-flex items-center">
-                  <SchemaTypeInput
-                    chip
-                    value={nodeUrl(node)}
-                    onChange={(url) => setPart(i, url)}
-                    ariaLabel={`Intersection part ${i + 1}`}
-                    placeholder="search a type"
-                    className={chipColor(node)}
-                  />
-                  <Tooltip content="Remove this part">
-                    <button
-                      type="button"
-                      aria-label={`Remove intersection part ${i + 1}`}
-                      onClick={() => removePart(i)}
-                      className="text-muted-foreground hover:text-foreground w-0 cursor-pointer overflow-hidden opacity-0 transition-[width] group-focus-within/arm:w-4 group-focus-within/arm:opacity-100 group-hover/arm:w-4 group-hover/arm:opacity-100"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Tooltip>
-                </span>
-              ),
-            )}
-            <IconAction
-              label="Add a type to combine"
-              tooltip="Add a type whose fields this one includes"
-              onClick={addPart}
-            >
-              <Plus className="size-3.5" />
-            </IconAction>
           </p>
           <Textarea
             value={schema.description ?? ''}
@@ -1005,21 +973,49 @@ function IntersectionSchemaForm({
 
       {clash && <p className="text-destructive text-sm">{clash}</p>}
 
-      {parts.named.length > 0 && (
-        <div className="flex flex-col gap-1" data-testid="schema-intersection-included">
-          <InheritedFields schema={schema} registry={registry} isLoading={isLoading} />
-        </div>
+      {parts.arms.map((arm) =>
+        isInlineStructArm(arm.node) ? null : (
+          <PartSection
+            key={arm.index}
+            title={
+              <span className="group/row inline-flex flex-wrap items-center gap-1.5">
+                Fields of
+                <SchemaTypeInput
+                  chip
+                  value={nodeUrl(arm.node)}
+                  onChange={(url) => setPart(arm.index, url)}
+                  ariaLabel={`Intersection part ${arm.index + 1}`}
+                  placeholder="search a type"
+                  className={chipColor(arm.node)}
+                />
+                <IconAction
+                  label={`Remove intersection part ${arm.index + 1}`}
+                  tooltip="Remove this type"
+                  onClick={() => removePart(arm.index)}
+                  reveal
+                >
+                  <X className="size-3" />
+                </IconAction>
+              </span>
+            }
+          >
+            {arm.url ? <IntersectionPartFields arm={arm} isLoading={isLoading} /> : null}
+          </PartSection>
+        ),
       )}
+      <AddAction label="Add a type to combine" onClick={addPart}>
+        Add type
+      </AddAction>
 
-      <div className="flex flex-col gap-1" data-testid="schema-intersection-own">
+      <PartSection title={customFieldsTitle(ownArm)}>
         <StructFieldsEditor
           schema={ownArm}
           onSchema={(next) => onSchema(withOwnFields(schema, next))}
           options={fieldTypeOptions}
-          emptyLabel={parts.named.length ? 'No fields of its own yet.' : 'No fields yet.'}
+          emptyLabel="No custom fields yet."
           closed
         />
-      </div>
+      </PartSection>
     </div>
   )
 }

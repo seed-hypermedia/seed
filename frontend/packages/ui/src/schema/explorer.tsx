@@ -28,7 +28,7 @@ import {
 } from './engine'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {useHydratedRegistry} from './schema-resolve'
-import {intersectionOf} from './intersection'
+import {intersectionOf, isInlineStructArm, type IntersectionArm} from './intersection'
 import {useTypeLabel} from './schema-type-input'
 import {kindColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
@@ -59,8 +59,9 @@ const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 // --- small pieces ----------------------------------------------------------
 
 /**
- * An intersection (`allOf`), read as the one struct it makes: a heading naming the types it combines,
- * then every merged field. The registry resolves parts that name published types.
+ * An intersection (`allOf`), read part by part: "Fields of [Employee]" for each type it includes,
+ * then "Custom Fields (struct)" for the fields it adds itself. The registry resolves parts that name
+ * published types.
  */
 export function IntersectionView({
   schema,
@@ -75,79 +76,73 @@ export function IntersectionView({
 }) {
   const open = useRefClick(nav)
   const parts = intersectionOf(schema, registry)
-  const missing = parts.named.filter((a) => a.missing)
-  // A part not fetched yet leaves the merge incomplete: show what is known, from the parts that resolved.
-  const fields: StructField[] = parts.merged.properties
-    ? structFields(parts.merged)
-    : parts.arms.flatMap((a) => a.fields).filter((f, i, all) => all.findIndex((g) => g.name === f.name) === i)
   return (
-    <div className="flex flex-col gap-2" data-testid="schema-intersection">
-      <div className="flex flex-col gap-1" data-testid="schema-intersection-heading">
-        <p className="flex flex-wrap items-center gap-1.5 text-sm">
-          <Chip label="Intersection" onClick={() => nav('schema/allof')} />
-          {parts.named.length > 0 && <span className="text-muted-foreground">all fields of</span>}
-          {parts.named.map((a, i) => (
-            <Fragment key={a.index}>
-              {i > 0 && <span className="text-muted-foreground">&</span>}
-              <TypeChipLink url={a.url!} onClick={() => open(a.url!)} />
-            </Fragment>
-          ))}
-        </p>
-      </div>
-      {parts.merged.__invalid ? (
+    <div className="flex flex-col gap-3" data-testid="schema-intersection">
+      <p className="text-sm" data-testid="schema-intersection-heading">
+        <Chip label="Intersection" onClick={() => nav('schema/allof')} />
+      </p>
+      {parts.merged.__invalid && (
         <p className="text-destructive text-sm" data-testid="schema-merged-invalid">
           {parts.merged.__invalid}
         </p>
-      ) : missing.length ? (
-        isLoading ? (
-          <p className="text-muted-foreground text-sm" data-testid="schema-merged-loading">
-            Fetching {missing.map((a) => refLabel(a.url!)).join(', ')}…
-          </p>
-        ) : (
-          <p className="text-destructive text-sm" data-testid="schema-merged-missing">
-            Cannot show the fields of {missing.map((a) => refLabel(a.url!)).join(', ')}: not found.
-          </p>
-        )
-      ) : null}
-      {fields.length > 0 && (
-        <div data-testid="schema-merged-fields">
-          <FieldsTable fields={fields} nav={nav} />
-        </div>
+      )}
+      {parts.arms.map((arm) =>
+        arm.url ? (
+          <PartSection
+            key={arm.index}
+            title={
+              <>
+                Fields of <TypeChipLink url={arm.url} onClick={() => open(arm.url!)} />
+              </>
+            }
+          >
+            <IntersectionPartFields arm={arm} isLoading={isLoading} nav={nav} />
+          </PartSection>
+        ) : isInlineStructArm(arm.node) ? (
+          <PartSection key={arm.index} title={customFieldsTitle(arm.node)}>
+            <FieldsTable fields={structFields(arm.node)} nav={nav} />
+          </PartSection>
+        ) : null,
       )}
     </div>
   )
 }
 
-/**
- * The fields an intersection takes from the types it names, read-only: what the editor shows above
- * the fields it adds itself.
- */
-export function InheritedFields({
-  schema,
-  registry,
+/** The heading of an intersection's inline part: "Custom Fields (struct)". */
+export const customFieldsTitle = (node: HypermediaSchema) => `Custom Fields (${kindOf(node.type) || 'struct'})`
+
+/** One part of an intersection: a heading and its fields. */
+export function PartSection({title, children}: {title: React.ReactNode; children: React.ReactNode}) {
+  return (
+    <section className="flex flex-col gap-1" data-testid="schema-intersection-part">
+      <h3 className="flex flex-wrap items-center gap-1.5 text-sm font-medium">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+/** The fields a named part of an intersection brings, or why they are not shown yet. */
+export function IntersectionPartFields({
+  arm,
   isLoading,
   nav = () => {},
 }: {
-  schema: HypermediaSchema
-  registry: SchemaRegistry
+  arm: IntersectionArm
   isLoading: boolean
   nav?: (slug: string) => void
 }) {
-  const parts = intersectionOf(schema, registry)
-  const fields: StructField[] = []
-  for (const arm of parts.named) for (const f of arm.fields) if (!fields.some((g) => g.name === f.name)) fields.push(f)
-  const missing = parts.named.filter((a) => a.missing)
-  return (
-    <div className="flex flex-col gap-1 opacity-80" data-testid="schema-inherited-fields">
-      {missing.length > 0 && (
-        <p className={cn('text-sm', isLoading ? 'text-muted-foreground' : 'text-destructive')}>
-          {isLoading ? 'Fetching' : 'Not found:'} {missing.map((a) => refLabel(a.url!)).join(', ')}
-          {isLoading ? '…' : ''}
-        </p>
-      )}
-      {fields.length > 0 && <FieldsTable fields={fields} nav={nav} />}
-    </div>
-  )
+  if (arm.missing)
+    return isLoading ? (
+      <p className="text-muted-foreground text-sm" data-testid="schema-merged-loading">
+        Fetching…
+      </p>
+    ) : (
+      <p className="text-destructive text-sm" data-testid="schema-merged-missing">
+        {refLabel(arm.url!)} was not found.
+      </p>
+    )
+  if (!arm.fields.length) return <p className="text-muted-foreground text-sm">No fields.</p>
+  return <FieldsTable fields={arm.fields} nav={nav} />
 }
 
 /** {@link IntersectionView} for a schema that may name published types: fetches them first. */

@@ -51,7 +51,9 @@ describe('intersection editing', () => {
     expect(structFormFits(schema)).toBe(true)
     render(schema, () => {})
     expect(container.querySelector('[data-testid="schema-intersection-form"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="schema-inherited-fields"]')?.textContent).toContain('employeeId')
+    const sections = Array.from(container.querySelectorAll('[data-testid="schema-intersection-part"]'))
+    expect(sections[0]!.textContent).toContain('employeeId')
+    expect(sections.at(-1)!.querySelector('h3')?.textContent).toBe('Custom Fields (struct)')
   })
 
   it('adding a field creates the inline struct part', () => {

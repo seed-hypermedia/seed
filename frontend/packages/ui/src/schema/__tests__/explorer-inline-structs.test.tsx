@@ -50,15 +50,15 @@ const mount = (schema: any, request: any = vi.fn(async () => ({}))) =>
 const armText = (testid: string) => container.querySelector(`[data-testid="${testid}"] ul`)?.textContent ?? ''
 
 describe('inline structs show their fields', () => {
-  it('an intersection reads as its merged fields', () => {
+  it('an intersection reads part by part: the included type, then its custom fields', () => {
     mount({allOf: [{type: nameToUrl('example/employee')}, CONTACT]})
-    const heading = container.querySelector('[data-testid="schema-intersection-heading"]')?.textContent ?? ''
-    expect(heading).toContain('all fields of')
-    const rows = Array.from(container.querySelectorAll('[data-testid="schema-merged-fields"] tbody > tr'))
-    const row = (name: string) => rows.find((r) => r.querySelector('td')?.textContent?.startsWith(name))
-    expect(row('employeeId')).toBeDefined()
-    expect(row('email')).toBeDefined()
-    expect(row('phone')?.textContent).toContain('optional')
+    const sections = Array.from(container.querySelectorAll('[data-testid="schema-intersection-part"]'))
+    expect(sections).toHaveLength(2)
+    expect(sections[0]!.querySelector('h3')?.textContent).toMatch(/^Fields of /)
+    expect(sections[0]!.textContent).toContain('employeeId')
+    expect(sections[1]!.querySelector('h3')?.textContent).toBe('Custom Fields (struct)')
+    expect(sections[1]!.textContent).toContain('email')
+    expect(sections[1]!.textContent).toContain('phone')
   })
 
   it('an inline anyOf arm', () => {
@@ -102,9 +102,9 @@ describe('an intersection over a published type', () => {
     mount({allOf: [{type: EMPLOYEE_URL}, CONTACT]}, request)
     await flush()
     await flush()
-    const merged = container.querySelector('[data-testid="schema-merged-fields"]')?.textContent ?? ''
-    expect(merged).toContain('employeeId')
-    expect(merged).toContain('email')
+    const text = container.querySelector('[data-testid="schema-intersection"]')?.textContent ?? ''
+    expect(text).toContain('employeeId')
+    expect(text).toContain('email')
   })
 
   it('keeps fetching while the arm is not found, then says which arm is missing', async () => {
