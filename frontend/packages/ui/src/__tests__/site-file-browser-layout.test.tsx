@@ -32,8 +32,8 @@ vi.mock('@shm/shared/utils/navigation', async () => {
 })
 vi.mock('../site-sidebar', () => ({
   SiteSidebar: ({children}: {children: React.ReactNode}) => <aside>{children}</aside>,
-  SiteSidebarDocuments: ({onNavigate}: {onNavigate: (id: ReturnType<typeof hmId>) => void}) => (
-    <button onClick={() => onNavigate(hmId('site', {path: ['doc']}))}>Open document</button>
+  SiteSidebarDocuments: ({onAfterNavigate}: {onAfterNavigate?: () => void}) => (
+    <button onClick={onAfterNavigate}>Open document</button>
   ),
 }))
 
@@ -60,7 +60,6 @@ afterEach(() => {
 
 function Page({space = 'site', showDocumentBrowser}: {space?: string; showDocumentBrowser?: boolean}) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [path, setPath] = useState('Home')
   return (
     <TooltipProvider>
       <SiteFileBrowserLayout
@@ -69,11 +68,11 @@ function Page({space = 'site', showDocumentBrowser}: {space?: string; showDocume
         siteName="Site"
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
-        onNavigate={(id) => setPath(id.path!.join('/'))}
+        onNavigate={() => {}}
         showDocumentBrowser={showDocumentBrowser}
       >
         <SiteSidebarToggle />
-        <main>{path}</main>
+        <main>Home</main>
       </SiteFileBrowserLayout>
     </TooltipProvider>
   )
@@ -119,7 +118,6 @@ describe('unified site sidebar layout', () => {
     clickToggle()
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     act(() => document.querySelector<HTMLButtonElement>('[role="dialog"] button')!.click())
-    expect(container.querySelector('main')?.textContent).toBe('doc')
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(localStorage.getItem('seed.site-sidebar.open')).toBe('true')
   })

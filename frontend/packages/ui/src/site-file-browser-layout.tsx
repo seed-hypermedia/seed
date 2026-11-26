@@ -12,7 +12,8 @@ import {useMedia} from './use-media'
 
 /** Page-owned browser data; desktop renders it in the existing application sidebar. */
 export interface SiteFileBrowserLayoutProps
-  extends Omit<SiteFileBrowserProps, 'searchVisible' | 'onSearchVisibleChange'> {
+  extends Omit<SiteFileBrowserProps, 'searchVisible' | 'onSearchVisibleChange' | 'onAfterNavigate'> {
+  onNavigate: (id: SiteFileBrowserProps['siteId']) => void
   siteName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
@@ -116,14 +117,7 @@ function WebSiteSidebarLayout({
       onNavigate={props.onNavigate}
       onAfterNavigate={closeDrawer}
     >
-      <SiteSidebarDocuments
-        {...props}
-        onNavigate={(id) => {
-          closeDrawer()
-          props.onNavigate(id)
-        }}
-        onCreate={closeDrawer}
-      />
+      <SiteSidebarDocuments {...props} onAfterNavigate={closeDrawer} onCreate={closeDrawer} />
     </SiteSidebar>
   )
   const updateOpen = (value: boolean) => {
