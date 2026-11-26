@@ -4,7 +4,7 @@
 import {useMemo, useState} from 'react'
 import {Input} from '../components/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
-import {HM_SCHEMAS, isLibraryCore, kindOf, nameToUrl, namedSchemaUrl} from './engine'
+import {HM_SCHEMAS, isLibraryCore, kindOf, nameToUrl, namedSchemaUrl, resolveSchema} from './engine'
 
 const NONE = ' none'
 const CUSTOM = ' custom'
@@ -15,6 +15,11 @@ export function instantiableLibrarySchemas(): {name: string; label: string; ref:
     .filter(([name, s]) => {
       if (isLibraryCore(name)) return false
       if (s.anyOf) return false
+      // An intersection is the struct its arms merge into.
+      if (Array.isArray(s.allOf)) {
+        const merged = resolveSchema(s).schema
+        return !merged.__invalid && !!(merged.properties || merged.values)
+      }
       // A schema naming another is struct-shaped when what it names is.
       const kind = namedSchemaUrl(s) ? 'struct' : s.type ? kindOf(s.type) : null
       return (kind === 'map' || kind === 'struct') && (s.properties || s.values)

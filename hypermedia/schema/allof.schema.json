@@ -1,0 +1,38 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "allOf": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/schema"
+        },
+        "minItems": 1
+      },
+      "required": true,
+      "description": "The schemas to combine; a value must satisfy every one. Each arm must be a struct or map (or name one); their fields merge into one struct."
+    },
+    "description": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What the intersection is for, when it is written inline; a published schema is described by its page."
+    },
+    "params": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/schema"
+        }
+      },
+      "description": "Type parameters that make this schema generic, each with its default schema."
+    },
+    "name": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Legacy: a name some published schemas still carry. New schemas are named by their page."
+    }
+  },
+  "description": "An intersection schema: a value is valid if it satisfies every schema listed under `allOf`. The arms are structs, and they merge into one."
+}

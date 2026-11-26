@@ -1,10 +1,10 @@
 ---
 name: Variant
-summary: "A variant is one of the shapes a schema can take: nine are closed maps, and four let a bare string, integer, boolean or null be a schema."
+summary: "A variant is one of the shapes a schema can take: ten are closed maps, and four let a bare string, integer, boolean or null be a schema."
 ---
 A **variant** is one of the shapes a schema can take. The [meta-schema](../schema.md) is a [union](./anyof.md), and each variant is one member of that union. A valid schema matches one of them. <!-- id:ndDb3Ur5 -->
 
-Nine variants are [closed maps](./closed-map.md):
+Ten variants are [closed maps](./closed-map.md):
 
 - [`schema/struct-schema`](./struct-schema.md)
 - [`schema/map-schema`](./map-schema.md)
@@ -13,6 +13,7 @@ Nine variants are [closed maps](./closed-map.md):
 - [`schema/link-schema`](./link-schema.md)
 - [`schema/include-schema`](./include-schema.md)
 - [`schema/anyof`](./anyof.md)
+- [`schema/allof`](./allof.md)
 - [`schema/var-schema`](./var-schema.md)
 - [`schema/literal-schema`](./literal-schema.md)
 
@@ -22,5 +23,6 @@ The other four let a plain value be a schema: a bare string, integer, boolean or
 
 - [Discriminated union](./discriminated-union.md): how a value picks its variant. <!-- id:uVQINlXK -->
 - [Union schema](./anyof.md): the `anyOf` construct the meta-schema uses. <!-- id:04z1MQuG -->
+- [Intersection schema](./allof.md): the `allOf` variant.
 - [Primitive](./primitive.md): one finished schema, which is a different thing. <!-- id:LYRm9FQ2 -->
 - [Closed map](./closed-map.md): why each variant rejects stray keys. <!-- id:ly-qAxF2 -->

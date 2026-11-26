@@ -23,9 +23,13 @@ import {
   schemaCid,
   structFields,
   type HypermediaSchema,
+  type SchemaRegistry,
   type StructField,
 } from './engine'
 import {useSchemaRegistry} from './schema-registry-cid'
+import {useHydratedRegistry} from './schema-resolve'
+import {intersectionOf, isInlineStructArm, type IntersectionArm} from './intersection'
+import {useTypeLabel} from './schema-type-input'
 import {kindColor} from './schema-colors'
 import {HM_SCHEMA_PAGES} from './schema-registry.generated'
 import {isSignedBlobSchema} from './signed-blob'
@@ -47,12 +51,126 @@ const KINDS = [
 ] as const
 const isPrimitive = (name: string) => KINDS.includes(name as any)
 const primitiveKind = (name: string) => name
-const META_VARIANTS = ['schema/anyof', 'schema/property']
+const META_VARIANTS = ['schema/anyof', 'schema/allof', 'schema/property']
 const isMetaVariant = (name: string) =>
   META_VARIANTS.includes(name) || (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema')
 const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 
 // --- small pieces ----------------------------------------------------------
+
+/**
+ * An intersection (`allOf`), read part by part: "Fields of [Employee]" for each type it includes,
+ * then "Custom Fields (struct)" for the fields it adds itself. The registry resolves parts that name
+ * published types.
+ */
+export function IntersectionView({
+  schema,
+  nav,
+  registry = {},
+  isLoading = false,
+}: {
+  schema: HypermediaSchema
+  nav: (slug: string) => void
+  registry?: SchemaRegistry
+  isLoading?: boolean
+}) {
+  const open = useRefClick(nav)
+  const parts = intersectionOf(schema, registry)
+  return (
+    <div className="flex flex-col gap-3" data-testid="schema-intersection">
+      <p className="text-sm" data-testid="schema-intersection-heading">
+        <Chip label="Intersection" onClick={() => nav('schema/allof')} />
+      </p>
+      {parts.merged.__invalid && (
+        <p className="text-destructive text-sm" data-testid="schema-merged-invalid">
+          {parts.merged.__invalid}
+        </p>
+      )}
+      {parts.arms.map((arm) =>
+        arm.url ? (
+          <PartSection
+            key={arm.index}
+            title={
+              <>
+                Fields of <TypeChipLink url={arm.url} onClick={() => open(arm.url!)} />
+              </>
+            }
+          >
+            <IntersectionPartFields arm={arm} isLoading={isLoading} nav={nav} />
+          </PartSection>
+        ) : isInlineStructArm(arm.node) ? (
+          <PartSection key={arm.index} title={customFieldsTitle(arm.node)}>
+            <FieldsTable fields={structFields(arm.node)} nav={nav} />
+          </PartSection>
+        ) : null,
+      )}
+    </div>
+  )
+}
+
+/** The heading of an intersection's inline part: "Custom Fields (struct)". */
+export const customFieldsTitle = (node: HypermediaSchema) => `Custom Fields (${kindOf(node.type) || 'struct'})`
+
+/** One part of an intersection: a heading and its fields. */
+export function PartSection({title, children}: {title: React.ReactNode; children: React.ReactNode}) {
+  return (
+    <section className="flex flex-col gap-1.5 pt-1" data-testid="schema-intersection-part">
+      <h3 className="text-muted-foreground flex flex-wrap items-center gap-2 font-sans text-[11px] font-semibold tracking-[0.08em] uppercase [&_button]:font-normal [&_button]:tracking-normal [&_button]:normal-case [&_input]:font-normal [&_input]:tracking-normal [&_input]:normal-case">
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+/** The fields a named part of an intersection brings, or why they are not shown yet. */
+export function IntersectionPartFields({
+  arm,
+  isLoading,
+  nav = () => {},
+}: {
+  arm: IntersectionArm
+  isLoading: boolean
+  nav?: (slug: string) => void
+}) {
+  if (arm.missing)
+    return isLoading ? (
+      <p className="text-muted-foreground text-sm" data-testid="schema-merged-loading">
+        Fetching…
+      </p>
+    ) : (
+      <p className="text-destructive text-sm" data-testid="schema-merged-missing">
+        {refLabel(arm.url!)} was not found.
+      </p>
+    )
+  if (!arm.fields.length) return <p className="text-muted-foreground text-sm">No fields.</p>
+  return <FieldsTable fields={arm.fields} nav={nav} />
+}
+
+/** {@link IntersectionView} for a schema that may name published types: fetches them first. */
+function HydratedIntersectionView({schema, nav}: {schema: HypermediaSchema; nav: (slug: string) => void}) {
+  const {registry, isLoading} = useHydratedRegistry(schema)
+  return <IntersectionView schema={schema} nav={nav} registry={registry} isLoading={isLoading} />
+}
+
+function TypeChipLink({url, onClick}: {url: string; onClick: () => void}) {
+  const label = useTypeLabel(url)
+  return <Chip label={label && label !== url ? label : refLabel(url)} title={url} onClick={onClick} />
+}
+
+/** An inline struct's own fields, indented beneath it: what a bare "struct" badge would hide. */
+function InlineFields({node, nav}: {node: HypermediaSchema; nav: (slug: string) => void}) {
+  return (
+    <div className="border-border mt-1 border-l pl-3" data-testid="schema-inline-fields">
+      <FieldsTable fields={structFields(node)} nav={nav} nested />
+      {node.values !== undefined && (
+        <div className="text-muted-foreground py-1 text-xs">
+          other fields: <SchemaRef node={node.values} nav={nav} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** The display name of a library schema: its page's name, else its slug. */
 const pageName = (slug: string) => HM_SCHEMA_PAGES[slug]?.name ?? slug
@@ -146,8 +264,22 @@ function Chip({
   )
 }
 
-/** Compact, clickable rendering of a schema reference node. */
-function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React.ReactElement {
+/**
+ * Compact, clickable rendering of a schema reference node. A named type is a chip; an inline struct
+ * (a node that spells out its own `properties`, wherever it sits: a union or intersection arm, list
+ * items, map values, a type argument) shows its fields beneath its badge, since a bare "struct"
+ * says nothing. `expand={false}` is for a caller that lays those fields out itself (the fields
+ * table, under a field's row).
+ */
+function SchemaRef({
+  node,
+  nav,
+  expand = true,
+}: {
+  node: any
+  nav: (slug: string) => void
+  expand?: boolean
+}): React.ReactElement {
   const open = useRefClick(nav)
   if (node === undefined) return <span className="text-muted-foreground">any</span>
   if (isLiteralSchema(node)) {
@@ -179,6 +311,18 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         {node.anyOf.map((v: any, i: number) => (
           <span key={i}>
             {i > 0 && <span className="text-muted-foreground"> | </span>}
+            <SchemaRef node={v} nav={nav} />
+          </span>
+        ))}
+      </span>
+    )
+  if (node.allOf)
+    return (
+      <span>
+        <span className="text-muted-foreground">all of </span>
+        {node.allOf.map((v: any, i: number) => (
+          <span key={i}>
+            {i > 0 && <span className="text-muted-foreground"> & </span>}
             <SchemaRef node={v} nav={nav} />
           </span>
         ))}
@@ -240,11 +384,19 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
     return (
       <span>
         <KindBadge kind="list" nav={nav} /> <span className="text-muted-foreground">of</span>{' '}
-        <SchemaRef node={node.items} nav={nav} />
+        <SchemaRef node={node.items} nav={nav} expand={expand} />
       </span>
     )
   if (k === 'map' || k === 'struct') {
-    if (node.properties) return <KindBadge kind={k} nav={nav} />
+    if (node.properties && typeof node.properties === 'object') {
+      if (!expand) return <KindBadge kind={k} nav={nav} />
+      return (
+        <span className="inline-block w-full min-w-0 align-top">
+          <KindBadge kind={k} nav={nav} />
+          <InlineFields node={node} nav={nav} />
+        </span>
+      )
+    }
     if (node.values)
       return (
         <span>
@@ -317,6 +469,22 @@ export function DepLists({name, nav}: {name: string; nav: (slug: string) => void
   )
 }
 
+/** A union's or intersection's arms, one per row; an inline arm's fields open beneath it. */
+function ArmList({arms, marker, nav}: {arms: any[]; marker: string; nav: (slug: string) => void}) {
+  return (
+    <ul className="flex flex-col gap-0.5 pl-1">
+      {arms.map((v: any, i: number) => (
+        <li key={i} className="flex items-baseline gap-1.5 text-sm">
+          <span className="text-muted-foreground select-none">{marker}</span>
+          <div className="min-w-0 flex-1">
+            <SchemaRef node={v} nav={nav} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /**
  * The inline struct a field's schema spells out — its own `properties`, directly or as the items
  * of a list — so the fields table can expand it in place. A named type (a `ref`) is a link instead.
@@ -336,7 +504,8 @@ function FieldsTable({
   nested,
 }: {
   fields: StructField[]
-  origins?: Record<string, 'added' | 'inherited'>
+  /** Where a field comes from, shown beside it (an inherited or included field); absent: its own. */
+  origins?: Record<string, React.ReactNode>
   nav: (slug: string) => void
   /** Rendered beneath a parent field: no scroll container of its own. */
   nested?: boolean
@@ -372,27 +541,22 @@ function FieldsTable({
                   )}
                 </td>
                 <td className="py-1.5 pr-4 align-top">
-                  <SchemaRef node={f.schema} nav={nav} />
+                  <SchemaRef node={f.schema} nav={nav} expand={!sub} />
                 </td>
                 <td className="py-1.5 text-right align-top text-xs whitespace-nowrap">
                   {/* Required is the default, so only optional is spelled out. */}
                   {!f.required && <span className="text-muted-foreground">optional</span>}
-                  {origins?.[f.name] === 'inherited' && (
-                    <span className="text-muted-foreground">{f.required ? 'inherited' : ' · inherited'}</span>
+                  {origins?.[f.name] != null && (
+                    <div className="text-muted-foreground" data-testid="schema-field-origin">
+                      {origins[f.name]}
+                    </div>
                   )}
                 </td>
               </tr>
               {sub && (
                 <tr className="border-border/50 border-b last:border-0" data-testid={`schema-nested-fields-${f.name}`}>
                   <td colSpan={3} className="pb-2 pl-4">
-                    <div className="border-border border-l pl-3">
-                      <FieldsTable fields={structFields(sub)} nav={nav} nested />
-                      {sub.values !== undefined && (
-                        <p className="text-muted-foreground py-1 text-xs">
-                          other fields: <SchemaRef node={sub.values} nav={nav} />
-                        </p>
-                      )}
-                    </div>
+                    <InlineFields node={sub} nav={nav} />
                   </td>
                 </tr>
               )}
@@ -435,6 +599,7 @@ export function SchemaDocPage({
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
   const isUnion = Array.isArray(schema.anyOf)
+  const isIntersection = Array.isArray(schema.allOf)
   const isPrim = isPrimitive(slug)
   // A schema that NAMES another (rather than a kind) includes it; with any refinement it is a subtype.
   const base = namedSchemaUrl(schema)
@@ -467,38 +632,50 @@ export function SchemaDocPage({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {schema.anyOf.map((v: any, i: number) => {
           const b = namedSchemaUrl(v) ? refToName(namedSchemaUrl(v)!) : null
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={b ? () => nav(b) : undefined}
-              className={cn(
-                'border-border rounded-md border p-2 text-left',
-                b && 'hover:border-primary/50 hover:bg-muted/50 cursor-pointer',
-              )}
-            >
+          const body = (
+            <>
               <div className="font-mono text-xs">{b ?? 'inline'}</div>
               <div className="mt-1">
                 <SchemaRef node={v} nav={nav} />
               </div>
+            </>
+          )
+          // An inline variant's fields expand into a table, which cannot sit inside a button.
+          if (!b)
+            return (
+              <div key={i} className="border-border col-span-full rounded-md border p-2 text-left">
+                {body}
+              </div>
+            )
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => nav(b)}
+              className="border-border hover:border-primary/50 hover:bg-muted/50 cursor-pointer rounded-md border p-2 text-left"
+            >
+              {body}
             </button>
           )
         })}
       </div>
     )
+  } else if (isIntersection) {
+    // The merged struct is the page; the heading says what it combines (bundled parts need no fetch).
+    main = <IntersectionView schema={schema} nav={nav} />
   } else if (hasExt) {
     const parent = refToName(base!)
     const eff = resolveSchema(schema).schema
     const added = new Set(structFields(schema).map((f) => f.name))
     const effFields = structFields(eff)
-    const origins: Record<string, 'added' | 'inherited'> = {}
-    for (const f of effFields) origins[f.name] = added.has(f.name) ? 'added' : 'inherited'
+    const origins: Record<string, React.ReactNode> = {}
+    for (const f of effFields) if (!added.has(f.name)) origins[f.name] = 'inherited'
     lead = <ExtendsLine slug={parent} onClick={() => nav(parent)} />
     main = <FieldsTable fields={effFields} origins={origins} nav={nav} />
   } else if (base && schema.args) {
     const parent = refToName(base)
     lead = (
-      <p className="text-sm">
+      <div className="text-sm">
         <Tag kind="var">instantiation</Tag> <span className="text-muted-foreground">of</span>{' '}
         <Chip label={parent} onClick={() => nav(parent)} />
         <span className="text-muted-foreground">⟨</span>
@@ -509,7 +686,7 @@ export function SchemaDocPage({
           </span>
         ))}
         <span className="text-muted-foreground">⟩</span>
-      </p>
+      </div>
     )
   } else if (base) {
     const parent = refToName(base)
@@ -533,9 +710,9 @@ export function SchemaDocPage({
     }
     if ((kindOf(schema.type) === 'map' || kindOf(schema.type) === 'struct') && schema.values)
       main = (
-        <p className="text-sm">
+        <div className="text-sm">
           Open map — every value: <SchemaRef node={schema.values} nav={nav} />
-        </p>
+        </div>
       )
   }
 
@@ -670,7 +847,7 @@ export function SchemaView({
         <ExtendsLine slug={kind} onClick={() => nav(kind)} />
       ) : null}
       {schema.params && (
-        <p className="text-sm" data-testid="schema-params">
+        <div className="text-sm" data-testid="schema-params">
           <span className="text-muted-foreground">Generic over</span>{' '}
           {Object.entries(schema.params).map(([p, def], i) => (
             <span key={p}>
@@ -681,7 +858,7 @@ export function SchemaView({
               </span>
             </span>
           ))}
-        </p>
+        </div>
       )}
       {schema.anyOf ? (
         // A root union as a LIST — one variant per row. Inlining them (with the "one of …"
@@ -693,15 +870,10 @@ export function SchemaView({
               · one of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
             </span>
           </p>
-          <ul className="flex flex-col gap-0.5 pl-1">
-            {schema.anyOf.map((v: any, i: number) => (
-              <li key={i} className="flex items-baseline gap-1.5 text-sm">
-                <span className="text-muted-foreground select-none">·</span>
-                <SchemaRef node={v} nav={nav} />
-              </li>
-            ))}
-          </ul>
+          <ArmList arms={schema.anyOf} marker="·" nav={nav} />
         </div>
+      ) : schema.allOf ? (
+        <HydratedIntersectionView schema={schema} nav={nav} />
       ) : schema.properties ? (
         <FieldsTable fields={structFields(schema)} nav={nav} />
       ) : null}

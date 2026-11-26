@@ -10,15 +10,15 @@
 // A document's EFFECTIVE attributes schema is its own metadata `attributesSchema`,
 // or — when absent — its parent's `childAttributesSchema`. The resolved schema is a
 // struct of attributes, which drives required-field UI.
-import {useMemo} from 'react'
-import {useQuery} from '@tanstack/react-query'
+import {useEffect, useMemo} from 'react'
+import {useQuery, useQueryClient} from '@tanstack/react-query'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useUniversalClient} from '@shm/shared/routing'
 import {draftBindingSchemaDrafts} from '@shm/shared/models/schema-draft'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {HM_SCHEMAS, type HypermediaSchema, type SchemaRegistry, schemaCid} from './engine'
+import {HM_SCHEMAS, type HypermediaSchema, loadFrom, type SchemaRegistry, schemaCid} from './engine'
 import {useSchemaRegistry} from './schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
@@ -46,15 +46,49 @@ export function useHydratedRegistry(schema: HypermediaSchema | undefined): {
 } {
   const client = useUniversalClient()
   const refs = useMemo(() => externalSchemaRefs(schema), [schema])
+  // A referenced type document this node has never seen is "not found" until discovery fetches it
+  // from the network (desktop). Subscribe each one so discovery runs, and re-hydrate until every
+  // reference resolves, rather than caching the first miss as the answer.
+  const docIds = useMemo(
+    () =>
+      refs.flatMap((ref) => {
+        const cls = classifyRef(ref)
+        const id = cls.kind === 'hm-doc' ? unpackHmId(cls.url) : null
+        return id ? [id] : []
+      }),
+    [refs],
+  )
+  const subscribeEntity = client.subscribeEntity
+  useEffect(() => {
+    if (!subscribeEntity || !docIds.length) return
+    const cleanups = docIds.map((id) => subscribeEntity({id}))
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }, [subscribeEntity, docIds])
+  const queryKey = [queryKeys.ENTITY, 'schema-registry', refs]
+  const queryClient = useQueryClient()
   const query = useQuery({
-    queryKey: [queryKeys.ENTITY, 'schema-registry', refs],
+    queryKey,
     enabled: refs.length > 0,
     staleTime: 60_000,
     queryFn: () => hydrateSchemaRegistry(client as unknown as SchemaFetchClient, schema, {}),
+    refetchInterval: (data, q) =>
+      data && !isComplete(data, refs) && q.state.dataUpdateCount < HYDRATE_ATTEMPTS ? HYDRATE_RETRY_MS : false,
   })
   if (refs.length === 0) return {registry: EMPTY_REGISTRY, isLoading: false}
-  return {registry: query.data ?? EMPTY_REGISTRY, isLoading: query.isLoading}
+  const registry = query.data ?? EMPTY_REGISTRY
+  // Every re-hydration returns an equal registry while a ref stays missing, so `data` does not change;
+  // reading `dataUpdatedAt` re-renders on each attempt, so the last one ends the loading state.
+  void query.dataUpdatedAt
+  const attempts = queryClient.getQueryState(queryKey)?.dataUpdateCount ?? 0
+  const retrying = !!query.data && !isComplete(query.data, refs) && attempts < HYDRATE_ATTEMPTS
+  return {registry, isLoading: query.isLoading || retrying}
 }
+
+/** How often, and how many times, to re-hydrate while a referenced type is still unresolved. */
+const HYDRATE_RETRY_MS = 2_000
+const HYDRATE_ATTEMPTS = 15
+
+const isComplete = (registry: SchemaRegistry, refs: string[]) => refs.every((ref) => !!loadFrom(registry, ref))
 
 /**
  * Resolve a single schema reference to its Hypermedia schema. Async only for the
@@ -73,7 +107,8 @@ export function useResolvedSchema(ref: string | null | undefined): {
 
   // hm-doc: fetch the schema-definition document, read its `schemaDefinition`.
   const docId = useMemo(() => (cls.kind === 'hm-doc' ? unpackHmId(cls.url) : null), [cls])
-  const resource = useResource(docId)
+  // Subscribed: a type document this node has not synced yet is discovered, not left "not found".
+  const resource = useResource(docId, {subscribed: true})
   const docSchemaCid = useMemo(() => {
     if (cls.kind !== 'hm-doc') return null
     const data = resource.data

@@ -6,9 +6,10 @@ A **discriminated union** is a type that is one of a fixed set of shapes. Someth
 
 Each shape is a [variant](./variant.md). You write a discriminated union with [`anyOf`](./anyof.md), one arm per variant.
 
-In the [meta-schema](../schema.md) the discriminant is the `type` tag, plus five other tests:
+In the [meta-schema](../schema.md) the discriminant is the `type` tag, plus six other tests:
 
 - the node has `anyOf`,
+- the node has `allOf`,
 - the node has `var`,
 - the node has `value`,
 - `type` names a schema instead of a [kind](./kind.md),

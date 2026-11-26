@@ -17,7 +17,7 @@ Here is a small schema. It says: the data is a map with one required field, `sur
 
 The value `{"surname": "Smith"}` matches this schema. The values `{}` and `{"surname": 7}` do not.
 
-The one schema that describes all schemas is the **meta-schema**. Its name is `schema`, and this page is its home. The meta-schema lists every shape a schema can take: nine shapes that are maps, and four kinds of plain value. Each shape is called a [variant](./schema/variant.md). A plain value such as `"draft"`, `1`, `true` or `null` is a [literal](./schema/literal-schema.md): a schema that accepts only that one value. The meta-schema is a [discriminated union](./schema/discriminated-union.md), which means it picks one variant for each schema it checks. It also [describes itself](./schema/self-description.md): it is a valid schema by its own rules. Software knows the meta-schema without looking it up. <!-- id:bXl0LFcD -->
+The one schema that describes all schemas is the **meta-schema**. Its name is `schema`, and this page is its home. The meta-schema lists every shape a schema can take: ten shapes that are maps, and four kinds of plain value. Each shape is called a [variant](./schema/variant.md). A plain value such as `"draft"`, `1`, `true` or `null` is a [literal](./schema/literal-schema.md): a schema that accepts only that one value. The meta-schema is a [discriminated union](./schema/discriminated-union.md), which means it picks one variant for each schema it checks. It also [describes itself](./schema/self-description.md): it is a valid schema by its own rules. Software knows the meta-schema without looking it up. <!-- id:bXl0LFcD -->
 
 The formal schema of the meta-schema is attached to this page. The `schemaDefinition` key in this page's [metadata](./metadata.md) points at it, so the [Seed app](./software/desktop.md) can show it and create values of this type. This page is also the starting point for all the pages about Hypermedia Schemas. They are listed below. <!-- id:y93xpe-t -->
 
@@ -26,7 +26,7 @@ The formal schema of the meta-schema is attached to this page. The `schemaDefini
 **Hypermedia Schemas are a type system for content-addressed data.** Content-addressed data is data that is named by the hash of its bytes. The schemas type the [IPLD](./schema/ipld.md) and [DAG-CBOR](./schema/dag-cbor.md) values that Hypermedia [blocks](./protocol/blocks.md) and [blobs](./protocol/blobs.md) are built from. A schema is itself a DAG-CBOR object on IPFS. So a schema [references](./schema/references.md) another schema the same way data references data. <!-- id:YSBcigax -->
 
 - Every value is one of **nine [kinds](./schema/kind.md)**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`. <!-- id:Zyqnpby8 -->
-- A **schema** names a kind or another schema with `type`. The other keys narrow what it names: `properties` for the fields of a [struct](./struct.md), `items` for a list, `values` for a map, `anyOf` for a union, and value constraints such as `minLength` and `pattern`. A fixed set of choices is a [union](./schema/anyof.md) of literals. The words are all in [the schema language](./schema/schema-language.md). <!-- id:Jb3Yvg3p -->
+- A **schema** names a kind or another schema with `type`. The other keys narrow what it names: `properties` for the fields of a [struct](./struct.md), `items` for a list, `values` for a map, `anyOf` for a union, `allOf` for an intersection, and value constraints such as `minLength` and `pattern`. A fixed set of choices is a [union](./schema/anyof.md) of literals. The words are all in [the schema language](./schema/schema-language.md). <!-- id:Jb3Yvg3p -->
 - Schemas reference each other by **[hm:// URL](./protocol/urls.md)**, which is a name. Two names can point at each other in a circle. Two [content hashes cannot](./schema/fixpoint-problem.md). So names let types refer to themselves and to each other. <!-- id:KVkmtla5 -->
 - You can publish a schema as a normal Hypermedia [document](./protocol/documents.md). The document's [metadata](./metadata.md) has a `schemaDefinition` key that points at the schema [blob](./protocol/blobs.md) as `ipfs://<cid>`. Other schemas and documents then reference the document by name, and the [CID](./cid.md) pins the exact bytes. The type system lives on the same network it types. <!-- id:lp-qJpvG -->
 - The editors only **warn** about data that breaks its schema, and never block a save. The validator, the checks of the [CLI](./build/cli.md) and the blob writes of an [agent](./agent.md) are **strict**: they refuse it. <!-- id:4a6RPK0p -->
@@ -58,6 +58,7 @@ Each word below links the page that defines it. <!-- id:lZdOYrQc -->
 - [Discriminated union](./schema/discriminated-union.md) <!-- id:J59mZ_xm -->
 - [Variant](./schema/variant.md) <!-- id:U_8ZZLK1 -->
 - [`anyOf`](./schema/anyof.md) <!-- id:OEIBJ8uy -->
+- [`allOf`](./schema/allof.md)
 - [Literal](./schema/literal-schema.md) <!-- id:iqoj9WTF -->
 - [Generic](./schema/generic.md) <!-- id:gHpr96Jy -->
 - [Primitive](./schema/primitive.md) <!-- id:ghSoMqHP -->
@@ -163,3 +164,5 @@ Each word below links the page that defines it. <!-- id:lZdOYrQc -->
 <./schema/envelope.md> <!-- id:p9JdRLWd type:Embed attrs:{"view":"Card"} -->
 
 <./schema/canonical-encoding.md> <!-- id:N2Gd4M8r type:Embed attrs:{"view":"Card"} -->
+
+<./schema/allof.md> <!-- id:rYqiYn4w type:Embed attrs:{"view":"Card"} -->

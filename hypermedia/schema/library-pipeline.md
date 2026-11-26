@@ -91,7 +91,7 @@ So the types live on the same network as the data they describe. When you browse
 - A [struct](../struct.md) becomes an object type.
 - A literal becomes a literal type.
 - `anyOf` becomes a union.
-- An extension becomes an intersection.
+- An extension becomes an [intersection](./allof.md).
 - An open map becomes an index signature.
 - `params`, `var` and `args` become real generics, so `Change<Block>` in the schema is `HMChange<Block>` in TypeScript.
 - A schema that refers to itself becomes a recursive type.

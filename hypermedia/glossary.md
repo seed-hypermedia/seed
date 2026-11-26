@@ -143,7 +143,7 @@ Hypermedia is the protocol, and Seed is the software that runs it. When an entry
 - **Hypermedia Schemas.** The type system for content-addressed data. A schema is published as a DAG-CBOR blob, and a document names the schema it follows. Some code and file names call the system Onyx. See [Schema](./schema.md) and [Why Schemas](./schema/why.md). <!-- id:0s5lTCFA -->
 - **Meta-schema.** The schema of schemas: a union of every shape a schema can take. It is itself a valid instance of that union. See [Schema](./schema.md) and [Self-description](./schema/self-description.md). <!-- id:Gm3K0OFt -->
 - **Self-description.** The meta-schema is a schema too, so it must pass its own check, and it does. See [Self-Description](./schema/self-description.md).
-- **Schema language.** The set of keys you use to write a schema. A schema is a map built from twelve keys, and every key is optional. See [Schema Language](./schema/schema-language.md).
+- **Schema language.** The set of keys you use to write a schema. A schema is a map built from thirteen keys, and every key is optional. See [Schema Language](./schema/schema-language.md).
 - **Typed document.** A document whose metadata says which schema its attributes follow. See [Typed Documents](./schema/typed-documents.md). <!-- id:xerPJRf7 -->
 - **`schemaDefinition`.** A metadata key that holds the `ipfs://` CID of the schema a document defines. See [Typed Documents](./schema/typed-documents.md). <!-- id:rwrMM4FI -->
 - **`attributesSchema`.** A metadata key that names the schema the document's own attributes must follow. See [Typed Documents](./schema/typed-documents.md). <!-- id:-cQc8P7k -->
@@ -153,7 +153,7 @@ Hypermedia is the protocol, and Seed is the software that runs it. When an entry
 - **IPLD data model.** The rule that every value is one of nine kinds. See [Data Model](./schema/data-model.md). <!-- id:SO32xew_ -->
 - **Kind.** One of the nine basic sorts of value: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map` and `link`. See [Kind](./schema/kind.md).
 - **Ready-made value types.** The types the library gives you for one value: [string](./string.md), [integer](./integer.md), [float](./float.md), [boolean](./boolean.md), [bytes](./bytes.md), [null](./null.md), [list](./list.md), [map](./map.md), [link](./link.md), [date](./date.md), [date-time](./date-time.md), [URL](./url.md), [Hypermedia URL](./hm-url.md), [IPFS URL](./ipfs-url.md), [account](./account.md), [any](./any.md) and [none](./none.md). See [Catalogue of Types](./schema/types.md).
-- **Variant.** One member of the meta-schema union: a struct, map, list, scalar, link, include, union, variable or literal schema. A bare string, integer, boolean or null is a literal too. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
+- **Variant.** One member of the meta-schema union: a struct, map, list, scalar, link, include, union, intersection, variable or literal schema. A bare string, integer, boolean or null is a literal too. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
 - **Scalar schema.** A schema for one single value that is not a collection: null, boolean, integer, float, string or bytes. Limits such as `minLength` can narrow what it accepts. See [Scalar schema](./schema/scalar-schema.md).
 - **Struct.** A map whose keys are known in advance, such as a person with the fields `name` and `age`. It is not a tenth kind: when stored, a struct is a map. See [Struct](./struct.md).
 - **Struct schema.** A schema for a map with known fields. Each field is a property. See [Struct schema](./schema/struct-schema.md) and [Property](./schema/property.md). <!-- id:RbR5twB1 -->
@@ -163,7 +163,8 @@ Hypermedia is the protocol, and Seed is the software that runs it. When an entry
 - **List schema.** A schema for a list whose items all follow one schema. See [List schema](./schema/list-schema.md). <!-- id:TKRNLE7O -->
 - **Literal.** A schema that accepts exactly one value. A fixed set of choices is a union of literals. See [Literal schema](./schema/literal-schema.md). <!-- id:GPfun5BC -->
 - **Union.** A schema that matches any one of several alternatives. When the alternatives are tagged, a field called the discriminant tells them apart. See [Union schema](./schema/anyof.md) and [Discriminated union](./schema/discriminated-union.md). <!-- id:Uw0jj-eH -->
-- **Arm.** One of the schemas listed under `anyOf` in a union. See [Union schema](./schema/anyof.md).
+- **Arm.** One of the schemas listed under `anyOf` in a union, or under `allOf` in an intersection. See [Union schema](./schema/anyof.md).
+- **Intersection.** A schema that a value must satisfy all of. Its struct arms merge into one struct, so it is a subtype of each arm. You write it with `allOf`. See [Intersection schema](./schema/allof.md).
 - **Discriminated union.** A type that is one of a fixed set of shapes. One field or test, the discriminant, tells which shape a value has. See [Discriminated Union](./schema/discriminated-union.md).
 - **Link schema.** A schema for a CID link. With `target`, it also names the type the link must point at. See [Link schema](./schema/link-schema.md). <!-- id:ZR0vqtGY -->
 - **Include.** A schema that names another schema and adds nothing: `{"type": "hm://…"}`. It becomes exactly the schema it names. See [Include schema](./schema/include-schema.md). <!-- id:97tuLxho -->
