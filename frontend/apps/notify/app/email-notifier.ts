@@ -1466,13 +1466,17 @@ async function evaluateMentionEventForNotifications(
   }
 
   const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
+  let effectiveAuthorUid = authorAccountId
   let authorMeta: HMMetadata | null = null
   try {
-    const authorResult = await requestAPI('Account', authorAccountId)
-    authorMeta = authorResult.type === 'account' ? authorResult.metadata : null
+    const author = await resolveNotificationAccount((uid) => requestAPI('Account', uid), authorAccountId)
+    effectiveAuthorUid = author.uid
+    authorMeta = author.metadata
   } catch (error: any) {
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
   }
+
+  if (effectiveAuthorUid === targetAccountUid) return
 
   let siteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
   if (!siteUrl) {
