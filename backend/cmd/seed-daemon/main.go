@@ -77,8 +77,17 @@ func run(args []string, envFlags string, helpOut io.Writer, runDaemon func(confi
 		},
 		Exec: func(_ context.Context, args []string) error {
 			// The daemon takes no positional arguments, so anything left is most likely a mistyped subcommand.
-			if len(args) > 0 {
-				return fmt.Errorf("unknown subcommand %q: run 'seed-daemon -help' for the list of subcommands", args[0])
+			// Except a URL, which no subcommand name looks like: every deployment template (ops/docker-compose.yml,
+			// the hosted gateways) has long passed the site URL last, and the daemon always ignored it. Refusing it
+			// took every one of those sites down, so it is still ignored, with a warning.
+			for _, arg := range args {
+				if !strings.Contains(arg, "://") {
+					return fmt.Errorf("unknown subcommand %q: run 'seed-daemon -help' for the list of subcommands", arg)
+				}
+			}
+
+			for _, arg := range args {
+				_, _ = fmt.Fprintf(helpOut, "seed-daemon: ignoring positional argument %q: the daemon takes none\n", arg)
 			}
 
 			return runDaemon(cfg)
