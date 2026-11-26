@@ -1,5 +1,5 @@
 import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getDocumentTitle, hmId} from '@shm/shared'
+import {getDocumentTitle, hmId, useRouteLink} from '@shm/shared'
 import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
@@ -11,7 +11,7 @@ import {
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
 import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState, type ComponentProps} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -28,7 +28,7 @@ export type IncludeDocumentContext = {parentId: UnpackedHypermediaId; signingAcc
 export interface SiteFileBrowserProps {
   siteId: UnpackedHypermediaId
   activeDocumentId: UnpackedHypermediaId | null
-  onNavigate: (id: UnpackedHypermediaId) => void
+  onAfterNavigate?: () => void
   onPrefetch?: (id: UnpackedHypermediaId) => void
   /** Shows the sidebar Documents heading with filter and creation actions. */
   showHeader?: boolean
@@ -47,11 +47,20 @@ function titleOf(doc: HMDocumentInfo) {
   return getDocumentTitle(doc, 'Untitled Document')
 }
 
+function DocumentLink({
+  documentId,
+  onAfterNavigate,
+  ...props
+}: ComponentProps<'a'> & {documentId: UnpackedHypermediaId; onAfterNavigate?: () => void}) {
+  const {href, onClick} = useRouteLink({key: 'document', id: documentId}, {onClick: onAfterNavigate})
+  return <a {...props} href={href} onClick={onClick} />
+}
+
 /** Renders the searchable, expandable document hierarchy for a site. */
 export function SiteFileBrowser({
   siteId,
   activeDocumentId,
-  onNavigate,
+  onAfterNavigate,
   onPrefetch,
   showHeader = false,
   searchVisible = false,
@@ -229,15 +238,15 @@ export function SiteFileBrowser({
           <div
             className={cn('flex min-w-0 items-center rounded-md', isHomeActive && 'bg-accent text-accent-foreground')}
           >
-            <button
-              type="button"
+            <DocumentLink
+              documentId={siteId}
+              onAfterNavigate={onAfterNavigate}
               aria-current={isHomeActive ? 'page' : undefined}
               className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 pl-5 text-left text-sm outline-none focus-visible:ring-2"
-              onClick={() => onNavigate(siteId)}
             >
               <Home className="size-4 shrink-0" />
               <span className="truncate">Home</span>
-            </button>{' '}
+            </DocumentLink>{' '}
             {!showHeader && createButton}{' '}
           </div>
           {isLoading ? (
@@ -280,12 +289,12 @@ export function SiteFileBrowser({
                     ) : (
                       <span className="h-8 w-5 shrink-0" />
                     )}
-                    <button
-                      type="button"
+                    <DocumentLink
+                      documentId={navigationId}
+                      onAfterNavigate={onAfterNavigate}
                       aria-current={isActive ? 'page' : undefined}
                       onPointerEnter={() => onPrefetch?.(navigationId)}
                       onFocus={() => onPrefetch?.(navigationId)}
-                      onClick={() => onNavigate(navigationId)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
                     >
                       {kind === 'document' && unpublishedDraftIds.has(doc.id.id) ? (
@@ -294,7 +303,7 @@ export function SiteFileBrowser({
                         <DocumentKindIcon kind={kind} className="size-4 shrink-0" />
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
-                    </button>
+                    </DocumentLink>
                   </div>
                 )
               })}

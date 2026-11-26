@@ -2,7 +2,8 @@
 import type {HMDocumentInfo, HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {latestId} from '@shm/shared/utils/entity-id-url'
-import type {ReactNode} from 'react'
+import {UniversalAppContext} from '@shm/shared/routing'
+import {useContext, type ReactNode} from 'react'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -31,6 +32,15 @@ if (typeof PointerEvent === 'undefined') {
 
 let container: HTMLDivElement
 let root: Root
+const openRoute = vi.fn()
+function Routing({children}: {children: ReactNode}) {
+  const context = useContext(UniversalAppContext)
+  return (
+    <UniversalAppContext.Provider value={{...context, originHomeId: hmId('site'), openRoute}}>
+      {children}
+    </UniversalAppContext.Provider>
+  )
+}
 
 function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   return {id: hmId('site', {path}), path, metadata: {name}, visibility} as unknown as HMDocumentInfo
@@ -58,7 +68,7 @@ afterEach(() => {
 describe('SiteFileBrowser', () => {
   it('marks Home active only when the home document is selected', () => {
     useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
-    const props = {siteId: hmId('site'), onNavigate: vi.fn()}
+    const props = {siteId: hmId('site')}
     act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={null} />))
     expect(container.querySelector('[aria-current="page"]')).toBeNull()
     act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={hmId('site')} />))
@@ -70,7 +80,7 @@ describe('SiteFileBrowser', () => {
     useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
     useUnreferencedDocumentsMock.mockReturnValue({documents: [install], isLoading: false, indexIncomplete: false})
 
-    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />))
+    act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />))
 
     expect(useUnreferencedDocumentsMock).not.toHaveBeenCalled()
     expect(container.querySelector('[aria-label="Unreferenced documents"]')).toBeNull()
@@ -90,7 +100,7 @@ describe('SiteFileBrowser', () => {
     })
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
     })
 
     expect(container.textContent).toContain('Published guide')
@@ -112,13 +122,13 @@ describe('SiteFileBrowser', () => {
     })
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
     })
 
     act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
 
-    const draftRow = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Unpublished guide'),
+    const draftRow = Array.from(container.querySelectorAll('a')).find(
+      (link) => link.textContent?.includes('Unpublished guide'),
     )
     expect(draftRow?.querySelector('[aria-label="Unpublished draft"]')?.getAttribute('class')).toContain(
       'text-yellow-500',
@@ -140,11 +150,11 @@ describe('SiteFileBrowser', () => {
     })
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
     })
     act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
 
-    const labels = Array.from(container.querySelectorAll('button')).map((button) => button.textContent ?? '')
+    const labels = Array.from(container.querySelectorAll('a')).map((link) => link.textContent ?? '')
     expect(labels.some((label) => label.includes('Untitled Document'))).toBe(true)
     expect(labels.some((label) => label.includes('-draft-2'))).toBe(false)
   })
@@ -161,7 +171,7 @@ describe('SiteFileBrowser', () => {
     })
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
     })
 
     expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(2)
@@ -179,7 +189,7 @@ describe('SiteFileBrowser', () => {
     })
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} />)
     })
 
     expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
@@ -196,11 +206,7 @@ describe('SiteFileBrowser', () => {
 
     act(() => {
       root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site', {path: ['guides', 'private']})}
-          onNavigate={vi.fn()}
-        />,
+        <SiteFileBrowser siteId={hmId('site')} activeDocumentId={hmId('site', {path: ['guides', 'private']})} />,
       )
     })
 
@@ -213,7 +219,7 @@ describe('SiteFileBrowser', () => {
   it('shows title matches as a flat list and navigates', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed')
     install.id = hmId('site', {path: ['guides', 'install'], version: 'listed-version', latest: false})
-    const onNavigate = vi.fn()
+    const afterNavigate = vi.fn()
     const onPrefetch = vi.fn()
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides'), install],
@@ -223,13 +229,15 @@ describe('SiteFileBrowser', () => {
 
     act(() => {
       root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={null}
-          onNavigate={onNavigate}
-          onPrefetch={onPrefetch}
-          searchVisible
-        />,
+        <Routing>
+          <SiteFileBrowser
+            siteId={hmId('site')}
+            activeDocumentId={null}
+            onAfterNavigate={afterNavigate}
+            onPrefetch={onPrefetch}
+            searchVisible
+          />
+        </Routing>,
       )
     })
     const input = container.querySelector('input')!
@@ -240,20 +248,21 @@ describe('SiteFileBrowser', () => {
     })
 
     expect(container.textContent).not.toContain('Guides')
-    const result = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Install Seed'),
+    const result = Array.from(container.querySelectorAll('a')).find(
+      (link) => link.textContent?.includes('Install Seed'),
     )!
     act(() => result.dispatchEvent(new MouseEvent('pointerover', {bubbles: true})))
     act(() => result.focus())
     expect(onPrefetch).toHaveBeenNthCalledWith(1, latestId(install.id))
     expect(onPrefetch).toHaveBeenNthCalledWith(2, latestId(install.id))
     act(() => result.click())
-    expect(onNavigate).toHaveBeenCalledWith(latestId(install.id))
+    expect(afterNavigate).toHaveBeenCalledOnce()
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: latestId(install.id)}, undefined)
   })
 
   it('hides search by default and focuses it when revealed', () => {
     useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
-    const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
+    const props = {siteId: hmId('site'), activeDocumentId: null}
 
     act(() => root.render(<SiteFileBrowser {...props} />))
     expect(container.querySelector('[aria-label="Filter documents"]')).toBeNull()
@@ -274,7 +283,6 @@ describe('SiteFileBrowser', () => {
         <SiteFileBrowser
           siteId={hmId('site')}
           activeDocumentId={null}
-          onNavigate={vi.fn()}
           searchVisible
           onSearchVisibleChange={onSearchVisibleChange}
         />,
@@ -303,7 +311,6 @@ describe('SiteFileBrowser', () => {
         <SiteFileBrowser
           siteId={hmId('site')}
           activeDocumentId={null}
-          onNavigate={vi.fn()}
           searchVisible
           onSearchVisibleChange={onSearchVisibleChange}
         />,
@@ -319,7 +326,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('keeps Home above filtered documents and navigates to the site root', () => {
-    const onNavigate = vi.fn()
+    const afterNavigate = vi.fn()
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides')],
       drafts: [],
@@ -327,12 +334,14 @@ describe('SiteFileBrowser', () => {
     })
     act(() =>
       root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site', {path: ['guides']})}
-          onNavigate={onNavigate}
-          searchVisible
-        />,
+        <Routing>
+          <SiteFileBrowser
+            siteId={hmId('site')}
+            activeDocumentId={hmId('site', {path: ['guides']})}
+            onAfterNavigate={afterNavigate}
+            searchVisible
+          />
+        </Routing>,
       ),
     )
 
@@ -342,16 +351,17 @@ describe('SiteFileBrowser', () => {
       setValue?.call(input, 'missing')
       input.dispatchEvent(new Event('input', {bubbles: true}))
     })
-    const home = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Home')!
+    const home = Array.from(container.querySelectorAll('a')).find((link) => link.textContent === 'Home')!
     expect(home).toBeTruthy()
     act(() => home.click())
-    expect(onNavigate).toHaveBeenCalledWith(hmId('site'))
+    expect(afterNavigate).toHaveBeenCalledOnce()
+    expect(openRoute).toHaveBeenCalledWith({key: 'document', id: hmId('site')}, undefined)
   })
 
   it('shows root creation actions only when a creation menu is provided', () => {
     useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
     const createDocument = vi.fn()
-    const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
+    const props = {siteId: hmId('site'), activeDocumentId: null}
 
     act(() => root.render(<SiteFileBrowser {...props} />))
     expect(container.querySelector('[aria-label="Create root document"]')).toBeNull()
@@ -384,7 +394,6 @@ describe('SiteFileBrowser', () => {
         <SiteFileBrowser
           siteId={hmId('site')}
           activeDocumentId={null}
-          onNavigate={vi.fn()}
           createMenuItem={{
             key: 'new',
             label: 'New',

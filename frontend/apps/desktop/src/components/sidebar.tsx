@@ -72,16 +72,10 @@ export function AppSidebar() {
 }
 
 function FallbackDocuments({siteId}: {siteId: ReturnType<typeof hmId>}) {
-  const navigate = useNavigate()
   const {menuItem, content} = useCreateDocumentMenuItem({locationId: siteId})
   return (
     <>
-      <SiteSidebarDocuments
-        siteId={siteId}
-        activeDocumentId={null}
-        createMenuItem={menuItem}
-        onNavigate={(id) => navigate({key: 'document', id})}
-      />
+      <SiteSidebarDocuments siteId={siteId} activeDocumentId={null} createMenuItem={menuItem} />
       {content}
     </>
   )
