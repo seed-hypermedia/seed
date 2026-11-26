@@ -62,6 +62,49 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Index each distinct text once. The full-text table keeps only the text,
+	// fts_texts finds an already indexed text by its hash, and fts_index records
+	// every occurrence of a text, including blocks that only moved, which now
+	// point at their existing text instead of copying it. Embeddings, keyed by
+	// the full-text row, are then computed once per text. The rebuild needs a
+	// reindex, which also clears and recomputes the embeddings.
+	{Version: "2026-11-26.012715", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS fts;
+			CREATE VIRTUAL TABLE fts USING fts5(
+			    raw_content
+			);
+			DROP TABLE IF EXISTS fts_texts;
+			CREATE TABLE fts_texts (
+			    id INTEGER PRIMARY KEY,
+			    hash BLOB UNIQUE NOT NULL
+			);
+			DROP TABLE IF EXISTS fts_index;
+			CREATE TABLE fts_index (
+			    id INTEGER PRIMARY KEY,
+			    text INTEGER,
+			    blob_id INTEGER NOT NULL,
+			    version TEXT NOT NULL,
+			    block_id TEXT NOT NULL,
+			    type TEXT NOT NULL,
+			    ts INTEGER,
+			    genesis_blob INTEGER
+			);
+			CREATE INDEX fts_index_by_text ON fts_index (text, type) WHERE text IS NOT NULL;
+			CREATE INDEX fts_index_by_genesis_block ON fts_index (genesis_blob, block_id) WHERE text IS NOT NULL;
+			CREATE INDEX fts_index_by_blob ON fts_index (blob_id);
+			CREATE INDEX fts_index_by_version ON fts_index (version);
+			CREATE INDEX fts_index_by_block ON fts_index (block_id);
+			CREATE INDEX fts_index_by_type ON fts_index (type);
+			CREATE INDEX fts_index_by_ts ON fts_index (ts);
+			CREATE INDEX fts_index_by_genesis_blob ON fts_index (genesis_blob);
+		`)); err != nil {
+			return err
+		}
+
+		return scheduleReindex(conn)
+	}},
+
 	// Attribute comments and feed entries to the account they act for. Comment
 	// identity is account authority + TSID: comments signed by an agent key on
 	// behalf of an account belong to the account, so the live-comment table

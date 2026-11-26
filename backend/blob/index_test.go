@@ -157,7 +157,7 @@ func TestIndexChangeIndexesEachBlockOncePerChange(t *testing.T) {
 	const q = `
 		SELECT json_group_object(fi.block_id, fts.raw_content)
 		FROM fts_index fi
-		JOIN fts ON fts.rowid = fi.rowid
+		JOIN fts ON fts.rowid = fi.text
 		JOIN blobs b ON b.id = fi.blob_id
 		WHERE b.multihash = ? AND fi.type = 'document'
 	`

@@ -503,10 +503,8 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 
 	if needsResourceFilter {
 		// Use pre-filtered query with fts_id IN (subquery).
-		// The subquery parameters are duplicated for both UNION branches.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, filterPrivate,
 			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, filterPrivate,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
@@ -861,25 +859,36 @@ func cosineSimilarityInt8(a, b []int8) float32 {
 	return float32(float64(dot) / (math.Sqrt(float64(normA)) * math.Sqrt(float64(normB))))
 }
 
-// qEmbeddingsPending drives from fts_index (a regular table) and anti-joins
-// against embeddings_index via its integer primary key. The embeddings vec0
-// virtual table can't be indexed on fts_id, so anti-joining it directly forces
-// a full scan of the vector table on every pass; the fts content is only
-// loaded for rows that are actually pending.
+// qEmbeddingsPending finds full-text rows that still need an embedding: one
+// per distinct text with an embeddable occurrence. It drives from fts_texts (a
+// regular table) and anti-joins against embeddings_index via its integer
+// primary key. The embeddings vec0 virtual table can't be indexed on fts_id, so
+// anti-joining it directly forces a full scan of the vector table on every
+// pass; the fts content is only loaded for rows that are actually pending.
 var qEmbeddingsPending = dqb.Str(`
-	SELECT fi.rowid, fts.raw_content
-	FROM fts_index fi
-	JOIN fts ON fts.rowid = fi.rowid
-	WHERE fi.type IN ('title', 'document', 'comment', 'profile')
-	AND NOT EXISTS (SELECT 1 FROM embeddings_index ei WHERE ei.fts_id = fi.rowid)
+	SELECT t.id, fts.raw_content
+	FROM fts_texts t
+	JOIN fts ON fts.rowid = t.id
+	WHERE NOT EXISTS (SELECT 1 FROM embeddings_index ei WHERE ei.fts_id = t.id)
+	AND EXISTS (
+		SELECT 1 FROM fts_index fi INDEXED BY fts_index_by_text
+		WHERE fi.text = t.id
+		AND fi.type IN ('title', 'document', 'comment', 'profile')
+	)
 	AND length(fts.raw_content) > 3
 	LIMIT ?;
 `)
 
 var qEmbeddableTotalCount = dqb.Str(`
-	SELECT COUNT(*) FROM fts
-	WHERE type IN ('title', 'document', 'comment', 'profile')
-		AND length(raw_content) > 3;
+	SELECT COUNT(*)
+	FROM fts_texts t
+	JOIN fts ON fts.rowid = t.id
+	WHERE EXISTS (
+		SELECT 1 FROM fts_index fi INDEXED BY fts_index_by_text
+		WHERE fi.text = t.id
+		AND fi.type IN ('title', 'document', 'comment', 'profile')
+	)
+	AND length(fts.raw_content) > 3;
 `)
 
 var qAlreadyEmbeddedCount = dqb.Str(`
@@ -897,55 +906,71 @@ var qEmbeddingsIndexInsert = dqb.Str(`
 `)
 
 // qEmbeddingsSearchUnfiltered searches embeddings without IRI filtering.
-// Used when iriGlob is generic (e.g., "*" or "hm://*").
+// Used when iriGlob is generic (e.g., "*" or "hm://*"). An embedding belongs to
+// a text, so each match expands to the text's occurrences, which carry the type
+// and blob the filters need and the IDs search results use.
 var qEmbeddingsSearchUnfiltered = dqb.Str(`
 SELECT
-	v.fts_id,
-	v.distance
-FROM embeddings v
-JOIN fts_index fi ON fi.rowid = v.fts_id
+	fi.id,
+	m.distance
+FROM (
+	SELECT v.fts_id, v.distance
+	FROM embeddings v
+	WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+	  AND v.distance < ?
+	  AND k = ?
+) m
+JOIN fts_index fi INDEXED BY fts_index_by_text ON fi.text = m.fts_id
 LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
-WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
-  AND v.distance < ?
-  AND k = ?
-  AND fi.type IN (?, ?, ?, ?, ?)
+WHERE fi.type IN (?, ?, ?, ?, ?)
   AND (? = 0 OR pb.id IS NOT NULL)
-ORDER BY v.distance
+ORDER BY m.distance
 `)
 
 // qEmbeddingsSearchFiltered searches embeddings with IRI pre-filtering.
-// Uses fts_id IN (subquery) to leverage sqlite-vec's metadata pre-filtering,
-// which filters vectors BEFORE distance calculation for better performance.
-// The subquery finds fts entries matching the IRI pattern via two paths:
+// It first selects the occurrences matching the IRI pattern, via two paths:
 // 1. Direct: fts_index -> structural_blobs -> resources (for documents/titles)
 // 2. Indirect: fts_index -> blob_links -> structural_blobs -> resources (for comments).
+// Their texts feed fts_id IN (...), which uses sqlite-vec's metadata
+// pre-filtering to drop vectors BEFORE distance calculation, and each match
+// then expands to its allowed occurrences.
+//
+// Args: query embedding, max distance, k, five content types, iriGlob,
+// rootDocumentsOnly, filterPrivate.
 var qEmbeddingsSearchFiltered = dqb.Str(`
-SELECT
-	v.fts_id,
-	v.distance
-FROM embeddings v
-WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
-  AND v.distance < ?
-  AND k = ?
-  AND v.fts_id IN (
-    SELECT fi.rowid FROM fts_index fi
+WITH allowed AS MATERIALIZED (
+    SELECT fi.id, fi.text FROM fts_index fi
     JOIN structural_blobs sb ON sb.id = fi.blob_id
     JOIN resources r ON r.id = sb.resource
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
-    WHERE fi.type IN (?, ?, ?, ?, ?)
-      AND r.iri GLOB ?
-      AND (? = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
-      AND (? = 0 OR pb.id IS NOT NULL)
+    WHERE fi.text IS NOT NULL
+      AND fi.type IN (?4, ?5, ?6, ?7, ?8)
+      AND r.iri GLOB ?9
+      AND (?10 = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
+      AND (?11 = 0 OR pb.id IS NOT NULL)
     UNION
-    SELECT fi.rowid FROM fts_index fi
+    SELECT fi.id, fi.text FROM fts_index fi
     JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
     JOIN structural_blobs sb ON sb.id = bl.source
     JOIN resources r ON r.id = sb.resource
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
-    WHERE fi.type IN (?, ?, ?, ?, ?)
-      AND r.iri GLOB ?
-      AND (? = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
-      AND (? = 0 OR pb.id IS NOT NULL)
-  )
-ORDER BY v.distance
+    WHERE fi.text IS NOT NULL
+      AND fi.type IN (?4, ?5, ?6, ?7, ?8)
+      AND r.iri GLOB ?9
+      AND (?10 = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
+      AND (?11 = 0 OR pb.id IS NOT NULL)
+)
+SELECT
+	a.id,
+	m.distance
+FROM (
+	SELECT v.fts_id, v.distance
+	FROM embeddings v
+	WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?1)
+	  AND v.distance < ?2
+	  AND k = ?3
+	  AND v.fts_id IN (SELECT text FROM allowed)
+) m
+JOIN allowed a ON a.text = m.fts_id
+ORDER BY m.distance
 `)
