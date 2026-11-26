@@ -1595,7 +1595,7 @@ func TestReindexDerivesFallbackCoverImage(t *testing.T) {
 	)
 
 	// A document that had no cover when its image was first indexed, and gained
-	// one later. See the assertion below for why the two paths differ here.
+	// one later.
 	c1 := publish("/cover-added-later", "",
 		setMeta("name", "Cover Later"),
 		moveBlock("c1", ""),
@@ -1629,12 +1629,12 @@ func TestReindexDerivesFallbackCoverImage(t *testing.T) {
 	require.Equal(t, image, img)
 
 	_, ok = firstImage("/cover-added-later")
-	require.True(t, ok, "incremental indexing derives before the cover exists, and the value lingers")
+	require.False(t, ok, "gaining a cover drops the fallback derived before it")
 
 	require.NoError(t, alice.idx.Reindex(ctx), "reindex must succeed")
 
-	// The reindex derives once per generation from its final merged heads
-	// instead of once per Ref, and must land on the same value.
+	// The reindex derives once per document from its final merged heads, and
+	// must land on the same values as incremental indexing.
 	img, ok = firstImage("/with-image")
 	require.True(t, ok, "reindex must re-derive the fallback cover")
 	require.Equal(t, image, img, "reindex must derive the same image as incremental indexing")
@@ -1643,12 +1643,6 @@ func TestReindexDerivesFallbackCoverImage(t *testing.T) {
 	require.True(t, ok, "imageless doc must keep the empty sentinel after a reindex")
 	require.Empty(t, img)
 
-	// The one intended difference between the two paths. Incrementally, the
-	// value is derived while the document still has no cover and then lingers in
-	// the LWW map; the end-of-reindex pass evaluates the guard against the final
-	// metadata and skips the document entirely. This is invisible to clients:
-	// an explicit cover takes precedence over the derived fallback everywhere it
-	// is read, so the lingering value is unreachable either way.
 	_, ok = firstImage("/cover-added-later")
 	require.False(t, ok, "a doc that gained a cover must not carry a derived fallback after reindex")
 }

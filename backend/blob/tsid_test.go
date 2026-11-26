@@ -294,9 +294,13 @@ func TestRecordTSID(t *testing.T) {
 		}},
 	}
 
+	target, err := NewChange(alice.Account, cid.Undef, nil, 0, ChangeBody{}, ts)
+	require.NoError(t, err)
+	version := []cid.Cid{target.CID}
+
 	// A record's initial blob carries no explicit id, so RecordTSID derives
 	// the TSID from the blob's timestamp and raw bytes.
-	initial, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, body, VisibilityPublic, ts)
+	initial, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "/test", version, cid.Undef, cid.Undef, body, VisibilityPublic, ts)
 	require.NoError(t, err)
 
 	derived := NewTSID(initial.Decoded.BlobTime(), initial.Data)
@@ -305,7 +309,7 @@ func TestRecordTSID(t *testing.T) {
 	// An update blob carries the original record's TSID explicitly and has a
 	// later timestamp, so the derived value would differ. RecordTSID must
 	// return the explicit id verbatim.
-	update, err := NewComment(alice.Account, derived, alice.Account.Principal(), alice.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, body, VisibilityPublic, ts.Add(time.Second))
+	update, err := NewComment(alice.Account, derived, alice.Account.Principal(), alice.Account.Principal(), "/test", version, cid.Undef, cid.Undef, body, VisibilityPublic, ts.Add(time.Second))
 	require.NoError(t, err)
 
 	updateDerived := NewTSID(update.Decoded.BlobTime(), update.Data)

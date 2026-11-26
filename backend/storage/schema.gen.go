@@ -182,17 +182,13 @@ const (
 	DocumentGenerationsAuthors              sqlitegen.Column = "document_generations.authors"
 	DocumentGenerationsChangeCount          sqlitegen.Column = "document_generations.change_count"
 	DocumentGenerationsChanges              sqlitegen.Column = "document_generations.changes"
-	DocumentGenerationsCommentCount         sqlitegen.Column = "document_generations.comment_count"
 	DocumentGenerationsGeneration           sqlitegen.Column = "document_generations.generation"
 	DocumentGenerationsGenesis              sqlitegen.Column = "document_generations.genesis"
 	DocumentGenerationsGenesisChangeTime    sqlitegen.Column = "document_generations.genesis_change_time"
 	DocumentGenerationsHeads                sqlitegen.Column = "document_generations.heads"
 	DocumentGenerationsIsDeleted            sqlitegen.Column = "document_generations.is_deleted"
-	DocumentGenerationsLastActivityTime     sqlitegen.Column = "document_generations.last_activity_time"
 	DocumentGenerationsLastAliveRefTime     sqlitegen.Column = "document_generations.last_alive_ref_time"
 	DocumentGenerationsLastChangeTime       sqlitegen.Column = "document_generations.last_change_time"
-	DocumentGenerationsLastComment          sqlitegen.Column = "document_generations.last_comment"
-	DocumentGenerationsLastCommentTime      sqlitegen.Column = "document_generations.last_comment_time"
 	DocumentGenerationsLastTombstoneRefTime sqlitegen.Column = "document_generations.last_tombstone_ref_time"
 	DocumentGenerationsResource             sqlitegen.Column = "document_generations.resource"
 	DocumentGenerationsVisibility           sqlitegen.Column = "document_generations.visibility"
@@ -205,17 +201,13 @@ const (
 	C_DocumentGenerationsAuthors              = "document_generations.authors"
 	C_DocumentGenerationsChangeCount          = "document_generations.change_count"
 	C_DocumentGenerationsChanges              = "document_generations.changes"
-	C_DocumentGenerationsCommentCount         = "document_generations.comment_count"
 	C_DocumentGenerationsGeneration           = "document_generations.generation"
 	C_DocumentGenerationsGenesis              = "document_generations.genesis"
 	C_DocumentGenerationsGenesisChangeTime    = "document_generations.genesis_change_time"
 	C_DocumentGenerationsHeads                = "document_generations.heads"
 	C_DocumentGenerationsIsDeleted            = "document_generations.is_deleted"
-	C_DocumentGenerationsLastActivityTime     = "document_generations.last_activity_time"
 	C_DocumentGenerationsLastAliveRefTime     = "document_generations.last_alive_ref_time"
 	C_DocumentGenerationsLastChangeTime       = "document_generations.last_change_time"
-	C_DocumentGenerationsLastComment          = "document_generations.last_comment"
-	C_DocumentGenerationsLastCommentTime      = "document_generations.last_comment_time"
 	C_DocumentGenerationsLastTombstoneRefTime = "document_generations.last_tombstone_ref_time"
 	C_DocumentGenerationsResource             = "document_generations.resource"
 	C_DocumentGenerationsVisibility           = "document_generations.visibility"
@@ -872,17 +864,13 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsAuthors:              {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsChangeCount:          {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsChanges:              {Table: DocumentGenerations, SQLType: "BLOB"},
-		DocumentGenerationsCommentCount:         {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsGeneration:           {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsGenesis:              {Table: DocumentGenerations, SQLType: "TEXT"},
 		DocumentGenerationsGenesisChangeTime:    {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsHeads:                {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsIsDeleted:            {Table: DocumentGenerations, SQLType: ""},
-		DocumentGenerationsLastActivityTime:     {Table: DocumentGenerations, SQLType: ""},
 		DocumentGenerationsLastAliveRefTime:     {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsLastChangeTime:       {Table: DocumentGenerations, SQLType: "INTEGER"},
-		DocumentGenerationsLastComment:          {Table: DocumentGenerations, SQLType: "INTEGER"},
-		DocumentGenerationsLastCommentTime:      {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsVisibility:           {Table: DocumentGenerations, SQLType: "TEXT"},

@@ -277,12 +277,16 @@ func TestDelegatedCommentSync(t *testing.T) {
 			idx, err := blob.OpenIndex(ctx, db, zap.NewNop())
 			require.NoError(t, err)
 			idx.SetIndexedHook(MaintainRBSRIndex)
-			alice := coretest.NewTester("alice").Account.Principal()
+			aliceKey := coretest.NewTester("alice").Account
+			alice := aliceKey.Principal()
 			bob := coretest.NewTester("bob")
 			now := time.Now().Round(blob.ClockPrecision)
 			capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
 			require.NoError(t, err)
-			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice, "", nil, cid.Undef, cid.Undef,
+			target, err := blob.NewChange(aliceKey, cid.Undef, nil, 0, blob.ChangeBody{}, now)
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(ctx, target))
+			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice, "", []cid.Cid{target.CID}, cid.Undef, cid.Undef,
 				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
 			require.NoError(t, err)
 			scopes := []DiscoveryKey{
@@ -387,7 +391,10 @@ func TestDelegatedCommentAccountMaterial(t *testing.T) {
 				}
 			}
 
-			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "/doc", nil, cid.Undef, cid.Undef,
+			target, err := blob.NewChange(alice.Account, cid.Undef, nil, 0, blob.ChangeBody{}, now)
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(ctx, target))
+			comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "/doc", []cid.Cid{target.CID}, cid.Undef, cid.Undef,
 				[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
 			require.NoError(t, err)
 			require.NoError(t, idx.Put(ctx, comment))

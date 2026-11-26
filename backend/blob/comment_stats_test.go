@@ -77,14 +77,6 @@ func TestCommentStatsQueriesSeek(t *testing.T) {
 			"the space scope must seek the resources.iri index, not scan it\nplan:\n%s", got)
 	})
 
-	t.Run("pending comments by resource seek structural_blobs by resource", func(t *testing.T) {
-		got := plan(t, qPendingCommentsOnResource(), 0)
-		require.Contains(t, got, "structural_blobs_by_resource",
-			"finding a path's unsettled comments must seek by resource\nplan:\n%s", got)
-		require.Contains(t, got, "SEARCH latest USING INDEX structural_blobs_by_tsid",
-			"the latest-version subquery must seek by comment identity, not scan all comments\nplan:\n%s", got)
-	})
-
 	t.Run("live comment lookup seeks by tsid", func(t *testing.T) {
 		got := plan(t, qInsertCommentLive(), "", "")
 		require.Contains(t, got, "structural_blobs_by_tsid",
@@ -92,7 +84,7 @@ func TestCommentStatsQueriesSeek(t *testing.T) {
 	})
 }
 
-func TestDeletedCommentDoesNotResettleOnRef(t *testing.T) {
+func TestDeletedCommentStaysUncountedAfterRefs(t *testing.T) {
 	t.Parallel()
 	alice := coretest.NewTester("alice")
 	clock := cclock.New()
@@ -115,12 +107,12 @@ func TestDeletedCommentDoesNotResettleOnRef(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, idx.Put(t.Context(), nextRef))
 	}
-	count, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT comment_count FROM document_generations")
+	count, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT COALESCE(SUM(comment_count), 0) FROM document_comment_stats")
 	require.NoError(t, err)
-	require.Zero(t, count, "later Refs must not replay a deleted comment's count increment")
+	require.Zero(t, count, "later Refs must not count a deleted comment again")
 }
 
-func TestPendingCommentsSelectLatestLiveVersion(t *testing.T) {
+func TestStashedCommentVersionsSettleLatestLive(t *testing.T) {
 	t.Parallel()
 	alice := coretest.NewTester("alice")
 	clock := cclock.New()
@@ -130,63 +122,64 @@ func TestPendingCommentsSelectLatestLiveVersion(t *testing.T) {
 	require.NoError(t, err)
 	body := []CommentBlock{{Block: Block{Type: "paragraph", Text: "hello"}}}
 
-	for _, pinned := range []bool{true, false} {
-		name := "unpinned"
-		var version []cid.Cid
-		if pinned {
-			name = "pinned"
-			version = []cid.Cid{change.CID}
-		}
-		t.Run(name, func(t *testing.T) {
-			original, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
-			require.NoError(t, err)
-			edit, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
-			require.NoError(t, err)
-			deleted, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, nil, VisibilityPublic, clock.MustNow())
-			require.NoError(t, err)
-			restored, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
-			require.NoError(t, err)
+	version := []cid.Cid{change.CID}
+	original, err := NewComment(alice.Account, "", alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+	edit, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+	deleted, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, nil, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+	restored, err := NewComment(alice.Account, original.TSID(), alice.Account.Principal(), alice.Account.Principal(), "/doc", version, cid.Undef, cid.Undef, body, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
 
-			for _, tt := range []struct {
-				name     string
-				comments []blocks.Block
-				wantLive int
-			}{
-				{"edited", []blocks.Block{original, edit}, 1},
-				{"edit first", []blocks.Block{edit, original}, 1},
-				{"deleted", []blocks.Block{original, deleted}, 0},
-				{"tombstone first", []blocks.Block{deleted, original}, 0},
-				{"restored", []blocks.Block{restored, deleted, original}, 1},
-			} {
-				t.Run(tt.name, func(t *testing.T) {
-					db := storage.MakeTestDB(t)
-					idx, err := OpenIndex(t.Context(), db, zap.NewNop())
-					require.NoError(t, err)
-					require.NoError(t, idx.PutMany(t.Context(), tt.comments))
+	for _, tt := range []struct {
+		name     string
+		comments []blocks.Block
+		wantLive int
+	}{
+		{"edited", []blocks.Block{original, edit}, 1},
+		{"edit first", []blocks.Block{edit, original}, 1},
+		{"deleted", []blocks.Block{original, deleted}, 0},
+		{"tombstone first", []blocks.Block{deleted, original}, 0},
+		{"restored", []blocks.Block{restored, deleted, original}, 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+			require.NoError(t, idx.PutMany(t.Context(), tt.comments))
 
-					if pinned {
-						// Comments wait in the stash until the changes they name arrive.
-						stashed, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT COUNT(*) FROM stashed_blobs WHERE reason = 'FailedPrecondition'")
-						require.NoError(t, err)
-						require.Equal(t, len(tt.comments), stashed)
-					} else {
-						conn, release, err := db.ReadConn(t.Context())
-						require.NoError(t, err)
-						resource, err := sqlitex.QueryOne[int64](conn, "SELECT resource FROM structural_blobs WHERE type = 'Comment' LIMIT 1")
-						require.NoError(t, err)
-						count := 0
-						err = sqlitex.Exec(conn, qPendingCommentsOnResource(), func(*sqlite.Stmt) error { count++; return nil }, resource)
-						require.NoError(t, err)
-						release()
-						require.Equal(t, tt.wantLive, count, "retry once per live comment identity")
-					}
+			// Comments wait in the stash until the changes they name arrive.
+			stashed, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT COUNT(*) FROM stashed_blobs WHERE reason = 'FailedPrecondition'")
+			require.NoError(t, err)
+			require.Equal(t, len(tt.comments), stashed)
 
-					require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
-					live, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT COUNT(*) FROM comments_live")
-					require.NoError(t, err)
-					require.Equal(t, tt.wantLive, live)
-				})
-			}
+			require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+			live, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT COUNT(*) FROM comments_live")
+			require.NoError(t, err)
+			require.Equal(t, tt.wantLive, live)
 		})
 	}
+}
+
+// Recounting a space without comments doesn't create its row, as a rolled-back
+// comment would otherwise leave an empty space behind. An existing row is
+// still reset.
+func TestSpaceCommentStatsCreateNoEmptySpace(t *testing.T) {
+	db := storage.MakeTestDB(t)
+	conn, release, err := db.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	require.NoError(t, updateSpaceCommentStats(conn, "absent"))
+	require.NoError(t, sqlitex.Exec(conn, "INSERT INTO spaces (id, comment_count) VALUES ('present', 5)", nil))
+	require.NoError(t, updateSpaceCommentStats(conn, "present"))
+
+	var rows []string
+
+	require.NoError(t, sqlitex.Exec(conn, "SELECT id || ':' || comment_count FROM spaces ORDER BY id", func(stmt *sqlite.Stmt) error {
+		rows = append(rows, stmt.ColumnText(0))
+		return nil
+	}))
+	require.Equal(t, []string{"present:0"}, rows)
 }

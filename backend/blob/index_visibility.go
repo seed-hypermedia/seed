@@ -1,6 +1,8 @@
 package blob
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"seed/backend/util/dqb"
@@ -29,38 +31,6 @@ var qRecordBlobVisibility = dqb.Str(`
 	VALUES (:id, :space);
 `)
 
-func propagateVisibility(ictx *indexingCtx, id int64) (err error) {
-	// Collect all distinct spaces that should propagate from this blob.
-	// A blob can have multiple visibility rows (one per space), and we need to propagate all of them.
-	spaces := make(map[int64]struct{})
-
-	rows, discard, check := sqlitex.Query(ictx.conn, qVisibilityCheck(), id).All()
-	defer discard(&err)
-	for row := range rows {
-		spaceKeyID := row.ColumnInt64(0)
-		spaces[spaceKeyID] = struct{}{}
-	}
-	if err := check(); err != nil {
-		return err
-	}
-
-	if len(spaces) == 0 {
-		return nil
-	}
-
-	// Propagate for each distinct space (including public, spaceKeyID == 0).
-	for space := range spaces {
-		if err := sqlitex.Exec(ictx.conn, qForwardPropagation(), nil, map[string]any{
-			":start_id": id,
-			":space":    space,
-		}); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // This query returns if any parent blob (according to the visibility rules)
 // is already public, and points to the new blob that we've just created.
 // Or if the new blob is already public by its nature.
@@ -78,53 +48,20 @@ var qVisibilityCheck = dqb.Str(`
 	SELECT bv.space FROM blob_visibility bv WHERE id = :new_blob_id;
 `)
 
-// The already-visible prune is written as a correlated NOT EXISTS, not as
-// NOT IN (SELECT id FROM blob_visibility WHERE space IS :space). The NOT IN
-// form is uncorrelated, so SQLite materializes the entire space's id set into
-// an ephemeral table plus a Bloom filter on every execution — and this query
-// runs once per blob per space, so a database with ~82k public blobs rebuilt
-// that 82k-row set ~56k times. Measured on a real 5.8 GB database: 6.7 ms per
-// execution with NOT IN, 0.16 ms with NOT EXISTS, byte-identical results.
-// NOT EXISTS probes the blob_visibility primary key (id, space) instead.
+// propagateVisibilityBatch propagates the visibility of a batch of newly
+// indexed blobs, with one CTE walk per space and chunk of seeds instead of one
+// walk per blob. The recursive forward-propagation CTE is monotonic and the
+// INSERT is OR IGNORE, so the result is the closure of the seeds under the
+// visibility rules, the same as N sequential single-seed walks in any order.
 //
-// The two forms are equivalent here: blob_visibility.id is NOT NULL, so the
-// NULL-propagation that normally distinguishes NOT IN from NOT EXISTS cannot
-// arise, and `space IS :space` keeps the same NULL-safe comparison.
-var qForwardPropagation = dqb.Str(`
-	WITH RECURSIVE propagate (id) AS (
-		SELECT :start_id
-		UNION
-		SELECT bl.target
-		FROM propagate p
-		JOIN blob_links_with_types bl ON bl.source = p.id
-		JOIN blob_visibility_rules bvr
-			ON (bvr.source_type = bl.source_type OR bvr.source_type = '*')
-			AND (bvr.link_type = bl.link_type OR bvr.link_type = '*')
-			AND (bvr.target_type = bl.target_type OR bvr.target_type = '*')
-		WHERE NOT EXISTS (
-			SELECT 1 FROM blob_visibility bv
-			WHERE bv.id = bl.target AND bv.space IS :space
-		)
-	)
-	INSERT OR IGNORE INTO blob_visibility (id, space)
-	SELECT id, :space FROM propagate;
-`)
-
-// propagateVisibilityBatch coalesces visibility propagation for a batch of
-// newly-indexed blobs into one CTE walk per space, instead of one walk per
-// blob. The recursive forward-propagation CTE is monotonic and the INSERT is
-// OR IGNORE, so propagating from the union of seeds in one pass produces the
-// same blob_visibility state as N sequential single-seed walks.
-//
-// Callers (currently only PutMany) are responsible for having already run
-// every blob's indexers — and therefore its blob_links and any explicit
-// blob_visibility seed rows — before calling this. We discover each blob's
-// applicable spaces via qVisibilityCheck, group seeds by space, and run one
-// CTE per distinct space.
+// Callers must have run every blob's indexers first, and therefore stored its
+// blob_links and explicit blob_visibility rows. Each blob's spaces come from
+// qVisibilityCheck.
 func propagateVisibilityBatch(conn *sqlite.Conn, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
+
 	// space → seed blob ids that should propagate for that space.
 	spaceSeeds := make(map[int64][]int64)
 	for _, id := range ids {
@@ -136,17 +73,24 @@ func propagateVisibilityBatch(conn *sqlite.Conn, ids []int64) error {
 			spaceSeeds[s] = append(spaceSeeds[s], id)
 		}
 	}
-	for space, seeds := range spaceSeeds {
-		if err := propagateVisibilityForSpace(conn, seeds, space); err != nil {
-			return err
+
+	// Each seed is a bound parameter, and SQLite caps how many one statement
+	// takes, which a reindex's single batch would exceed.
+	const seedsPerWalk = 1000
+
+	for _, space := range slices.Sorted(maps.Keys(spaceSeeds)) {
+		for seeds := range slices.Chunk(spaceSeeds[space], seedsPerWalk) {
+			if err := propagateVisibilityForSpace(conn, seeds, space); err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }
 
 // gatherVisibilitySpaces returns the distinct spaces this blob should
-// propagate to, equivalent to the loop inside propagateVisibility that
-// runs qVisibilityCheck and collects rows.
+// propagate to: its own, and those of visible blobs linking to it.
 func gatherVisibilitySpaces(conn *sqlite.Conn, id int64) (map[int64]struct{}, error) {
 	spaces := make(map[int64]struct{})
 	rows, discard, check := sqlitex.Query(conn, qVisibilityCheck(), id).All()
@@ -160,10 +104,22 @@ func gatherVisibilitySpaces(conn *sqlite.Conn, id int64) (map[int64]struct{}, er
 }
 
 // propagateVisibilityForSpace runs one forward-propagation CTE for a single
-// space with N seed blobs supplied as a multi-row VALUES clause. The body of
-// the recursion is identical to qForwardPropagation; only the initial term
-// changes from a single :start_id row to N rows. Bind args: seed1..seedN,
-// space, space (last two are the same value, used twice in the query).
+// space with N seed blobs supplied as a multi-row VALUES clause. Bind args:
+// seed1..seedN, space, space (last two are the same value, used twice in the
+// query).
+//
+// The already-visible prune is written as a correlated NOT EXISTS, not as
+// NOT IN (SELECT id FROM blob_visibility WHERE space IS :space). The NOT IN
+// form is uncorrelated, so SQLite materializes the entire space's id set into
+// an ephemeral table plus a Bloom filter on every execution — and this query
+// runs once per blob per space, so a database with ~82k public blobs rebuilt
+// that 82k-row set ~56k times. Measured on a real 5.8 GB database: 6.7 ms per
+// execution with NOT IN, 0.16 ms with NOT EXISTS, byte-identical results.
+// NOT EXISTS probes the blob_visibility primary key (id, space) instead.
+//
+// The two forms are equivalent here: blob_visibility.id is NOT NULL, so the
+// NULL-propagation that normally distinguishes NOT IN from NOT EXISTS cannot
+// arise, and `space IS :space` keeps the same NULL-safe comparison.
 func propagateVisibilityForSpace(conn *sqlite.Conn, seeds []int64, space int64) error {
 	if len(seeds) == 0 {
 		return nil

@@ -19,70 +19,10 @@ import (
 	"github.com/multiformats/go-multicodec"
 )
 
-// Put adds a block to the blockstore.
+// Put adds a block to the blockstore. It's PutMany with a single block, so a
+// blob indexes the same way whether it arrives alone or in a batch.
 func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
-	conn, release, err := idx.db.WriteConn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	fromNetwork := networkOrigin(ctx)
-	opts := indexOpts{
-		TrackUnreads:    unreadsTrackingEnabled(ctx),
-		FromNetwork:     fromNetwork,
-		DeriveDocFields: idx.docFieldsDeriver(),
-	}
-	if fromNetwork {
-		opts.ObservedAt = time.Now()
-	}
-
-	// hookIDs collects this blob plus any older blobs the unstash cascade
-	// re-indexes, so the maintained RBSR index sees them all. Enqueued for the
-	// asynchronous hook only after the transaction commits.
-	hookIDs := make([]int64, 0, 1)
-	var wrote bool
-	var kinds []syncperf.KindSample
-	if fromNetwork {
-		opts.Kinds = &kinds
-	}
-	if err := sqlitex.WithTx(conn, func() error {
-		codec, hash := ipfs.DecodeCID(blk.Cid())
-		id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
-		if err != nil {
-			return err
-		}
-		wrote = !exists
-
-		if exists || !isIndexable(multicodec.Code(codec)) {
-			if wrote && fromNetwork {
-				kinds = append(kinds, syncperf.KindSample{
-					Site:  syncSite(ctx),
-					Kind:  syncperf.KindMedia,
-					Bytes: int64(len(blk.RawData())),
-				})
-			}
-			return nil
-		}
-
-		batch := newIndexBatch()
-		if err := indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, batch, &hookIDs); err != nil {
-			return err
-		}
-
-		return batch.flush(opts, conn, idx.bs, idx.log, &hookIDs)
-	}); err != nil {
-		return err
-	}
-
-	// Only after the commit: a rolled-back transaction wrote nothing.
-	if fromNetwork && wrote {
-		syncperf.Default.RecordWrite(1, int64(len(blk.RawData())))
-		syncperf.Default.RecordKinds(kinds)
-	}
-
-	idx.enqueueIndexedHook(hookIDs)
-	return nil
+	return idx.PutMany(ctx, []blocks.Block{blk})
 }
 
 // PutMany adds multiple blocks to the blockstore.
@@ -107,11 +47,10 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	// passes it down here — see blob.ContextWithSyncSite.
 	mediaSite := syncSite(ctx)
 	opts := indexOpts{
-		TrackUnreads:     unreadsTrackingEnabled(ctx),
-		DeferPropagation: true,
-		FromNetwork:      fromNetwork,
-		DeriveDocFields:  idx.docFieldsDeriver(),
+		TrackUnreads: unreadsTrackingEnabled(ctx),
+		FromNetwork:  fromNetwork,
 	}
+	derive := idx.docFieldsDeriver()
 
 	for batch := range slices.Chunk(blks, batchSize) {
 		conn, release, err := idx.db.WriteConn(ctx)
@@ -128,11 +67,10 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 
 		// One indexing state per batch transaction, shared with the unstash
 		// cascades it triggers. See indexBatch.
-		wc := newIndexBatch()
-		// hookIDs captures every blob indexed in this batch — including ones
-		// re-indexed by the unstash cascade (which self-propagate visibility,
-		// so they're not in `indexed`) — for the asynchronous RBSR index hook.
-		// Enqueued only after this batch's transaction commits.
+		wc := newIndexBatch(derive)
+		// hookIDs captures every blob indexed in this batch, including ones
+		// re-indexed by the unstash cascade, for the asynchronous RBSR index
+		// hook. Enqueued only after this batch's transaction commits.
 		hookIDs := make([]int64, 0, len(batch))
 		// putBlock already tells us which blobs actually reached the disk, so
 		// throughput accounting is a pair of adds in a loop we already run —
@@ -147,10 +85,6 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 			opts.Kinds = &kinds
 		}
 		err = sqlitex.WithTx(conn, func() error {
-			// Track every blob we actually indexed in this batch so we can run
-			// one coalesced visibility propagation pass at the end instead of
-			// N separate recursive CTE walks (one per blob).
-			indexed := make([]int64, 0, len(batch))
 			// Capabilities go first, so the batch's authority is in place
 			// before other blobs are authorized against it.
 			// Capabilities depend on no other blob, and the rest keep their order.
@@ -181,11 +115,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 					return nil
 				}
 
-				if err := indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs); err != nil {
-					return err
-				}
-				indexed = append(indexed, id)
-				return nil
+				return indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs)
 			}
 
 			for _, capabilities := range []bool{true, false} {
@@ -205,7 +135,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				}
 			}
 
-			return propagateVisibilityBatch(conn, indexed)
+			return nil
 		})
 		release()
 		if err != nil {

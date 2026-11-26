@@ -2,10 +2,8 @@ package documents
 
 import (
 	"testing"
-	"time"
 
 	"seed/backend/api/apitest"
-	"seed/backend/blob"
 	pb "seed/backend/genproto/documents/v3alpha"
 
 	blocks "github.com/ipfs/go-block-format"
@@ -49,14 +47,6 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 	root := comment("root", "")
 	reply := comment("reply", root.Id)
 
-	// A comment that pins no version means "the document at this path".
-	unpinned, err := blob.NewComment(alice.me.Account, "", alice.me.Account.Principal(), alice.me.Account.Principal(), path, nil, cid.Undef, cid.Undef,
-		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "unpinned"}}}, blob.VisibilityPublic,
-		time.Now().Round(blob.ClockPrecision))
-	require.NoError(t, err)
-	require.NoError(t, alice.idx.Put(ctx, unpinned))
-	unpinnedID := alice.me.Account.Principal().String() + "/" + unpinned.TSID().String()
-
 	// Everything alice has, keyed by CID, so each scenario can pick an order.
 	all := map[cid.Cid]blocks.Block{}
 	keys, err := alice.idx.AllKeysChan(ctx)
@@ -68,7 +58,6 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 	}
 	rootCID := cid.MustParse(root.Version)
 	replyCID := cid.MustParse(reply.Version)
-	unpinnedCID := unpinned.CID
 
 	rest := func(exclude ...cid.Cid) []blocks.Block {
 		out := make([]blocks.Block, 0, len(all))
@@ -84,7 +73,7 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 		return out
 	}
 
-	want := []string{root.Id, reply.Id, unpinnedID}
+	want := []string{root.Id, reply.Id}
 
 	check := func(t *testing.T, bob testServer) {
 		t.Helper()
@@ -111,10 +100,9 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 	t.Run("document first (control)", func(t *testing.T) {
 		t.Parallel()
 		bob := newTestDocsAPI(t, "bob")
-		require.NoError(t, bob.idx.PutMany(ctx, rest(rootCID, replyCID, unpinnedCID)))
+		require.NoError(t, bob.idx.PutMany(ctx, rest(rootCID, replyCID)))
 		require.NoError(t, bob.idx.Put(ctx, all[rootCID]))
 		require.NoError(t, bob.idx.Put(ctx, all[replyCID]))
-		require.NoError(t, bob.idx.Put(ctx, all[unpinnedCID]))
 		check(t, bob)
 	})
 
@@ -122,15 +110,14 @@ func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 		t.Parallel()
 		bob := newTestDocsAPI(t, "bob")
 		require.NoError(t, bob.idx.Put(ctx, all[rootCID]))
-		require.NoError(t, bob.idx.Put(ctx, all[unpinnedCID]))
-		require.NoError(t, bob.idx.PutMany(ctx, rest(rootCID, unpinnedCID)))
+		require.NoError(t, bob.idx.PutMany(ctx, rest(rootCID)))
 		check(t, bob)
 	})
 
 	t.Run("comments first within one batch", func(t *testing.T) {
 		t.Parallel()
 		bob := newTestDocsAPI(t, "bob")
-		batch := append([]blocks.Block{all[rootCID], all[unpinnedCID]}, rest(rootCID, unpinnedCID)...)
+		batch := append([]blocks.Block{all[rootCID]}, rest(rootCID)...)
 		require.NoError(t, bob.idx.PutMany(ctx, batch))
 		check(t, bob)
 	})

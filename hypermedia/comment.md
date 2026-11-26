@@ -14,7 +14,7 @@ A comment has these fields. The first row is the signed [blob](./blob.md) envelo
 | `signer`, `ts`, `sig` | the envelope every blob carries: which key signed it and when <!-- id:3AvWahqt --> |
 | `account` | the [account](./protocol/identity.md) an authorized [agent](./agent.md) key signs for; omitted when the signer writes for itself |
 | `space`, `path` | the document it targets; `space` is omitted when it equals the signer <!-- id:kYYrayoz --> |
-| `version` | the [CIDs](./cid.md) of the document heads the author was looking at; empty means "the document at this path" <!-- id:X2-9MteI --> |
+| `version` | the [CIDs](./cid.md) of the document heads the author was looking at; required, since a comment without a version names no document <!-- id:X2-9MteI --> |
 | `threadRoot` | the CID of the first comment of the thread; present on every reply <!-- id:nUJmFMVQ --> |
 | `replyParent` | the CID of the comment this one replies to; omitted when it equals `threadRoot` <!-- id:VnwV6eo_ --> |
 | `body` | a list of [comment blocks](./block/comment.md): a [block](./protocol/blocks.md) plus its children, to any depth <!-- id:f8Cqg5IZ --> |

@@ -274,10 +274,6 @@ CREATE TABLE document_generations (
     last_tombstone_ref_time INTEGER NOT NULL DEFAULT (0),
     last_alive_ref_time INTEGER NOT NULL DEFAULT (0),
     is_deleted GENERATED ALWAYS AS (last_tombstone_ref_time > last_alive_ref_time) VIRTUAL,
-    last_comment INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
-    last_comment_time INTEGER NOT NULL DEFAULT (0),
-    last_activity_time GENERATED ALWAYS AS (MAX(last_comment_time, last_alive_ref_time)) VIRTUAL,
-    comment_count INTEGER NOT NULL DEFAULT (0),
     -- Sorted JSON array of unique author ID values.
     authors JSON NOT NULL DEFAULT ('[]'),
     -- Roaring bitmap of change blob IDs.
@@ -286,9 +282,6 @@ CREATE TABLE document_generations (
     visibility_timestamp INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (resource, generation, genesis)
 ) WITHOUT ROWID;
-
--- Index to fullfill the rule of having an index on all foreign keys.
-CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
 
 -- Document attribute names, interned by their exact global identity.
 -- `search_key` is the Unicode case-folded form used only for autocomplete.
@@ -373,10 +366,10 @@ CREATE INDEX comments_live_by_blob ON comments_live (blob_id);
 -- 6 of 1766 redirect edges pointed at a different genesis, and one of them was
 -- crediting 293 comments from /tech-talks onto /tech.
 --
--- It also replaces document_generations.comment_count, which counted only against
--- generations satisfying containsAllChanges and skipped comments whose target
--- changes weren't indexed yet: too low for 1141 of the 1489 resources that had
--- comments, 5062 counted against 11964 real ones.
+-- It replaced per-generation comment counts, which counted only against
+-- generations containing the comment's target version and skipped comments
+-- whose target changes weren't indexed yet: too low for 1141 of the 1489
+-- resources that had comments, 5062 counted against 11964 real ones.
 CREATE TABLE document_comment_stats (
     genesis TEXT PRIMARY KEY,
     comment_count INTEGER NOT NULL,

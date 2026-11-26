@@ -62,6 +62,52 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Drop the per-generation comment columns. document_comment_stats replaced
+	// them, and indexing kept writing them for every comment while nothing read
+	// them. last_comment is a foreign key, which SQLite can't drop as a column,
+	// so the table is rebuilt with its rows. No reindex is needed.
+	{Version: "2026-11-26.024551", Run: func(_ *Store, conn *sqlite.Conn) error {
+		hasComments, err := sqlitex.QueryOne[int](conn, `SELECT EXISTS (SELECT 1 FROM pragma_table_info('document_generations') WHERE name = 'comment_count')`)
+		if err != nil {
+			return err
+		}
+
+		if hasComments == 0 {
+			return nil
+		}
+
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS document_generations_old;
+			ALTER TABLE document_generations RENAME TO document_generations_old;
+			CREATE TABLE document_generations (
+			    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    generation INTEGER NOT NULL,
+			    genesis TEXT NOT NULL,
+			    heads JSON NOT NULL DEFAULT ('[]'),
+			    change_count INTEGER NOT NULL DEFAULT (0),
+			    genesis_change_time INTEGER NOT NULL,
+			    last_change_time INTEGER NOT NULL DEFAULT (0),
+			    last_tombstone_ref_time INTEGER NOT NULL DEFAULT (0),
+			    last_alive_ref_time INTEGER NOT NULL DEFAULT (0),
+			    is_deleted GENERATED ALWAYS AS (last_tombstone_ref_time > last_alive_ref_time) VIRTUAL,
+			    authors JSON NOT NULL DEFAULT ('[]'),
+			    changes BLOB,
+			    visibility TEXT NOT NULL DEFAULT '',
+			    visibility_timestamp INTEGER NOT NULL DEFAULT 0,
+			    PRIMARY KEY (resource, generation, genesis)
+			) WITHOUT ROWID;
+			INSERT INTO document_generations (
+			    resource, generation, genesis, heads, change_count, genesis_change_time, last_change_time,
+			    last_tombstone_ref_time, last_alive_ref_time, authors, changes, visibility, visibility_timestamp
+			)
+			SELECT
+			    resource, generation, genesis, heads, change_count, genesis_change_time, last_change_time,
+			    last_tombstone_ref_time, last_alive_ref_time, authors, changes, visibility, visibility_timestamp
+			FROM document_generations_old;
+			DROP TABLE document_generations_old;
+		`))
+	}},
+
 	// Index each distinct text once. The full-text table keeps only the text,
 	// fts_texts finds an already indexed text by its hash, and fts_index records
 	// every occurrence of a text, including blocks that only moved, which now

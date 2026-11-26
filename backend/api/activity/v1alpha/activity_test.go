@@ -1172,7 +1172,10 @@ func TestDelegatedCommentEventAuthority(t *testing.T) {
 	capability, err := blob.NewCapability(bob.Account, bob.Device.Principal(), bob.Account.Principal(), "", blob.RoleAgent, "", now)
 	require.NoError(t, err)
 	require.NoError(t, idx.Put(t.Context(), capability))
-	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "", nil, cid.Undef, cid.Undef,
+	target, err := blob.NewChange(alice.Account, cid.Undef, nil, 0, blob.ChangeBody{}, now)
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(t.Context(), target))
+	comment, err := blob.NewComment(bob.Device, "", bob.Account.Principal(), alice.Account.Principal(), "", []cid.Cid{target.CID}, cid.Undef, cid.Undef,
 		[]blob.CommentBlock{{Block: blob.Block{ID_Good: "b1", Type: "paragraph", Text: "Delegated"}}}, blob.VisibilityPublic, now)
 	require.NoError(t, err)
 	require.NoError(t, idx.Put(t.Context(), comment))

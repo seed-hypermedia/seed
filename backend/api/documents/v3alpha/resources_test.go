@@ -10,6 +10,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/util/must"
 	"testing"
 	"time"
 
@@ -326,7 +327,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "bob")
 		ctx := context.Background()
 
-		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -350,7 +351,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", must.Do2(blob.Version(doc.Version).Parse()), cid.Undef, cid.Undef, commentBody, time.Now())
 		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 
 		iri := fmt.Sprintf("hm://%s/%s", srv.me.Account.Principal(), tsid)
@@ -391,7 +392,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "david")
 		ctx := context.Background()
 
-		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -415,7 +416,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, commentBody, time.Now())
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", must.Do2(blob.Version(doc.Version).Parse()), cid.Undef, cid.Undef, commentBody, time.Now())
 
 		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 		iri := fmt.Sprintf("hm://%s/%s?v=%s", srv.me.Account.Principal(), tsid, comment.CID)
@@ -433,7 +434,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "alice")
 		ctx := context.Background()
 
-		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -457,7 +458,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, originalBody, time.Now())
+		comment := mustCreateComment(ctx, t, srv.idx, &srv.me, "", srv.me.Account.Principal(), "/test", must.Do2(blob.Version(doc.Version).Parse()), cid.Undef, cid.Undef, originalBody, time.Now())
 		tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 
 		editedBody := []blob.CommentBlock{
@@ -469,7 +470,7 @@ func TestGetResource(t *testing.T) {
 			},
 		}
 
-		edited := mustCreateComment(ctx, t, srv.idx, &srv.me, tsid, srv.me.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, editedBody, comment.Decoded.BlobTime().Add(time.Second))
+		edited := mustCreateComment(ctx, t, srv.idx, &srv.me, tsid, srv.me.Account.Principal(), "/test", must.Do2(blob.Version(doc.Version).Parse()), cid.Undef, cid.Undef, editedBody, comment.Decoded.BlobTime().Add(time.Second))
 
 		// Pinning the edited version must resolve to the same record, with the
 		// edited text and the edit blob's CID as its version.

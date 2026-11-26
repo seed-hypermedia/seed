@@ -498,7 +498,7 @@ func TestListCitations_CommentSourceDocumentIsCommentTarget(t *testing.T) {
 	commentBody := []blob.CommentBlock{
 		{Block: blob.Block{ID_Good: "c1", Type: "paragraph", Text: "see A", Link: a.iri() + "#b1"}},
 	}
-	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", b.kp.Principal(), "/b", nil, cid.Undef, cid.Undef, commentBody, clock.next())
+	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", b.kp.Principal(), "/b", []cid.Cid{b.head}, cid.Undef, cid.Undef, commentBody, clock.next())
 
 	tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 	commentID := b.kp.Principal().String() + "/" + tsid.String()
@@ -526,7 +526,7 @@ func TestListCitations_CommentOnSameDocumentReportsItAsSource(t *testing.T) {
 	commentBody := []blob.CommentBlock{
 		{Block: blob.Block{ID_Good: "c1", Type: "paragraph", Text: "see A", Link: a.iri() + "#b1"}},
 	}
-	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", a.kp.Principal(), "/a", nil, cid.Undef, cid.Undef, commentBody, clock.next())
+	comment := mustCreateComment(context.Background(), t, srv.idx, &srv.me, "", a.kp.Principal(), "/a", []cid.Cid{a.head}, cid.Undef, cid.Undef, commentBody, clock.next())
 
 	tsid := blob.NewTSID(comment.Decoded.BlobTime(), comment.Data)
 	commentID := a.kp.Principal().String() + "/" + tsid.String()

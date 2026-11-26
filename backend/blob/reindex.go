@@ -72,10 +72,10 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		blobsIndexable int64 // The subset the loop below visits; drives progress reporting.
 		blobsIndexed   int64
 
-		// Phase timings and cover-pass counters, so a slow reindex can be
+		// Phase timings and batch counters, so a slow reindex can be
 		// diagnosed from the completion log alone, without a CPU profile.
-		truncateDur, blobLoopDur, coverDur           time.Duration
-		gensScanned, gensDerived, coverChangesReplay int
+		truncateDur, blobLoopDur, flushDur time.Duration
+		stats                              refStats
 	)
 	defer func() {
 		// A failed rebuild has already committed the truncation, so the index
@@ -96,17 +96,14 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			zap.Int64("blobsSkipped", blobsTotal-blobsIndexed),
 			zap.String("truncateDuration", truncateDur.String()),
 			zap.String("blobLoopDuration", blobLoopDur.String()),
-			zap.String("coverPassDuration", coverDur.String()),
-			zap.Int("generationsScanned", gensScanned),
-			zap.Int("generationsDerived", gensDerived),
-			zap.Int("coverChangesReplayed", coverChangesReplay),
+			zap.String("flushDuration", flushDur.String()),
+			zap.Int("generationsApplied", stats.Generations),
+			zap.Int("generationsSeeded", stats.Seeded),
+			zap.Int("changesApplied", stats.ChangesApplied),
+			zap.Int("generationsDerived", stats.Derived),
+			zap.Int("changesDerived", stats.ChangesDerived),
 		)
 	}()
-
-	// Resolved once instead of once per blob: the reindex holds the only write
-	// connection for its entire duration, so this can't meaningfully change
-	// mid-run, and docFieldsDeriver() takes a RWMutex on every call.
-	deriver := idx.docFieldsDeriver()
 
 	truncateStart := time.Now()
 
@@ -148,9 +145,10 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 		const q = "SELECT * FROM blobs WHERE " + indexableFilter + " ORDER BY id"
 
-		// One indexing state for the whole reindex: it runs in this single
-		// transaction over one consistent snapshot. See indexBatch.
-		batch := newIndexBatch()
+		// One batch for the whole reindex: it runs in this single transaction
+		// over one consistent snapshot, and the deferred work of every blob is
+		// done once per pass, when the batch flushes. See indexBatch.
+		batch := newIndexBatch(idx.docFieldsDeriver())
 
 		// Two passes over the same rows. The first indexes only capabilities,
 		// then fills the members cache once, so the second pass authorizes
@@ -190,15 +188,6 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 				// Full reindex rebuilds the derived tables (incl. the RBSR index) from
 				// scratch, so no incremental hook is needed here — pass nil.
-				//
-				// A nil DeriveDocFields is load-bearing, not an omission: it is
-				// what disables the per-Ref derivation, which replays a document's
-				// entire history on every Ref that advances its heads and so costs
-				// O(refs × changes) across a full reindex. deriveAllDocFields
-				// below does the same work once per generation after the loop. The nil
-				// also rides into the unstash cascade via childOpts(), which is what we
-				// want — the end pass covers every generation regardless of how it got
-				// built.
 				err = indexBlob(indexOpts{}, conn, id, c, data, idx.bs, idx.log, batch, nil)
 				blobsIndexed++
 
@@ -215,18 +204,16 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 				return err
 			}
 
+			flushStart := time.Now()
+
 			if err := batch.flush(indexOpts{}, conn, idx.bs, idx.log, nil); err != nil {
 				return err
 			}
-		}
-		blobLoopDur = time.Since(blobLoopStart)
 
-		coverStart := time.Now()
-		gensScanned, gensDerived, coverChangesReplay, err = deriveAllDocFields(conn, idx.bs, idx.log, deriver)
-		if err != nil {
-			return err
+			flushDur += time.Since(flushStart)
 		}
-		coverDur = time.Since(coverStart)
+		blobLoopDur = time.Since(blobLoopStart) - flushDur
+		stats = batch.stats
 
 		return dbSetReindexTime(conn, time.Now().UTC().String())
 	}); err != nil {

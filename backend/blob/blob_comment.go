@@ -8,9 +8,6 @@ import (
 	"net/url"
 	"seed/backend/core"
 	"seed/backend/ipfs"
-	"seed/backend/util/dqb"
-	"seed/backend/util/sqlite"
-	"seed/backend/util/sqlite/sqlitex"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -77,6 +74,10 @@ func NewComment(
 ) (eb Encoded[*Comment], err error) {
 	if account == nil {
 		return eb, fmt.Errorf("comment account cannot be nil")
+	}
+
+	if len(version) == 0 {
+		return eb, errCommentNoVersion
 	}
 
 	if threadRoot.Equals(replyParent) {
@@ -227,8 +228,19 @@ func commentVersionHash(c cid.Cid) (string, error) {
 	return hex.EncodeToString(dmh.Digest[:8]), nil
 }
 
+// errCommentNoVersion rejects a comment that pins no version of its target
+// document. Such a comment identifies no document, so it is bad data.
+var errCommentNoVersion = errors.New("comment must pin a version of its target document")
+
 func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	c, v := eb.CID, eb.Decoded
+
+	if len(v.Version) == 0 {
+		return stashError{
+			Reason:   stashReasonBadData,
+			Metadata: stashMetadata{Details: errCommentNoVersion.Error()},
+		}
+	}
 
 	authority := v.Authority()
 	if len(v.Account) != 0 {
@@ -429,83 +441,25 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		return err
 	}
 
-	// SaveBlob above ensures the target resource, so it's in the map from here on.
-	resourceID, ok := ictx.resources[iri]
-	if !ok {
-		panic("BUG: missing resource for comment target")
-	}
-
-	settled, err := settleComment(ictx, id, eb, resourceID)
-	if err != nil {
+	if err := settleComment(ictx, id, eb); err != nil {
 		return err
 	}
-	if !settled {
-		return nil
-	}
 
-	// These incremental updates run only on initial indexing, never on settlement retries.
-	changeIDs := make([]int64, len(v.Version))
-	for i, ver := range v.Version {
-		changeIDs[i] = ictx.blobs[ver].BlobsID
-	}
-
-	// Update document generation comment stats.
-	{
-		// commentCountDelta computes how this blob changes the count of distinct,
-		// non-deleted comment TSIDs for the target. Edits with the same TSID don't
-		// change the count; tombstones decrement only when a previously-live version
-		// existed; out-of-order arrivals (non-tombstone after tombstone) re-activate.
-		delta, err := commentCountDelta(ictx.conn, id, authority, eb.TSID(), isTombstone)
-		if err != nil {
-			return fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
-		}
-
-		generations, err := documentGeneration{}.loadAllByResource(ictx.conn, resourceID)
-		if err != nil {
-			return fmt.Errorf("failed to load generations for comment %s: %w", c, err)
-		}
-
-		for _, dg := range generations {
-			if !dg.containsAllChanges(changeIDs) {
-				continue
-			}
-
-			// Only let live (non-tombstone) versions advance the latest comment pointer.
-			if !isTombstone {
-				commentTime := v.Ts.UnixMilli()
-				if commentTime > dg.LastCommentTime {
-					dg.LastComment = id
-					dg.LastCommentTime = commentTime
-				}
-			}
-			dg.CommentCount += delta
-			if dg.CommentCount < 0 {
-				dg.CommentCount = 0
-			}
-
-			if err := dg.save(ictx.conn); err != nil {
-				return err
-			}
-		}
-
-		if ictx.mustTrackUnreads {
-			if err := ensureUnread(ictx.conn, iri); err != nil {
-				return err
-			}
+	if ictx.mustTrackUnreads {
+		if err := ensureUnread(ictx.conn, iri); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// settleComment resolves the target document of comment version id and
-// recomputes which version of its comment is live, along with the stats of every
-// document and space that changes. It is safe to retry these writes.
+// settleComment resolves the document that comment version id targets and
+// recomputes which version of its comment is live. The comment stats of every
+// document and space that changes are recounted when the batch flushes.
 // Target changes that aren't indexed yet, whether stored or not, return a stash
 // error: like a Ref, the comment waits until every change it names arrives.
-// A path with no generation yet returns false; the Ref that creates one
-// re-settles the comment.
-func settleComment(ictx *indexingCtx, id int64, eb Encoded[*Comment], resourceID int64) (settled bool, err error) {
+func settleComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	c, v := eb.CID, eb.Decoded
 
 	var (
@@ -513,225 +467,50 @@ func settleComment(ictx *indexingCtx, id int64, eb Encoded[*Comment], resourceID
 		pendingChanges []cid.Cid
 	)
 	for _, ver := range v.Version {
-		if _, err := ictx.ensureBlob(ver); err != nil {
-			return false, err
-		}
-		changeID := ictx.blobs[ver]
-
-		var cm changeMetadata
-		if err := cm.load(ictx.conn, changeID.BlobsID); err != nil {
-			return false, err
+		change, err := ictx.indexedChange(ver)
+		if err != nil {
+			return err
 		}
 
-		if cm.ID == 0 {
+		if change.ID == 0 {
 			pendingChanges = append(pendingChanges, ver)
 			continue
 		}
 
-		// A compound version names heads of one document. Heads from different
-		// genesises don't identify any document, so the comment is invalid.
-		changeGenesis := cm.Genesis()
-		if genesisBlobID != 0 && genesisBlobID != changeGenesis {
-			return false, stashError{
+		// A version names heads of one document: Changes with one genesis.
+		// Anything else doesn't identify a document, so the comment is invalid.
+		if !change.IsChange || (genesisBlobID != 0 && genesisBlobID != change.Genesis) {
+			return stashError{
 				Reason: stashReasonBadData,
 				Metadata: stashMetadata{
-					Details: fmt.Sprintf("changes of comment target version %s have different genesis", NewVersion(v.Version...)),
+					Details: fmt.Sprintf("comment target version %s doesn't name Changes of one document", NewVersion(v.Version...)),
 				},
 			}
 		}
 
-		genesisBlobID = changeGenesis
+		genesisBlobID = change.Genesis
 	}
 
 	if pendingChanges != nil {
-		return false, stashError{
+		return stashError{
 			Reason:   stashReasonFailedPrecondition,
 			Metadata: stashMetadata{MissingBlobs: pendingChanges},
 		}
 	}
 
-	// A comment that pins no target version means "the document at this path", so
-	// its identity is whatever genesis that path currently resolves to. An empty
-	// genesis (no generation at the path yet) leaves this version unattributed:
-	// the Ref that creates one re-settles it.
-	var genesis string
-	if genesisBlobID != 0 {
-		genesis, err = lookupBlobCID(ictx.conn, genesisBlobID)
-	} else {
-		genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
-	}
+	genesis, err := lookupBlobCID(ictx.conn, genesisBlobID)
 	if err != nil {
-		return false, fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
+		return fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
 	}
 
-	// Settle the comment's live version even when this version is unattributed:
-	// if it's the newest, an older version must stop counting.
 	affected, err := updateCommentLive(ictx.conn, v.Authority(), eb.TSID(), id, genesis)
 	if err != nil {
-		return false, err
-	}
-
-	for _, g := range affected.genesises {
-		if err := updateDocumentCommentStats(ictx.conn, g); err != nil {
-			return false, err
-		}
-	}
-
-	// Space totals are recounted once per batch, when it flushes: recounting
-	// per comment is quadratic in a space's comments during a reindex.
-	for _, space := range affected.spaces {
-		ictx.batch.commentSpaces[space] = true
-	}
-
-	return genesis != "", nil
-}
-
-// commentCountDelta returns the change to apply to comment counts when indexing
-// a Comment blob. A new TSID contributes +1, edits contribute 0, the first
-// tombstone for a previously-live TSID contributes -1, and a live blob arriving
-// after a tombstone (out-of-order P2P sync) re-activates the TSID for +1.
-func commentCountDelta(conn *sqlite.Conn, currentID int64, authority core.Principal, tsid TSID, isTombstone bool) (delta int64, err error) {
-	var priorAny, priorLive int64
-	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), authority, string(tsid), currentID).All()
-	defer discard(&err)
-	for row := range rows {
-		row.Scan(&priorAny, &priorLive)
-	}
-	if cerr := check(); cerr != nil {
-		return 0, cerr
-	}
-
-	// TODO(burdiyan): this process is a bit simplistic,
-	// because it doesn't account for the possiblility of multiple tombstones for the same comment.
-	// Although it would be a bit of an anomly — it's totally possible from the data model perspective.
-	// And in that case this logic would undercount the total number of comments.
-	//
-	// One way to address this could be keeping max live and deleted timestamps,
-	// and on every event decide whether we should increment, decrement, or leave the count unchanged.
-	// We won't bother for now, because multiple tombstones shouldn't happen in a normal scenario.
-
-	switch {
-	case isTombstone && priorLive > 0:
-		return -1, nil
-	case isTombstone:
-		return 0, nil
-	case priorAny == 0:
-		return 1, nil
-	case priorLive == 0:
-		// A tombstone existed before this live version arrived (out-of-order sync).
-		return 1, nil
-	default:
-		return 0, nil
-	}
-}
-
-var qCommentTSIDPriorVersions = dqb.Str(`
-	SELECT
-		COUNT(*) AS prior_any,
-		COALESCE(SUM(CASE WHEN extra_attrs->>'deleted' IS NULL THEN 1 ELSE 0 END), 0) AS prior_live
-	FROM structural_blobs
-	WHERE type = 'Comment'
-	  AND COALESCE(extra_attrs->>'account', author) = (SELECT +id FROM public_keys WHERE principal = ?1)
-	  AND extra_attrs->>'tsid' = ?2
-	  AND id != ?3;
-`)
-
-// resettleComments retries derived stats without replaying initial indexing's
-// count increments or unread notifications.
-func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
-	type pendingComment struct {
-		id       int64
-		resource int64
-		c        cid.Cid
-		data     []byte
-	}
-
-	// Collected first: settling writes to tables this query reads.
-	var found []pendingComment
-	rows, discard, check := sqlitex.Query(ictx.conn, query, arg).All()
-	defer discard(&err)
-	for row := range rows {
-		inc := sqlite.NewIncrementor(0)
-		var (
-			id       = row.ColumnInt64(inc())
-			resource = row.ColumnInt64(inc())
-			codec    = row.ColumnInt64(inc())
-			hash     = row.ColumnBytes(inc())
-			rawData  = row.ColumnBytesUnsafe(inc())
-			size     = row.ColumnInt64(inc())
-		)
-
-		data, err := ictx.blockStore.decompress(rawData, int(size))
-		if err != nil {
-			return err
-		}
-
-		found = append(found, pendingComment{
-			id:       id,
-			resource: resource,
-			c:        cid.NewCidV1(uint64(codec), hash),
-			data:     data,
-		})
-	}
-	if err := check(); err != nil {
 		return err
 	}
 
-	for _, pc := range found {
-		eb, err := decodeComment(pc.c, pc.data)
-		if err != nil {
-			return fmt.Errorf("failed to decode pending comment %s: %w", pc.c, err)
-		}
-
-		// Still pending (another target change is missing, or still no generation):
-		// a later arrival will get it. Nothing to stash from here -- a stash error
-		// would roll back the blob that triggered this re-settlement.
-		if _, err := settleComment(ictx, pc.id, eb, pc.resource); err != nil {
-			var pending stashError
-			if errors.As(err, &pending) {
-				continue
-			}
-			return fmt.Errorf("failed to settle pending comment %s: %w", pc.c, err)
-		}
-	}
+	// Stats are recounted once per batch, when it flushes: recounting per
+	// comment is quadratic in a document's or a space's comments.
+	ictx.batch.markCommentStats(affected)
 
 	return nil
 }
-
-// Retry only the latest version of each comment, using the same (ts, hash)
-// order as comments_live. A deleted winner must exclude all of its historical versions.
-const pendingCommentColumns = `
-	SELECT sb.id, sb.resource, b.codec, b.multihash, b.data, b.size
-`
-
-// isLatestCommentVersion keeps only the latest version of each comment.
-// Pin the inner lookup to TSID: SQLite otherwise prefers the type/time index
-// for ORDER BY ... LIMIT 1 and scans unrelated comments for every candidate.
-const isLatestCommentVersion = `
-	AND sb.id = (
-		SELECT latest.id FROM structural_blobs latest INDEXED BY structural_blobs_by_tsid
-		WHERE latest.type = 'Comment'
-		AND latest.extra_attrs->>'tsid' IS NOT NULL
-		AND latest.extra_attrs->>'tsid' = sb.extra_attrs->>'tsid'
-		AND COALESCE(latest.extra_attrs->>'account', latest.author) = COALESCE(sb.extra_attrs->>'account', sb.author)
-		ORDER BY latest.ts DESC, latest.extra_attrs->>'hash' DESC
-		LIMIT 1
-	)
-`
-
-const pendingCommentFilter = `
-	AND sb.type = 'Comment'
-	AND sb.extra_attrs->>'deleted' IS NULL
-` + isLatestCommentVersion + `
-	AND NOT EXISTS (
-		SELECT 1 FROM comments_live l
-		WHERE l.authority = COALESCE(sb.extra_attrs->>'account', sb.author)
-		AND l.tsid = sb.extra_attrs->>'tsid'
-	)
-`
-
-var qPendingCommentsOnResource = dqb.Str(pendingCommentColumns + `
-	FROM structural_blobs sb
-	JOIN blobs b ON b.id = sb.id
-	WHERE sb.resource = ?1
-` + pendingCommentFilter)
