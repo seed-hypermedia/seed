@@ -168,6 +168,8 @@ export type EnqueueRunSpec = {
 }
 
 const RETRY_BASE_MS = 5_000
+/** Backoff before a run whose own bookkeeping write failed is tried again. */
+const EXECUTE_FAILURE_RETRY_MS = 5_000
 const RETRY_CAP_MS = 5 * 60_000
 const LEASE_MS = 60_000
 export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = ['succeeded', 'failed', 'canceled']
@@ -542,7 +544,7 @@ export class RunQueue {
     // The loop claims it once admitted, like any other queued run.
     const claimed = this.#admit && !this.#admit().ok ? null : this.#claimSpecific(runId)
     if (!claimed) this.#ensureInterval()
-    if (claimed) await this.#execute(claimed)
+    if (claimed) await this.#execute(claimed).catch((error) => this.#recoverFailedExecute(claimed, error))
     const run = this.#getRunAnyAccount(runId)
     if (!run) throw new Error(`Run not found after inline execution: ${runId}`)
     // The run may have parked; an inline caller treats that as final for the request.
@@ -803,14 +805,18 @@ export class RunQueue {
         if (kinds.length === 0) break
         const run = this.#claimNext(kinds)
         if (!run) break
-        const done = this.#execute(run).finally(() => {
-          this.#inflight.delete(run.id)
-          this.#inflightKinds.delete(run.id)
-          const waiters = this.#idleWaiters
-          this.#idleWaiters = []
-          for (const waiter of waiters) waiter()
-          this.#pump()
-        })
+        const done = this.#execute(run)
+          // A failed bookkeeping write (a locked or full database) must not reject unhandled: that
+          // exits the whole server. The run goes back to the queue to try again.
+          .catch((error) => this.#recoverFailedExecute(run, error))
+          .finally(() => {
+            this.#inflight.delete(run.id)
+            this.#inflightKinds.delete(run.id)
+            const waiters = this.#idleWaiters
+            this.#idleWaiters = []
+            for (const waiter of waiters) waiter()
+            this.#pump()
+          })
         this.#inflight.set(run.id, done)
         this.#inflightKinds.set(run.id, run.kind)
       }
@@ -939,6 +945,28 @@ export class RunQueue {
       }
     }
     this.#finalize(run, outcome)
+  }
+
+  #recoverFailedExecute(run: RunRecord, error: unknown): void {
+    console.error('[agents/runs] run bookkeeping failed; requeueing', {
+      runId: run.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    try {
+      const now = Date.now()
+      stmt(
+        this.#db,
+        `UPDATE runs SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL, not_before = ?1, updated_at = ?2
+           WHERE id = ?3 AND (status = 'claimed' OR status = 'running')`,
+      ).run([now + EXECUTE_FAILURE_RETRY_MS, now, run.id])
+      this.#ensureInterval()
+    } catch (requeueError) {
+      // The boot sweep requeues it if this server restarts before the database recovers.
+      console.error('[agents/runs] requeue after failed bookkeeping failed', {
+        runId: run.id,
+        error: requeueError instanceof Error ? requeueError.message : String(requeueError),
+      })
+    }
   }
 
   #finalize(run: RunRecord, outcome: RunOutcome): void {

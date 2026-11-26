@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {Database} from 'bun:sqlite'
 import {closeDatabase} from './sqlite'
 import {afterEach, describe, expect, test} from 'bun:test'
@@ -498,5 +501,104 @@ describe('session run lookups', () => {
       .map((row) => row.tbl)
     expect(analyzed).toEqual(expect.arrayContaining(['runs', 'sessions', 'agents']))
     closeDatabase(db)
+  })
+})
+
+describe('runs queue with another connection holding the write lock', () => {
+  /** A file database (the lock must be visible to a second process) with the account and agent rows. */
+  function createFileDb(): {db: Database; path: string} {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runs-lock-'))
+    const dbPath = path.join(dir, 'agents.sqlite')
+    const result = sqlite.open(dbPath)
+    if (!result.ok) throw new Error('schema mismatch')
+    const db = result.db
+    const now = Date.now()
+    db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, [ACCOUNT, now, now])
+    db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['agent-1', ACCOUNT, new Uint8Array([160]), '/tmp/none', 'idle', now, now],
+    )
+    cleanups.push(() => fs.rmSync(dir, {recursive: true, force: true}))
+    return {db, path: dbPath}
+  }
+
+  /** Another process takes the write lock and holds it for `ms`; resolves once it holds it. */
+  async function holdWriteLock(dbPath: string, ms: number): Promise<{released: Promise<number>}> {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '-e',
+        `const {Database} = require('bun:sqlite'); const db = new Database(${JSON.stringify(dbPath)});
+         db.run('BEGIN IMMEDIATE'); console.log('locked'); await Bun.sleep(${ms}); db.run('COMMIT')`,
+      ],
+      {stdout: 'pipe'},
+    )
+    const reader = child.stdout.getReader()
+    let seen = ''
+    while (!seen.includes('locked')) {
+      const {value, done} = await reader.read()
+      if (done) throw new Error('lock holder exited before taking the lock')
+      seen += new TextDecoder().decode(value)
+    }
+    return {released: child.exited}
+  }
+
+  function noUnhandledRejections(): unknown[] {
+    const seen: unknown[] = []
+    const listener = (reason: unknown) => seen.push(reason)
+    process.on('unhandledRejection', listener)
+    cleanups.push(() => process.off('unhandledRejection', listener))
+    return seen
+  }
+
+  test('a run finishes when another connection briefly holds the lock as it finalizes', async () => {
+    const {db, path: dbPath} = createFileDb()
+    let released: Promise<number> | null = null
+    const queue = new runs.RunQueue(db, {
+      executors: {
+        agent: async () => {
+          released = (await holdWriteLock(dbPath, 300)).released
+          return {type: 'succeeded', output: 'done'}
+        },
+      },
+      pollIntervalMs: 10,
+    })
+    track(db, queue)
+    const run = queue.enqueue(agentSpec())
+    await queue.awaitIdle()
+    await released
+    expect(runs.getRun(db, ACCOUNT, run.id)?.status).toBe('succeeded')
+  })
+
+  test('a write that still fails with SQLITE_BUSY does not reject unhandled, and the run is not lost', async () => {
+    const {db, path: dbPath} = createFileDb()
+    // No waiting at all: every write while the lock is held fails, as on servers before busy_timeout.
+    db.run('PRAGMA busy_timeout = 0')
+    const rejections = noUnhandledRejections()
+    let released: Promise<number> | null = null
+    const queue = new runs.RunQueue(db, {
+      executors: {
+        agent: async () => {
+          released = (await holdWriteLock(dbPath, 200)).released
+          return {type: 'succeeded', output: 'done'}
+        },
+      },
+      pollIntervalMs: 10,
+    })
+    track(db, queue)
+    const run = queue.enqueue(agentSpec())
+    // Not awaitIdle: awaiting the in-flight promise would handle its rejection, and on the server
+    // nothing awaits it, so a rejection there is unhandled and exits the process.
+    while (!released) await Bun.sleep(5)
+    await released
+    await Bun.sleep(50)
+    expect(rejections).toEqual([])
+    // The finalize and the requeue both hit the lock; the row is still live for the boot sweep.
+    const after = runs.getRun(db, ACCOUNT, run.id)
+    expect(after && !runs.TERMINAL_RUN_STATUSES.includes(after.status)).toBe(true)
+    const fresh = new runs.RunQueue(db, {executors: {}})
+    expect(fresh.sweepAtBoot()).toBe(1)
+    fresh.stop()
   })
 })
