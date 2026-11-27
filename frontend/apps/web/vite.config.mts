@@ -15,7 +15,7 @@ const NOTIFY_DEV_URL = process.env.NOTIFY_DEV_URL || 'http://localhost:3060'
 const NOTIFY_PATHS =
   '^/hm/api/(notify|notifications|notification-config|notification-inbox|notification-read-state|public-subscribe|email-notif-token|unsubscribe)(?=$|[/?])'
 
-export default defineConfig(({isSsrBuild}) => {
+export default defineConfig(({isSsrBuild, mode}) => {
   return {
     server: {
       port: 3000,
@@ -120,7 +120,7 @@ export default defineConfig(({isSsrBuild}) => {
       // },
       tailwindcss(),
       // Add Sentry plugin for production builds
-      process.env.NODE_ENV === 'production' &&
+      mode === 'production' &&
         process.env.SENTRY_AUTH_TOKEN &&
         sentryVitePlugin({
           authToken: process.env.SENTRY_AUTH_TOKEN,
