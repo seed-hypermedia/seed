@@ -16,6 +16,7 @@ import {Button} from '../button'
 import {Input} from '../components/input'
 import {Switch} from '../components/switch'
 import {cn} from '../utils'
+import {EMPTY_FILE, FILE_FIELD_NAMES, base64Size, formatBytes, isFileValue, readFileValue} from './file-value'
 import {
   type HypermediaSchema,
   type LiteralMember,
@@ -41,6 +42,10 @@ import {
 // back to a raw dag-json box rather than trying to draw an infinite tree.
 const MAX_DEPTH = 14
 const FieldLabel = createContext<string | undefined>(undefined)
+/** Whether optional fields with a simple control show that control at once (a form to fill in). */
+const PlainOptional = createContext(false)
+/** Whether the control being drawn may be emptied, which leaves its field out of the value. */
+const Clearable = createContext(false)
 
 type Env = Record<string, any>
 
@@ -119,6 +124,7 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
     return <UnionNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />
 
   const kind = schema.type ? kindOf(schema.type) : null
+  if (kind === 'struct' && isFileSchema(schema, e, reg)) return <FileNode value={value} onChange={onChange} />
   if (kind === 'map' || kind === 'struct')
     return <MapNode schema={schema} value={value} onChange={onChange} env={e} reg={reg} depth={depth} />
   if (kind === 'list')
@@ -185,6 +191,7 @@ function LiteralUnionNode({
   onChange,
 }: {members: LiteralMember[]} & Pick<NodeProps, 'value' | 'onChange'>) {
   const label = useContext(FieldLabel)
+  const clearable = useContext(Clearable)
   const cur = JSON.stringify(value)
   const selected = members.some((m) => JSON.stringify(m.value) === cur) ? cur : ''
   return (
@@ -192,12 +199,16 @@ function LiteralUnionNode({
       aria-label={label}
       className={selectCls}
       value={selected}
-      onChange={(ev) => onChange(JSON.parse(ev.target.value))}
+      onChange={(ev) => onChange(ev.target.value === '' ? undefined : JSON.parse(ev.target.value))}
     >
-      {selected === '' && (
-        <option value="" disabled>
-          Choose a value
-        </option>
+      {clearable ? (
+        <option value="">Not set</option>
+      ) : (
+        selected === '' && (
+          <option value="" disabled>
+            Choose a value
+          </option>
+        )
       )}
       {members.map((m, i) => (
         <option key={i} value={JSON.stringify(m.value)} title={m.description}>
@@ -219,6 +230,90 @@ function BoolNode({value, onChange}: Pick<NodeProps, 'value' | 'onChange'>) {
 }
 
 // link / bytes: a single text input wrapped into its dag-json envelope.
+/** Whether a struct schema is the shape of a file: exactly a string `name`, `mimeType` and `data`. */
+function isFileSchema(schema: HypermediaSchema, env: Env, reg: SchemaRegistry): boolean {
+  if (schema.values) return false
+  const fields = structFields(schema)
+  const names = fields.map((f) => f.name).sort()
+  if (names.length !== FILE_FIELD_NAMES.length || names.some((name, i) => name !== FILE_FIELD_NAMES[i])) return false
+  return fields.every((f) => {
+    const type = resolveSchema(f.schema, env, reg).schema.type
+    return !!type && kindOf(type) === 'string'
+  })
+}
+
+/**
+ * A file field: the person picks a file and the value becomes its name, type and bytes. The bytes
+ * stay in the form's value until it is sent; nothing is uploaded or stored here.
+ */
+function FileNode({value, onChange}: Pick<NodeProps, 'value' | 'onChange'>) {
+  const label = useContext(FieldLabel)
+  const input = useRef<HTMLInputElement>(null)
+  const [reading, setReading] = useState(false)
+  const [error, setError] = useState<string>()
+  const file = isFileValue(value) && value.data ? value : null
+  const what = label ? `file for ${label}` : 'file'
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={input}
+          type="file"
+          hidden
+          tabIndex={-1}
+          aria-label={label ?? 'File'}
+          onChange={(event) => {
+            const picked = event.target.files?.[0]
+            // Picking the same file again must fire a change too.
+            event.target.value = ''
+            if (!picked) return
+            setReading(true)
+            setError(undefined)
+            readFileValue(picked)
+              .then(onChange)
+              .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+              .finally(() => setReading(false))
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={reading}
+          aria-label={file ? `Replace ${what}` : `Choose ${what}`}
+          onClick={() => input.current?.click()}
+        >
+          {reading ? 'Reading…' : file ? 'Replace file' : 'Choose file'}
+        </Button>
+        {file ? (
+          <>
+            <span className="text-foreground min-w-0 truncate text-sm">{file.name}</span>
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {file.mimeType} · {formatBytes(base64Size(file.data))}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={`Remove ${what}`}
+              onClick={() => onChange(EMPTY_FILE)}
+            >
+              Remove
+            </Button>
+          </>
+        ) : (
+          <span className="text-muted-foreground text-sm">No file chosen</span>
+        )}
+      </div>
+      {error ? (
+        <p role="alert" className="text-destructive text-xs">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 function WrappedNode({
   kind,
   value,
@@ -374,6 +469,28 @@ function ListNode({schema, value, onChange, env, reg, depth}: NodeProps) {
 
 type Extra = {id: number; key: string; value: unknown}
 
+/**
+ * Whether a field's control can stand for "not given" by being empty: a text or number box, a date,
+ * a dropdown of fixed choices, a file picker. An optional field of this kind needs no switch to
+ * include it in a form that is filled in: it is left out while its control is empty.
+ */
+function emptiesToAbsent(schema0: HypermediaSchema, env: Env, reg: SchemaRegistry): boolean {
+  const {schema, env: e} = resolveSchema(schema0, env, reg)
+  if (schema.__unbound || schema.__missing) return false
+  const members = literalMembers(schema, reg)
+  if (members) return members.length > 1
+  if (schema.anyOf) return false
+  const kind = schema.type ? kindOf(schema.type) : null
+  if (kind === 'struct') return isFileSchema(schema, e, reg)
+  return kind === 'string' || kind === 'integer' || kind === 'float'
+}
+
+/** Whether a control holds nothing: an empty box, an unset dropdown, a file picker with no file. */
+function isEmptyControlValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') return true
+  return isFileValue(value) && !value.data
+}
+
 function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
   const v: Record<string, unknown> = isRecord(value) ? value : {}
   const fields = structFields(schema)
@@ -381,6 +498,7 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
   const required = new Set<string>(fields.filter((f) => f.required).map((f) => f.name))
   const openValues = schema.values as HypermediaSchema | undefined
   const known = new Set(Object.keys(props))
+  const plainOptional = useContext(PlainOptional)
 
   // Open-map extras need local state: keys are edited in-place and may be empty
   // or duplicated mid-edit, which a value-derived object can't hold. Seeded once
@@ -418,11 +536,14 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
         // A field joining the value starts from its property default, else a seed of its schema.
         const starter = () => seedField(field, env, reg)
         const isReq = required.has(k)
-        const included = isReq || k in v
+        // In a form to fill in, an optional field with a simple control shows it at once, and is
+        // part of the value only while the control holds something.
+        const plain = plainOptional && !isReq && emptiesToAbsent(sub, env, reg)
+        const included = isReq || plain || k in v
         return (
           <fieldset key={k} aria-label={k} className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center gap-2">
-              {!isReq && (
+              {!isReq && !plain && (
                 <Switch
                   aria-label={`Include ${k}`}
                   checked={k in v}
@@ -437,14 +558,18 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
             {description && <p className="text-muted-foreground text-sm">{description}</p>}
             {included && (
               <FieldLabel.Provider value={k}>
-                <Node
-                  schema={sub}
-                  value={k in v ? v[k] : starter()}
-                  onChange={(nv) => emitDeclared({...v, [k]: nv})}
-                  env={env}
-                  reg={reg}
-                  depth={depth + 1}
-                />
+                <Clearable.Provider value={plain}>
+                  <Node
+                    schema={sub}
+                    value={k in v ? v[k] : plain ? undefined : starter()}
+                    onChange={(nv) =>
+                      plain && isEmptyControlValue(nv) ? emitDeclared(omit(v, k)) : emitDeclared({...v, [k]: nv})
+                    }
+                    env={env}
+                    reg={reg}
+                    depth={depth + 1}
+                  />
+                </Clearable.Provider>
               </FieldLabel.Provider>
             )}
           </fieldset>
@@ -503,19 +628,31 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
 
 // --- public API -------------------------------------------------------------
 
-/** Recursive, schema-driven form. Controlled: renders `value`, emits edits via `onValue`. */
+/**
+ * Recursive, schema-driven form. Controlled: renders `value`, emits edits via `onValue`.
+ *
+ * An optional field has a switch that includes it in the value, so that an empty text is a value
+ * like any other. `plainOptional` is for a form that someone fills in (a tool's input): an optional
+ * text, number, date, choice or file shows its control at once, and is left out while that is empty.
+ */
 export function SchemaDataEditor({
   schema,
   value,
   onValue,
   registry,
+  plainOptional = false,
 }: {
   schema: HypermediaSchema
   value: unknown
   onValue: (v: unknown) => void
   registry?: SchemaRegistry
+  plainOptional?: boolean
 }) {
-  return <Node schema={schema} value={value} onChange={onValue} env={{}} reg={registry ?? {}} depth={0} />
+  return (
+    <PlainOptional.Provider value={plainOptional}>
+      <Node schema={schema} value={value} onChange={onValue} env={{}} reg={registry ?? {}} depth={0} />
+    </PlainOptional.Provider>
+  )
 }
 
 /**

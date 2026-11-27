@@ -1,0 +1,204 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "status": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "complete when the document was converted, pending when Datalab is still working.",
+      "required": true
+    },
+    "summary": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "What happened, in a sentence.",
+      "required": true
+    },
+    "job": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The conversion's job. Pass it back to collect a pending conversion.",
+      "required": true
+    },
+    "pages": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Pages converted, as Datalab reports them."
+    },
+    "images": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Figures extracted, each one a file in assets."
+    },
+    "truncated": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "True when the document reached the page cap, so its end may be missing."
+    },
+    "parseQualityScore": {
+      "value": {
+        "type": "hm://hyper.media/float"
+      },
+      "description": "Datalab's quality score from 0 to 5, when it gives one."
+    },
+    "costCents": {
+      "value": {
+        "type": "hm://hyper.media/float"
+      },
+      "description": "What Datalab charged, in cents, when it says."
+    },
+    "captions": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Figure captions attached to their images."
+    },
+    "citationsLinked": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Citations linked to their bibliography entries."
+    },
+    "citationsUnlinked": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Citations with no matching entry, left as text. The manifest lists them."
+    },
+    "markersRepaired": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "Unpaired Markdown markers repaired. The manifest lists each one."
+    },
+    "document": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "name": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's name.",
+            "required": true
+          },
+          "mimeType": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's MIME type.",
+            "required": true
+          },
+          "data": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's bytes, as base64.",
+            "required": true
+          }
+        },
+        "description": "A file inside a tool's JSON."
+      },
+      "description": "The converted document as Markdown, named seed.md: the file to review and publish. It links to its figures as assets/<name>."
+    },
+    "raw": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "name": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's name.",
+            "required": true
+          },
+          "mimeType": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's MIME type.",
+            "required": true
+          },
+          "data": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's bytes, as base64.",
+            "required": true
+          }
+        },
+        "description": "A file inside a tool's JSON."
+      },
+      "description": "The Markdown exactly as Datalab returned it, named raw.md, to compare against."
+    },
+    "manifest": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "name": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's name.",
+            "required": true
+          },
+          "mimeType": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's MIME type.",
+            "required": true
+          },
+          "data": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's bytes, as base64.",
+            "required": true
+          }
+        },
+        "description": "A file inside a tool's JSON."
+      },
+      "description": "What the conversion did, as JSON, named manifest.json: the figures, the repairs and the citations left unlinked."
+    },
+    "assets": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/struct",
+          "properties": {
+            "name": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "description": "The file's name.",
+              "required": true
+            },
+            "mimeType": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "description": "The file's MIME type.",
+              "required": true
+            },
+            "data": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "description": "The file's bytes, as base64.",
+              "required": true
+            }
+          },
+          "description": "A file inside a tool's JSON."
+        }
+      },
+      "description": "The extracted figures, each named assets/<name> as the document links to it."
+    }
+  },
+  "description": "Output of the convert tool. A complete conversion carries its files inline: document, raw, manifest and assets."
+}

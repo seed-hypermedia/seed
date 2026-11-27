@@ -535,6 +535,17 @@ export function getListedDraft(draftId: string): HMListedDraft | undefined {
 async function getDraft(draftId: string): Promise<HMDraft | null> {
   const entry = draftIndex?.find((draft) => draft.id === draftId)
   if (!entry) return null
+  // The list is held in memory, and a draft's file can be removed behind it: the CLI deletes a
+  // draft while the app runs. A page that finds such a draft in the list waits for content that
+  // will never come, and the document never opens. So a draft with no file leaves the list too,
+  // and whoever asked is told there is no draft. A file that is there but cannot be read is kept.
+  if (!(await resolveDraftFile(draftId))) {
+    draftIndex = draftIndex?.filter((draft) => draft.id !== draftId)
+    await saveDraftIndex()
+    appInvalidateQueries([queryKeys.DRAFTS_LIST])
+    appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    return null
+  }
   const content = await readDraftContent(draftId, entry)
   return content ? {...entry, ...content, id: draftId} : null
 }

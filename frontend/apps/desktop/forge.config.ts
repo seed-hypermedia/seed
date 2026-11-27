@@ -140,6 +140,13 @@ if (process.platform === 'win32') {
   }
 }
 
+// Fedora's rpmbuild runs check-rpaths, which rejects the prebuilt microsandbox binaries: upstream ships them with a
+// mis-escaped RUNPATH (`\$$ORIGIN/...`), reported as "invalid RPATH" (0x0002). We cannot rebuild those binaries, so
+// allow that class. A value already set by the caller is kept.
+if (process.platform === 'linux') {
+  process.env.QA_RPATHS ??= '0x0002'
+}
+
 let iconsPath = IS_PROD_DEV
   ? path.resolve(__dirname, 'assets', 'icons', 'icon')
   : path.resolve(__dirname, 'assets', 'icons-prod', 'icon')

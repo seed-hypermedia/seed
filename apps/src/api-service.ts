@@ -44,6 +44,7 @@ import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} f
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, hasOwnerAccess, privateStub, withOwnerAccess} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
+import * as toolFiles from '@/tool-files'
 import {
   buildLambdaProgram,
   CodeExecError,
@@ -426,6 +427,30 @@ export class APIError extends Error {
     if (code) this.code = code
   }
 }
+
+/**
+ * The actions that start agent work: a new agent, a new session or message, a new trigger. A server
+ * with the `agents` feature off refuses them. Reading and deleting what exists stays possible.
+ */
+const AGENT_WORK_ACTIONS: ReadonlySet<string> = new Set([
+  'CreateAgent',
+  'MountAgent',
+  'CreateSession',
+  'MessageSession',
+  'RetrySession',
+  'InvokeSessionTool',
+  'CreateAgentTrigger',
+  'CombineAgentTriggers',
+])
+const AGENTS_OFF = 'This app environment does not run agents.'
+/** How many sessions the server remembers tool documentation for (see `#toolDocumentationUnread`). */
+const MAX_TOOL_DOCUMENTATION_SESSIONS = 2000
+
+/**
+ * Where a server's sandbox warm-up stands: `off` when none was asked for, `warming` while the
+ * first sandbox is being started, then `ready` or `failed` with how long it took.
+ */
+export type SandboxWarmUp = {state: 'off' | 'warming' | 'ready' | 'failed'; durationMs?: number}
 
 /** An action name the server does not dispatch. Kept out of the per-action perf metrics. */
 class UnsupportedActionError extends APIError {
@@ -1033,6 +1058,10 @@ export class Service {
   readonly #liveUserVerbs = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
+  readonly #features: readonly api.AppEnvironmentFeature[]
+  #sandboxWarmUp: SandboxWarmUp = {state: 'off'}
+  /** Per session, the tool documentation (tool address and version) its agent has been given. */
+  readonly #toolDocumentationGiven = new Map<string, Set<string>>()
   /** Latest released Codex CLI version, looked up for the subscription model catalog. */
   readonly #codexClientVersion = new CodexClientVersionResolver()
   /** Durable run records + dispatch queue; every agent execution goes through it. */
@@ -1131,6 +1160,8 @@ export class Service {
       providerOAuth?: ProviderOAuthManager
       /** Offer subscription (OAuth) provider sign-in. Explicit server opt-in; default off. */
       subscriptionAuth?: boolean
+      /** What this server runs (tools on their own, apps, agents); all of them when omitted. */
+      features?: readonly api.AppEnvironmentFeature[]
       /** Generate titles for untitled sessions with a dedicated model call (default off: tests mock providers). */
       titleGeneration?: boolean
       /** Run-queue concurrency caps; see {@link runs.RunQueue} for the defaults. */
@@ -1184,6 +1215,7 @@ export class Service {
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
+    this.#features = options.features ?? protocol.APP_ENVIRONMENT_FEATURES
     this.#titleGenerationEnabled = options.titleGeneration ?? false
     this.#storage = options.storage
     this.#runQueue = new runs.RunQueue(db, {
@@ -1397,6 +1429,11 @@ export class Service {
   }
 
   /** Whether subscription provider sign-in is offered, for client capability display. */
+  /** What this server runs: tools on their own, apps, agents. */
+  get features(): readonly api.AppEnvironmentFeature[] {
+    return this.#features
+  }
+
   get subscriptionAuthEnabled(): boolean {
     return this.#subscriptionAuthEnabled
   }
@@ -1417,6 +1454,61 @@ export class Service {
    */
   async probeCodeExec(): Promise<CodeExecProbeResult> {
     return await this.#codeExec.probe(path.join(this.#dataDir, 'exec-probe'))
+  }
+
+  /**
+   * Whether the session has not yet been given the tool documentation `key` names, by reading the
+   * tool's document or with the result of a call, and records that it now has. Kept in memory:
+   * after a restart a call returns the documentation once more, which costs some reading and loses
+   * nothing.
+   */
+  #toolDocumentationUnread(sessionId: string, key: string): boolean {
+    let given = this.#toolDocumentationGiven.get(sessionId)
+    if (!given) {
+      // The oldest session's record goes first: an agent that comes back to it reads again.
+      if (this.#toolDocumentationGiven.size >= MAX_TOOL_DOCUMENTATION_SESSIONS)
+        this.#toolDocumentationGiven.delete(this.#toolDocumentationGiven.keys().next().value!)
+      given = new Set()
+      this.#toolDocumentationGiven.set(sessionId, given)
+    }
+    if (given.has(key)) return false
+    given.add(key)
+    return true
+  }
+
+  /** Where the one-time sandbox warm-up stands; `off` when this server was not asked for one. */
+  get sandboxWarmUp(): SandboxWarmUp {
+    return this.#sandboxWarmUp
+  }
+
+  /**
+   * Runs one empty TypeScript program in a sandbox, once, so the first tool someone runs does not
+   * pay for the sandbox's first start. That first start is slow where the runtime has not run
+   * since the machine booted: measured on a desktop at 17 s to boot the first microVM and 30 s for
+   * the first program in it, against 0.1 s and 0.02 s for the next. Health reports the state, so a
+   * client can say that the sandbox is still being prepared.
+   *
+   * A failure is recorded and nothing more: the next real run reports its own error.
+   */
+  async warmUpCodeExec(): Promise<void> {
+    if (this.#sandboxWarmUp.state !== 'off') return
+    if (!this.#codeExec.runtimes.includes('ts')) return
+    const startedAt = Date.now()
+    this.#sandboxWarmUp = {state: 'warming'}
+    // Its own empty workspace: no agent's memory and no app's files are mounted for it.
+    const stateDir = path.join(this.#dataDir, 'exec-warm-up')
+    let ok = false
+    try {
+      fs.mkdirSync(agentMemory.memoryRootPath(stateDir), {recursive: true})
+      const run = await this.#codeExec.execute({
+        principal: {accountId: 'warm-up', agentId: 'warm-up', sessionId: 'warm-up'},
+        stateDir,
+        runtime: 'ts',
+        code: 'console.log("warm")',
+      })
+      ok = run.success
+    } catch {}
+    this.#sandboxWarmUp = {state: ok ? 'ready' : 'failed', durationMs: Date.now() - startedAt}
   }
 
   /** Verifies an envelope's signature and delegation, mapping every failure to 401. */
@@ -1456,6 +1548,9 @@ export class Service {
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
     const action = envelope.action
+    // A server with agents turned off starts no agent work. What is already there can still be
+    // read and deleted, so nothing is stranded when someone turns agents off.
+    if (!this.#features.includes('agents') && AGENT_WORK_ACTIONS.has(action._)) throw new APIError(403, AGENTS_OFF)
     if ('agentId' in action && action.agentId) {
       envelope = {...envelope, action: {...action, agentId: agentMount.resolveAgentId(this.#db, action.agentId)}}
     } else if (action._ === 'BeginFileUpload' && action.target.kind === 'memory') {
@@ -1493,6 +1588,7 @@ export class Service {
       encrypt: (plain) => encryptSecret(this.#db, plain),
       decrypt: (ciphertext) => decryptSecret(this.#db, ciphertext),
       serverId: this.#serverId,
+      features: this.#features,
       ...(this.#publicUrl ? {publicUrl: this.#publicUrl} : {}),
     }
   }
@@ -1760,6 +1856,13 @@ export class Service {
           _: 'AppToolCallResponse',
           call: await this.#appRun(() =>
             appRunning.callAppTool(this.#appRunDeps(), verified.accountId, envelope.action as api.CallAppTool),
+          ),
+        }
+      case 'TestAppTool':
+        return {
+          _: 'AppToolTestResponse',
+          test: await this.#appRun(() =>
+            appRunning.testAppTool(this.#appRunDeps(), verified.accountId, envelope.action as api.TestAppTool),
           ),
         }
       case 'GetAppToolCall':
@@ -6029,6 +6132,8 @@ export class Service {
       onToolProgress: () => {},
       codeExec: this.#codeExec,
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
+      describeAppTool: (action) => this.#appRun(() => appRunning.describeTool(this.#appRunDeps(), action)),
+      toolDocumentationUnread: (key) => this.#toolDocumentationUnread(session.id, key),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
@@ -8372,11 +8477,18 @@ export class Service {
     ).catch(() => null)
     if (resource?.type !== 'document') return cached ?? null
     const document = resource.document
-    if (cached && cached.version === document.version) return cached
     const content = document.content ?? []
     const isCard = (node: HMBlockNode) =>
       node.block.type === 'Embed' && (node.block.attributes as {view?: string} | undefined)?.view === 'Card'
     const cards = content.filter(isCard).map((node) => String((node.block as {link?: string}).link ?? ''))
+    // The same document says the same thing, except for what its cards point at: a tool it links
+    // to can get a new name or description on its own. So the cards are read again after a while.
+    if (
+      cached &&
+      cached.version === document.version &&
+      (!cards.length || Date.now() - cached.readAt < AGENT_DOCUMENT_CARDS_TTL_MS)
+    )
+      return cached
     const entries = await Promise.all(
       cards.map(async (link) => {
         const child = unpackHmId(link)
@@ -8406,11 +8518,7 @@ export class Service {
       (typeof entries)[number]
     >[]
     const listing = [
-      tools.length
-        ? `\n\nYour tools (card embeds in your document; call one with call and its hm:// URL, read it for its input contract):\n${tools
-            .map(line)
-            .join('\n')}`
-        : '',
+      tools.length ? `\n\n${AGENT_TOOLS_PROMPT}\n${tools.map(line).join('\n')}` : '',
       triggers.length
         ? `\n\nYour triggers (documents that start a session with you, or call one of your tools, when something happens; read one to see when it fires, write it with options.trigger to change it):\n${triggers
             .map(line)
@@ -8429,6 +8537,7 @@ export class Service {
       version: document.version,
       blocks: content.filter((node) => !isCard(node)),
       listing,
+      readAt: Date.now(),
     }
     this.#agentDocumentPromptCache.set(agentId, next)
     return next
@@ -8765,6 +8874,8 @@ export class Service {
       modelAcceptsImages: model.input.includes('image'),
       codeExec: this.#codeExec,
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
+      describeAppTool: (action) => this.#appRun(() => appRunning.describeTool(this.#appRunDeps(), action)),
+      toolDocumentationUnread: (key) => this.#toolDocumentationUnread(session.id, key),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
       appHistory: this.#appHistory(),
@@ -14219,8 +14330,19 @@ export type AgentServicePiToolContext = WriteToolContext & {
   /** Calls a tool of an app running on this server (`call` with a tool's hm:// URL). */
   callAppTool?: (
     caller: string,
-    action: {appId: string; toolId: string; input: unknown},
+    action: {appId?: string; toolId: string; input: unknown; preferHost?: string},
   ) => Promise<api.AppToolCallInfo>
+  /** A tool as `call` needs to know it before running it: the version that would run and its documentation. */
+  describeAppTool?: (action: {
+    toolId: string
+    preferHost?: string
+  }) => Promise<{version: string | null; name: string; content: HMBlockNode[]}>
+  /**
+   * Whether this session does not yet have the documentation `key` names (a tool at one version):
+   * the agent has not read the tool's document, and no call has returned it. Asking counts as
+   * giving it: the next answer for the same key is false.
+   */
+  toolDocumentationUnread?: (key: string) => boolean
   /** Runs an app on this server as one of the agent's signers (`write` with `options.action: "run"`). */
   runApp?: (signer: string, action: {appId: string; privateConfig?: Record<string, unknown>}) => Promise<api.AppRunInfo>
   /** Stops an app on this server (`write` with `options.action: "stop"`). */
@@ -15203,7 +15325,7 @@ function withPageResult(
         ? {}
         : {
             instructions:
-              'The tool is published and listed in its app. Nothing runs tools yet: the code was parsed and its default export checked, not executed. Write to the same address with options.tool again to publish a new revision.',
+              'The tool is published. Its code was parsed and its default export checked, not executed: call the tool by its hm:// URL to run it. Directly under an app or an agent it is listed there and runs with that host, which supplies the config the tool declares. Anywhere else it stands on its own: only someone who can write its space can call it, and its secrets are set by writing its address with options.action "run" and privateConfig. The body of this document is the tool’s documentation: say there how to use it, what to prepare before a call and what to do with the result, because every agent is handed it before its first call. Write to the same address with options.tool again to publish a new revision.',
           }),
     }
   if (!folder) return result
@@ -16683,7 +16805,10 @@ export async function executeReadVerb(
       oneCall?.[2],
     )
   if (address.startsWith('hm://'))
-    return withAppRunStatus(context, await readHypermedia({id: address, format, server: context.hmServerUrl}))
+    return readForToolUse(
+      context,
+      withAppRunStatus(context, await readHypermedia({id: address, format, server: context.hmServerUrl})),
+    )
   // A bare comment id (`<authorUid>/<tsid>`, the shape of replyTo/replyParent/threadRoot fields)
   // is a hypermedia read too: agents paste these straight out of trigger context.
   if (BARE_COMMENT_ID_PATTERN.test(address))
@@ -16786,6 +16911,37 @@ function readOrCreateServerId(dataDir: string): string {
   return id
 }
 
+/**
+ * Completes the read of a tool's document for an agent that means to use the tool. The body it
+ * just read is the tool's documentation, so the session is noted as having it: a call of the tool,
+ * at that version, then brings its result and nothing more. The document names its input and
+ * output schemas by address only, so they are resolved here: one read is enough to call the tool.
+ * Any other read comes back untouched.
+ */
+export async function readForToolUse(
+  context: Pick<AgentServicePiToolContext, 'hmServerUrl' | 'toolDocumentationUnread'>,
+  result: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const metadata = result.metadata as Record<string, unknown> | undefined
+  const body = result.markdown !== undefined || result.resource !== undefined
+  const id = metadata?.type === HM_TOOL_TYPE && body && typeof result.id === 'string' ? unpackHmId(result.id) : null
+  if (!id?.path?.length) return result
+  const address = `hm://${id.uid}/${id.path.join('/')}`
+  if (typeof result.version === 'string') context.toolDocumentationUnread?.(`${address}@${result.version}`)
+  const client = createSeedClient(context.hmServerUrl)
+  const schema = async (ref: unknown) =>
+    typeof ref === 'string' && ref ? (await loadSchemaRef(client, ref).catch(() => null))?.schema : undefined
+  const [input, output] = await Promise.all([schema(metadata?.inputSchema), schema(metadata?.outputSchema)])
+  return {
+    ...result,
+    tool: {
+      call: `call with {"tool": "${address}", "input": {…}}. The body of this document is the tool’s documentation: do what it says before the call and with the result.`,
+      ...(input ? {input} : {}),
+      ...(output ? {output} : {}),
+    },
+  }
+}
+
 /** An app read here says whether it runs on this server, so "is it running?" needs no other lookup. */
 function withAppRunStatus(context: AgentServicePiToolContext, result: Record<string, unknown>) {
   const metadata = result.metadata as Record<string, unknown> | undefined
@@ -16809,14 +16965,21 @@ type AgentDocumentPrompt = {
   version: string
   /** The document's blocks other than card embeds: the agent's instructions. */
   blocks: HMBlockNode[]
-  /** Markdown listing the tools and pages the document's card embeds name, or ''. */
+  /**
+   * Markdown listing the tools and pages the document's card embeds name, or ''. A tool is listed
+   * by its name and description only: the agent reads the rest when it means to use the tool.
+   */
   listing: string
+  /** When the cards were read. A linked tool's name and description can change while the agent's document does not. */
+  readAt: number
   /** The app server the document names (`agentServerUrl`): where the agent runs, and where it can run apps. */
   serverUrl?: string
 }
 
 /** How long a turn waits for the agent's document before using the last good read. */
 const AGENT_DOCUMENT_PROMPT_TIMEOUT_MS = 5_000
+/** How long the cards of an agent's document are trusted before they are read again. */
+const AGENT_DOCUMENT_CARDS_TTL_MS = 5 * 60 * 1000
 
 /** Why ~/tools/<name> cannot be written, and what to do instead. */
 const TOOLS_ARE_RESOURCES =
@@ -17223,7 +17386,8 @@ export async function executeWriteVerb(
     }
     // A tool: options.tool names a memory folder (or one .ts file) whose index.ts default-exports
     // the tool's async function. It is published as a UnixFS folder beside the change and the
-    // document's `code` attribute points at it. A tool lives directly under an app.
+    // document's `code` attribute points at it. Under an app or an agent the tool joins that host;
+    // anywhere else it stands on its own.
     const toolFolder = await resolveWriteToolFolder(context, options.tool)
     if (toolFolder && pageFolder) throw new APIError(400, 'A document is either a page or a tool, not both.')
     // A trigger: options.trigger holds when it fires (source) and what it does (a host tool and its
@@ -17610,6 +17774,132 @@ export function firstShortStringArgument(input: Record<string, unknown>): string
 }
 
 /**
+ * Puts the files an agent names into the input of a `call` of a tool resource. A model cannot hold
+ * bytes, so wherever the tool takes a file the agent writes `{fromPath: "~/memory/…"}` or
+ * `{fromAttachment: "<id>"}`, with a `name` when the tool should see another one. Each becomes the
+ * `{name, mimeType, data}` object the tool reads.
+ */
+function expandCallInputFiles(context: AgentServicePiToolContext, value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => expandCallInputFiles(context, item))
+  if (!isRecord(value)) return value
+  const keys = Object.keys(value)
+  const source = keys.find((key) => key === 'fromPath' || key === 'fromAttachment')
+  if (!source || !keys.every((key) => key === source || key === 'name'))
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, expandCallInputFiles(context, item)]))
+  const from = value[source]
+  if (typeof from !== 'string' || !from.trim()) throw new APIError(400, `call input: ${source} must be a string`)
+  if (value.name !== undefined && (typeof value.name !== 'string' || !value.name.trim()))
+    throw new APIError(400, 'call input: the name of a file must be a string')
+  const named = typeof value.name === 'string' ? value.name.trim() : undefined
+  if (source === 'fromAttachment') {
+    const {info, data} = withAttachmentErrors(() =>
+      sessionAttachments.readSessionAttachment(
+        context.stateDir,
+        context.sessionId,
+        from.trim().replace(/^attachment:/, ''),
+      ),
+    )
+    const name = named ?? info.name
+    return {
+      name,
+      mimeType: info.mimeType ?? agentMemory.inferMimeType(name) ?? 'application/octet-stream',
+      data: Buffer.from(data).toString('base64'),
+    } satisfies api.AppToolFile
+  }
+  const file = withMemoryErrors(() =>
+    agentMemory.readMemoryFile(context.stateDir, memoryPathFromAddress(from.trim()) ?? from.trim()),
+  )
+  const name = named ?? file.path.split('/').at(-1)!
+  const bytes =
+    file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+  return {
+    name,
+    mimeType: file.mimeType ?? agentMemory.inferMimeType(name) ?? 'application/octet-stream',
+    data: Buffer.from(bytes).toString('base64'),
+  } satisfies api.AppToolFile
+}
+
+/**
+ * Takes the files out of what a tool returned, so their bytes never enter the model's context. With
+ * `saveTo` they are written under that memory folder, each at its `name`. Without it they become
+ * attachments of this session, which nothing else can read. Either way each file is replaced, in the
+ * result the model sees, by its name, type, size and where it now is.
+ */
+function storeCallOutputFiles(
+  context: AgentServicePiToolContext,
+  saveTo: string | undefined,
+  callId: string,
+  output: unknown,
+): {result: unknown; stored: number; where?: string} {
+  // A call made outside a session has no attachments to add to, so its files go to memory.
+  const folder = saveTo
+    ? (memoryPathFromAddress(saveTo) ?? saveTo).replace(/\/+$/, '')
+    : context.sessionId
+      ? undefined
+      : `tool-output/${callId}`
+  let stored = 0
+  const result = toolFiles.replaceToolFiles(output, (file) => {
+    const content = new Uint8Array(Buffer.from(file.data, 'base64'))
+    const info = {name: file.name, mimeType: file.mimeType, size: content.byteLength}
+    stored += 1
+    if (folder !== undefined) {
+      const relative = toolFiles.safeFilePath(file.name)
+      if (!relative) throw new APIError(400, `The tool returned a file whose name is not a path: ${file.name}`)
+      const entry = withMemoryErrors(() =>
+        agentMemory.writeMemoryFile(context.stateDir, `${folder}/${relative}`, content),
+      )
+      return {...info, path: `~/memory/${entry.path}`}
+    }
+    const attachment = withAttachmentErrors(() =>
+      sessionAttachments.saveSessionAttachment(context.stateDir, context.sessionId, {
+        name: file.name,
+        mimeType: file.mimeType,
+        content,
+      }),
+    )
+    return {...info, attachment: `attachment:${attachment.id}`}
+  })
+  if (stored && folder !== undefined) context.onMemoryChange()
+  return {
+    result,
+    stored,
+    ...(stored ? {where: folder !== undefined ? `~/memory/${folder}` : 'this session’s attachments'} : {}),
+  }
+}
+
+/**
+ * What an agent is told above the list of its tools. A tool is found by its name and description,
+ * and learned by reading its document: that keeps the documentation of tools a session never uses
+ * out of the session, and puts the documentation of the one it does use in front of the agent
+ * before the call.
+ */
+const AGENT_TOOLS_PROMPT =
+  'Your tools (card embeds in your document). Each line gives a tool’s name, what it does, and its address. That line is all you know about a tool. When a tool may help with what you are doing, read its document before you call it (read with its hm:// URL): the body of the document is the tool’s documentation, which says what to prepare before a call and what you must do with the result, and the read also gives the tool’s input contract. Read it once in a session, then call the tool with call and its URL, and do everything its documentation says. Do not read a tool you are not going to use.'
+
+/**
+ * A tool's documentation as an agent reads it: the body of the tool's document as Markdown, or ''
+ * when the tool has none.
+ */
+export function toolDocumentationMarkdown(content: HMBlockNode[] | undefined): string {
+  if (!content?.length) return ''
+  const markdown = blocksToMarkdown({metadata: {}, content} as unknown as HMDocument, {ipfsGateway: true})
+  // The Markdown of a document carries what writing it back needs: front matter, and comments that
+  // give the id of each block and table column and the end of each section. The agent only reads
+  // this text. The markers would be noise in it, and could be taken for the ids a tool's
+  // documentation talks about. Code is left as written.
+  let fenced = false
+  const lines: string[] = []
+  for (const line of markdown.replace(/^---\n(?:[^\n]*\n)*?---\n/, '').split('\n')) {
+    const fence = /^\s*(?:```|~~~)/.test(line)
+    const text = fenced && !fence ? line : line.replace(/ ?<!-- (?:id|col|end):[A-Za-z0-9_-]+ -->/g, '')
+    if (fence) fenced = !fenced
+    // A line that held only a marker goes with it.
+    if (text.trim() || !line.trim()) lines.push(text)
+  }
+  return lines.join('\n').trim()
+}
+
+/**
  * Executes the call verb: contract-on-miss dispatch into the callable tool set. `description` is
  * the model's optional one-line intent for the user; it is read by the chat row from the durable
  * call event and never reaches the tool.
@@ -17620,12 +17910,13 @@ export async function executeCallVerb(
   toolCallId: string | undefined,
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
-  // A tool of an app running on this server is called by its hm:// URL; its app is its parent.
+  // A tool running on this server is called by its hm:// URL. Its host is the app or agent that
+  // lists it, this agent when its document references the tool, or the tool itself when it stands
+  // on its own: the server works that out.
   if (typeof input.tool === 'string' && input.tool.trim().startsWith('hm://')) {
     const toolId = unpackHmId(input.tool.trim())
-    const appPath = toolId?.path?.slice(0, -1)
-    if (!toolId || !appPath?.length || !context.callAppTool)
-      throw new APIError(400, `${input.tool} is not a tool of an app (call it as hm://<space>/<app>/<tool>)`)
+    if (!toolId || !toolId.path?.length || !context.callAppTool)
+      throw new APIError(400, `${input.tool} is not a tool (call it by its address, hm://<space>/<path>)`)
     // A run names the account that triggered it: the agent's own signing account.
     const signer = await resolveWriteSigner(
       context,
@@ -17633,13 +17924,41 @@ export async function executeCallVerb(
     ).catch((error) => {
       throw new APIError(400, `Running an app's tool needs one of your signing identities: ${error.message}`)
     })
+    if (input.saveTo !== undefined && (typeof input.saveTo !== 'string' || !input.saveTo.trim()))
+      throw new APIError(400, 'call saveTo must be a memory folder (~/memory/…)')
+    const saveTo = typeof input.saveTo === 'string' ? input.saveTo.trim() : undefined
+    const toolAddress = `hm://${toolId.uid}/${toolId.path!.join('/')}`
+    // A tool's document says how it is to be used: what to prepare before a call and what to do
+    // with the result. An agent knows a tool by its name and description, and is told to read the
+    // tool's document before calling it (see `markToolDocumentationRead`). When it has not, the
+    // call still runs: no call is turned away to make an agent read. The documentation then comes
+    // with the result, once for a session and again when the version that runs has changed.
+    const described =
+      context.describeAppTool && context.toolDocumentationUnread
+        ? await context.describeAppTool({toolId: toolAddress, preferHost: context.agentId}).catch(() => null)
+        : null
     const call = await context.callAppTool(signer.publicKey, {
-      appId: `hm://${toolId.uid}/${appPath.join('/')}`,
-      toolId: `hm://${toolId.uid}/${toolId.path!.join('/')}`,
-      input: input.input ?? {},
+      toolId: toolAddress,
+      input: expandCallInputFiles(context, input.input ?? {}),
+      // A tool this agent's document references runs as the agent's, at the version it pins.
+      preferHost: context.agentId,
     })
     if (call.error) throw new APIError(400, call.error)
-    return {summary: `Ran ${input.tool.trim()} (${call.durationMs ?? 0}ms).`, result: call.output, callId: call.id}
+    const files = storeCallOutputFiles(context, saveTo, call.id, call.output)
+    const documentation = described ? toolDocumentationMarkdown(described.content) : ''
+    const unread = !!documentation && !!context.toolDocumentationUnread?.(`${toolAddress}@${described?.version ?? ''}`)
+    return {
+      summary: `Ran ${input.tool.trim()} (${call.durationMs ?? 0}ms).${
+        files.stored ? ` Its ${files.stored} file(s) are in ${files.where}.` : ''
+      }${
+        unread
+          ? ' You had not read this tool’s documentation, so it comes with the result: do everything it says to do with the result, and what it says to prepare before your next call.'
+          : ''
+      }`,
+      result: files.result,
+      callId: call.id,
+      ...(unread ? {documentation} : {}),
+    }
   }
   const toolName = typeof input.tool === 'string' ? normalizeSeedToolName(input.tool.trim()) : ''
   const registryTool = toolName ? getSeedTool(toolName) : undefined
@@ -18431,7 +18750,7 @@ async function writeDocumentCreate(
     )
   await ensureParentDocumentExists(client, account, path)
   // A tool or page written under an app joins the app: its card embed is added to the app in the
-  // same publish. A tool anywhere else is refused.
+  // same publish. A tool anywhere else stands on its own; a trigger anywhere else is refused.
   const childId = unpackHmId(`hm://${account}${path}`)
   const {app, refusal} = childId ? await resolveAppParent(client, childId, metadata.type) : {app: null}
   if (refusal) throw new APIError(400, refusal)
@@ -18443,7 +18762,10 @@ async function writeDocumentCreate(
     !metadata.tool
   )
     throw new APIError(400, APP_TRIGGER_NEEDS_TOOL)
-  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  await assertHmContentLinks(client, parsed.blocks, {
+    skipResolve: request.input.skipLinkCheck === true,
+    self: `hm://${account}${path}`,
+  })
   // A new typed document starts from its schema's property defaults: every attribute the type
   // gives a default and this write does not set. They are written as ordinary attributes and
   // reported back, so the author knows what the document now says.
@@ -18626,7 +18948,10 @@ async function writeDocumentUpdate(
     // Only what this write stores is checked: a dead link in a block it leaves alone was published
     // by an earlier write and is not this one's to refuse.
     await assertPublishableMermaid(contentUpdate.written)
-    await assertHmContentLinks(client, contentUpdate.written, {skipResolve: request.input.skipLinkCheck === true})
+    await assertHmContentLinks(client, contentUpdate.written, {
+      skipResolve: request.input.skipLinkCheck === true,
+      self: `hm://${id.uid}${id.path?.length ? `/${id.path.join('/')}` : ''}`,
+    })
   }
   const contentOps = contentUpdate?.ops ?? []
   const changes = contentUpdate?.changes
@@ -19673,6 +19998,9 @@ async function publishMemoryDocument(
   const title = nameOverride || frontmatter.name || titleFromMemoryPath(file.path)
   const docPath = normalizeDocumentPath(input.documentPath, title)
   const target = `hm://${account}${docPath}`
+  // `#blockId` links written before publishing (a converter's citation links into its own
+  // bibliography) point into this very document, whose address is only known now.
+  const content = resolveFragmentLinks(nodes, target)
 
   const client = createSeedClient(context.hmServerUrl)
   const {id: targetId} = await resolveIdWithClient(target, {serverUrl: client.baseUrl})
@@ -19688,7 +20016,7 @@ async function publishMemoryDocument(
     input: existing
       ? {
           edit: target,
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           ...(nameOverride ? {name: nameOverride} : {}),
@@ -19696,7 +20024,7 @@ async function publishMemoryDocument(
       : {
           account,
           path: docPath || '/',
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           name: title,
@@ -19722,6 +20050,40 @@ async function publishMemoryDocument(
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
   }
+}
+
+/**
+ * Rewrites fragment-only links (`#blockId`) in blocks and their inline annotations to full
+ * `hm://…#blockId` links into `target`, the document being published.
+ */
+export function resolveFragmentLinks(nodes: HMBlockNode[], target: string): HMBlockNode[] {
+  const resolve = (link: unknown) =>
+    typeof link === 'string' && /^#[A-Za-z0-9_-]+$/.test(link) ? `${target}${link}` : undefined
+  return nodes.map((node) => {
+    const block = node.block as Record<string, unknown>
+    const blockLink = resolve(block.link)
+    const original: unknown[] | undefined = Array.isArray(block.annotations) ? block.annotations : undefined
+    const annotations = original?.map((annotation) => {
+      if (!isRecord(annotation)) return annotation
+      const link = resolve(annotation.link)
+      return link ? {...annotation, link} : annotation
+    })
+    const changed =
+      blockLink !== undefined || (annotations !== undefined && annotations.some((a, i) => a !== original![i]))
+    return {
+      ...node,
+      ...(changed
+        ? {
+            block: {
+              ...block,
+              ...(blockLink ? {link: blockLink} : {}),
+              ...(annotations ? {annotations} : {}),
+            } as HMBlockNode['block'],
+          }
+        : {}),
+      ...(node.children?.length ? {children: resolveFragmentLinks(node.children, target)} : {}),
+    }
+  })
 }
 
 /** Counts blocks whose link points at a local file, for reporting how many images get uploaded. */
@@ -20571,7 +20933,9 @@ const MAX_LINK_RESOLUTION_CHECKS = 50
  * well-formed ones must resolve on the configured HM server — `{type: 'not-found'}` is a broken
  * link, while a server that cannot answer (thrown request) never blocks publishing, because an
  * infra flake must not be able to hold content hostage. `skipLinkCheck` skips only the resolution
- * half, for links whose targets are about to exist; nothing skips malformed-ness.
+ * half, for links whose targets are about to exist; nothing skips malformed-ness. Links into the
+ * document being written (`self`, its address without a fragment) are never resolved: on a first
+ * publication the document does not exist yet, and on an update it trivially does.
  */
 export async function assertHmContentLinks(
   // Structural: only Resource lookups are needed, and the SeedClient generic makes a full
@@ -20580,8 +20944,9 @@ export async function assertHmContentLinks(
     request: (key: 'Resource', id: NonNullable<ReturnType<typeof unpackHmId>>) => Promise<unknown>
   },
   nodes: HMBlockNode[],
-  options: {skipResolve?: boolean} = {},
+  options: {skipResolve?: boolean; self?: string} = {},
 ): Promise<void> {
+  const selfId = options.self ? unpackHmId(options.self) : null
   const links = [...new Set(collectHmContentLinks(nodes))]
   if (links.length === 0) return
   const malformed: string[] = []
@@ -20600,10 +20965,12 @@ export async function assertHmContentLinks(
     }
     try {
       blobs.principalFromString(id.uid)
-      targets.push({link, id})
     } catch {
       malformed.push(link)
+      continue
     }
+    if (selfId && id.uid === selfId.uid && (id.path ?? []).join('/') === (selfId.path ?? []).join('/')) continue
+    targets.push({link, id})
   }
   if (malformed.length > 0) {
     throw new APIError(

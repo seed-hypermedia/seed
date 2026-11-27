@@ -8,9 +8,16 @@ import {
   triggerSourceToMetadata,
   appChildKind,
   appEmbeddedChildren,
+  hostListsChild,
+  hostToolReference,
+  hostToolReferences,
   isAppChildId,
+  isRunnableType,
   parentDocumentId,
   removeAppChildOps,
+  removeToolReferenceOps,
+  setToolReferenceOps,
+  toolReferenceLink,
 } from './apps'
 import {unpackHmId, type HMBlockNode} from './hm-types'
 
@@ -74,6 +81,100 @@ describe('app children', () => {
     expect(parentDocumentId(forecast)?.id).toBe(app.id)
     expect(parentDocumentId(unpackHmId('hm://z6MkApp/top')!)?.id).toBe('hm://z6MkApp')
     expect(parentDocumentId(unpackHmId('hm://z6MkApp')!)).toBeNull()
+  })
+})
+
+describe('a tool and its host', () => {
+  const lists = (type: string | undefined, content: HMBlockNode[]) =>
+    hostListsChild(app, {metadata: {type}, content}, forecast)
+
+  it('is hosted by the app or agent that lists it', () => {
+    const listed = [embed('b1', 'hm://z6MkApp/apps/weather/forecast?v=bafy')]
+    expect(lists('hm://hyper.media/app', listed)).toBe(true)
+    expect(lists('hm://hyper.media/agent', listed)).toBe(true)
+  })
+
+  it('stands on its own under anything else, or under a host that does not list it', () => {
+    const listed = [embed('b1', 'hm://z6MkApp/apps/weather/forecast')]
+    expect(lists(undefined, listed)).toBe(false)
+    expect(lists('hm://hyper.media/tool', listed)).toBe(false)
+    expect(lists('hm://hyper.media/app', [embed('b1', 'hm://z6MkApp/apps/weather/radar')])).toBe(false)
+    expect(hostListsChild(app, null, forecast)).toBe(false)
+  })
+
+  it('can be run by a server, like an app or an agent, and unlike any other document', () => {
+    expect(['hm://hyper.media/app', 'hm://hyper.media/agent', 'hm://hyper.media/tool'].map(isRunnableType)).toEqual([
+      true,
+      true,
+      true,
+    ])
+    expect([HM_TRIGGER_TYPE, 'hm://hyper.media/page', undefined].map(isRunnableType)).toEqual([false, false, false])
+  })
+})
+
+describe('a tool a host references', () => {
+  const convert = unpackHmId('hm://z6MkBob/tools/convert')!
+  const content = [
+    embed('own', 'hm://z6MkApp/apps/weather/forecast'),
+    embed('pinned', 'hm://z6MkBob/tools/convert?v=bafyv1'),
+    embed('latest', 'hm://z6MkApp/shared/geocode'),
+    embed('floating', 'hm://z6MkBob/tools/units?v=bafyold&l'),
+    // Content, not a listing: an embed shown inline, a card of one block, a card of the host itself.
+    {
+      block: {type: 'Embed', id: 'guide', link: 'hm://z6MkDocs/agent/guide', attributes: {view: 'Content'}},
+      children: [],
+    },
+    embed('block', 'hm://z6MkBob/tools/convert#Zr1kAbQ2'),
+    embed('self', 'hm://z6MkApp/apps/weather'),
+    paragraph('p1', 'Notes'),
+  ] as HMBlockNode[]
+
+  it('is a card of a document that lives outside the host, pinned to a version or following the latest', () => {
+    expect(hostToolReferences(app, content).map((r) => [r.blockId, r.id.id, r.version])).toEqual([
+      ['pinned', 'hm://z6MkBob/tools/convert', 'bafyv1'],
+      ['latest', 'hm://z6MkApp/shared/geocode', null],
+      // `?v=…&l` asks for the latest version, so it pins nothing.
+      ['floating', 'hm://z6MkBob/tools/units', null],
+    ])
+    // The host's own children are not references, and the listing of children is unchanged.
+    expect(appEmbeddedChildren(app, content).map((child) => child.id.id)).toEqual([
+      'hm://z6MkApp/apps/weather/forecast',
+    ])
+  })
+
+  it('is found for one tool, under an app or an agent only', () => {
+    const host = (type: string | undefined) => hostToolReference(app, {metadata: {type}, content}, convert)
+    expect(host('hm://hyper.media/app')).toMatchObject({blockId: 'pinned', version: 'bafyv1'})
+    expect(host('hm://hyper.media/agent')).toMatchObject({blockId: 'pinned'})
+    expect(host(undefined)).toBeNull()
+    expect(hostToolReference(app, {metadata: {type: 'hm://hyper.media/app'}, content}, forecast)).toBeNull()
+  })
+
+  it('links the exact version when pinned and the latest otherwise', () => {
+    expect(toolReferenceLink(convert, 'bafyv2')).toBe('hm://z6MkBob/tools/convert?v=bafyv2')
+    expect(unpackHmId(toolReferenceLink(convert, null))).toMatchObject({version: null})
+  })
+
+  it('is added after the rest, moved to another version in place, and removed', () => {
+    const fresh = [embed('own', 'hm://z6MkApp/apps/weather/forecast'), paragraph('p1', 'Notes')]
+    const added = setToolReferenceOps(app, fresh, convert, 'bafyv1')
+    expect(JSON.stringify(added)).toContain('hm://z6MkBob/tools/convert?v=bafyv1')
+    // Nothing else in the document is touched.
+    expect(JSON.stringify(added)).not.toContain('forecast')
+
+    const repinned = JSON.stringify(setToolReferenceOps(app, content, convert, 'bafyv2'))
+    expect(repinned).toContain('hm://z6MkBob/tools/convert?v=bafyv2')
+    expect(repinned).toContain('"pinned"')
+    expect(repinned).not.toContain('geocode')
+
+    const removed = JSON.stringify(removeToolReferenceOps(app, content, convert))
+    expect(removed).toContain('"pinned"')
+    expect(removeToolReferenceOps(app, fresh, convert)).toEqual([])
+    // Adding or removing one of the host's own tools leaves its references alone.
+    const deleted = removeAppChildOps(app, content, forecast).flatMap((op) =>
+      op.type === 'DeleteBlocks' ? op.blocks : [],
+    )
+    expect(deleted).toEqual(['own'])
   })
 })
 

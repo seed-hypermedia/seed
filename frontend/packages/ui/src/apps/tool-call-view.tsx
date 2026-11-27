@@ -1,4 +1,4 @@
-import {parentDocumentId} from '@seed-hypermedia/client/apps'
+import {hostListsChild, parentDocumentId} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -33,7 +33,14 @@ export function ToolCallView({
   const appId = parentDocumentId(toolId)
   const appResource = useResource(appId)
   const app = appResource.data?.type === 'document' ? appResource.data.document : null
-  const server = useAppServerUrl(appId ?? toolId, app ?? ({metadata: {}} as HMDocument))
+  // A tool its parent does not list is in no app: its runs are on the viewer's own app environment.
+  const hosted = !!appId && hostListsChild(appId, app, toolId)
+  const standalone = !hosted && (!appId || !appResource.isInitialLoading)
+  const server = useAppServerUrl(
+    hosted ? appId : toolId,
+    hosted && app ? app : ({metadata: {}} as HMDocument),
+    standalone,
+  )
   const call = useAppToolCall(server.serverUrl, callId)
   const run = call.data
   const toolName = document.metadata.name || toolId.path?.at(-1) || 'Tool'

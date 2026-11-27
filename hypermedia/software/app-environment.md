@@ -93,19 +93,29 @@ cd apps && bun run test:build   # the compiled binary boots
 
 The same build runs in three places. <!-- id:7xiIpHiu -->
 
-**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/apps/seed-apps-<platform>`. The [desktop app](./desktop.md) ships that folder as a resource. The desktop app does not start the server by default. At startup the app goes through these steps and stops at the first one that applies: <!-- id:c23jCXqC -->
+**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/apps/seed-apps-<platform>`. The [desktop app](./desktop.md) ships that folder as a resource. The desktop app starts the server by default, to run [tools](../tool.md) only. At startup the app goes through these steps and stops at the first one that applies: <!-- id:c23jCXqC -->
 
 1. `SEED_NO_APPS_SPAWN` is set: no local server.
 2. `SEED_APPS_SERVER_URL` is set: attach to that server.
 3. A healthy server already answers on the default port: attach to it. This is the `./dev up` case.
-4. The `agentsLocalServer` setting is `on`, or it was never set and a local database from an earlier run exists: spawn the binary on the first free port from the default.
+4. The `agentsLocalServer` setting is not `off`, and something is checked for the server to run: spawn the binary on the first free port from the default. A development build spawns it only when the setting is `on`, so that it does not take the port of the server `./dev up` runs.
 
-If no step applies, no local server runs and the app uses the hosted one. The switch under Settings > App environments changes the setting. A server that the app spawns is set up like this:
+If no step applies, no local server runs and the app uses the hosted one. The switch under Settings > App environments changes the setting.
+
+**What the local server runs.** Three checks under that switch pick from tools on their own, apps and agents. The setting `localAppEnvironmentFeatures` holds the list, and the app passes it to the server as `--features`. The server refuses the rest itself, for every client that reaches it.
+
+- Out of the box only tools is checked. Agents and apps keep sessions, memory and triggers that grow and work in the background, so they are opt-in.
+- A tool that is in no app or agent then runs on your computer. Its code, the files it is given and its secrets do not leave the machine.
+- The app offers the local server for a new app or agent only when that is checked.
+- An install that already ran agents locally keeps all three.
+
+A server that the app spawns is set up like this:
 
 - It keeps its data in the app's user data folder, under `agents/`.
 - It uses the desktop app's API bridge as its [site](../protocol/sites.md), and the [daemon](./daemon.md)'s HTTP port for `/ipfs`.
 - It binds `127.0.0.1`.
 - It has subscription login on.
+- It starts one sandbox right away. The first sandbox after the machine starts takes most of a minute, and this way a person's first tool run does not wait for it. While it lasts, the tool's page says that the sandbox is being prepared.
 
 **Hosted.** The image is published under two names, `seedhypermedia/apps` and `seedhypermedia/agents`. The tag `dev` is built from `main`, and the tag `latest` is built on release. A Watchtower container on the agents host redeploys when a tag is pushed, so pushing `latest` is a production deploy. Clients reach each hosted server on its site's own origin, for example `https://hyper.media/hm/api/apps`. The gateway proxies `/hm/api/apps` to the host the server runs on, also on `*.hyper.media` subdomains. So the Seed API and the app environment share one host. <!-- id:IiTt1HiF -->
 
@@ -117,7 +127,7 @@ If no step applies, no local server runs and the app uses the hosted one. The sw
 
 ## In the Seed app <!-- id:Jgb3MPaj -->
 
-The [desktop app](./desktop.md) talks to the hosted server by default, and hosted or self-hosted servers can be added in Settings. The [web app](./web.md)'s agent pages under `/hm/agents/` and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. [Agents in the app](../agent/in-the-app.md) describes the screens. <!-- id:0YhSXMcx -->
+The [desktop app](./desktop.md) puts apps and agents on the hosted server by default and runs tools on its own local one. Hosted or self-hosted servers can be added in Settings. The [web app](./web.md)'s agent pages under `/hm/agents/` and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. [Agents in the app](../agent/in-the-app.md) describes the screens. <!-- id:0YhSXMcx -->
 
 ## CLI <!-- id:K-BtnXe- -->
 

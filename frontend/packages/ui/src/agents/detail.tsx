@@ -65,7 +65,7 @@ import {
 } from './write-access'
 import {useAppsPublisher} from '../apps/publish'
 import {CreateTriggerDialog} from '../apps/create-dialogs'
-import {AgentTriggerDocumentsTab} from '../apps/app-view'
+import {AgentToolConfig, AgentToolDocumentsTab, AgentTriggerDocumentsTab} from '../apps/app-view'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {agentSigningKeys, primaryAgentSigningKey} from './primary-identity'
@@ -720,18 +720,23 @@ export function AgentDetailPage({
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-4xl px-4 py-4">
               {settingsPage === 'permissions' ? (
-                <AgentPermissionsPage
-                  serverUrl={serverUrl}
-                  accountUid={selectedAccountId ?? null}
-                  agentId={agentId}
-                  definition={agent.data.agent.definition}
-                  identities={signingIdentities.data || []}
-                  webCapabilities={webCapabilities}
-                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
-                  saving={updateAgent.isLoading}
-                  readOnly={!canWrite}
-                  onOpenIdentities={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
-                />
+                <>
+                  {/* A mounted agent's tool documents: the ones under it and the ones it references.
+                      The built-in tools and their permissions follow. */}
+                  {agentHost ? <AgentToolDocumentsTab host={agentHost} canEdit={canWrite} /> : null}
+                  <AgentPermissionsPage
+                    serverUrl={serverUrl}
+                    accountUid={selectedAccountId ?? null}
+                    agentId={agentId}
+                    definition={agent.data.agent.definition}
+                    identities={signingIdentities.data || []}
+                    webCapabilities={webCapabilities}
+                    onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
+                    saving={updateAgent.isLoading}
+                    readOnly={!canWrite}
+                    onOpenIdentities={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
+                  />
+                </>
               ) : settingsPage === 'identities' ? (
                 <AgentIdentitiesPage
                   serverUrl={serverUrl}
@@ -951,6 +956,9 @@ export function AgentDetailPage({
                         : undefined
                     }
                   />
+                  {/* What the agent's tools need from it: their secrets, kept by the server above, and
+                      their settings. */}
+                  {agentHost ? <AgentToolConfig host={agentHost} canEdit={canWrite} /> : null}
                   <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
                     <div className="min-w-0">
                       <SizableText size="sm" weight="bold" className="block">

@@ -1,30 +1,33 @@
 import {useMyAccountIds} from '@/models/daemon'
-import {AGENTS_LOCAL_SERVER_SETTING_KEY} from '@shm/shared/constants'
+import {APP_ENVIRONMENT_FEATURES, type AppEnvironmentFeature} from '@seed-hypermedia/apps-protocol'
+import {AGENTS_LOCAL_SERVER_SETTING_KEY, LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {sendAgentAction, type AgentInfo} from '@shm/ui/agents/client'
 import {
-  useLocalAgentServerSetting,
+  useLocalAgentServerFeaturesSetting,
   useLocalAgentServerState,
   useLocalAgentServerUrl,
-  useSetLocalAgentServerEnabled,
+  useSetLocalAgentServerFeatures,
 } from '@shm/ui/agents/models'
 import {getAgentsPlatform, type AgentsLocalServerState} from '@shm/ui/agents/platform'
 import {useQueries} from '@tanstack/react-query'
 import {useEffect, useRef} from 'react'
 
 /**
- * Settling the local app environment setting after an upgrade.
+ * Settling what the local app environment runs after an upgrade.
  *
- * Builds before the setting always ran the bundled server, so a user may have agents in it. The
- * main process spawns it one last time while the setting is unset (see `resolveLocalAgentsServerSpawn`)
- * and this hook looks for agents under every local account: any found means the local system is in
- * use and stays on; none means it is turned off and stopped. Errors leave the decision for the next
- * launch rather than retiring a server that may hold agents.
+ * Builds before the setting always ran the bundled server with everything, so a user may have
+ * agents in it. The main process runs it that way one last time while nothing is decided (see
+ * `resolveLocalAgentsServerSpawn`) and this hook looks for agents under every local account. Any
+ * found means agents are in use here, and the server keeps running everything. None means it goes
+ * to the default: tools only. Errors leave the decision for the next launch rather than turning
+ * agents off under a server that may hold some.
  */
 
 /** One `ListAgents` answer per local account: undefined while loading, 'error' when it failed. */
 export type LocalAgentsServerMigrationInput = {
-  setting: 'on' | 'off' | null | undefined
+  /** The stored list of what the server runs: null when nothing is decided, undefined while loading. */
+  setting: AppEnvironmentFeature[] | null | undefined
   state: AgentsLocalServerState | undefined
   lists: (AgentInfo[] | 'error' | undefined)[] | undefined
 }
@@ -44,7 +47,7 @@ export function resolveLocalAgentsServerMigration(input: LocalAgentsServerMigrat
 }
 
 export function useLocalAgentsServerMigration() {
-  const setting = useLocalAgentServerSetting()
+  const setting = useLocalAgentServerFeaturesSetting()
   const state = useLocalAgentServerState()
   const localServerUrl = useLocalAgentServerUrl()
   const accountIds = useMyAccountIds()
@@ -63,7 +66,7 @@ export function useLocalAgentsServerMigration() {
       useErrorBoundary: false,
     })),
   })
-  const setEnabled = useSetLocalAgentServerEnabled()
+  const setFeatures = useSetLocalAgentServerFeatures()
   const decided = useRef(false)
   const decision = resolveLocalAgentsServerMigration({
     setting: setting.isSuccess ? setting.data : undefined,
@@ -76,12 +79,15 @@ export function useLocalAgentsServerMigration() {
   useEffect(() => {
     if (!decision || decided.current) return
     decided.current = true
-    if (decision === 'keep') {
-      void getAgentsPlatform()
-        .setSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, 'on')
-        .then(() => invalidateQueries(['agents', 'settings']))
-    } else {
-      setEnabled.mutate(false)
-    }
-  }, [decision, setEnabled])
+    const platform = getAgentsPlatform()
+    void platform.setSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, 'on').then(() => {
+      if (decision === 'keep') {
+        // The server already runs everything: record that, with no restart under the agents.
+        return platform
+          .setSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY, [...APP_ENVIRONMENT_FEATURES])
+          .then(() => invalidateQueries(['agents']))
+      }
+      setFeatures.mutate(['tools'])
+    })
+  }, [decision, setFeatures])
 }

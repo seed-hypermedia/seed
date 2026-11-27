@@ -178,9 +178,16 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  */
 /**
  * Agents setting that decides whether the desktop app runs its bundled local app environment.
- * `'on'` or `'off'`; unset means a build that always ran it has not decided yet.
+ * `'on'` or `'off'`. Unset means on: the app runs it unless the user turned it off.
  */
 export const AGENTS_LOCAL_SERVER_SETTING_KEY = 'agentsLocalServer'
+
+/**
+ * Agents setting that lists what the bundled local app environment runs: any of `'tools'`,
+ * `'apps'` and `'agents'`, as an array. Unset on a build that has not decided yet; the app then
+ * settles it, to tools only unless the user already ran agents on this computer.
+ */
+export const LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY = 'localAppEnvironmentFeatures'
 
 export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
   // An explicitly empty value means "no app environment" (single-tenant sites set

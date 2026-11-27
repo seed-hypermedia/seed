@@ -105,7 +105,11 @@ describe('trigger documents', () => {
         runtimes: ['ts'],
         availability: async () => ({available: true, runtimes: ['ts']}),
         execute: async (request) => {
-          const run = Bun.spawnSync(['bun', '-e', request.code], {env: {...process.env, ...request.env}})
+          // As in the sandbox, the program runs with the host's workspace as its working directory.
+          const run = Bun.spawnSync(['bun', '-e', request.code], {
+            cwd: path.join(request.stateDir, 'memory'),
+            env: {...process.env, ...request.env},
+          })
           return {
             exitCode: run.exitCode,
             success: run.exitCode === 0,

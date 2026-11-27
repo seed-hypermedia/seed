@@ -17,8 +17,21 @@ This page covers the verb itself: its input, the order in which it finds a tool,
 # Input
 
 ```ts <!-- id:EYgCtp5F -->
-type CallInput = {tool: string; input?: object; description?: string}
+type CallInput = {
+  tool: string
+  input?: object
+  description?: string
+  saveTo?: string
+}
 ```
+
+A [tool resource](#tool-resources) takes and returns files inside its JSON, as `{name, mimeType, data}` objects with the bytes as base64. A model cannot hold bytes, so the verb stands in on both sides:
+
+- **Sending a file.** Where the tool's input takes a file, write `{"fromPath": "~/memory/incoming/paper.pdf"}` for a [memory](./memory.md) file, or `{"fromAttachment": "<id>"}` for a file attached to the [session](./session.md). Add `"name"` to send it under another name. The server puts the file there before the tool runs.
+- **Receiving files.** Each file in the tool's output becomes an attachment of the session. Nothing but that session can read it. In the result, the file is replaced by `{name, mimeType, size, attachment: "attachment:<id>"}`. Read one with [`read`](./read.md), or keep one with [`write`](./write.md) and `options.fromAttachment`.
+- **`saveTo`** names a memory folder instead. Each returned file is written under it at its `name`, and the result has `path` in place of `attachment`. Use it when the files belong together, such as a document and its images.
+
+A call made outside a session, by a [trigger](../trigger.md) for example, has no attachments. Its files go to `~/memory/tool-output/<call id>` unless `saveTo` names a folder.
 
 `description` is one short line for the person reading the chat. The chat row shows it in place of the raw input. The server reads it from the saved `tool_call` event and never passes it to the tool. Scripts have the same option as `ctx.call(tool, input, {description})`. <!-- id:NMTvAc3j -->
 
@@ -42,10 +55,15 @@ An agent has no private code tools. A tool it makes is a **tool resource**: a Se
 
 The tool's code is a folder. Its `index.ts` default-exports `async (input, ctx) => output`, with `ctx.app`, `ctx.publicConfig` and `ctx.privateConfig`.
 
-`call` runs a tool resource by its hm:// URL. The URL is the URL of its app or agent plus one more path part, for example `hm://SPACE/you/weather/forecast`. A top-level document is refused with "is not a tool of an app". <!-- id:f-bHTuGv -->
+`call` runs a tool resource by its hm:// URL, for example `hm://SPACE/you/weather/forecast`. The server works out which host the call is for: <!-- id:f-bHTuGv -->
 
+1. the app or agent the tool sits directly under, when that lists it;
+2. else the calling agent, when the agent's own document [references the tool](../tool.md#using-someone-elses-tool);
+3. else nothing: the tool is on its own, and runs only for an account that can write its space.
+
+- A call always runs. An agent is told to [read](./read.md) a tool's document before its first call: the body is the tool's [documentation](../tool.md#documentation), and the read also returns the input and output schemas. If the agent has not read it in this session, the call also returns the documentation, as `documentation` beside the result, and again when the version that runs has changed. A script's call never carries it.
 - The run is signed as the calling agent's [account](../protocol/identity.md).
-- It runs the tool's latest code in the sandbox.
+- It runs the tool's latest code in the sandbox, or the version the agent's reference pins.
 - The server records who ran it and which version of the tool ran (`app-running.ts`).
 - An app's tools work once someone runs the app. An agent's tools work whenever the agent is [mounted](./mounting.md) on the server.
 - Pages in the same app call the tools with `seed.app.call` and read the public config with `seed.app.context()`.

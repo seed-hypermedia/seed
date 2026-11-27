@@ -120,6 +120,76 @@ describe('api service', () => {
     }
   })
 
+  test('a server with agents turned off starts no agent work, and still answers reads', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const owner = blobs.generateNobleKeyPair()
+    const svc = new apisvc.Service(db, dataDir, {features: ['tools'], runQueue: {maxConcurrentModelRuns: 0}})
+    const send = async (action: import('@/api').UnsignedAgentAction) =>
+      svc.message(await apisvc.createSignedEnvelope(owner, {action}))
+    try {
+      expect(svc.features).toEqual(['tools'])
+      await expect(
+        send({
+          _: 'CreateAgent',
+          clientRequestId: 'no-agents-here',
+          definition: {name: 'Helper', systemPrompt: 'Test', modelProvider: 'openai', model: 'gpt-test', tools: []},
+        }),
+      ).rejects.toThrow('does not run agents')
+      await expect(send({_: 'CreateSession', agentId: 'any', title: 'x'} as never)).rejects.toThrow(
+        'does not run agents',
+      )
+      expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: 0})
+      // The app's lists still load: there is simply nothing in them.
+      expect(await send({_: 'ListAgents'})).toMatchObject({_: 'ListAgentsResponse', agents: []})
+    } finally {
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('a server asked to warm its sandbox runs one empty program once, and says where that stands', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const runs: {runtime?: string; stateDir: string}[] = []
+    let finish: ((success: boolean) => void) | undefined
+    const codeExecutor = {
+      enabled: true,
+      runtimes: ['ts'],
+      drain: async () => {},
+      probe: async () => ({ok: true, bootMs: 0, durationMs: 0}),
+      availability: async () => ({available: true, runtimes: ['ts']}),
+      execute: (request: {runtime?: string; stateDir: string}) => {
+        runs.push({runtime: request.runtime, stateDir: request.stateDir})
+        return new Promise((resolve) => {
+          finish = (success) => resolve({success, exitCode: success ? 0 : 1, stdout: '', stderr: ''})
+        })
+      },
+    }
+    const svc = new apisvc.Service(db, dataDir, {
+      codeExecutor: codeExecutor as never,
+      runQueue: {maxConcurrentModelRuns: 0},
+    })
+    try {
+      // Nothing happens unless the server is asked: a hosted server pays no extra sandbox.
+      expect(svc.sandboxWarmUp).toEqual({state: 'off'})
+      const warming = svc.warmUpCodeExec()
+      expect(svc.sandboxWarmUp).toEqual({state: 'warming'})
+      // Asking again while it runs starts no second one.
+      await svc.warmUpCodeExec()
+      expect(runs).toHaveLength(1)
+      // It is a TypeScript run, as a tool's is, in a workspace of its own.
+      expect(runs[0]!.runtime).toBe('ts')
+      expect(path.relative(dataDir, runs[0]!.stateDir)).toBe('exec-warm-up')
+      finish!(true)
+      await warming
+      expect(svc.sandboxWarmUp).toMatchObject({state: 'ready', durationMs: expect.any(Number)})
+    } finally {
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('a mounted agent is instructed by its published document, read each turn, with its tool cards listed', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const owner = blobs.generateNobleKeyPair()
@@ -130,6 +200,8 @@ describe('api service', () => {
     // The agent document, as published: first only its tool card (not migrated yet), then with text.
     let content: unknown[] = [card]
     let version = 'v1'
+    // The body of the tool's document, which is the tool's documentation: none at first.
+    let toolBody: unknown[] = []
     const doc = (id: string, metadata: Record<string, unknown>, body: unknown[], v: string) =>
       Response.json(
         serialize({
@@ -157,7 +229,7 @@ describe('api service', () => {
           return doc(
             toolId,
             {type: 'hm://hyper.media/tool', name: 'forecast', summary: 'Weather for a city.'},
-            [],
+            toolBody,
             't1',
           )
         return doc(
@@ -202,6 +274,27 @@ describe('api service', () => {
       expect(migrated).toContain('ctx.privateConfig')
       expect(migrated).toContain('Settings → Run App')
       expect(migrated).toContain('Settings → Private config')
+      // A tool is listed by its name and description, and the agent is told to read it before it
+      // calls it. The documentation itself stays out of the prompt, however long it is: a session
+      // that never uses the tool does not pay for it.
+      toolBody = [
+        {
+          block: {
+            id: 'q',
+            type: 'Paragraph',
+            text: 'Check the units before you answer.',
+            annotations: [],
+            attributes: {},
+          },
+          children: [],
+        },
+      ]
+      version = 'v3'
+      const listed = await prompt(sessionId)
+      expect(listed).toContain(`- forecast — Weather for a city. (${toolId})`)
+      expect(listed).toContain('That line is all you know about a tool.')
+      expect(listed).toContain('read its document before you call it')
+      expect(listed).not.toContain('Check the units before you answer.')
     } finally {
       hm.stop(true)
       sqlite.closeDatabase(db)
@@ -7076,9 +7169,14 @@ describe('api service', () => {
         options: {...toolOptions, tool: '~/memory/apps/broken'},
       })
       expect(String(noDefault.error)).toContain('default-export')
-      // A tool anywhere but directly under an app is refused.
-      const outside = await write({address: `hm://${signerPublicKey}/notes/forecast`, options: toolOptions})
-      expect(String(outside.error)).toContain('directly under an app')
+      // A tool anywhere but directly under an app is accepted: it stands on its own, in no app's list.
+      const outside = await write({
+        address: `hm://${signerPublicKey}/notes/forecast`,
+        options: toolOptions,
+        dryRun: true,
+      })
+      expect(outside.error).toBeUndefined()
+      expect(outside.app).toBeUndefined()
       expect(publishes).toHaveLength(0)
 
       const dryRun = await write({
@@ -7323,7 +7421,9 @@ describe('api service', () => {
       fs.mkdirSync(path.join(memoryRoot, 'reports', 'images'), {recursive: true})
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'weekly.md'),
-        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory.\n\n![chart](images/chart.png)\n',
+        // The citation link is a `#ref-1` fragment the way a converter writes it; it resolves to
+        // this very document, which does not exist yet on the first publish.
+        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory [[1](#ref-1)].\n\n![chart](images/chart.png)\n\n## References\n\n- [1] First entry <!-- id:ref-1 -->\n',
       )
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'images', 'chart.png'),
@@ -7393,7 +7493,11 @@ describe('api service', () => {
       expect(first.body?.opCount ?? 0).toBeGreaterThan(0)
       expect(BigInt(first.ts)).toBeGreaterThan(0n)
       const createBodyText = new TextDecoder('utf-8', {fatal: false}).decode(createBody)
-      expect(createBodyText).toContain('Hello world from memory.')
+      expect(createBodyText).toContain('Hello world from memory [1].')
+      // The fragment link was resolved to the document's own address and let through the link
+      // check, and the entry keeps the id it points at.
+      expect(createBodyText).toContain(`hm://${signerPublicKey}/weekly-report#ref-1`)
+      expect(createBodyText).toContain('ref-1')
       expect(createBodyText).toContain('ipfs://')
       expect(createBodyText).not.toContain('file://')
 

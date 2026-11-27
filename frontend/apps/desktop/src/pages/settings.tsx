@@ -1,7 +1,14 @@
 import {useAppContext, useIPC} from '@/app-context'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
-import {getDefaultAgentServerUrl, useLocalAgentServerState, useSetLocalAgentServerEnabled} from '@shm/ui/agents/models'
+import type {AppEnvironmentFeature} from '@seed-hypermedia/apps-protocol'
+import {
+  useLocalAgentServerFeatures,
+  useLocalAgentServerState,
+  useLocalServerFeatures,
+  useSetLocalAgentServerEnabled,
+  useSetLocalAgentServerFeatures,
+} from '@shm/ui/agents/models'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
@@ -194,42 +201,92 @@ function AdvancedSettings() {
   )
 }
 
+/** How each thing the local app environment can run is named and explained in Settings. */
+const LOCAL_FEATURE_ROWS: {feature: AppEnvironmentFeature; label: string; description: string}[] = [
+  {
+    feature: 'tools',
+    label: 'Tools',
+    description:
+      'Run standalone tools here: tools that are not part of an app or an agent. Their code, input files and secrets stay on this computer.',
+  },
+  {
+    feature: 'apps',
+    label: 'Apps',
+    description: 'Run apps and their tools here. They work only on this computer, while Seed is open.',
+  },
+  {
+    feature: 'agents',
+    label: 'Agents',
+    description: 'Run agents here. Their sessions and memory are kept on this computer and grow with use.',
+  },
+]
+
 /**
- * Runs or stops the bundled local app environment. Off unless the user (or an upgrade that found
- * agents in it) turned it on; the dev server the app attaches to cannot be switched. Which server
+ * Runs or stops the bundled local app environment, and says what it runs: tools on their own, apps,
+ * agents. It is on unless the user turned it off, and runs tools only until they check more. The
+ * dev server the app attaches to cannot be switched: it runs what its own flags say. Which server
  * an agent or app runs on is chosen when it is created, not here.
  */
 function LocalAppEnvironmentSetting() {
   const state = useLocalAgentServerState()
+  const features = useLocalAgentServerFeatures()
   const setEnabled = useSetLocalAgentServerEnabled()
-  const running = state.data?.t === 'attached' || state.data?.t === 'spawned'
+  const setFeatures = useSetLocalAgentServerFeatures()
   const attached = state.data?.t === 'attached'
-  const defaultHost = getDefaultAgentServerUrl()?.replace(/^https?:\/\//, '')
+  // A server the app only attached to is not set from here: the boxes show what it reports.
+  const reported = useLocalServerFeatures().data
+  const stored = features.data ?? []
+  const checked = attached ? reported ?? [] : stored
+  // Starting is not instant: while the app is bringing the server up, the switch already shows on.
+  const starting = state.data?.t === 'disabled' && !state.data.reason
+  const running = attached || state.data?.t === 'spawned' || starting
+  const busy = state.isLoading || features.isLoading || setEnabled.isLoading || setFeatures.isLoading
+  const onError = (error: unknown) =>
+    toast.error(error instanceof Error ? error.message : 'Could not change the local app environment')
   return (
     <SettingsCard label="LOCAL APP ENVIRONMENT">
       <SettingsRow
         label="Run an app environment on this computer."
         description={
           attached
-            ? 'Attached to the app environment already running on this computer.'
+            ? 'Attached to the app environment already running on this computer. It runs what it was started with.'
             : state.data?.t === 'error'
               ? `Could not start: ${state.data.message}`
-              : `Off by default${defaultHost ? `; agents normally run on ${defaultHost}` : ''}.`
+              : 'It runs what is checked below, in a sandbox, and only while Seed is open.'
         }
         right={
           <Switch
             aria-label="Run a local app environment"
             checked={running}
-            disabled={attached || state.isLoading || setEnabled.isLoading}
-            onCheckedChange={(checked) =>
-              setEnabled.mutate(checked, {
-                onError: (error) =>
-                  toast.error(error instanceof Error ? error.message : 'Could not change the local app environment'),
-              })
-            }
+            disabled={attached || busy}
+            onCheckedChange={(next) => setEnabled.mutate(next, {onError})}
           />
         }
       />
+      {LOCAL_FEATURE_ROWS.map(({feature, label, description}) => {
+        const id = `local-app-environment-${feature}`
+        return (
+          <div key={feature} className="flex items-start gap-3 px-4 py-2 pl-8">
+            <Checkbox
+              id={id}
+              className="mt-0.5"
+              checked={checked.includes(feature)}
+              disabled={attached || busy || !running}
+              onCheckedChange={(next) =>
+                setFeatures.mutate(next ? [...stored, feature] : stored.filter((other) => other !== feature), {onError})
+              }
+            />
+            <div className="flex min-w-0 flex-col">
+              <Label htmlFor={id} className="text-sm">
+                {label}
+              </Label>
+              <SizableText size="xs" className="text-muted-foreground">
+                {description}
+              </SizableText>
+            </div>
+          </div>
+        )
+      })}
     </SettingsCard>
   )
 }

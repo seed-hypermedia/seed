@@ -1,4 +1,4 @@
-import {HM_APP_TYPE, HM_TOOL_TYPE, HM_TRIGGER_TYPE} from '@seed-hypermedia/client/apps'
+import {HM_APP_TYPE, HM_TRIGGER_TYPE} from '@seed-hypermedia/client/apps'
 import {
   draftBindingSchemaDrafts,
   draftSchemaDraft,
@@ -434,11 +434,13 @@ export function getCollectionEditorBlocks(context: DocumentMachineContext): Edit
 
 function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
   const publishedType = deriveDocumentType(context.document?.content, context.documentId)
-  // An app's or tool's body (the card embeds that list an app's tools and pages) is kept by the
-  // publisher, and their views edit metadata only, with no editor showing the body: writing the
-  // editor would publish an empty body and offer to delete every child.
+  // An app's body (the card embeds that list its tools and pages) is kept by the publisher, and its
+  // views edit metadata only, with no editor showing the body: writing the editor would publish an
+  // empty body and offer to delete every child. A tool's body is not kept this way: it is the
+  // tool's documentation, written in the editor on the tool's page, and is saved like any
+  // document's. Putting the published body in its place would drop what was written.
   const type = getEffectiveDocumentMetadata(context).type
-  if (type === HM_APP_TYPE || type === HM_TOOL_TYPE) return contentToEditorBlocks(context.document?.content)
+  if (type === HM_APP_TYPE) return contentToEditorBlocks(context.document?.content)
   // A trigger's body (a session trigger's message) is edited on its own page, through `change`.
   if (type === HM_TRIGGER_TYPE) return contentToEditorBlocks(context.draftContent ?? context.document?.content)
   if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined

@@ -1,4 +1,4 @@
-import {Blocks, Bot, ChevronDown, FilePlus2, FolderPlus, Grid3X3, Import, Plus} from 'lucide-react'
+import {Blocks, Bot, ChevronDown, FilePlus2, FolderPlus, Grid3X3, Import, Plus, Wrench} from 'lucide-react'
 import type {ReactNode} from 'react'
 import {Button} from './button'
 import {
@@ -18,6 +18,7 @@ export function DocumentCreateButton({
   onCreate,
   onCreateAgent,
   onCreateApp,
+  onCreateTool,
   onImport,
   options,
 }: {
@@ -30,6 +31,8 @@ export function DocumentCreateButton({
   onCreateAgent?: () => void
   /** Opens app creation at the same destination. */
   onCreateApp?: () => void
+  /** Opens the creation of a tool that stands on its own at the same destination. */
+  onCreateTool?: () => void
   onImport: () => void
   /**
    * Replaces the document kinds for a location that makes something else (an app makes tools):
@@ -99,6 +102,12 @@ export function DocumentCreateButton({
                 <DropdownMenuItem onSelect={onCreateApp}>
                   <Blocks className="size-4" />
                   App
+                </DropdownMenuItem>
+              ) : null}
+              {onCreateTool ? (
+                <DropdownMenuItem onSelect={onCreateTool}>
+                  <Wrench className="size-4" />
+                  Tool
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator />

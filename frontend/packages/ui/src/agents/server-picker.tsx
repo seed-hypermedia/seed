@@ -8,8 +8,10 @@ import {
   describeAgentServer,
   getDefaultAgentServerUrl,
   isLocalAgentServer,
+  useAgentServerOptions,
   useAgentServerUrl,
   useLocalAgentServerUrl,
+  useLocalServerFeatures,
 } from './models'
 
 /** Dropdown value of the row that asks for a URL instead of naming a server. */
@@ -128,6 +130,31 @@ export function pickCreateAgentServer(
   if (defaultServerUrl && serverUrls.includes(defaultServerUrl)) return defaultServerUrl
   const remote = serverUrls.find((serverUrl) => !isLocalAgentServer(serverUrl, localServerUrl))
   return remote || serverUrls[0] || getDefaultAgentServerUrl() || ''
+}
+
+/**
+ * Where a tool that is in no app or agent runs for the viewer, since such a tool names no server.
+ *
+ * The app environment on their own computer comes first, when it runs tools and can run code: the
+ * tool's code, the files it is given and its secrets then never leave the machine. Otherwise it is
+ * {@link pickCreateAgentServer}'s answer among the other servers they know, the one their new apps
+ * and agents go to. '' while that is being found out, and when they know no server.
+ */
+export function useOwnAppServerUrl(): {serverUrl: string; isLoading: boolean; local: boolean} {
+  const options = useAgentServerOptions('tools')
+  const lastUsed = useAgentServerUrl()
+  const localServerUrl = useLocalAgentServerUrl()
+  const localFeatures = useLocalServerFeatures()
+  if (localServerUrl.data && localFeatures.canRunCode && localFeatures.data?.includes('tools'))
+    return {serverUrl: localServerUrl.data, isLoading: false, local: true}
+  const isLoading = options === undefined || lastUsed.isInitialLoading || localFeatures.data === undefined
+  return {
+    serverUrl: isLoading
+      ? ''
+      : pickCreateAgentServer(options, {defaultServerUrl: lastUsed.data, localServerUrl: localServerUrl.data}),
+    isLoading,
+    local: false,
+  }
 }
 
 /**

@@ -7,12 +7,19 @@ import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {CID} from 'multiformats/cid'
 import * as apisvc from '@/api-service'
-import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
+import {
+  executeCallVerb,
+  executeReadVerb,
+  executeWriteVerb,
+  readForToolUse,
+  type AgentServicePiToolContext,
+} from '@/api-service'
 import * as cbor from '@/cbor'
 import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
+import * as sessionAttachments from '@/session-attachments'
 import {BrowserPrivacy, withOwnerAccess} from '@/browser-privacy'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
@@ -166,6 +173,21 @@ describe('read verb', () => {
     const guide = await executeReadVerb(context, {address: '~/tools/write/ipfs'})
     expect(String(guide.markdown)).toContain('does not display anywhere yet')
     expect(String(guide.markdown)).toContain('![caption](~/memory/path/to/image.png)')
+  })
+
+  test('the guides for apps and tools send an agent to the documentation pages first', async () => {
+    const context = makeContext()
+    // The pages hold the model and the rules; the guides hold the write calls.
+    const apps = String((await executeReadVerb(context, {address: '~/tools/write/apps'})).markdown)
+    expect(apps).toContain('Read `hm://hyper.media/app` first')
+    expect(apps).toContain('`hm://hyper.media/tool` for a tool')
+    // A server that cannot read the documentation still has a guide to build with.
+    expect(apps).toContain('If those reads fail, this guide is enough to build with.')
+    const tools = String((await executeReadVerb(context, {address: '~/tools/write/tools'})).markdown)
+    expect(tools).toContain('Read `hm://hyper.media/tool` first')
+    // A tool is not said to need an app: one can be linked from where it lives.
+    expect(tools).toContain('link one that lives elsewhere')
+    expect(apps).not.toContain('every page and every tool belongs to an app')
   })
 
   test('~/tools lists verbs and callables; ~/tools/<name> returns the contract', async () => {
@@ -1501,5 +1523,257 @@ describe('write verb: running apps', () => {
     await expect(
       executeWriteVerb(context, {address: appId, options: {action: 'run', privateConfig: 'nope'}}),
     ).rejects.toThrow('privateConfig')
+  })
+})
+
+describe('call of a tool resource whose JSON carries files', () => {
+  const base64 = (text: string) => Buffer.from(text).toString('base64')
+  const file = (name: string, mimeType: string, text: string) => ({name, mimeType, data: base64(text)})
+
+  /** A context whose agent has one signing identity, and a fake app runtime that records its inputs. */
+  async function fileContext(output: unknown, overrides: Partial<AgentServicePiToolContext> = {}) {
+    const owner = blobs.generateNobleKeyPair()
+    const base = makeContext(overrides)
+    const service = new apisvc.Service(base.db, base.stateDir, {hmServerUrl: 'https://hm.example'})
+    const imported = await service.message(
+      await apisvc.createSignedEnvelope(owner, {action: {_: 'ImportSigningIdentity', seed: owner.seed}}),
+    )
+    if (imported._ !== 'ImportSigningIdentityResponse') throw new Error('unexpected import')
+    const inputs: unknown[] = []
+    const context: AgentServicePiToolContext = {
+      ...base,
+      accountId: blobs.principalToString(owner.principal),
+      definition: {signingKeys: [imported.identity.name]} as never,
+      callAppTool: async (caller, action) => {
+        inputs.push(action.input)
+        return {
+          id: 'call-1',
+          appId: action.appId ?? action.toolId,
+          toolId: action.toolId,
+          caller,
+          input: action.input,
+          output,
+          durationMs: 5,
+          createdAt: 0,
+        }
+      },
+    }
+    return {context, inputs}
+  }
+  const converted = {
+    pages: 2,
+    document: file('seed.md', 'text/markdown', '# Title'),
+    assets: [file('assets/figure.png', 'image/png', 'PNG')],
+  }
+
+  test('a memory file and an attachment are sent as files, and returned files go to the named folder', async () => {
+    const {context, inputs} = await fileContext(converted)
+    agentMemory.writeMemoryFile(context.stateDir, 'inbox/report.txt', 'source text')
+    const attachment = sessionAttachments.saveSessionAttachment(context.stateDir, context.sessionId, {
+      name: 'scan.pdf',
+      mimeType: 'application/pdf',
+      content: new TextEncoder().encode('%PDF-'),
+    })
+    const result = await executeCallVerb(
+      context,
+      {
+        tool: 'hm://z6MkSpace/converter/convert',
+        input: {
+          file: {fromPath: '~/memory/inbox/report.txt'},
+          more: [{fromAttachment: attachment.id, name: 'renamed.pdf'}],
+          mode: 'fast',
+        },
+        saveTo: '~/memory/imports/report/',
+      },
+      undefined,
+    )
+    expect(inputs).toEqual([
+      {
+        file: file('report.txt', 'text/plain', 'source text'),
+        more: [file('renamed.pdf', 'application/pdf', '%PDF-')],
+        mode: 'fast',
+      },
+    ])
+    // The model sees where each file is, never its bytes.
+    expect(result.result).toEqual({
+      pages: 2,
+      document: {name: 'seed.md', mimeType: 'text/markdown', size: 7, path: '~/memory/imports/report/seed.md'},
+      assets: [
+        {name: 'assets/figure.png', mimeType: 'image/png', size: 3, path: '~/memory/imports/report/assets/figure.png'},
+      ],
+    })
+    expect(String(result.summary)).toContain('2 file(s) are in ~/memory/imports/report')
+    expect(agentMemory.readMemoryFile(context.stateDir, 'imports/report/seed.md').content).toBe('# Title')
+    expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a call always runs, and brings the tool’s documentation with it when the agent does not have it yet', async () => {
+    const {context, inputs} = await fileContext({pages: 1})
+    // The body of the tool's document: how to use it, before the call and after it.
+    const body = (text: string) => [
+      {block: {id: 'h1', type: 'Heading', text: 'After converting', annotations: [], attributes: {}}, children: []},
+      {block: {id: 'p1', type: 'Paragraph', text, annotations: [], attributes: {}}, children: []},
+    ]
+    let version = 'v1'
+    let content: unknown[] = body('Check every figure against the source before publishing.')
+    const given = new Set<string>()
+    const described: unknown[] = []
+    const documented: AgentServicePiToolContext = {
+      ...context,
+      describeAppTool: async (action) => {
+        described.push(action)
+        return {version, name: 'convert', content: content as never}
+      },
+      toolDocumentationUnread: (key) => !given.has(key) && !!given.add(key),
+    }
+    const call = (ctx = documented) =>
+      executeCallVerb(ctx, {tool: 'hm://z6MkSpace/converter/convert', input: {}}, undefined)
+
+    // First call: the tool runs. No call is turned away to make an agent read. What its author
+    // wrote comes with the result, as text to read, since this session has not had it.
+    const first = await call()
+    expect(first.result).toEqual({pages: 1})
+    expect(inputs).toHaveLength(1)
+    expect(String(first.documentation)).toBe(
+      '# After converting\n\nCheck every figure against the source before publishing.',
+    )
+    expect(String(first.summary)).toContain('You had not read this tool’s documentation')
+    // The tool is described as the agent would run it: as one its own document may reference.
+    expect(described[0]).toEqual({toolId: 'hm://z6MkSpace/converter/convert', preferHost: documented.agentId})
+
+    // The same text is not sent twice.
+    const second = await call()
+    expect(second.result).toEqual({pages: 1})
+    expect(second.documentation).toBeUndefined()
+    expect(String(second.summary)).not.toContain('documentation')
+    expect(inputs).toHaveLength(2)
+
+    // A new version of the tool may ask for something else: its documentation comes again.
+    version = 'v2'
+    content = body('Also check the tables.')
+    const changed = await call()
+    expect(String(changed.documentation)).toContain('Also check the tables.')
+    expect(inputs).toHaveLength(3)
+
+    // A tool with no documentation has nothing to bring.
+    version = 'v3'
+    content = []
+    const bare = await call()
+    expect(bare.result).toEqual({pages: 1})
+    expect(bare.documentation).toBeUndefined()
+    expect(inputs).toHaveLength(4)
+
+    // An agent that read the tool's document first has the documentation: the read counts, and
+    // the call brings the result alone. The read also resolves the tool's input schema, which the
+    // document names by address only, so one read is enough to call the tool.
+    version = 'v4'
+    content = body('Check every figure.')
+    const read = await readForToolUse(documented, {
+      id: 'hm://z6MkSpace/converter/convert',
+      version: 'v4',
+      metadata: {type: 'hm://hyper.media/tool', name: 'convert', inputSchema: 'hm://hyper.media/example/person'},
+      markdown: '# After converting',
+    })
+    expect(read.markdown).toBe('# After converting')
+    const use = read.tool as {call: string; input: {properties: Record<string, unknown>}}
+    expect(use.call).toContain('"tool": "hm://z6MkSpace/converter/convert"')
+    expect(Object.keys(use.input.properties)).toContain('name')
+    const afterRead = await call()
+    expect(afterRead.result).toEqual({pages: 1})
+    expect(afterRead.documentation).toBeUndefined()
+
+    // Reading only a tool's attributes, or a document that is not a tool, is not reading documentation.
+    const attributes = {id: 'hm://z6MkSpace/converter/other', version: 'v1', metadata: {type: 'hm://hyper.media/tool'}}
+    expect(await readForToolUse(documented, attributes)).toBe(attributes)
+    const page = {id: 'hm://z6MkSpace/notes', version: 'v1', metadata: {name: 'Notes'}, markdown: 'Hello'}
+    expect(await readForToolUse(documented, page)).toBe(page)
+
+    // A call that fails says why, and nothing else.
+    await expect(
+      executeCallVerb(
+        {...documented, callAppTool: async () => ({error: 'The tool failed (exit 1)'}) as never},
+        {tool: 'hm://z6MkSpace/converter/convert', input: {}},
+        undefined,
+      ),
+    ).rejects.toThrow('The tool failed (exit 1)')
+  })
+
+  test('without a folder, returned files become attachments of the session and memory is untouched', async () => {
+    const {context} = await fileContext(converted)
+    const result = await executeCallVerb(context, {tool: 'hm://z6MkSpace/converter/convert', input: {}}, undefined)
+    const document = (result.result as {document: {attachment: string; size: number}}).document
+    expect(document).toMatchObject({name: 'seed.md', mimeType: 'text/markdown', size: 7})
+    const stored = sessionAttachments.readSessionAttachment(
+      context.stateDir,
+      context.sessionId,
+      document.attachment.replace('attachment:', ''),
+    )
+    expect(new TextDecoder().decode(stored.data)).toBe('# Title')
+    expect(String(result.summary)).toContain('2 file(s) are in this session’s attachments')
+    expect(agentMemory.listMemory(context.stateDir).entries).toEqual([])
+    expect(context.onMemoryChange).not.toHaveBeenCalled()
+  })
+
+  test('a call outside a session keeps returned files in memory', async () => {
+    const {context} = await fileContext(converted, {sessionId: ''})
+    const result = await executeCallVerb(context, {tool: 'hm://z6MkSpace/converter/convert', input: {}}, undefined)
+    expect(result.result).toMatchObject({document: {path: '~/memory/tool-output/call-1/seed.md'}})
+    expect(agentMemory.readMemoryFile(context.stateDir, 'tool-output/call-1/seed.md').content).toBe('# Title')
+  })
+
+  test('a result without files is passed through, and a bad file source is refused before the tool runs', async () => {
+    const {context, inputs} = await fileContext({pages: 2})
+    const plain = await executeCallVerb(
+      context,
+      {tool: 'hm://z6MkSpace/converter/convert', input: {note: {name: 'not a file'}}},
+      undefined,
+    )
+    expect(plain.result).toEqual({pages: 2})
+    expect(String(plain.summary)).not.toContain('file(s)')
+    expect(inputs).toEqual([{note: {name: 'not a file'}}])
+    await expect(
+      executeCallVerb(
+        context,
+        {tool: 'hm://z6MkSpace/converter/convert', input: {file: {fromPath: '~/memory/missing.txt'}}},
+        undefined,
+      ),
+    ).rejects.toThrow()
+    await expect(
+      executeCallVerb(context, {tool: 'hm://z6MkSpace/converter/convert', input: {file: {fromPath: 7}}}, undefined),
+    ).rejects.toThrow('fromPath must be a string')
+    await expect(
+      executeCallVerb(context, {tool: 'hm://z6MkSpace/converter/convert', input: {}, saveTo: 5}, undefined),
+    ).rejects.toThrow('saveTo must be a memory folder')
+    expect(inputs).toHaveLength(1)
+  })
+
+  test('a tool is called by its address wherever it lives, and the server finds its host', async () => {
+    const hosts: (string | undefined)[] = []
+    const {context} = await fileContext({ok: true})
+    const call = context.callAppTool!
+    context.callAppTool = async (caller, action) => {
+      hosts.push(action.appId)
+      return call(caller, action)
+    }
+    // Directly in a space, under a plain document, or under an app: the verb names no host.
+    for (const tool of ['hm://z6MkSpace/convert', 'hm://z6MkSpace/tools/convert', 'hm://z6MkSpace/app/convert']) {
+      expect((await executeCallVerb(context, {tool, input: {}}, undefined)).result).toEqual({ok: true})
+    }
+    expect(hosts).toEqual([undefined, undefined, undefined])
+    // A space's home is not a tool.
+    await expect(executeCallVerb(context, {tool: 'hm://z6MkSpace', input: {}}, undefined)).rejects.toThrow(
+      'is not a tool',
+    )
+  })
+
+  test('a returned file cannot be written outside the named folder', async () => {
+    const {context} = await fileContext({stray: file('../../escape.txt', 'text/plain', 'x')})
+    await expect(
+      executeCallVerb(
+        context,
+        {tool: 'hm://z6MkSpace/converter/convert', input: {}, saveTo: '~/memory/imports'},
+        undefined,
+      ),
+    ).rejects.toThrow('not a path')
   })
 })

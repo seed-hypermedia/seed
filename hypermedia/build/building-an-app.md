@@ -33,19 +33,34 @@ Tab URLs end in `/:app/tools`, `/:app/pages`, `/:app/triggers` and `/:app/settin
 
 ## Add a tool
 
-Inside an app, New offers **Tool** and **Trigger**. Pages are built by agents.
+Inside an app, New offers **Tool** and **Trigger**, and the Tools tab has **New tool** and **Add existing tool**. Pages are built by agents.
 
-A tool opens inside its app. The app's tabs stay above it, with **Tools** selected. The tool has a header with a back button and its name, then one page with three parts:
+Anywhere else, the New menu also offers **Tool**. That makes a tool that stands on its own, outside any app. The dialog asks for no server: a tool never names one. You write it, run it from its page and share it like a document. It runs on the app environment on your own computer, which the desktop app starts for tools. If that is off, or your computer cannot run the sandbox, it runs on the server your new apps and agents go to. Nothing turns it on, and only people who can edit it can run it.
+
+**Using a tool that lives elsewhere.** An app does not need its own copy of a tool. In the app's Tools tab, **Add existing tool** finds a tool by its name, or takes its link when you paste one. Each tool is listed with its description. Then choose how the app takes it. Both links leave the tool where it is and its author's. **Link, always the latest version** makes the app run whatever is published there. **Link, this version only** keeps the app on the version you saw. That is the first choice for someone else's tool, because following the latest lets its author change what your app runs, with the secrets the tool declares. In the Tools tab, **Update** later moves a pinned tool to a newer version, and **Follow latest** and **Pin** switch between the two. **Copy** makes a separate tool under the app, yours to change, which never follows the original. When the tool declares settings or secrets, the dialog names them, and it opens the app's Settings once the tool is added. [Tool](../tool.md#using-someone-elses-tool) has the rules.
+
+Every tool's page has a **Config** part, with **Config fields** to declare the settings and secrets the tool needs. Inside an app, the app's Settings then asks for them, next to the app's own. A tool on its own also takes, on its page, the values you run it with: the public ones, and **Private config** for the secrets, which your app environment keeps and never shows again.
+
+A tool that is in no app or agent offers the same from its own page. **Use in an app or agent** lists the apps and agents you can write, and asks the same three ways. An agent's Tools tab has **Add existing tool** too. **Move** in the tool's menu moves the tool itself under an app. Moving changes the tool's address and leaves a redirect at the old one.
+
+A tool inside an app opens inside it. The app's tabs stay above it, with **Tools** selected. The tool has a header with a back button and its name, then one page with these parts:
 
 - **Description** says what the tool does.
-- **Run** has a form built from the input schema, a **Run** button, the result, and a **Runs** list of the recorded calls.
+- **Documentation** is the body of the tool's document, written in the same editor as any document. Say there how to use the tool: what to prepare before a call, and what to do with the result. People who use the tool read it, and an [agent](../agent.md) reads it before it calls the tool for the first time.
+- **Run** has a form built from the input schema, a **Run** button, the result, and a **Calls** list of the recorded calls. A [file](../tool.md#files) in the input schema is a file picker in the form: the file you choose is sent inside the input and stored nowhere. A file in the result is listed with its name and size, with **Save** to keep it.
 - **Definition** is folded until you open it. It holds the input schema and the output schema, edited with the schema editor, and `index.ts`.
 
 Changes stay in a draft, which saves itself. While there is a draft, the header says "Unpublished changes: publish or discard them in the top bar." **Publish** in the top bar publishes the changes as one new version, and **Discard Changes** drops them. A code change publishes a new folder and points `code` at it. **Delete Tool** in the options menu removes the tool and takes it off its app's list.
 
+**Run** runs what the page shows, and nothing else decides what runs. With a draft, that is the draft. Without one, it is the published tool. On an earlier version opened from the tool's history, it is that version. It shows the result, what the code printed, and where the output breaks the output schema. It works whether the app is running or not, and it needs the right to write the tool. See [trying code before publishing it](../tool.md#trying-code-before-publishing-it).
+
+Under the form, **Calls** lists what apps, agents, pages and other callers ran, each with its input and its result. Your own runs from this page are not added to it. Someone who cannot write the tool sees Run only while the tool's app is running, and their run is a call like any other.
+
 ## Run the app
 
 **Settings** does three things: it runs the app, edits its public config, and sets up its config fields.
+
+An app that lacks required config shows it in red, on its Home and in the **Hosting** row: the names that are not set, and where to set them. **Run App** stays disabled until the required public config is filled, and its dialog does not run the app until every required secret is entered. A running app turns red when a tool that needs a new secret is moved into it.
 
 **Run App** asks for the server and the private config. You pick the server from a list. The list starts on the server that the space's [site](../protocol/sites.md) advertises. You can add a server by its host name, such as `hyper.media`. Seed asks each server first whether it will run this app for you.
 
@@ -69,7 +84,7 @@ Changes stay in a draft, which saves itself. **Publish** in the top bar publishe
 
 # For agents
 
-An agent has three guides: `~/tools/write/apps` for apps and tools, `~/tools/write/pages` for pages and `~/tools/write/triggers` for triggers. The agent publishes everything with the [`write` verb](../agent/write.md).
+An agent starts from [App](../app.md) and follows its links to [Tool](../tool.md), [Page](../page.md) and [Trigger](../trigger.md). Those pages hold the model and the rules, and what the agent is told names them. The write calls are in three guides the agent holds: `~/tools/write/apps` for apps and tools, `~/tools/write/pages` for pages and `~/tools/write/triggers` for triggers. The agent publishes everything with the [`write` verb](../agent/write.md).
 
 ## Write the app and its tools
 
@@ -80,7 +95,7 @@ An agent writes the app as an ordinary document with `metadata.type`. Then it wr
 - It sets `type` and `code`.
 - It requires `inputSchema`.
 
-When an agent creates a tool, page or trigger directly under an app or an agent, the publisher adds its [card embed](../block/embed-view.md) to the host in the same publish. Deleting the child removes the embed. The publisher refuses a tool or a trigger anywhere else. It also refuses `write ~/tools/<name>`: an agent's tools are documents, not entries in `~/tools/`.
+When an agent creates a tool, page or trigger directly under an app or an agent, the publisher adds its [card embed](../block/embed-view.md) to the host in the same publish. Deleting the child removes the embed. A tool written anywhere else stands on its own, as its own host. The publisher refuses a trigger anywhere else. It also refuses `write ~/tools/<name>`: an agent's tools are documents, not entries in `~/tools/`.
 
 An app written directly under an agent's document is listed on the agent like its tools, pages and triggers, so it shows on the agent's Home.
 

@@ -1,109 +1,112 @@
 ---
-name: Datalab PDF Importer Reference
-summary: The Datalab PDF importer is an add-on tool that turns a PDF into Seed markdown with Datalab, and the app environment does not include it, so an agent has it only when someone has added it.
+name: Document converter
+summary: The document converter is a tool an app or an agent hosts, which turns a PDF, an office document, an e-book or an image into Seed markdown with Datalab, using the key in its host's private config.
 ---
-The **Datalab PDF importer** is a tool named `datalab_pdf_importer`. It turns a PDF into markdown that is ready to publish as a Seed [document](../protocol/documents.md), using the Datalab conversion service. <!-- id:RrPCYAhg -->
+The **document converter** is a [tool](../tool.md) named `convert`. It turns one document into markdown that is ready to publish as a Seed [document](../protocol/documents.md), using the Datalab conversion service. An [agent](../agent.md) uses it to import documentation it then works on.
 
-The [app environment](../software/app-environment.md) does not include this tool. It is not one of the built-in [callable tools](./callables.md), and no code in the Seed repository provides it. An [agent](../agent.md) has it only when someone has added it, as a tool resource (see [call](./call.md#tool-resources)) or through an [MCP server](./mcp.md). So check first:
+The tool takes a PDF, a Word, PowerPoint or Excel file, their OpenDocument forms, CSV, HTML, EPUB, and PNG, JPEG, WebP, GIF or TIFF images. It does not take markdown or plain text: read those directly.
 
-- Run `read ~/tools/`. If the importer is not listed, and nobody gave you its `hm://` URL, you cannot call it. Convert the PDF another way.
-- If it is there, read its [contract](./contract.md) before you call it. The contract is the truth. This page describes the tool as its author documented it, and the tool you find may differ.
+The [app environment](../software/app-environment.md) does not include the converter. Its code is in the Seed repository at `apps/tools/convert/`, and it runs only where someone has published it under an [app](../app.md) or an agent and run that host. So check first:
 
-The tool has two operations: `convert` (the default) and `postprocess_seed`. The tool only prepares files. The agent still does the signed Seed writes and the final check.
+- You need the tool's `hm://` URL, such as `hm://SPACE/converter/convert`. If nobody gave it to you, you cannot call it. Convert the document another way.
+- The host must run on the server you run on. A tool on another server answers that its app does not run here.
 
-# Credential boundary <!-- id:M_qNC5VE -->
+The tool only converts. The agent still reviews the result, does the signed Seed writes and checks what it published.
 
-Conversion needs the requester's Datalab API key. The caller puts the key in a memory file and passes its path as `api_key_file`. Anyone the agent is shared with can read memory, so do this only on an agent that is not shared, and delete the file when the conversion is done. Never show or publish the key. <!-- id:PWyNZkXB -->
+# Who holds the key
 
-- `postprocess_seed` does not call Datalab and needs no key.
-- When the requester chooses local or simple recognition, do not ask for a Datalab key.
+The tool declares one secret, `datalabApiKey`, and its host supplies it. In an app, someone who can write the app's [space](../protocol/spaces.md) enters it in the app's Settings, which asks for it because the tool declares it. The tool gets that field and no other secret the app holds, and sends it only to Datalab.
 
-# Convert invocation <!-- id:FbOXgBsr -->
+- Never ask for the key in a conversation, and never put it in memory, in a call's input or in a document.
+- Every caller of an app's converter spends that app's key. The app's public config sets the ceilings: `mode` (the most expensive mode, `balanced` unless set) and `maxPages` (the most pages one document may bill, 200 unless set). A call can lower either, never raise it.
 
-```json <!-- id:V04_Y7a8 -->
+# Calls are public, files are not
+
+The server records every call with its input and its output, and anyone can read the record. The record holds the name, type and size of each [file](../tool.md#files), never its bytes. So a document's file name, page count and cost are public, and its text and figures are not, until you publish them.
+
+The tool stores nothing and publishes nothing. The converted files come back in its answer, and the caller decides where they go.
+
+# Convert a document
+
+The tool takes the document as a file inside its input: `file`, an object `{name, mimeType, data}` with the bytes as base64. An agent names the file instead, and the server puts it there:
+
+```json
 {
-  "operation": "convert",
-  "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "datalab-api-key",
-  "output_dir": "datalab-imports",
-  "prepare_seed": true,
-  "render_complete_figures": true,
-  "append_unreferenced_images": false,
-  "max_concurrency": 2
+  "tool": "hm://SPACE/converter/convert",
+  "input": {"file": {"fromPath": "~/memory/incoming/paper.pdf"}},
+  "saveTo": "~/memory/imports/paper"
 }
 ```
 
-PDF paths are relative to the agent's memory. The importer accepts a list of files or glob patterns. It can also find PDFs itself when `pdfs` is left out. Other controls are `max_pages`, `page_range` (counted from zero, for example `0-5,10`), `skip_cache`, `overwrite`, `poll_interval_seconds`, and `timeout_seconds`. <!-- id:-f909P_U -->
+For a file attached to the [session](./session.md), write `{"fromAttachment": "ATTACHMENT_ID"}`. The name's extension says what the document is. One document may be 45 MiB at most.
 
-The `convert` operation calls Datalab's PDF conversion endpoint. It asks for markdown with links and infographics, image extraction, and a balanced conversion mode. The result includes `parse_quality_score` (0 to 5, or null) and `total_cost` in cents, exactly as Datalab returned them. Never invent either value. <!-- id:ubrVYLm_ -->
+Other input fields are `pageRange` (counted from zero, for example `0-5,10`), `maxPages` and `mode` (`fast`, `balanced` or `accurate`).
 
-# Conversion output <!-- id:7d3qRS6k -->
+The result is one of two:
 
-```text <!-- id:xhjIRuT8 -->
-datalab-imports/<stable-document-slug>/
-  raw.md                       # raw converter Markdown
-  document.md                  # rewritten working Markdown
-  seed.md                      # first-pass Seed Markdown
-  seed-postprocess.json        # citation/verification plan
-  manifest.json                # assets, warnings, quality/cost data
-  assets/                      # local extracted and rendered assets
-  structured-extraction.json   # only when structured extraction was requested
-```
+- `status: "complete"`. The result has the converted files (see below), and `pages`, `images`, `truncated`, `captions`, `citationsLinked`, `citationsUnlinked` and `markersRepaired`, and `parseQualityScore` (0 to 5) and `costCents` when Datalab gives them. Report them exactly as returned. Never invent either value.
+- `status: "pending"`. Datalab is still working. Call again with the returned `job` and no file:
 
-By default the importer cleans the markdown: <!-- id:iy7YRfou -->
-
-- It puts the text in one column, in reading order.
-- It keeps external links and removes links that point inside the PDF.
-- It turns one-line math into display math.
-- It renders complete figures, puts each figure where it was in the source, and uses image captions.
-- It does not add a gallery of leftover images at the end.
-
-A person or the agent must still review the result.
-
-# Opt-in structured extraction <!-- id:DMOJGg2j -->
-
-Conversion never extracts structured fields unless you ask. To ask, give exactly one of: <!-- id:qMyrskPx -->
-  - `structured_fields`: field names, from which the importer builds a descriptive JSON Schema; <!-- id:DuRdldv2 -->
-  - `structured_schema`: a JSON Schema object with `type: "object"` and `properties`; <!-- id:mxRM0crh -->
-  - `structured_schema_id`, optionally with `structured_schema_version`, for a schema saved at Datalab. <!-- id:N-lHZz7J -->
-
-Example: <!-- id:WT3764Hp -->
-
-```json <!-- id:GcQqlUoW -->
+```json
 {
-  "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "datalab-api-key",
-  "structured_fields": ["title", "authors", "publication_year"],
-  "extraction_mode": "accurate"
+  "tool": "hm://SPACE/converter/convert",
+  "input": {"job": "JOB_FROM_THE_FIRST_CALL"},
+  "saveTo": "~/memory/imports/paper"
 }
 ```
 
-The tool asks Datalab for a conversion checkpoint only when extraction is requested. It then sends that checkpoint, not the markdown, to Datalab extraction. The modes are `fast`, `balanced` (the default), and `accurate`. <!-- id:tOdbv805 -->
+A tool call lasts 60 seconds unless the tool sets `timeoutSecs` in its metadata, and 300 seconds at most. A long document takes several calls.
 
-The tool saves the returned fields, citations, verification data, schema data and scores in `structured-extraction.json`, and also returns them. Describe each field exactly, in the words of the source. Do not make up extracted values from `seed.md`.
+# What comes back
 
-# Postprocess invocation <!-- id:2LIvUa1X -->
+A complete result carries four fields that hold files:
 
-When the first published version has a bibliography and possible citations, run: <!-- id:OMtAhpv- -->
+| Field | File name | What it is |
+| --- | --- | --- |
+| `document` | `seed.md` | the cleaned markdown to review and publish |
+| `raw` | `raw.md` | the markdown as Datalab returned it |
+| `manifest` | `manifest.json` | pages, mode, quality, cost, images, and every repair |
+| `assets` | `assets/<name>` | the extracted figures, as a list |
 
-```json <!-- id:CKhMZtZk -->
-{
-  "operation": "postprocess_seed",
-  "published_seed_url": "hm://ACCOUNT/document-path",
-  "published_seed_version": "EXACT_PUBLISHED_CID",
-  "postprocess_output_dir": "datalab-imports/document-slug"
-}
+`document` links to its figures as `assets/<name>`. So with `saveTo`, the files land as a folder that publishes as it is:
+
+```text
+imports/paper/
+  seed.md
+  raw.md
+  manifest.json
+  assets/
 ```
 
-The tool reads the exact published version and finds the bibliography entries. It writes `seed-update.md` and `seed-postprocess-audit.json`. <!-- id:i5oItO3H -->
+Without `saveTo`, each file becomes an attachment of the session, and the images are no longer beside the markdown. Use `saveTo` when you mean to publish.
 
-- It links only safe matches: numbered groups and ranges, and author and year pairs that match one entry. This includes citations in captions and tables.
-- It fails when the document holds Seed content it cannot handle. It never drops such content in silence.
-- Read the audit before you update. A match that is unclear needs a person or the agent to review it. Never guess.
+A [page](../page.md) or another client that calls the tool gets the same four fields with the bytes in them, and saves or publishes them itself.
+
+The tool cleans the markdown before you see it:
+
+- Each figure sits on its own line and points at its file in `assets/`. A `Figure N: …` paragraph next to a figure becomes that figure's caption.
+- One-line `$$…$$` formulas become fenced math [blocks](../protocol/blocks.md).
+- Links that point inside the source file are reduced to their text. External links are kept.
+- Each entry of the references section gets a block id, and each citation that names exactly one entry becomes a `#ref-…` link to it. Publishing turns those into links to the published document. A citation with no matching entry stays as text and is listed in `manifest.json`.
+- An unpaired `**`, backtick, code fence or `$$` is repaired, because one of them would hide the rest of the document. `manifest.json` names each repair and its line in `raw.md`.
+
+The converter has no rule for footnotes, and it does not redraw vector figures. Check both by hand.
+
+# Review and publish
+
+1. Read `seed.md` against the source. Check the title, the reading order, tables, formulas, figures, and every line `manifest.json` names.
+2. Add frontmatter (`name`, `summary`) at the top of `seed.md`.
+3. Publish it with [`write`](./write.md): the document's `hm://` address with `options.fromPath: "~/memory/imports/paper/seed.md"`. The images in `assets/` are uploaded with it. Ask for the address. Never pick one silently.
+4. Read the published document back and check it.
+
+# Use the converter from another app
+
+An app or an agent uses the converter by having it among its own tools. In the [desktop app](../software/desktop.md), drag the tool onto the app in the document tree and choose **Move here** or **Copy here**. An agent copies it with `write` and `options.action: "fork"`, at an address directly under the app. The tool brings its declared config with it, so the app's Settings asks for `datalabApiKey`, and shows the app in red until it is set. Enter the key there and run the app. A copy does not follow later changes to the original.
 
 # See also
 
-- [Callable tools](./callables.md)
+- [Tool](../tool.md)
 - [Call](./call.md)
+- [Write](./write.md)
 - [Memory](./memory.md)
 - [Agent guide](./guide.md)

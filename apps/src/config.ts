@@ -13,6 +13,11 @@ export type Server = {
 }
 
 import {parseLogLevel, type LogLevel} from '@/log'
+import {
+  APP_ENVIRONMENT_FEATURES,
+  parseAppEnvironmentFeatures,
+  type AppEnvironmentFeature,
+} from '@seed-hypermedia/apps-protocol'
 import {defaultExecMaxConcurrent} from './code-exec'
 
 /** Runtime configuration for the Agents service. */
@@ -30,6 +35,16 @@ export type Config = {
   subscriptionAuth: boolean
   /** Generate titles for untitled sessions with a dedicated model call. */
   titleGeneration: boolean
+  /**
+   * Start one sandbox when the server starts, so the first tool run does not wait for the sandbox's
+   * slow first start. Off unless asked for: the desktop app's own server turns it on.
+   */
+  execWarmUp: boolean
+  /**
+   * What this server runs: tools on their own, apps, agents. All of them unless `--features` names
+   * fewer. The desktop app's own server runs only what its user checked in Settings.
+   */
+  features: AppEnvironmentFeature[]
   /**
    * The URL clients reach this server's API at, such as `https://hyper.media/hm/api/apps` (the web
    * host proxies `/hm/api/apps` here). Apps run here name it as their `appEnvironmentUrl`.
@@ -158,6 +173,7 @@ export type Flags = {
   'crawler-token': string
   'exec-backend': string
   'subscription-auth': boolean
+  'exec-warm-up': boolean
   'session-title-generation': boolean
   'exec-image': string
   'exec-ts-image': string
@@ -188,6 +204,7 @@ export type Flags = {
   'retention-max-store-mib': number
   'retention-interval-mins': number
   'tool-output-store-limit-kib': number
+  features: string
 }
 
 /** Flags that take a non-negative number (fractions allowed). */
@@ -240,6 +257,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'crawler-token': v('CRAWLER_TOKEN') || '',
     'exec-backend': v('EXEC_BACKEND') ?? 'microsandbox',
     'subscription-auth': isTruthyFlag(v('SUBSCRIPTION_AUTH') ?? ''),
+    'exec-warm-up': isTruthyFlag(v('EXEC_WARM_UP') ?? ''),
     'session-title-generation': v('SESSION_TITLE_GENERATION') !== 'false',
     'exec-image': v('EXEC_IMAGE') || 'python',
     'exec-ts-image': v('EXEC_TS_IMAGE') ?? 'oven/bun',
@@ -271,6 +289,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'retention-max-store-mib': numberFromEnv(v('RETENTION_MAX_STORE_MIB'), 32),
     'retention-interval-mins': numberFromEnv(v('RETENTION_INTERVAL_MINS'), 360),
     'tool-output-store-limit-kib': numberFromEnv(v('TOOL_OUTPUT_STORE_LIMIT_KIB'), 128),
+    features: v('FEATURES') ?? APP_ENVIRONMENT_FEATURES.join(','),
   }
 }
 
@@ -298,7 +317,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
 
     if (key === 'server-port') {
       parsed[key] = parsePort(value)
-    } else if (key === 'subscription-auth') {
+    } else if (key === 'subscription-auth' || key === 'exec-warm-up') {
       parsed[key] = isTruthyFlag(value)
     } else if (
       key === 'activity-poll-interval-ms' ||
@@ -416,6 +435,8 @@ export function create(pflags: Flags): Config {
     },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
+    features: parseAppEnvironmentFeatures(pflags.features),
+    execWarmUp: pflags['exec-warm-up'],
     execCanaryIntervalMs: parseNonNegativeInteger(String(pflags['exec-canary-secs']), 'exec-canary-secs') * 1000,
   }
 }

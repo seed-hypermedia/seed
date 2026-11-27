@@ -116,4 +116,18 @@ describe('assertHmContentLinks', () => {
       assertHmContentLinks(client, [linkedParagraph('hm://broken link')], {skipResolve: true}),
     ).rejects.toThrow(/malformed/)
   })
+
+  test('links into the document being written are not resolved; other paths of the same account are', async () => {
+    // A first publication cannot resolve its own `#ref-N` citation links: the document does not exist yet.
+    const client = fakeClient((link) => (link === GOOD2 ? 'found' : 'not-found'))
+    await assertHmContentLinks(
+      client,
+      [linkedParagraph(`${GOOD}#ref-1`), linkedParagraph(`${GOOD}#ref-2`), embedBlock(GOOD2)],
+      {self: GOOD},
+    )
+    expect(client.asked).toEqual([GOOD2])
+    await expect(assertHmContentLinks(client, [linkedParagraph(`${GOOD}/deeper#ref-1`)], {self: GOOD})).rejects.toThrow(
+      /do not exist/,
+    )
+  })
 })

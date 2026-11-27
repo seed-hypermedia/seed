@@ -86,6 +86,11 @@ const desktopAgentsPlatform: AgentsPlatform = {
     const result = await client.setLocalAgentsServerEnabled.mutate(enabled)
     return result.url ?? null
   },
+  getLocalServerFeatures: async () => (await client.localAgentsServer.query()).features,
+  setLocalServerFeatures: async (features) => {
+    const result = await client.setLocalAppEnvironmentFeatures.mutate(features)
+    return result.url ?? null
+  },
   discoverEntity: async (id: string) => {
     const resp = await grpcClient.entities.discoverEntity({id})
     return {state: String(resp.state), version: resp.version}

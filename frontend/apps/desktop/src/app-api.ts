@@ -35,7 +35,13 @@ import {providerOAuthApi} from './app-provider-oauth'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
-import {getAgentsServerState, getLocalAgentsServerUrl, setLocalAgentsServerEnabled} from './agents-server-process'
+import {
+  getAgentsServerState,
+  getLocalAgentsServerUrl,
+  getLocalAppEnvironmentFeatures,
+  setLocalAgentsServerEnabled,
+  setLocalAppEnvironmentFeatures,
+} from './agents-server-process'
 import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
 import {sitesApi} from './app-sites'
 import {syncApi} from './app-sync'
@@ -328,13 +334,20 @@ export const router = t.router({
   appSettings: appSettingsApi,
   /** Reports the local app environment the desktop spawned or attached to, if any. */
   localAgentsServer: t.procedure.query(async () => {
-    return {url: getLocalAgentsServerUrl(), state: getAgentsServerState()}
+    return {url: getLocalAgentsServerUrl(), state: getAgentsServerState(), features: getLocalAppEnvironmentFeatures()}
   }),
   /** Persists whether the desktop runs its bundled app environment, and starts or stops it now. */
   setLocalAgentsServerEnabled: t.procedure.input(z.boolean()).mutation(async ({input}) => {
     const url = await setLocalAgentsServerEnabled(input)
     return {url, state: getAgentsServerState()}
   }),
+  /** Persists what the bundled app environment runs (tools, apps, agents), and restarts it to apply it. */
+  setLocalAppEnvironmentFeatures: t.procedure
+    .input(z.array(z.enum(['tools', 'apps', 'agents'])))
+    .mutation(async ({input}) => {
+      const url = await setLocalAppEnvironmentFeatures(input)
+      return {url, state: getAgentsServerState()}
+    }),
   closeAppWindow: t.procedure.input(z.string()).mutation(async ({input}) => {
     closeAppWindow(input)
     return null

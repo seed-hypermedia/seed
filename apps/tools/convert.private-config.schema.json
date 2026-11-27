@@ -1,0 +1,13 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "datalabApiKey": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The Datalab API key every conversion is billed to.",
+      "required": true
+    }
+  },
+  "description": "The secrets the convert tool declares. Its host supplies them: an app in its Settings, or the tool's own page when it is in no app."
+}

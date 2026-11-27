@@ -1,3 +1,4 @@
+import type {AppEnvironmentFeature} from '@seed-hypermedia/apps-protocol'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type * as blobs from '@shm/shared/blobs'
 import type {NavRoute} from '@shm/shared/routes'
@@ -168,6 +169,16 @@ export type AgentsPlatform = {
    * to its URL while it runs (desktop only). Absent on platforms that run no local server.
    */
   setLocalServerEnabled?: (enabled: boolean) => Promise<string | null>
+  /**
+   * What the user checked for the app-managed local app environment to run: tools on their own,
+   * apps, agents (desktop only). Tools alone until they choose.
+   */
+  getLocalServerFeatures?: () => Promise<AppEnvironmentFeature[]>
+  /**
+   * Sets what the app-managed local app environment runs, persistently, and restarts it so the
+   * change holds at once; resolves to its URL while it runs (desktop only).
+   */
+  setLocalServerFeatures?: (features: AppEnvironmentFeature[]) => Promise<string | null>
   /** Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only). */
   discoverEntity?: (id: string) => Promise<{state?: string; version?: string}>
   /**

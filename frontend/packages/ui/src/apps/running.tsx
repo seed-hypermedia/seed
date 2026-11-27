@@ -1,5 +1,11 @@
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import type {AgentTriggerInfo, AppRunInfo, AppToolCallInfo, TriggerFiringInfo} from '@seed-hypermedia/apps-protocol'
+import type {
+  AgentTriggerInfo,
+  AppRunInfo,
+  AppToolCallInfo,
+  AppToolTestInfo,
+  TriggerFiringInfo,
+} from '@seed-hypermedia/apps-protocol'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -8,13 +14,15 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {useStream} from '@shm/shared/use-stream'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
-import {ChevronRight, Play} from 'lucide-react'
-import {useMemo, useState, type ReactNode} from 'react'
-import {sendAgentAction} from '../agents/client'
+import {ChevronRight, Download, Play} from 'lucide-react'
+import {useEffect, useMemo, useState, type ReactNode} from 'react'
+import {getAgentServerHealth, sendAgentAction} from '../agents/client'
+import {useOwnAppServerUrl} from '../agents/server-picker'
 import {Button} from '../button'
 import {HMIcon} from '../hm-icon'
 import {SchemaDataEditor, seedValue} from '../schema/data-editor'
 import {validate, type HypermediaSchema} from '../schema/engine'
+import {base64Size, fileNameOf, formatBytes, hasEmptyFile, splitFiles} from '../schema/file-value'
 import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
@@ -73,14 +81,19 @@ export function structValue(fields: StructField[], values: Record<string, string
 /**
  * The server an app runs on: the app's own `appEnvironmentUrl`, else the app environment the space's
  * site advertises (its home document's `siteUrl`, whose `/hm/api/config` names it).
+ *
+ * `standalone` is for a tool in no app or agent. Such a tool names no server: it runs on the
+ * viewer's own app environment (see {@link useOwnAppServerUrl}).
  */
-export function useAppServerUrl(appId: UnpackedHypermediaId, app: HMDocument) {
-  const own = hostServerUrl(app)
-  const site = useSpaceAppServerUrl(own ? null : appId.uid)
+export function useAppServerUrl(appId: UnpackedHypermediaId, app: HMDocument, standalone = false) {
+  const named = standalone ? '' : hostServerUrl(app)
+  const site = useSpaceAppServerUrl(named || standalone ? null : appId.uid)
+  const own = useOwnAppServerUrl()
+  if (standalone) return {serverUrl: own.serverUrl, fromApp: false, isLoading: own.isLoading}
   return {
-    serverUrl: own || site.serverUrl,
-    fromApp: !!own,
-    isLoading: !own && site.isLoading,
+    serverUrl: named || site.serverUrl,
+    fromApp: !!named,
+    isLoading: !named && site.isLoading,
   }
 }
 
@@ -178,6 +191,50 @@ async function appAction<T>(serverUrl: string, accountUid: string | null, action
   if (!accountUid) throw new Error('Select an account first')
   const response = (await sendAgentAction({serverUrl, accountUid, action: action as never})) as unknown as T
   return response
+}
+
+/**
+ * Whether the server is still starting its first sandbox (see `sandboxWarmUp` in its health). The
+ * desktop app's own server does that once when it starts, and a tool run in the meantime waits for
+ * it. Asked again every two seconds while it lasts, and not at all afterwards.
+ */
+export function useSandboxWarming(serverUrl: string): boolean {
+  const warmUp = useQuery({
+    queryKey: ['app-sandbox-warm-up', serverUrl],
+    enabled: !!serverUrl,
+    ...APP_SERVER_QUERY,
+    refetchInterval: (state: string | undefined) => (state === 'warming' ? 2_000 : false),
+    queryFn: async () => (await getAgentServerHealth(serverUrl)).sandboxWarmUp?.state ?? 'off',
+  })
+  return warmUp.data === 'warming'
+}
+
+/** Whole seconds since `active` became true, counted while it stays true; 0 otherwise. */
+export function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    setSeconds(0)
+    const startedAt = Date.now()
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [active])
+  return active ? seconds : 0
+}
+
+/** After this long, a run that is still going says why it may be slow. */
+const SLOW_RUN_SECS = 4
+
+/**
+ * What a run in progress says under the Run button. A run is usually over in a couple of seconds.
+ * The exception is the first one after the app environment starts, which waits for the sandbox:
+ * that takes up to a minute, and a wait that long with no word looks broken.
+ */
+export function runProgressText(seconds: number, warming: boolean): string | null {
+  if (warming)
+    return `Preparing the sandbox (${seconds}s). This happens once after the app environment starts and can take up to a minute.`
+  if (seconds < SLOW_RUN_SECS) return null
+  return `Still running (${seconds}s). The first run after the app environment starts also starts the sandbox, which can take up to a minute. Later runs take a couple of seconds.`
 }
 
 /** One recorded run of a tool, from the app's server. */
@@ -329,30 +386,65 @@ export function AppRunStatus({
   )
 }
 
+/** What a run gave, whether it was a recorded call or a test run. */
+type RunOutcome = Pick<AppToolCallInfo, 'error' | 'output' | 'durationMs'>
+
 /**
- * Trying a tool: one card with whether its app runs, the input form and Run, the latest result,
+ * Trying a tool: one card with whether its host runs, the input form and Run, the latest result,
  * and the calls made so far (anyone's), each of which can fill the form again.
+ *
+ * There is one Run button, and it runs what the page shows. For someone who can write the tool
+ * (`draft` is given) that is the code on screen, whatever it is: unpublished changes, the latest
+ * version, or an earlier one opened from the tool's history. The page makes no difference between
+ * them, and the run is theirs: it is not added to the tool's calls.
+ *
+ * Anyone else can only call a tool that an app or an agent runs. That is a call like any other
+ * caller's, of the published code, and the server records it. The list under the form shows those
+ * calls: what apps, agents, pages and other callers ran.
  */
 export function ToolRunSection({
   appId,
   app,
   toolId,
   inputSchemaRef,
+  outputSchemaRef,
+  standalone = false,
+  draft,
   onOpenSettings,
+  missingConfig,
+  onSetConfig,
 }: {
+  /** The tool's host: the app or agent that lists it, or the tool itself when it stands on its own. */
   appId: UnpackedHypermediaId
   app: HMDocument | null
   toolId: UnpackedHypermediaId
   inputSchemaRef: string | undefined
+  /** What a test run's output is checked against, here: the server does not hold a draft's schemas. */
+  outputSchemaRef?: string
+  /** Whether the tool is in no app or agent: it is then its author's to run, and nobody else's. */
+  standalone?: boolean
+  /**
+   * For someone who can write the tool: the code the page shows (undefined while it loads). It is
+   * what Run runs, published or not.
+   */
+  draft?: {source: string | undefined}
   /** Opens the app's settings, where the app is run. */
   onOpenSettings?: () => void
+  /**
+   * The required config the tool's host has not set, by field name. The tool cannot work without
+   * it, so Run is held back and the fields are named, instead of a run that fails inside the tool.
+   */
+  missingConfig?: string[]
+  /** Takes the person to where that config is set, when they can set it. */
+  onSetConfig?: () => void
 }) {
   const accountUid = useAccountUid()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const server = useAppServerUrl(appId, app ?? ({metadata: {}} as HMDocument))
+  const server = useAppServerUrl(appId, app ?? ({metadata: {}} as HMDocument), standalone)
   const {status} = useAppRun(server.serverUrl, appId.id)
   const schema = useResolvedSchema(inputSchemaRef)
+  const outputSchema = useResolvedSchema(outputSchemaRef)
   const fields = structFields(schema.schema)
   // The form is the tool's whole input schema, drawn field by field (lists and objects included).
   const [edited, setEdited] = useState<unknown>(undefined)
@@ -362,6 +454,7 @@ export function ToolRunSection({
   )
   const value = edited ?? seeded
   const [latest, setLatest] = useState<AppToolCallInfo | null>(null)
+  const [tested, setTested] = useState<AppToolTestInfo | null>(null)
   const calls = useQuery({
     queryKey: ['app-tool-calls', server.serverUrl, toolId.id],
     enabled: !!server.serverUrl && !!accountUid,
@@ -390,8 +483,37 @@ export function ToolRunSection({
     },
     onError: (error) => toast.error(appServerErrorMessage(error)),
   })
+  const test = useMutation({
+    mutationFn: async (input: Record<string, unknown>) =>
+      (
+        await appAction<{test: AppToolTestInfo}>(server.serverUrl, accountUid, {
+          _: 'TestAppTool',
+          appId: appId.id,
+          toolId: toolId.id,
+          source: draft?.source ?? '',
+          // The config as the page shows it: for a tool on its own, that includes unpublished changes.
+          publicConfig: (app?.metadata as {publicConfig?: unknown} | undefined)?.publicConfig ?? {},
+          input,
+        })
+      ).test,
+    onSuccess: setTested,
+    onError: (error) => toast.error(appServerErrorMessage(error)),
+  })
   const running = !!status.data
   const checking = server.isLoading || status.isInitialLoading
+  // Someone who can write the tool runs the code on screen (`test`), whatever state it is in.
+  // Anyone else calls the published tool through its host (`run`), when the host runs.
+  const mode: 'run' | 'test' | null = draft
+    ? server.serverUrl && !server.isLoading
+      ? 'test'
+      : null
+    : !standalone && running
+      ? 'run'
+      : null
+  const busy = call.isLoading || test.isLoading
+  const warming = useSandboxWarming(server.serverUrl)
+  const elapsed = useElapsedSeconds(busy)
+  const progress = busy ? runProgressText(elapsed, warming) : null
   const entered = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
   const missing = fields.filter((field) => field.required && (entered[field.name] ?? '') === '')
   // Problems are named only for what has been filled in; an empty required field just holds Run back.
@@ -399,8 +521,21 @@ export function ToolRunSection({
     schema.schema && fields.length && !missing.length
       ? validate(schema.schema, value, 'input', {}, schema.registry)
       : []
-  const canRun = !call.isLoading && missing.length === 0 && errors.length === 0
+  // A file field is a value from the start, so it is checked apart: Run waits for a file to be picked.
+  const configMissing = missingConfig ?? []
+  const canRun =
+    !busy &&
+    configMissing.length === 0 &&
+    missing.length === 0 &&
+    errors.length === 0 &&
+    !hasEmptyFile(value) &&
+    (mode !== 'test' || !!draft?.source?.trim())
   const openCall = (callId: string) => navigate({key: 'document', id: toolId, toolCallId: callId})
+  // A test run's output is checked here against the output schema the editor holds.
+  const outputProblems =
+    mode === 'test' && tested && !tested.error && outputSchema.schema
+      ? validate(outputSchema.schema, tested.output, 'output', {}, outputSchema.registry)
+      : []
 
   // shrink-0 throughout: this sits in a scrolling flex column (the desktop's fixed-height page),
   // which would otherwise squash it to a line.
@@ -409,17 +544,26 @@ export function ToolRunSection({
       <SizableText size="sm" weight="bold">
         Run
       </SizableText>
-      {running ? (
+      {mode ? (
         <form
           className="flex shrink-0 flex-col gap-4 rounded-lg border p-4"
           onSubmit={(event) => {
             event.preventDefault()
-            if (canRun) call.mutate(fields.length ? entered : {})
+            if (!canRun) return
+            const input = fields.length ? entered : {}
+            if (mode === 'test') test.mutate(input)
+            else call.mutate(input)
           }}
         >
           {fields.length ? (
-            <fieldset disabled={call.isLoading} className="min-w-0" data-testid="tool-input">
-              <SchemaDataEditor schema={schema.schema!} registry={schema.registry} value={value} onValue={setEdited} />
+            <fieldset disabled={busy} className="min-w-0" data-testid="tool-input">
+              <SchemaDataEditor
+                schema={schema.schema!}
+                registry={schema.registry}
+                value={value}
+                onValue={setEdited}
+                plainOptional
+              />
             </fieldset>
           ) : (
             <SizableText size="sm" color="muted">
@@ -433,13 +577,48 @@ export function ToolRunSection({
               ))}
             </ul>
           ) : null}
-          <div className="flex justify-end">
+          {configMissing.length ? (
+            <div
+              role="alert"
+              className="text-destructive flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+              data-testid="tool-run-missing-config"
+            >
+              <span>This tool cannot run yet. Required config is not set: {configMissing.join(', ')}.</span>
+              {onSetConfig ? (
+                <Button type="button" size="sm" variant="outline" onClick={onSetConfig}>
+                  Set it
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex items-center justify-end gap-3">
             <Button type="submit" variant="default" disabled={!canRun}>
-              <Play className="size-4" /> {call.isLoading ? 'Running…' : 'Run'}
+              <Play className="size-4" /> {busy ? (elapsed ? `Running… ${elapsed}s` : 'Running…') : 'Run'}
             </Button>
           </div>
-          {latest ? <CallResult call={latest} onOpen={() => openCall(latest.id)} /> : null}
+          {progress ? (
+            <SizableText size="xs" color="muted" role="status" data-testid="tool-run-progress">
+              {progress}
+            </SizableText>
+          ) : !busy && warming ? (
+            <SizableText size="xs" color="muted" role="status" data-testid="tool-run-progress">
+              The sandbox is being prepared. A run started now waits for it, for up to a minute.
+            </SizableText>
+          ) : null}
+          {mode === 'test' && tested ? (
+            <TestResult test={tested} problems={outputProblems} />
+          ) : mode === 'run' && latest ? (
+            <CallResult call={latest} onOpen={() => openCall(latest.id)} />
+          ) : null}
         </form>
+      ) : standalone ? (
+        server.isLoading ? null : (
+          <SizableText size="sm" color="muted">
+            {draft
+              ? 'You have no app environment to run this tool on.'
+              : 'This tool is in no app or agent, so only people who can edit it can run it here. Add it to an app or an agent to use it.'}
+          </SizableText>
+        )
       ) : checking ? null : (
         <SizableText size="sm" color="muted">
           {status.isError
@@ -456,8 +635,11 @@ export function ToolRunSection({
       )}
       {calls.data?.length ? (
         <div className="mt-2 flex shrink-0 flex-col">
-          <SizableText size="sm" weight="bold" className="mb-1">
-            Runs
+          <SizableText size="sm" weight="bold">
+            Calls
+          </SizableText>
+          <SizableText size="xs" color="muted" className="mb-1">
+            What apps, agents and other callers ran. Each is kept with its input and its result.
           </SizableText>
           <div className="flex flex-col rounded-lg border">
             {calls.data.map((item) => (
@@ -470,6 +652,36 @@ export function ToolRunSection({
   )
 }
 
+/** What a run of the code on screen gave: its output or error, what the code printed, and where the output breaks its schema. */
+function TestResult({test, problems}: {test: AppToolTestInfo; problems: string[]}) {
+  return (
+    <div className="flex flex-col gap-1.5 border-t pt-4" aria-live="polite" data-testid="tool-test-result">
+      <CallOutcome call={test} />
+      <CallOutput call={test} />
+      {problems.length ? (
+        <div role="alert" className="text-destructive flex flex-col gap-1 text-xs">
+          <span>The output does not match the output schema:</span>
+          <ul className="list-disc pl-4">
+            {problems.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {test.logs ? (
+        <>
+          <SizableText size="xs" color="muted">
+            Printed
+          </SizableText>
+          <pre className="bg-background max-h-48 overflow-auto rounded-md border p-2 font-mono text-xs whitespace-pre-wrap">
+            {test.logs}
+          </pre>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 export function Json({value}: {value: unknown}) {
   return (
     <pre className="bg-background max-h-64 overflow-auto rounded-md border p-2 font-mono text-xs break-words whitespace-pre-wrap">
@@ -478,7 +690,7 @@ export function Json({value}: {value: unknown}) {
   )
 }
 
-export function CallOutcome({call}: {call: AppToolCallInfo}) {
+export function CallOutcome({call}: {call: RunOutcome}) {
   return (
     <span className="flex items-center gap-2 text-xs">
       <span className={cn('font-medium', call.error ? 'text-destructive' : 'text-green-700 dark:text-green-400')}>
@@ -506,14 +718,56 @@ function CallResult({call, onOpen}: {call: AppToolCallInfo; onOpen?: () => void}
   )
 }
 
-/** A run's output, or its error. */
-export function CallOutput({call}: {call: AppToolCallInfo}) {
-  return call.error ? (
-    <pre className="text-destructive bg-background max-h-96 overflow-auto rounded-md border p-2 font-mono text-xs whitespace-pre-wrap">
-      {call.error}
-    </pre>
-  ) : (
-    <Json value={call.output} />
+/**
+ * A run's output, or its error. Files in the output are shown by name, type and size instead of
+ * their bytes, and each one can be saved: a tool stores nothing, so this is where its files go.
+ */
+export function CallOutput({call}: {call: RunOutcome}) {
+  const {shown, files} = useMemo(() => splitFiles(call.output), [call.output])
+  if (call.error)
+    return (
+      <pre className="text-destructive bg-background max-h-96 overflow-auto rounded-md border p-2 font-mono text-xs whitespace-pre-wrap">
+        {call.error}
+      </pre>
+    )
+  return (
+    <div className="flex flex-col gap-2">
+      <Json value={shown} />
+      {files.length ? (
+        <ul className="flex flex-col rounded-md border" aria-label="Files this run returned">
+          {files.map((file, index) => (
+            <FileRow key={`${index}:${file.name}`} file={file} />
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
+/** One returned file, with a link that saves it. The link's address lives as long as the row. */
+function FileRow({file}: {file: {name: string; mimeType: string; data: string}}) {
+  const [href, setHref] = useState<string>()
+  useEffect(() => {
+    const bytes = Uint8Array.from(atob(file.data), (char) => char.charCodeAt(0))
+    const url = URL.createObjectURL(new Blob([bytes], {type: file.mimeType}))
+    setHref(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  return (
+    <li className="flex items-center gap-3 border-b px-3 py-1.5 text-sm last:border-b-0">
+      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+      <span className="text-muted-foreground shrink-0 text-xs">
+        {file.mimeType} · {formatBytes(base64Size(file.data))}
+      </span>
+      <a
+        className="text-foreground flex shrink-0 items-center gap-1 text-xs underline underline-offset-2"
+        href={href}
+        download={file.name.split('/').pop()}
+        aria-label={`Save ${file.name}`}
+      >
+        <Download className="size-3.5" /> Save
+      </a>
+    </li>
   )
 }
 
@@ -554,7 +808,7 @@ export function inputSummary(input: unknown): string {
   const entries = Object.entries(input as Record<string, unknown>)
   if (!entries.length) return '(no input)'
   return entries
-    .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
+    .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : fileNameOf(value) ?? JSON.stringify(value)}`)
     .join(', ')
 }
 

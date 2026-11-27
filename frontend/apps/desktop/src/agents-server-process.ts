@@ -1,4 +1,10 @@
-import {AGENTS_LOCAL_SERVER_SETTING_KEY, API_HTTP_URL, DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {APP_ENVIRONMENT_FEATURES, type AppEnvironmentFeature} from '@seed-hypermedia/apps-protocol'
+import {
+  AGENTS_LOCAL_SERVER_SETTING_KEY,
+  API_HTTP_URL,
+  DAEMON_HTTP_URL,
+  LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY,
+} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as fs from 'node:fs'
@@ -58,22 +64,59 @@ export function localAgentsDbPath(): string {
   return path.join(userDataPath, 'agents', 'agents.sqlite')
 }
 
+/** What the bundled server runs when the user has chosen nothing: tools, and neither apps nor agents. */
+export const DEFAULT_LOCAL_FEATURES: readonly AppEnvironmentFeature[] = ['tools']
+
+/** The features the user checked for the bundled server, or null on a build that has not decided. */
+export function readLocalAppEnvironmentFeatures(): AppEnvironmentFeature[] | null {
+  const value = getStoredSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY)
+  if (!Array.isArray(value)) return null
+  return APP_ENVIRONMENT_FEATURES.filter((feature) => value.includes(feature))
+}
+
 /**
- * Whether a packaged build should spawn its bundled server.
+ * Whether a packaged build should spawn its bundled server, and what that server runs.
  *
- * The local agent system is off unless the user turned it on, with one exception: a build that
- * always spawned the server (before this setting existed) may have left agents behind. When the
- * setting is unset and that database exists, the server runs one more time so the app can look
- * for agents in it and settle the setting (see `useLocalAgentsServerMigration` in the renderer).
- * A fresh install has no database and starts off without spawning anything.
+ * The local app environment is on unless the user turned it off, and it runs what they checked:
+ * tools on their own, apps, agents. Out of the box that is tools only. Apps and agents keep
+ * sessions, memory and triggers that grow and work in the background, so they are opt-in.
+ *
+ * `features` is null on the first launch of a build that has this list. The earlier setting then
+ * says what to do:
+ *
+ * - It was `on`: this user runs agents here (they turned it on, or an upgrade found agents). They
+ *   keep everything.
+ * - It was never set and a local database exists: a build that always ran the server may have left
+ *   agents behind. The server runs with everything once more, and the app looks for agents and
+ *   settles the list (see `useLocalAgentsServerMigration` in the renderer). Nothing is persisted.
+ * - Otherwise (`off`, which every fresh install was given, or nothing at all): tools only, and on.
+ *
+ * With nothing checked there is nothing to run, so the server is not started.
+ *
+ * `packaged` is false in a development build. There the rule is that the app attaches to the
+ * server `./dev up` runs, and a server started by default would take that server's port. So a
+ * development build starts one only for a developer who turned the switch on, and settles nothing.
  */
 export function resolveLocalAgentsServerSpawn(
   policy: LocalAgentsServerPolicy,
+  features: readonly AppEnvironmentFeature[] | null,
   dataExists: boolean,
-): {spawn: boolean; settle?: 'off'} {
-  if (policy === 'on') return {spawn: true}
-  if (policy === 'off') return {spawn: false}
-  return dataExists ? {spawn: true} : {spawn: false, settle: 'off'}
+  packaged = true,
+): {
+  spawn: boolean
+  features: AppEnvironmentFeature[]
+  settle?: {policy?: 'on'; features: AppEnvironmentFeature[]}
+} {
+  if (features) {
+    const on = packaged ? policy !== 'off' : policy === 'on'
+    return {spawn: on && features.length > 0, features: [...features]}
+  }
+  if (!packaged && policy !== 'on') return {spawn: false, features: [...DEFAULT_LOCAL_FEATURES]}
+  const all = [...APP_ENVIRONMENT_FEATURES]
+  if (policy === 'on') return {spawn: true, features: all, settle: {features: all}}
+  if (policy === 'unset' && dataExists) return {spawn: true, features: all}
+  const tools = [...DEFAULT_LOCAL_FEATURES]
+  return {spawn: true, features: tools, settle: {policy: 'on', features: tools}}
 }
 
 /**
@@ -159,10 +202,10 @@ async function findFreePort(startPort: number): Promise<number> {
  * 1. `SEED_NO_APPS_SPAWN` (or the older `SEED_NO_AGENTS_SPAWN`) — skip entirely (the desktop then only talks to configured remote servers).
  * 2. `SEED_APPS_SERVER_URL` (or `SEED_AGENTS_SERVER_URL`) — attach to an explicitly configured server, failing loudly if unhealthy.
  * 3. A healthy app environment already on the default port — attach (this is the `./dev up` path).
- * 4. Otherwise spawn the bundled binary on the first free port, if the user's setting allows it
- *    (see {@link resolveLocalAgentsServerSpawn}); `force` skips that check for an explicit turn-on.
+ * 4. Otherwise spawn the bundled binary on the first free port, unless the user turned it off, to
+ *    run what they checked (see {@link resolveLocalAgentsServerSpawn}).
  */
-export async function startLocalAgentsServer(options?: {force?: boolean}): Promise<string | null> {
+export async function startLocalAgentsServer(): Promise<string | null> {
   // A fresh startup supersedes any attach-retry loop left over from a previous attempt.
   if (attachRetryTimer) {
     clearInterval(attachRetryTimer)
@@ -196,23 +239,28 @@ export async function startLocalAgentsServer(options?: {force?: boolean}): Promi
     return defaultUrl
   }
 
-  if (!options?.force) {
-    const policy = readLocalAgentsServerPolicy()
-    const decision = resolveLocalAgentsServerSpawn(policy, fs.existsSync(localAgentsDbPath()))
-    if (!decision.spawn) {
-      if (decision.settle) writeStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, decision.settle)
-      log.info('Local app environment not started', {policy})
-      state = {t: 'disabled', reason: 'setting'}
-      // Not spawning is not the same as not listening: a dev server that was mid-restart during
-      // the probe (dev user data has no agents database, so the policy lands here) still gets
-      // attached the moment it answers.
-      beginAttachRetry(defaultUrl)
-      return null
-    }
+  const policy = readLocalAgentsServerPolicy()
+  const decision = resolveLocalAgentsServerSpawn(
+    policy,
+    readLocalAppEnvironmentFeatures(),
+    fs.existsSync(localAgentsDbPath()),
+    app.isPackaged,
+  )
+  if (decision.settle) {
+    if (decision.settle.policy) writeStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, decision.settle.policy)
+    writeStoredSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY, decision.settle.features)
+  }
+  if (!decision.spawn) {
+    log.info('Local app environment not started', {policy, features: decision.features})
+    state = {t: 'disabled', reason: 'setting'}
+    // Not spawning is not the same as not listening: a dev server that was mid-restart during
+    // the probe still gets attached the moment it answers.
+    beginAttachRetry(defaultUrl)
+    return null
   }
 
   try {
-    const url = await spawnAgentsServer()
+    const url = await spawnAgentsServer(decision.features)
     state = {t: 'spawned', url}
     return url
   } catch (error) {
@@ -226,8 +274,8 @@ export async function startLocalAgentsServer(options?: {force?: boolean}): Promi
   }
 }
 
-/** Spawns the bundled agents binary and resolves once it reports healthy. */
-async function spawnAgentsServer(): Promise<string> {
+/** Spawns the bundled agents binary to run `features`, and resolves once it reports healthy. */
+async function spawnAgentsServer(features: readonly AppEnvironmentFeature[]): Promise<string> {
   const binaryPath = getAgentsServerBinaryPath()
   if (!fs.existsSync(binaryPath)) {
     throw new Error(`App environment binary not found at ${binaryPath}`)
@@ -250,6 +298,12 @@ async function spawnAgentsServer(): Promise<string> {
     // Subscription sign-in is a server opt-in; the desktop enables it for the server
     // it owns because it can catch the OAuth redirect on localhost:1455 itself.
     `--subscription-auth=true`,
+    // The server itself refuses what is not listed, so an unchecked feature is off for every
+    // client that reaches this port, not just hidden in this app.
+    `--features=${features.join(',')}`,
+    // The first sandbox on a machine takes most of a minute to start. Start it now, in the
+    // background, so that is not what the first Run of a tool waits for.
+    `--exec-warm-up=true`,
   ]
 
   log.info('Starting local app environment', {binaryPath, port, args})
@@ -263,12 +317,18 @@ async function spawnAgentsServer(): Promise<string> {
   serverProcess = child
   expectingClose = false
 
+  // Why the server stopped, for the Settings screen. A server that dies on an error prints
+  // `error: <what went wrong>`, then a stack and the runtime's version line: the error is the
+  // reason, and the last line alone ("Bun v1.3.3 (Linux x64)") says nothing.
   let lastStderr = ''
+  let lastError = ''
+  const exitReason = (code: number | null) => lastError || lastStderr || `code ${code}`
   const stdout = readline.createInterface({input: child.stdout})
   stdout.on('line', (line: string) => log.rawMessage(`[agents] ${line}`))
   const stderr = readline.createInterface({input: child.stderr})
   stderr.on('line', (line: string) => {
-    lastStderr = line
+    if (line.trim()) lastStderr = line
+    if (line.startsWith('error: ')) lastError = line.slice('error: '.length)
     log.rawMessage(`[agents] ${line}`)
   })
 
@@ -277,8 +337,8 @@ async function spawnAgentsServer(): Promise<string> {
   })
   child.on('close', (code, signal) => {
     if (!expectingClose && child === serverProcess) {
-      state = {t: 'error', message: `App environment exited: ${lastStderr || `code ${code}`}`}
-      log.error('App environment closed', {code, signal, lastStderr})
+      state = {t: 'error', message: `App environment exited: ${exitReason(code)}`}
+      log.error('App environment closed', {code, signal, lastStderr, lastError})
     }
   })
 
@@ -291,7 +351,7 @@ async function spawnAgentsServer(): Promise<string> {
   const deadline = Date.now() + SPAWN_READY_TIMEOUT_MS
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`App environment exited during startup: ${lastStderr || `code ${child.exitCode}`}`)
+      throw new Error(`App environment exited during startup: ${exitReason(child.exitCode)}`)
     }
     if (await isAgentsServerHealthy(url)) {
       log.info('Local app environment ready', {url})
@@ -309,8 +369,11 @@ async function spawnAgentsServer(): Promise<string> {
 export async function setLocalAgentsServerEnabled(enabled: boolean): Promise<string | null> {
   writeStoredSetting(AGENTS_LOCAL_SERVER_SETTING_KEY, enabled ? 'on' : 'off')
   if (enabled) {
+    // On with nothing checked would run nothing: turning it on then means the default again.
+    if (!readLocalAppEnvironmentFeatures()?.length)
+      writeStoredSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY, [...DEFAULT_LOCAL_FEATURES])
     if (state.t === 'attached' || state.t === 'spawned') return state.url
-    return startLocalAgentsServer({force: true})
+    return startLocalAgentsServer()
   }
   if (state.t === 'attached') return state.url
   // Wait for the exit: an immediate re-enable probes the default port first and would otherwise
@@ -318,6 +381,32 @@ export async function setLocalAgentsServerEnabled(enabled: boolean): Promise<str
   await stopLocalAgentsServer()
   state = {t: 'disabled', reason: 'setting'}
   return null
+}
+
+/**
+ * Sets what the bundled server runs (tools on their own, apps, agents), persistently, and restarts
+ * it so the change holds now: the server reads the list once, when it starts. Unchecking the last
+ * one stops it. A server the app merely attached to (the dev one) runs what its own flags say and
+ * is left alone.
+ */
+export async function setLocalAppEnvironmentFeatures(
+  features: readonly AppEnvironmentFeature[],
+): Promise<string | null> {
+  const next = APP_ENVIRONMENT_FEATURES.filter((feature) => features.includes(feature))
+  writeStoredSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY, next)
+  if (state.t === 'attached') return state.url
+  // Only a server that runs is restarted: a change made while it is off waits for the switch.
+  if (state.t !== 'spawned' && state.t !== 'error') return null
+  await stopLocalAgentsServer()
+  state = {t: 'disabled', reason: 'setting'}
+  return startLocalAgentsServer()
+}
+
+/**
+ * What the Settings screen shows as checked: the stored list, or the default before one is stored.
+ */
+export function getLocalAppEnvironmentFeatures(): AppEnvironmentFeature[] {
+  return readLocalAppEnvironmentFeatures() ?? [...DEFAULT_LOCAL_FEATURES]
 }
 
 let quitHookInstalled = false

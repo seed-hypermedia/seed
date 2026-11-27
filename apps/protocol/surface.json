@@ -550,6 +550,16 @@
         "key": "`account/${string}` | `agents/${string}` | `runs/${string}` | `sessions/${string}`"
       }
     },
+    "TestAppTool": {
+      "fields": {
+        "_": "\"TestAppTool\"",
+        "appId?": "string",
+        "input": "unknown",
+        "publicConfig?": "unknown",
+        "source": "string",
+        "toolId": "string"
+      }
+    },
     "UnmountAgent": {
       "fields": {
         "_": "\"UnmountAgent\"",
@@ -644,6 +654,12 @@
       "fields": {
         "_": "\"AppToolCallResponse\"",
         "call": "AppToolCallInfo"
+      }
+    },
+    "AppToolTestResponse": {
+      "fields": {
+        "_": "\"AppToolTestResponse\"",
+        "test": "AppToolTestInfo"
       }
     },
     "AppendFileUploadChunkResponse": {
@@ -1497,6 +1513,14 @@
         "output?": "unknown",
         "toolId": "string",
         "toolVersion?": "string"
+      }
+    },
+    "AppToolTestInfo": {
+      "fields": {
+        "durationMs": "number",
+        "error?": "string",
+        "logs?": "string",
+        "output?": "unknown"
       }
     },
     "BrowserCommand": {

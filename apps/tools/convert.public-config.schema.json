@@ -1,0 +1,30 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "mode": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The most expensive mode a call may use, and the default: fast, balanced or accurate. balanced when left out."
+    },
+    "maxPages": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "The most pages one document may bill. 200 when left out."
+    },
+    "extras": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Datalab extras, comma separated. extract_links,chart_understanding when left out."
+    },
+    "pollSeconds": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "How long one call waits for Datalab before it answers pending. Keep it under the tool's timeoutSecs. 40 when left out."
+    }
+  },
+  "description": "The settings the convert tool declares. Its host supplies them, as it does the secrets."
+}

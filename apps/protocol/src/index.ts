@@ -52,7 +52,7 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'To change many documents the same way, get the full list with `query`, then delegate a script child that loops over it with `ctx.call("write", …)`; read ~/tools/write/documents ("Many documents at once") for the script. A large set is a reason to script the work, never a reason to decline it or to ask for a narrower list.',
     'Diagrams: a ```mermaid fenced code block in your reply renders as an inline diagram in chat — this is the recommended way to show the user a diagram. Proactively include one whenever structure communicates better than prose: flows, architectures, timelines, state machines, or relationships between documents, people, or ideas. Linking diagram nodes is supported and encouraged: whenever a node represents a real resource, add a `click` directive so the user can jump straight to it — a diagram of documents, people, or files should link every node that has a home. `click NodeId "hm://…/path" "tooltip"` opens that document in the app (Hypermedia web URLs also open in-app), an ipfs:// URL opens the local IPFS inspector, other https:// URLs open in the browser, and (for hosted agents) `click NodeId "~/memory/<path>"` opens that memory file for your user. If the mermaid source fails to parse, the chat shows it as a plain code block, so keep diagrams valid.',
     'Custom HTML pages: when the user asks for a page, a game or a widget, build it as a custom HTML page inside an app (apps are the only home for pages), never as a memory file. For pages with durable user data, first model that data with HM schemas and create/reuse schema-bound Seed resources in the intended user/shared space; then build the UI to the user\'s specifications. Tasks, notes, records and game progress belong in Seed resources, not browser storage. Establish who owns the data, its visibility and who can write; do not leave the user with agent-only writable data. Resolve the intended users’ access before building the UI using the access-repair workflow below. Include every writable collection in options.pageData when publishing a data page; this checks the agent owner’s existing access and does not replace a real create/read/update/reopen test. Stateless pages need no artificial data model. Write a self-contained HTML page with inline scripts, styles and embedded images under `~/memory/pages/<name>/`, then publish it with `write` directly under an app (an existing one that fits, or a new one; read ~/tools/write/apps), for example `{"address":"hm://SIGNER_UID/apps/<app>/<name>","content":"<one line about the page>","options":{"name":"<Title>","page":"~/memory/pages/<name>"}}`. The page reads its app\'s public config with seed.app.context() and calls its app\'s tools with seed.app.call. The document opens as the page in Seed and can be shared; reply with its hm:// link to open the full page view. Page embeds inside chat are temporarily disabled; do not emit widget fences. Never offer a `~/memory` path as the page: the Memory view shows an HTML file as source code and nothing in memory runs, so a memory link gives the user code, not a page. Publish the page input contract as an HM schema and reference it with metadata.inputSchema; use seed.input for schema-validated URL prefills and navigation. Read ~/tools/write/pages before authoring; use ~/tools/write/ipfs and ~/tools/write/documents to set up schemas and data first. Use seed.storage only for optional device-local UI preferences or temporary unsaved drafts, or when the user explicitly requests local-only data. Never silently fall back to local storage after denied/failed Seed reads or writes. Verify a real create/read/update and reopen with local storage empty before calling a data page complete; report any untested sync behavior. Use seed.open(hmUrl) or hm:// anchors for content links. Discover actual host methods with seed.runtime(), never guess SDK names. Report syntax validation, publication, and rendered interaction tests separately; a document read-back is not a page test.',
-    'Apps and tools: apps are the only home for pages and tools. When the user asks for a tool, an app, or a page, build an app document (type hm://hyper.media/app) with its tools and pages written directly under it, or put a tool in your own agent document; read ~/tools/write/apps first. A tool is always a signed Seed resource with schemas and an index.ts; you have no private tools. Call a tool with call and its hm:// URL. An app runs only once someone runs it (or you run it with write options.action "run"); never say a tool was run or tested unless a call returned its result.',
+    'Apps and tools: when the user asks for a tool, an app, a page or a trigger, learn how first. Read hm://hyper.media/app, then the pages it links for what you are building: hm://hyper.media/tool for a tool, hm://hyper.media/page for a page, hm://hyper.media/trigger for a trigger. They say what each one is made of and the rules it must follow. Then read ~/tools/write/apps for the write calls. Read them once in a session, before the first write. Build an app document (type hm://hyper.media/app) with its tools and pages written directly under it, or put a tool in your own agent document, or link a tool that lives elsewhere. A tool is always a signed Seed resource: a precise name and description, its documentation as the document body, schemas and an index.ts; you have no private tools. Call a tool with call and its hm:// URL. An app runs only once someone runs it (or you run it with write options.action "run"); never say a tool was run or tested unless a call returned its result.',
     "When planning or building a connector, explain that a Seed app can call the external API from a server-side tool on its app environment. Ask which event should trigger which action if the workflow is unclear. For an API key, declare a field in metadata.privateConfigSchema and read it inside the tool from ctx.privateConfig. Tell the app's space writer to open Settings → Run App and enter the key under Private config (Settings → Private config if already running). Never ask anyone to paste a credential into chat, comments, documents or code. Read ~/tools/write/apps for setup details.",
     'Access repair: use the authenticated message_sender for the requester, current page/space and conversation intent for the data location, and available_signing_identities for your signing authority. ~/self.ownerAccountId identifies the agent owner, who may differ from the requester. Verify actual capabilities for the intended viewer and record paths; a known identity or agent ownership does not prove write access. Reuse valid existing access. If access is missing and an enabled identity owns the collection space, prepare and offer a concrete WRITER grant for the known recipient on only the required collections and their records. Batch related scopes into one proposal, explain the practical effect in plain language, and honor authorization already given; ask only for missing authorization and do not ask again after approval. If you cannot grant it, identify the owner who can and the exact missing scope. Preserve the existing data location unless the user requests a move. Do not stop at a generic access error or ask users to repeat known information. Read ~/tools/write/pages and ~/tools/write/capabilities for the procedure. After an authorized repair, recheck access and resume the original task: exercise the failed action as the intended viewer, read back its saved record and reopen the app before reporting success. An agent-signed write, syntax check or publication receipt alone does not prove the user can save.',
     'To change an existing document, read it and send `options.edits` on an update: `{replace: ID, content}`, `{after | before | into: ID, content}`, `{move: ID, after: ID}` or `{delete: ID}`, where ID is the X of a `<!-- id:X -->` comment. Edits change only the blocks they name. Send `content` only to replace the whole body, with every id comment kept; a block left out is deleted. Lines between `<!-- resolved: … -->` and `<!-- /resolved -->` in a read show what an embed or a query points at and are not part of the document. Read ~/tools/write/documents before your first update.',
@@ -228,6 +228,7 @@ export type UnsignedAgentAction =
   | GetAppRun
   | CheckAppRun
   | CallAppTool
+  | TestAppTool
   | ListAppToolCalls
   | GetAppToolCall
   | DeleteMcpServer
@@ -461,11 +462,31 @@ export type CheckAppRun = {
   appId: string
 }
 
-/** Calls a tool of an app running on this server with its latest code. Anyone may call. */
+/**
+ * Calls a tool running on this server with its latest code. Anyone may call. `appId` names the
+ * tool's host: the app or agent that lists it, or the tool's own id for a tool that stands on its
+ * own.
+ */
 export type CallAppTool = {
   _: 'CallAppTool'
   appId: string
   toolId: string
+  input: unknown
+}
+
+/**
+ * Runs unpublished code once as the tool at `toolId` would run it, with its host's config. Only
+ * someone who can write the host's space may ask, and nothing is recorded. `appId` is as in
+ * {@link CallAppTool}; without it the server works the host out. Answers `AppToolTestResponse`.
+ */
+export type TestAppTool = {
+  _: 'TestAppTool'
+  appId?: string
+  toolId: string
+  /** The text of the tool's `index.ts`. */
+  source: string
+  /** The public config to run with, when it is not the host's published one: a draft's. */
+  publicConfig?: unknown
   input: unknown
 }
 
@@ -2213,7 +2234,30 @@ export type AppRunCheckResponse = {
   run: AppRunInfo | null
 }
 
-/** One recorded call of an app tool. `output` is set on success, `error` on failure. */
+/**
+ * A file inside a tool's input or output: an object with exactly these three fields, anywhere in the
+ * JSON. `data` holds the bytes as base64. `name` may carry folders (`assets/figure.png`).
+ */
+export type AppToolFile = {
+  name: string
+  mimeType: string
+  data: string
+}
+
+/** What a call record keeps of an {@link AppToolFile}: its name, type and size in bytes, never its bytes. */
+export type AppToolFileInfo = {
+  name: string
+  mimeType: string
+  size: number
+}
+
+/**
+ * One recorded call of an app tool. `output` is set on success, `error` on failure.
+ *
+ * The answer to `CallAppTool` carries the tool's whole output. A stored record, and the `input` of
+ * every answer, hold an {@link AppToolFileInfo} in place of each {@link AppToolFile}, and a note of
+ * its size in place of any other value too long to record.
+ */
 export type AppToolCallInfo = {
   id: string
   appId: string
@@ -2227,6 +2271,50 @@ export type AppToolCallInfo = {
   error?: string
   durationMs?: number
   createdAt: number
+}
+
+/** What a test run of unpublished tool code gave: its output or its error, and what the code printed. */
+export type AppToolTestInfo = {
+  output?: unknown
+  error?: string
+  durationMs: number
+  logs?: string
+}
+
+/** Response for `TestAppTool`. A failed run is still a response, with `test.error` set. */
+/**
+ * What an app environment can be asked to run, each of which a server may have turned off:
+ *
+ * - `tools`: a tool that is in no app or agent, for the people who can write it.
+ * - `apps`: apps, with their tools, pages and triggers.
+ * - `agents`: agents, with their sessions, triggers and tools.
+ *
+ * A server's health lists the ones it offers as `features`. One that lists none offers them all:
+ * servers from before this list existed ran everything.
+ */
+export type AppEnvironmentFeature = 'tools' | 'apps' | 'agents'
+
+/** Every {@link AppEnvironmentFeature}, in the order they are shown. */
+export const APP_ENVIRONMENT_FEATURES: readonly AppEnvironmentFeature[] = ['tools', 'apps', 'agents']
+
+/**
+ * Reads a list of features written as `tools,apps`. Unknown names are an error, so a typo cannot
+ * silently turn something off. An empty list is allowed: the server then runs nothing.
+ */
+export function parseAppEnvironmentFeatures(value: string): AppEnvironmentFeature[] {
+  const names = value
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean)
+  const unknown = names.filter((name) => !(APP_ENVIRONMENT_FEATURES as readonly string[]).includes(name))
+  if (unknown.length)
+    throw new Error(`Unknown feature: ${unknown.join(', ')} (expected ${APP_ENVIRONMENT_FEATURES.join(', ')})`)
+  return APP_ENVIRONMENT_FEATURES.filter((feature) => names.includes(feature))
+}
+
+export type AppToolTestResponse = {
+  _: 'AppToolTestResponse'
+  test: AppToolTestInfo
 }
 
 /** Response for `CallAppTool`. A failed run is still a response, with `call.error` set. */
@@ -2697,6 +2785,7 @@ export type AgentResponse =
   | AppRunResponse
   | AppRunCheckResponse
   | AppToolCallResponse
+  | AppToolTestResponse
   | ListAppToolCallsResponse
   | CreateSigningIdentityResponse
   | ImportSigningIdentityResponse

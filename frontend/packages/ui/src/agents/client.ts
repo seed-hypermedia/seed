@@ -142,6 +142,16 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
+  /**
+   * The one-time start of the server's first sandbox, on a server that does it at startup (the
+   * desktop app's own): while `warming`, a first tool run is slow. Absent on other servers.
+   */
+  sandboxWarmUp?: {state: 'off' | 'warming' | 'ready' | 'failed'; durationMs?: number}
+  /**
+   * What the server runs: tools on their own, apps, agents. Absent on servers from before the
+   * list existed, which run all three.
+   */
+  features?: AgentsProtocol.AppEnvironmentFeature[]
   /** Wire protocol the server speaks; absent on servers from before protocol 2 (see apps/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
