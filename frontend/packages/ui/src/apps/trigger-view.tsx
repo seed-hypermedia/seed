@@ -26,6 +26,7 @@ import {TriggerRunsAgentContext, TriggerSourceFields, TriggerSourceSummary} from
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
 import {Switch} from '../components/switch'
+import {Input} from '../components/input'
 import {Textarea} from '../components/textarea'
 import {copyTextToClipboard} from '../copy-to-clipboard'
 import {SizableText} from '../text'
@@ -148,13 +149,28 @@ export function TriggerDocumentView({
   }
   function changeAction(next: 'tool' | 'session') {
     setChosenAction(next)
-    // A session trigger calls no tool; a tool trigger has no message.
-    if (next === 'session') draft.change({tool: null, input: null})
-    else if (draft.content.length) {
-      written.current.content = []
-      setMessage('')
-      draft.change({}, [])
+    // A session trigger calls no tool; a tool trigger has no message (unless a failure starts a
+    // session) and no session options.
+    if (next === 'session') draft.change({tool: null, input: null, onFailure: null})
+    else {
+      draft.change({session: null})
+      if (draft.content.length) {
+        written.current.content = []
+        setMessage('')
+        draft.change({}, [])
+      }
     }
+  }
+  // Session options as the document stores them: the tool list as a set.
+  const sessionOptions = refs.session
+  function changeSession(next: {systemPrompt?: string; tools?: string[]}) {
+    const merged = {...sessionOptions, ...next}
+    const value = {
+      ...(merged.systemPrompt ? {systemPrompt: merged.systemPrompt} : {}),
+      ...(merged.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+      ...(merged.tools?.length ? {tools: Object.fromEntries(merged.tools.map((tool) => [tool, true]))} : {}),
+    }
+    draft.change({session: Object.keys(value).length ? value : null})
   }
 
   const state = hostTriggers.data?.triggers.find((entry) => entry.trigger.documentId === docId.id)
@@ -282,6 +298,37 @@ export function TriggerDocumentView({
                   placeholder="Someone mentioned you. Read the comment and answer it."
                   rows={5}
                 />
+                <details className="text-sm" open={!!sessionOptions}>
+                  <summary className="text-muted-foreground cursor-pointer">Session options</summary>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <SizableText size="xs" color="muted">
+                      Extra instructions for this trigger's sessions, added to the agent's own.
+                    </SizableText>
+                    <Textarea
+                      value={sessionOptions?.systemPrompt ?? ''}
+                      readOnly={!canEdit}
+                      onChange={(event) => changeSession({systemPrompt: event.target.value})}
+                      placeholder="You triage new issues. Keep replies short."
+                      rows={3}
+                    />
+                    <SizableText size="xs" color="muted">
+                      Only these tools, comma-separated (empty: all of the agent's tools).
+                    </SizableText>
+                    <Input
+                      value={(sessionOptions?.tools ?? []).join(', ')}
+                      readOnly={!canEdit}
+                      onChange={(event) =>
+                        changeSession({
+                          tools: event.target.value
+                            .split(',')
+                            .map((tool) => tool.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="read, search"
+                    />
+                  </div>
+                </details>
               </>
             ) : (
               <>
@@ -320,6 +367,28 @@ export function TriggerDocumentView({
                   <SizableText size="xs" color="destructive">
                     {inputError}
                   </SizableText>
+                ) : null}
+                {hostIsAgent ? (
+                  <>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={refs.onFailure === 'session'}
+                        disabled={!canEdit}
+                        onChange={(event) => draft.change({onFailure: event.currentTarget.checked ? 'session' : null})}
+                      />
+                      If the call fails, start a session with the agent
+                    </label>
+                    {refs.onFailure === 'session' ? (
+                      <Textarea
+                        value={message}
+                        readOnly={!canEdit}
+                        onChange={(event) => changeMessage(event.target.value)}
+                        placeholder="The tool failed. Find out why and fix it."
+                        rows={3}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </>
             )}

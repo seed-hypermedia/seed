@@ -226,6 +226,8 @@ export type UnsignedAgentAction =
   | RunApp
   | StopApp
   | GetAppRun
+  | GetHostConfig
+  | SetHostPrivateConfig
   | CheckAppRun
   | CallAppTool
   | ListAppToolCalls
@@ -437,6 +439,27 @@ export type RunApp = {
   _: 'RunApp'
   appId: string
   privateConfig?: Record<string, unknown>
+}
+
+/**
+ * A host's config on this server (an app's or an agent's): which private config fields are set,
+ * never their values. Public config is part of the host document (`publicConfig`).
+ */
+export type GetHostConfig = {
+  _: 'GetHostConfig'
+  hostId: string
+}
+
+/**
+ * Changes a host's private config on this server: each value replaces that field, a null removes
+ * it, and fields not named keep their values. Checked against the host's `privateConfigSchema`.
+ * The host must run here (an app need not be started), and the signer must be able to write its
+ * space. Values are kept encrypted and never returned.
+ */
+export type SetHostPrivateConfig = {
+  _: 'SetHostPrivateConfig'
+  hostId: string
+  privateConfig: Record<string, unknown>
 }
 
 /** Stops an app running on this server and forgets its private config. Writers of the app's space. */
@@ -2196,6 +2219,35 @@ export type AppRunInfo = {
   updatedAt: number
 }
 
+/** A host's config on this server, without the private values. */
+export type HostConfigInfo = {
+  hostId: string
+  /** Names of the private config fields that are set; the values never leave the server. */
+  privateConfigKeys: string[]
+  /** Who last changed the private config, and when; absent when it was never set. */
+  updatedBy?: string
+  updatedAt?: number
+  /**
+   * The account (`z6Mk…`) each signing-key field of the private config names: who the host's
+   * tools publish as. Public; the keys themselves never leave the server.
+   */
+  signingKeys?: Record<string, string>
+  /**
+   * An agent's signing keys: its built-in `signing` private config field, the accounts it
+   * publishes as (`primary` unless a write names another). Absent for apps, which name their keys
+   * with signing-key fields. Set with `SetHostPrivateConfig` and
+   * `privateConfig: {signing: {keys: {<account>: true}, primary: <account>}}` (or `signing: null`),
+   * by the agent's owner, from the keys the owner holds on this server.
+   */
+  agentSigning?: {keys: {account: string; label?: string}[]; primary?: string}
+}
+
+/** Response for `GetHostConfig` and `SetHostPrivateConfig`. */
+export type HostConfigResponse = {
+  _: 'HostConfigResponse'
+  config: HostConfigInfo
+}
+
 /** Response for `RunApp`, `StopApp` and `GetAppRun`: the app's run on this server, or null. */
 export type AppRunResponse = {
   _: 'AppRunResponse'
@@ -2226,7 +2278,31 @@ export type AppToolCallInfo = {
   output?: unknown
   error?: string
   durationMs?: number
+  /** What the tool published through `ctx.seed`, each signed by one of the host's keys. */
+  writes?: AppToolWrite[]
+  /** Sessions the tool started with its agent through `ctx.agent.start`. */
+  sessions?: {sessionId: string; at: number}[]
   createdAt: number
+}
+
+/** A call as unsigned readers see it: when, how long, and whether it worked; nothing it carried. */
+export type AppToolCallSummary = {
+  id: string
+  toolId: string
+  ok: boolean
+  durationMs?: number
+  createdAt: number
+}
+
+/** One document a tool published during a call. */
+export type AppToolWrite = {
+  /** The document's hm:// address. */
+  id: string
+  /** The version the publish made. */
+  version: string
+  /** The account (`z6Mk…`) whose key signed it: one the host's private config names. */
+  as: string
+  at: number
 }
 
 /** Response for `CallAppTool`. A failed run is still a response, with `call.error` set. */
@@ -2695,6 +2771,7 @@ export type AgentResponse =
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
   | AppRunResponse
+  | HostConfigResponse
   | AppRunCheckResponse
   | AppToolCallResponse
   | ListAppToolCallsResponse

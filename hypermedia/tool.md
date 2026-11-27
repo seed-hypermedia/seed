@@ -6,7 +6,7 @@ A **tool** is a small function that lives in a [document](./protocol/documents.m
 
 The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The document holds three things: what goes in, what comes out, and the code. A tool lives directly under an [app](./app.md) or an [agent](./agent.md), called its host. The host lists the tool with a [card embed](./block/embed-view.md). The [app environment](./software/app-environment.md) that runs the host runs the function. The server refuses a tool written anywhere else.
 
-**Calls are not private.** The server records every call with its input and its output. Anyone who can reach the server can read those records. Never pass secrets or private data as a tool's input or output. The section "Calls are not private" below has the details.
+**Call records.** The server records every call with its input and its output. Only the host's writers read a tool's call records, plus whoever made each call. The section "Who reads call records" below has the details.
 
 # What a tool is made of
 
@@ -22,18 +22,21 @@ The tool's [metadata](./metadata.md) declares `type: hm://hyper.media/tool`. The
 The code contract is one async function:
 
 ```ts
-export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object}): Promise<Output> {
+export default async function (input: Input, ctx: {app: string; publicConfig: object; privateConfig: object; memory: Memory; seed: Seed; agent: Agent}): Promise<Output> {
   // ...
 }
 ```
 
 - `ctx.app` is the hm:// id of the host.
 - `ctx.publicConfig` is the host's `publicConfig` metadata.
-- `ctx.privateConfig` is the private config that the host's server holds.
+- `ctx.privateConfig` is the private config that the host's server holds. A [signing key](./signing-key.md) field in it holds the account the key signs as, never the key.
+- `ctx.memory` reads and writes the host's memory (see "Memory" below).
+- `ctx.seed` reads and publishes documents through the host's server (see "Seed access" below).
+- `ctx.agent.start` wakes the host agent with a message (see "Starting the agent" below).
 
 # How a tool runs
 
-A tool runs in a sandbox on its host's server. It has internet access. It has no signing key, no access to the server's Seed node and no language model. So it neither reads nor publishes documents. The caller passes in the records the tool needs, and the caller does something with the result.
+A tool runs in a sandbox on its host's server. It has internet access, and reaches its own server only for `ctx.seed`; the rest of the server's machine and its private network stay closed. It holds no key and has no language model.
 
 Each call does the same things in order:
 
@@ -44,27 +47,76 @@ Each call does the same things in order:
 5. It checks the returned value against `outputSchema`.
 6. It records the call.
 
-The caller signs every call. The record holds who called, the tool's version, the input, the output or the error, and how long the call took. The server records a failed call too.
+The caller signs every call. The record holds who called, the tool's version, the input, the output or the error, how long the call took, and what the tool published (`writes`). The server records a failed call too.
+
+# Memory
+
+A tool works in its host's memory: an [agent](./agent.md)'s tools in the agent's own [memory](./agent/memory.md), and an [app](./app.md)'s tools in the app's private memory, which the server that runs the app keeps for it. The memory is the sandbox's working directory, so plain file access works too.
+
+```ts
+await ctx.memory.read('receipts/42.done')        // the file's text, or null when it does not exist
+await ctx.memory.write('receipts/42.done', 'sent') // a string, or a value written as JSON
+await ctx.memory.list('receipts')                  // names, a directory ending in /
+await ctx.memory.remove('receipts/42.done')
+```
+
+- **Every call** works in the host's memory: only those the host allows may call its tools at all (see "Who calls a tool").
+- **Paths** stay inside the memory; a path that leaves it fails.
+- **Write files whole, one per event.** Calls, the agent's sessions and its triggers share an agent's memory, so follow the rules on [memory](./agent/memory.md#what-not-to-keep-in-workspace): no shared file read, changed and written back by concurrent calls.
+- An agent's Memory tab updates after a tool changes its memory.
+
+# Starting the agent
+
+A tool under an [agent](./agent.md) can start a session with it: cheap code checks whether there is work, and only then does the model run. A scheduled trigger that checks every 5 minutes then costs a model turn only when something changed.
+
+```ts
+const {sessionId} = await ctx.agent.start('Three new issues to triage: #12, #14, #15', {
+  title: 'Triage',                   // the session's title
+  systemPrompt: 'You triage issues.', // extra instructions for this run
+  tools: ['read', 'write'],          // a narrower tool list for this run
+})
+```
+
+- The session runs in the background, as the agent, like a trigger's session.
+- Any call the tool runs may start it. A tool that allows viewers lets viewers wake the agent too, so check its input.
+- A call may start the agent at most 3 times. The sessions are listed on the call record (`sessions`).
+- An app has no agent to start; `ctx.agent.start` fails in an app's tool.
+
+# Seed access
+
+`ctx.seed` sends each request to the host's server, with a token that is valid only while this call runs.
+
+```ts
+await ctx.seed.directory(collectionUrl) // the collection's public records: [{url, id, metadata, updateTime}]
+await ctx.seed.resource(recordUrl)      // one public document: {url, version, metadata, content}
+await ctx.seed.publish(recordUrl, {name, metadata, content}, {as}) // creates or edits it: {url, version}
+```
+
+- **Reads** return public documents only. A [private document](./protocol/privacy.md) is refused.
+- **Publishing** signs with one of the host's [signing keys](./signing-key.md): the account a signing-key field of its private config names. With one key, it is used; with several, `as` names the field (`ctx.privateConfig.<field>`). `content` is markdown and replaces the body; `metadata` maps are stored one entry per key.
+- The key's account must be able to write the target, through a [capability](./protocol/permissions.md) granted to it, like any writer.
+- **Every call may publish.** A tool that allows viewers (`callableBy: "viewers"`) lets them make the host publish, so it must check its input itself.
+- Every publish is recorded on the call, with the account that signed it.
 
 An app's tools run once a writer of its [space](./protocol/spaces.md) has run the app. An agent's tools run whenever the agent is mounted on its server.
 
-# Calls are not private
+# Who reads call records
 
-The server does not check who asks for a tool's call records:
+A record holds the full input, the full output (or the error) and what the tool published. A tool can read its host's private config and memory, so its output can carry them. The server therefore checks who asks:
 
-- The signed API gives a tool's calls to any signed [account](./protocol/identity.md) that knows the tool's hm:// id, and one call to any signed account that knows the call id.
-- The server also gives a running app's recent calls over plain HTTP, with no signature at all.
-- Each record includes the full input and the full output.
+- A writer of the host's [space](./protocol/spaces.md) reads every call of the host's tools.
+- Any other signed [account](./protocol/identity.md) reads only the calls it made. Someone else's call answers as no call at all.
+- Plain HTTP, with no signature, lists only that calls happened: when, how long, and whether each worked. Never what they carried.
+- An agent reading `<tool>/:calls` reads as its owner and its signing accounts.
 
-So follow these rules:
+Still follow these rules:
 
-- Never pass a secret, such as a password or an API key, as tool input.
-- Never return private data as tool output.
-- Put the secrets a tool needs in the host's private config. The tool reads them from `ctx.privateConfig`, and they do not appear in the call record unless the code returns them.
-
-Making the app's document private does not hide its call records.
+- Never pass a secret, such as a password or an API key, as tool input: the caller and the host's writers see it.
+- Put the secrets a tool needs in the host's private config. The tool reads them from `ctx.privateConfig`, and they appear in the call record only if the code returns them.
 
 # Who calls a tool
+
+**Who may call.** The host's writers, and its [triggers](./trigger.md) (which call as their author, a writer). Viewers too, but only when the tool's document sets `callableBy: "viewers"`; for a [private](./protocol/privacy.md) host that still means writers only, since the server cannot yet tell who may read it. Anyone else is refused before the tool runs, and nothing is recorded.
 
 - A [page](./page.md) of the same host, with `seed.app.call(tool, input)`, signed as the viewer. See the [page SDK](./build/page-sdk.md).
 - A [trigger](./trigger.md) of the same host. The server records the call as made by the trigger's author.

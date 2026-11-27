@@ -121,7 +121,15 @@ describe('running apps', () => {
           )
         if (href.includes('/weather/get-weather'))
           return Response.json(
-            serialize(document(toolUrl, {name: 'get-weather', type: 'hm://hyper.media/tool', code: 'ipfs://bafycode'})),
+            // A public utility: viewers may call it.
+            serialize(
+              document(toolUrl, {
+                name: 'get-weather',
+                type: 'hm://hyper.media/tool',
+                code: 'ipfs://bafycode',
+                callableBy: 'viewers',
+              }),
+            ),
           )
         if (href.includes('/weather'))
           return Response.json(
@@ -234,15 +242,20 @@ describe('running apps', () => {
       expect(await (await http.read(new Request(`${base}/${space}/weather/get-weather`))).json()).toMatchObject({
         app: appUrl,
         tool: {id: toolUrl},
-        calls: [{input: {city: 'Lisbon'}}],
+        // Unsigned readers see that calls happened, never what they carried.
+        calls: [{toolId: toolUrl, ok: true}],
       })
+      expect(
+        JSON.stringify(await (await http.read(new Request(`${base}/${space}/weather/get-weather`))).json()),
+      ).not.toContain('Lisbon')
       // Calling is signed: an anonymous POST is refused with where to send the signed action.
       const posted = await http.call()
       expect(posted.status).toBe(405)
       expect(await posted.json()).toMatchObject({error: expect.stringContaining('CallAppTool')})
       expect((await http.read(new Request(`${base}/${space}/nope`))).status).toBe(404)
 
-      // A run is readable on its own, with who triggered it and the tool version that ran.
+      // A run is readable on its own by whoever made it (and the app's writers), with who
+      // triggered it and the tool version that ran.
       const one = await send(stranger, {_: 'GetAppToolCall', callId: (call as {call: {id: string}}).call.id})
       expect(one).toMatchObject({
         _: 'AppToolCallResponse',
@@ -264,7 +277,11 @@ describe('running apps', () => {
         `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ).run(agentUrl, space, new Uint8Array([160]), 'x', 'ready', now, now)
       expect(await send(stranger, {_: 'GetAppRun', appId: agentUrl})).toMatchObject({run: {appId: agentUrl}})
-      const agentCall = await send(stranger, {
+      // The agent's tool does not allow viewers: a stranger is refused before it runs.
+      expect(
+        await send(stranger, {_: 'CallAppTool', appId: agentUrl, toolId: agentToolUrl, input: {city: 'Oslo'}}),
+      ).toMatchObject({error: expect.stringContaining('Only the writers of this app or agent')})
+      const agentCall = await send(owner, {
         _: 'CallAppTool',
         appId: agentUrl,
         toolId: agentToolUrl,
@@ -274,10 +291,56 @@ describe('running apps', () => {
       // Its tool ran without private config: the tool reports that, as code would.
       expect((agentCall as {call: {error?: string}}).call.error).toContain('apiKey')
 
-      // Stopping forgets the run and its private config.
+      // An agent has private config like an app, with no Run step: one store for every host.
+      expect(await send(stranger, {_: 'GetHostConfig', hostId: agentUrl})).toEqual({
+        _: 'HostConfigResponse',
+        config: {hostId: agentUrl, privateConfigKeys: []},
+      })
+      expect(
+        await send(stranger, {_: 'SetHostPrivateConfig', hostId: agentUrl, privateConfig: {apiKey: 'nope'}}),
+      ).toMatchObject({error: expect.stringContaining('write to the app’s space')})
+      expect(
+        await send(owner, {
+          _: 'SetHostPrivateConfig',
+          hostId: agentUrl,
+          privateConfig: {apiKey: 'agent-key', extra: 'x'},
+        }),
+      ).toMatchObject({
+        config: {
+          hostId: agentUrl,
+          privateConfigKeys: ['apiKey', 'extra'],
+          updatedBy: space,
+          updatedAt: expect.any(Number),
+        },
+      })
+      // A null removes a field; the others keep their values.
+      expect(
+        await send(owner, {_: 'SetHostPrivateConfig', hostId: agentUrl, privateConfig: {extra: null}}),
+      ).toMatchObject({config: {privateConfigKeys: ['apiKey']}})
+      const agentCallWithKey = await send(owner, {
+        _: 'CallAppTool',
+        appId: agentUrl,
+        toolId: agentToolUrl,
+        input: {city: 'Oslo'},
+      })
+      expect(agentCallWithKey).toMatchObject({call: {output: {city: 'Oslo', keyLength: 'agent-key'.length}}})
+      // The values never come back, and they are stored encrypted.
+      expect(JSON.stringify(await send(owner, {_: 'GetHostConfig', hostId: agentUrl}))).not.toContain('agent-key')
+      const stored = db
+        .query('SELECT private_config_ciphertext AS c FROM host_config WHERE host_id = ?')
+        .get(agentUrl) as {
+        c: Uint8Array
+      }
+      expect(Buffer.from(stored.c).toString('utf8')).not.toContain('agent-key')
+
+      // Stopping an app forgets its run and its private config, and nothing of other hosts.
       expect(await send(owner, {_: 'StopApp', appId: appUrl})).toMatchObject({run: null})
       expect(await send(owner, {_: 'GetAppRun', appId: appUrl})).toMatchObject({run: null})
       expect(db.query('SELECT count(*) AS n FROM app_runs').get()).toEqual({n: 0})
+      expect(await send(owner, {_: 'GetHostConfig', hostId: appUrl})).toMatchObject({config: {privateConfigKeys: []}})
+      expect(await send(owner, {_: 'GetHostConfig', hostId: agentUrl})).toMatchObject({
+        config: {privateConfigKeys: ['apiKey']},
+      })
     } finally {
       globalThis.fetch = originalFetch
       cleanup()

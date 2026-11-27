@@ -34,7 +34,7 @@ The app's own metadata holds:
 | `publicConfigSchema`, `privateConfigSchema` | the [schemas](./schema.md) of the public config and of the private config |
 | `appEnvironmentUrl` | the [app environment](./software/app-environment.md) that runs the app. The New app dialog sets it to the server you pick. Without it, the app uses the one that the [site](./protocol/sites.md) of the app's [space](./protocol/spaces.md) advertises |
 
-The private config itself is not in the document. Only the server that runs the app holds it.
+The private config itself is not in the document. Only the server that runs the app holds it. [Agents](./agent.md) have the same public and private config, kept the same way (see [host config](./build/signed-api-apps.md#host-config)).
 
 # Running an app
 
@@ -44,13 +44,13 @@ An app runs only on the server it names. A server that the app does not name ref
 
 The server reads the app and its tools from its own node. That node may not hold a document yet, for example one published from a desktop or through another site. The server then looks for it on the network first. This can take up to 25 seconds.
 
-While the app runs, anyone can call its tools, and its triggers fire. When the app stops, both stop.
+While the app runs, its writers and triggers can call its tools (and viewers, for tools that allow them with `callableBy: "viewers"`), and its triggers fire. When the app stops, both stop.
 
 # What runs where
 
-- A **tool** takes input and returns output. It runs in a sandbox on the app's server, with internet access. It holds no signing key and cannot reach the Seed node of the server that runs it. So it neither publishes documents nor reads them: whoever calls it passes the records it needs. It has no language model either. Judgment work, such as summarizing or classifying, needs a model API key in the app's private config, or belongs to an [agent](./agent.md). See [tool](./tool.md).
+- A **tool** takes input and returns output. It runs in a sandbox on the app's server, with internet access. It keeps state in the app's private memory on its server (`ctx.memory`), and with `ctx.seed` it reads public documents and publishes as the app, signed by a [signing key](./signing-key.md) attached in the app's private config, within what that key's [account](./protocol/identity.md) may write. It has no language model. Judgment work, such as summarizing or classifying, needs a model API key in the app's private config, or belongs to an [agent](./agent.md). See [tool](./tool.md).
 - A **page** runs in the viewer's browser or desktop app. It reads and writes Seed records as the viewer, with `seed.directory`, `seed.resource`, and `seed.publishDocument(recordUrl, {name, metadata})` to create or edit a record. It calls the app's tools with `seed.app.call` and reads the public config with `seed.app.context()`. See [page](./page.md).
-- A **trigger** under an app calls one of its tools. Scheduled work that reads or writes the app's data, such as a daily digest, is an agent's trigger: the agent reads the records, calls the tools and publishes the result. See [trigger](./trigger.md).
+- A **trigger** under an app calls one of its tools. Scheduled work on the app's own data, such as writing this week's shopping list, is an app trigger whose tool reads the records and publishes the result as the app. Work that needs judgment is an agent's trigger. See [trigger](./trigger.md).
 
 # Where an app's data lives
 

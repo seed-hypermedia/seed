@@ -219,6 +219,12 @@
         "callId": "string"
       }
     },
+    "GetHostConfig": {
+      "fields": {
+        "_": "\"GetHostConfig\"",
+        "hostId": "string"
+      }
+    },
     "GetProviderOAuthStatus": {
       "fields": {
         "_": "\"GetProviderOAuthStatus\"",
@@ -486,6 +492,13 @@
         "_": "\"SetAgentPublicRead\"",
         "agentId": "string",
         "publicRead": "boolean"
+      }
+    },
+    "SetHostPrivateConfig": {
+      "fields": {
+        "_": "\"SetHostPrivateConfig\"",
+        "hostId": "string",
+        "privateConfig": "Record<string, unknown>"
       }
     },
     "SetMcpServer": {
@@ -824,6 +837,12 @@
         "session": "SessionInfo",
         "systemPromptMarkdown": "string",
         "triggerContext?": "AgentSessionTriggerContext"
+      }
+    },
+    "HostConfigResponse": {
+      "fields": {
+        "_": "\"HostConfigResponse\"",
+        "config": "HostConfigInfo"
       }
     },
     "ImportSigningIdentityResponse": {
@@ -1495,8 +1514,18 @@
         "id": "string",
         "input": "unknown",
         "output?": "unknown",
+        "sessions?": "{at: number; sessionId: string}[]",
         "toolId": "string",
-        "toolVersion?": "string"
+        "toolVersion?": "string",
+        "writes?": "AppToolWrite[]"
+      }
+    },
+    "AppToolWrite": {
+      "fields": {
+        "as": "string",
+        "at": "number",
+        "id": "string",
+        "version": "string"
       }
     },
     "BrowserCommand": {
@@ -1525,6 +1554,16 @@
             "sessionId": "string"
           }
         }
+      }
+    },
+    "HostConfigInfo": {
+      "fields": {
+        "agentSigning?": "{keys: {account: string; label?: string}[]; primary?: string}",
+        "hostId": "string",
+        "privateConfigKeys": "string[]",
+        "signingKeys?": "Record<string, string>",
+        "updatedAt?": "number",
+        "updatedBy?": "string"
       }
     },
     "JsonSchema": {

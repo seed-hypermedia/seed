@@ -6,7 +6,7 @@ This page shows how to build an [app](../app.md), step by step. You make the app
 
 The steps come in two forms, because there are two builders: a person in the [Seed desktop app](../software/desktop.md), and an [agent](../agent.md) using its `write` verb. An agent's own document hosts tools, pages and triggers the same way, so every step about children applies there too.
 
-One warning before you start: **tool call records are not private**. The server records every tool call with its input and output, and anyone who can reach the server can read the records. Never pass secrets as tool input. See "Reading what happened" below.
+One note before you start: the server records every tool call with its input and output. Only the host's writers read a tool's call records, plus whoever made each call. Never pass secrets as tool input. See "Reading what happened" below.
 
 # The order to work in
 
@@ -122,20 +122,20 @@ An agent reads the records with its `read` verb:
 
 Both work in apps and agents alike. In the desktop app, the same records are the **Runs** list on a tool and the **Firings** list on a trigger.
 
-**Call records are not private.** Each record holds the full input and output of the call. Who can read them depends on the route:
+**Who reads call records.** Each record holds the full input and output of the call:
 
-| Route | Check |
+| Route | Who reads what |
 | --- | --- |
-| the agent verbs above | the server reads the tool or trigger document first, through its own node |
-| the [signed API](./signed-api.md) (`ListAppToolCalls`, `GetAppToolCall`) | none; any signed [account](../protocol/identity.md) that knows the tool's id or the call id |
-| plain HTTP (`GET /hm/api/apps/<space>/<app>/<tool>`) | none; no signature at all, for a running app |
+| the agent verbs above | the agent reads as its owner and signing accounts: every call of hosts they can write, and its own |
+| the [signed API](./signed-api.md) (`ListAppToolCalls`, `GetAppToolCall`) | writers of the host read every call; any other signed [account](../protocol/identity.md) reads only its own |
+| plain HTTP (`GET /hm/api/apps/<space>/<app>/<tool>`) | anyone, but only when each call happened, how long it took and whether it worked |
 
 So follow these rules:
 
 - Never pass a secret as tool input, and never return private data as tool output.
 - Put the secrets a tool needs in the app's private config. The tool reads them from `ctx.privateConfig`.
+- A tool that publishes needs a key: give the app a [signing key](../signing-key.md) field in its private config schema, generate a key for it under **Settings > Signing keys**, and use **Add access** to let that key write the collections it fills. Anyone who can edit the app can act as its keys, so grant only what the tools write.
 - A webhook body or a trigger event that becomes tool input is recorded too.
-- Making the app's document private does not hide its call records.
 
 # Where the code is
 

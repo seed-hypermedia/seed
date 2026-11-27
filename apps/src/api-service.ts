@@ -144,6 +144,7 @@ import {
   parentDocumentId,
   replaceContentOps,
   triggerDocumentOps,
+  triggerSessionOptionsFromMetadata,
   triggerSourceFromMetadata,
   triggerSourceToMetadata,
 } from '@seed-hypermedia/client/apps'
@@ -1012,6 +1013,8 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #publicUrl: string | undefined
+  /** Seed access for tools (`ctx.seed`); see the constructor's `toolSeed` option. */
+  readonly #toolSeed: {url: string; hostPort?: number} | undefined
   /** How long a turn's model may send nothing (with no tool running) before the turn is ended. */
   readonly #modelStallMs: number
   /** This server's stable identity, reported in /health so an app's server URL can be recognized as this one. */
@@ -1119,6 +1122,11 @@ export class Service {
       hmServerUrl?: string
       /** The URL clients reach this server's API at (`https://hyper.media/hm/api/apps`); see config.ts. */
       publicUrl?: string
+      /**
+       * Seed access for app and agent tools (`ctx.seed`): the URL a tool's sandbox posts to, and the
+       * one host port it may reach for that. Without it, tools have no Seed access.
+       */
+      toolSeed?: {url: string; hostPort?: number}
       /** See {@link Service.#modelStallMs}; defaults to 8 minutes (long enough for a model reasoning hard without streaming). */
       modelStallMs?: number
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
@@ -1178,6 +1186,7 @@ export class Service {
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#publicUrl = options.publicUrl || undefined
+    this.#toolSeed = options.toolSeed
     this.#modelStallMs = options.modelStallMs ?? 8 * 60_000
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
@@ -1494,7 +1503,218 @@ export class Service {
       decrypt: (ciphertext) => decryptSecret(this.#db, ciphertext),
       serverId: this.#serverId,
       ...(this.#publicUrl ? {publicUrl: this.#publicUrl} : {}),
+      holdsSigningKey: (accountId, keyAccount) => this.#holdsSigningKey(accountId, keyAccount),
+      ...(this.#toolSeed ? {toolSeed: this.#toolSeed} : {}),
+      publishAs: (keyAccount, document) => this.#publishAsHeldKey(keyAccount, document),
+      agentStateDir: (hostId) =>
+        stmt<{state_dir: string}, [string]>(this.#db, `SELECT state_dir FROM agents WHERE id = ?`).get(hostId)
+          ?.state_dir ?? null,
+      startAgentSession: (hostId, start) => this.#startAgentSessionFromTool(hostId, start),
+      onAgentMemoryChanged: (hostId) => {
+        const row = stmt<{account_id: string}, [string]>(this.#db, `SELECT account_id FROM agents WHERE id = ?`).get(
+          hostId,
+        )
+        if (!row) return
+        invalidateSpaceIndex(row.account_id, hostId)
+        this.#emit({type: 'account-change', accountId: row.account_id, reason: 'agent-memory-changed', agentId: hostId})
+      },
+      agentSigning: {
+        get: (hostId) => this.#agentSigning(hostId),
+        set: (signer, hostId, signing) => this.#setAgentSigning(signer, hostId, signing),
+      },
     }
+  }
+
+  /** The accounts a mounted agent publishes as (its definition's grants), or null when it is not an agent here. */
+  #agentSigning(agentId: string): appRunning.AgentSigning | null {
+    const row = stmt<{account_id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT account_id, definition_cbor FROM agents WHERE id = ?`,
+    ).get(agentId)
+    if (!row) return null
+    const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+    const names = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+    const primaryName = primarySigningKeyOf(definition)
+    const keys: appRunning.AgentSigning['keys'] = []
+    let primary: string | undefined
+    for (const name of names) {
+      const secret = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        this.#db,
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      ).get(row.account_id, name)
+      if (!secret?.metadata_cbor) continue
+      const metadata = cbor.decode<Record<string, unknown>>(secret.metadata_cbor)
+      if (metadata.kind !== 'hm-account-key' || typeof metadata.accountId !== 'string') continue
+      keys.push({account: metadata.accountId, ...(typeof metadata.label === 'string' ? {label: metadata.label} : {})})
+      if (name === primaryName) primary = metadata.accountId
+    }
+    return {keys, ...(primary ? {primary} : {})}
+  }
+
+  /**
+   * Sets which accounts an agent publishes as: `{keys: {<account>: true}, primary?: <account>}`, or
+   * null for none. Only the agent's owner, and only keys the owner holds on this server: the keys
+   * live on the owner's account, and the grant decides what the agent can publish as.
+   */
+  #setAgentSigning(signer: string, agentId: string, signing: unknown): void {
+    const row = stmt<{account_id: string; definition_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT account_id, definition_cbor FROM agents WHERE id = ?`,
+    ).get(agentId)
+    if (!row) throw new APIError(404, 'Agent not found')
+    const accountId = row.account_id
+    if (signer !== accountId)
+      throw new APIError(
+        403,
+        "Only the agent's owner can change its signing keys: they are held on the owner's account",
+      )
+    let accounts: string[] = []
+    let primary: string | undefined
+    if (signing !== null) {
+      if (!isPlainMap(signing) || !isPlainMap(signing.keys))
+        throw new APIError(400, 'signing is {keys: {<account>: true}, primary?: <account>}, or null for none')
+      accounts = Object.entries(signing.keys)
+        .filter(([, on]) => on === true)
+        .map(([account]) => account)
+      primary = typeof signing.primary === 'string' ? signing.primary : accounts[0]
+      if (primary && !accounts.includes(primary)) throw new APIError(400, 'signing.primary must be one of signing.keys')
+    }
+    const nameOf = new Map<string, string>()
+    for (const secret of stmt<{name: string; metadata_cbor: Uint8Array | null}, [string]>(
+      this.#db,
+      `SELECT name, metadata_cbor FROM secrets WHERE account_id = ?`,
+    ).all(accountId)) {
+      if (!secret.metadata_cbor) continue
+      const metadata = cbor.decode<Record<string, unknown>>(secret.metadata_cbor)
+      if (metadata.kind === 'hm-account-key' && typeof metadata.accountId === 'string')
+        nameOf.set(metadata.accountId, secret.name)
+    }
+    for (const account of accounts)
+      if (!nameOf.has(account))
+        throw new APIError(
+          403,
+          `${account} must be a signing key your account holds on this server: generate one for this host, or import a key file, in its settings.`,
+        )
+    const ordered = primary ? [primary, ...accounts.filter((account) => account !== primary)] : accounts
+    const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+    if (ordered.length) {
+      definition.signingKeys = ordered.map((account) => nameOf.get(account)!)
+      definition.signingKey = definition.signingKeys[0]
+    } else {
+      delete definition.signingKeys
+      delete definition.signingKey
+    }
+    stmt(this.#db, `UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`).run([
+      cbor.encode(definition),
+      Date.now(),
+      accountId,
+      agentId,
+    ])
+    const response = this.#getAgent(accountId, agentId, accountId)
+    this.#emit({type: 'agent-change', accountId, agent: response.agent})
+    invalidateSpaceIndex(accountId, agentId)
+    this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+  }
+
+  /** A background session with an agent, started by one of its tools (`ctx.agent.start`). */
+  async #startAgentSessionFromTool(
+    agentId: string,
+    start: {message: string; title?: string; systemPrompt?: string; tools?: string[]; runId: string},
+  ): Promise<{sessionId: string}> {
+    const row = stmt<{account_id: string}, [string]>(this.#db, `SELECT account_id FROM agents WHERE id = ?`).get(
+      agentId,
+    )
+    if (!row) throw new APIError(404, 'Agent not found')
+    const session = this.#createSessionOnce(row.account_id, agentId, start.title ?? 'Started by a tool')
+    this.#forgetSessionDerived(row.account_id, session.sessionId)
+    await this.#messageSessionOnce(row.account_id, session.sessionId, [{type: 'text', text: start.message}], {
+      origin: 'workflow',
+      background: true,
+      runId: start.runId,
+      ...(start.systemPrompt || start.tools
+        ? {
+            runConfig: {
+              ...(start.systemPrompt ? {systemPrompt: start.systemPrompt} : {}),
+              ...(start.tools ? {tools: start.tools} : {}),
+            },
+          }
+        : {}),
+    })
+    return {sessionId: session.sessionId}
+  }
+
+  /** Serves a running tool's `ctx.seed` request (POST /hm/api/apps/tool-seed, bearer token per call). */
+  async toolSeedRequest(token: string, body: unknown): Promise<unknown> {
+    return this.#appRun(() => appRunning.toolSeedRequest(this.#appRunDeps(), token, body))
+  }
+
+  /**
+   * Publishes a document signed by a key this server holds, through the same create and update
+   * paths an agent's write takes (markdown body, metadata stored one entry per key, and the check
+   * that the key's account may write there).
+   */
+  async #publishAsHeldKey(
+    keyAccount: string,
+    document: appRunning.ToolSeedDocument & {id: UnpackedHypermediaId},
+  ): Promise<{version: string}> {
+    const row = stmt<{account_id: string; name: string; ciphertext: Uint8Array; metadata_cbor: Uint8Array | null}, []>(
+      this.#db,
+      `SELECT account_id, name, ciphertext, metadata_cbor FROM secrets`,
+    )
+      .all()
+      .find((entry) => {
+        if (!entry.metadata_cbor) return false
+        const metadata = cbor.decode<Record<string, unknown>>(entry.metadata_cbor)
+        return metadata.kind === 'hm-account-key' && metadata.accountId === keyAccount
+      })
+    if (!row) throw new APIError(409, `This server no longer holds the key of ${keyAccount}: attach another one`)
+    const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor!)
+    const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(this.#db, row.ciphertext))
+    const signer: ResolvedAgentSigner = {
+      secretName: row.name,
+      publicKey: keyAccount,
+      profileName: typeof metadata.label === 'string' ? metadata.label : keyAccount,
+      keyPair,
+      signer: {getPublicKey: async () => keyPair.principal, sign: (data) => keyPair.sign(data)},
+    }
+    const client = createSeedClient(this.#hmServerUrl)
+    const existing = await client.request('Resource', {...document.id, version: null, latest: true}).catch(() => null)
+    const input: Record<string, unknown> = {
+      ...(document.name !== undefined ? {name: document.name} : {}),
+      ...(document.metadata !== undefined ? {metadata: document.metadata} : {}),
+      ...(document.content !== undefined ? {content: document.content, format: 'markdown'} : {}),
+    }
+    const result =
+      existing?.type === 'document'
+        ? await writeDocumentUpdate(client, signer, {
+            command: 'document.update',
+            dryRun: false,
+            input: {...input, edit: document.id.id},
+          })
+        : await writeDocumentCreate(client, signer, {
+            command: 'document.create',
+            dryRun: false,
+            input: {
+              ...input,
+              account: document.id.uid,
+              path: document.id.path?.length ? `/${document.id.path.join('/')}` : '',
+            },
+          })
+    if (result.type === 'hypermedia_write_error') throw new APIError(400, String(result.message))
+    return {version: typeof result.version === 'string' ? result.version : ''}
+  }
+
+  /** Whether `accountId` holds the signing key of the account `keyAccount` among its server accounts. */
+  #holdsSigningKey(accountId: string, keyAccount: string): boolean {
+    const rows = stmt<{metadata_cbor: Uint8Array | null}, [string]>(
+      this.#db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ?`,
+    ).all(accountId)
+    return rows.some((row) => {
+      if (!row.metadata_cbor) return false
+      const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
+      return metadata.kind === 'hm-account-key' && metadata.accountId === keyAccount
+    })
   }
 
   /** Runs an app-running step, turning its errors into API errors with the same status. */
@@ -1522,8 +1742,9 @@ export class Service {
   }
 
   /** A tool's recorded calls, newest first. */
+  /** A tool's recent calls for the unsigned HTTP listing: summaries only, nothing they carried. */
   listRunningAppToolCalls(toolId: string, limit?: number) {
-    return this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit}))
+    return this.#appRun(async () => appRunning.listAppToolCallSummaries(this.#appRunDeps(), {toolId, limit}))
   }
 
   #assertClientProtocol(clientProtocol: number): void {
@@ -1748,6 +1969,24 @@ export class Service {
             appRunning.getAppRun(this.#appRunDeps(), envelope.action as api.GetAppRun),
           ),
         }
+      case 'GetHostConfig':
+        return {
+          _: 'HostConfigResponse',
+          config: await this.#appRun(async () =>
+            appRunning.getHostConfig(this.#appRunDeps(), envelope.action as api.GetHostConfig),
+          ),
+        }
+      case 'SetHostPrivateConfig':
+        return {
+          _: 'HostConfigResponse',
+          config: await this.#appRun(() =>
+            appRunning.setHostPrivateConfig(
+              this.#appRunDeps(),
+              verified.accountId,
+              envelope.action as api.SetHostPrivateConfig,
+            ),
+          ),
+        }
       case 'CheckAppRun':
         return {
           _: 'AppRunCheckResponse',
@@ -1766,7 +2005,7 @@ export class Service {
         return {
           _: 'AppToolCallResponse',
           call: await this.#appRun(async () =>
-            appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall),
+            appRunning.getAppToolCall(this.#appRunDeps(), envelope.action as api.GetAppToolCall, [verified.accountId]),
           ),
         }
       case 'RunTriggerNow':
@@ -1777,7 +2016,9 @@ export class Service {
         return {
           _: 'ListAppToolCallsResponse',
           calls: await this.#appRun(async () =>
-            appRunning.listAppToolCalls(this.#appRunDeps(), envelope.action as api.ListAppToolCalls),
+            appRunning.listAppToolCalls(this.#appRunDeps(), envelope.action as api.ListAppToolCalls, [
+              verified.accountId,
+            ]),
           ),
         }
       case 'SetSecret':
@@ -4060,12 +4301,16 @@ export class Service {
     return true
   }
 
-  /** What agents read of this server's app records: tool calls and trigger firings. */
-  #appHistory(): AppHistory {
+  /**
+   * What an agent reads of this server's app records: tool calls and trigger firings. It reads as
+   * its owner and its signing accounts: all calls of hosts they can write, and its own calls.
+   */
+  #appHistory(accountId: string, definition: api.AgentDefinition): AppHistory {
+    const readers = [accountId, ...agentSigningAccountUids(this.#db, accountId, definition)]
     return {
       calls: (toolId, limit) =>
-        this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit})),
-      call: (callId) => this.#appRun(async () => appRunning.getAppToolCall(this.#appRunDeps(), {callId})),
+        this.#appRun(async () => appRunning.listAppToolCalls(this.#appRunDeps(), {toolId, limit}, readers)),
+      call: (callId) => this.#appRun(async () => appRunning.getAppToolCall(this.#appRunDeps(), {callId}, readers)),
       triggerFirings: async (documentId) => {
         const id = unpackHmId(documentId)
         const host = id ? parentDocumentId(id) : null
@@ -6031,7 +6276,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
@@ -7924,7 +8169,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(run.accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
@@ -8767,7 +9012,7 @@ export class Service {
       callAppTool: (caller, action) => this.#appRun(() => appRunning.callAppTool(this.#appRunDeps(), caller, action)),
       runApp: (signer, action) => this.#appRun(() => appRunning.runApp(this.#appRunDeps(), signer, action)),
       stopApp: (signer, action) => this.#appRun(() => appRunning.stopApp(this.#appRunDeps(), signer, action)),
-      appHistory: this.#appHistory(),
+      appHistory: this.#appHistory(accountId, definition),
       onDocumentDeleted: (id) => this.#forgetTriggerDocument(id),
       onDocumentWritten: (id, isTrigger) => this.#syncWrittenTriggerDocument(id, isTrigger),
       onMemoryChange: () => {
@@ -15128,7 +15373,10 @@ export async function resolveWriteTrigger(
   isUpdate: boolean,
 ): Promise<{metadata: Record<string, unknown>; blobs: CollectedBlob[]}> {
   if (!isRecord(raw))
-    throw new APIError(400, 'options.trigger is {source, tool?, input?, enabled?}: read ~/tools/write/triggers')
+    throw new APIError(
+      400,
+      'options.trigger is {source, tool?, input?, enabled?, onFailure?, session?}: read ~/tools/write/triggers',
+    )
   // An update changes only what it names: {enabled: false} alone turns a trigger off.
   const source =
     raw.source === undefined && isUpdate
@@ -15139,6 +15387,16 @@ export async function resolveWriteTrigger(
     throw new APIError(400, 'options.trigger.tool is the hm:// URL of a tool of the same app or agent')
   if (raw.enabled !== undefined && typeof raw.enabled !== 'boolean')
     throw new APIError(400, 'options.trigger.enabled is true or false')
+  if (raw.onFailure !== undefined && raw.onFailure !== null && raw.onFailure !== 'session')
+    throw new APIError(
+      400,
+      'options.trigger.onFailure is "session" (a failed tool call starts a session with you), or null',
+    )
+  if (raw.session !== undefined && raw.session !== null && !isPlainMap(raw.session))
+    throw new APIError(
+      400,
+      'options.trigger.session is {systemPrompt?, includeAgentSystemPrompt?, tools?: {<tool>: true}}, or null',
+    )
   // Written into the document's metadata: the source's sets as maps (one key per entry), and a
   // null clears an attribute (tool: null makes an agent's trigger start a session again).
   const metadata: Record<string, unknown> = {type: HM_TRIGGER_TYPE}
@@ -15147,6 +15405,18 @@ export async function resolveWriteTrigger(
   else if (raw.tool === null) metadata.tool = null
   if (raw.input !== undefined) metadata.input = raw.input
   if (raw.enabled !== undefined) metadata.enabled = raw.enabled
+  if (raw.onFailure !== undefined) metadata.onFailure = raw.onFailure
+  if (raw.session !== undefined) {
+    const session = raw.session === null ? null : triggerSessionOptionsFromMetadata(raw.session)
+    // The tool list is a set: stored as {<tool>: true}, one key per tool.
+    metadata.session = session
+      ? {
+          ...(session.systemPrompt ? {systemPrompt: session.systemPrompt} : {}),
+          ...(session.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+          ...(session.tools?.length ? {tools: Object.fromEntries(session.tools.map((tool) => [tool, true]))} : {}),
+        }
+      : null
+  }
   return {metadata, blobs: []}
 }
 
@@ -15613,7 +15883,7 @@ export function userTimeBlock(timezone: string | undefined, now = new Date()): s
 }
 
 /** An app or a mounted agent whose trigger documents this server fires. */
-type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
+export type TriggerHost = {kind: 'agent' | 'app'; id: string; accountId: string}
 
 /**
  * A trigger document as engine fields: its validated source, and either a tool call (its `tool`,
@@ -15625,27 +15895,57 @@ const APP_RESOURCE_TYPES = new Set(['hm://hyper.media/app', HM_TOOL_TYPE, 'hm://
 const APP_TRIGGER_NEEDS_TOOL =
   "An app's trigger calls one of the app's tools (options.trigger.tool). Work an agent does on an app's data (a digest, a shopping list) is the agent's own trigger, under its document, with the instructions as its content: read ~/tools/write/triggers."
 
-function projectTriggerDocument(
+export function projectTriggerDocument(
   host: TriggerHost,
   trigger: triggerDocuments.TriggerDocument,
 ): {source: api.AgentTriggerSource; continuation?: api.TriggerContinuation; prompt: string; agentId: string | null} {
   const source = normalizeAgentTriggerSource(trigger.source as api.AgentTriggerSource)
   if (trigger.tool) {
+    // On failure, an agent's tool trigger can start a session: the body is that session's message.
+    if (trigger.onFailure === 'session') {
+      if (host.kind !== 'agent')
+        throw new Error('onFailure: "session" starts the agent, and an app has no agent: remove it from this trigger')
+      if (!trigger.content.length)
+        throw new Error('onFailure: "session" needs a message: write what the agent should do about a failure')
+    }
+    if (trigger.session)
+      throw new Error('session options belong to a trigger that starts a session, not one that calls a tool')
     return {
       source,
-      continuation: {kind: 'tool', tool: trigger.tool, ...(trigger.input !== undefined ? {input: trigger.input} : {})},
-      // A tool trigger has no message; an empty block list keeps the stored shape.
-      prompt: JSON.stringify({type: 'seed-prompt-blocks', blocks: []}),
+      continuation: {
+        kind: 'tool',
+        tool: trigger.tool,
+        ...(trigger.input !== undefined ? {input: trigger.input} : {}),
+        ...(trigger.onFailure === 'session' ? {onFailure: 'thread' as const} : {}),
+      },
+      // A tool trigger has no message unless a failure starts a session; an empty block list keeps
+      // the stored shape.
+      prompt:
+        trigger.onFailure === 'session'
+          ? serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[])
+          : JSON.stringify({type: 'seed-prompt-blocks', blocks: []}),
       agentId: host.kind === 'agent' ? host.id : null,
     }
   }
   // Without a tool, a firing starts a session with the agent the trigger lives under.
   if (host.kind === 'app') throw new Error(APP_TRIGGER_NEEDS_TOOL)
   const agentId = host.id
+  if (trigger.onFailure) throw new Error('onFailure belongs to a trigger that calls a tool')
   if (!trigger.content.length)
     throw new Error('This trigger starts a session but has no message: write it in the trigger')
+  const session = trigger.session
   return {
     source,
+    ...(session
+      ? {
+          continuation: {
+            kind: 'newThread' as const,
+            ...(session.systemPrompt ? {systemPrompt: session.systemPrompt} : {}),
+            ...(session.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+            ...(session.tools?.length ? {tools: session.tools} : {}),
+          },
+        }
+      : {}),
     prompt: serializePromptBlocksForStorage(trigger.content as unknown as api.AgentPromptBlock[]),
     agentId,
   }

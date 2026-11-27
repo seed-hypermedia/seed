@@ -161,7 +161,30 @@ describe('trigger documents', () => {
       tool: 'hm://z6Mkspace/app/send',
       input: {text: '$event.payload'},
       enabled: false,
+      onFailure: null,
+      session: null,
     })
+  })
+  it('write and read an agent trigger’s failure session and session options, the tool list as a set', async () => {
+    const {ops} = await triggerDocumentOps({
+      onFailure: 'session',
+      session: {systemPrompt: 'Triage.', tools: ['read', 'search']},
+    })
+    const op = ops[0] as {type: 'SetAttributes'; attrs: {key: string[]; value: unknown}[]}
+    expect(op.attrs).toEqual([
+      {key: ['onFailure'], value: 'session'},
+      {key: ['session'], value: null},
+      {key: ['session', 'systemPrompt'], value: 'Triage.'},
+      {key: ['session', 'tools', 'read'], value: true},
+      {key: ['session', 'tools', 'search'], value: true},
+    ])
+    expect(
+      triggerDocumentFields({
+        onFailure: 'session',
+        session: {systemPrompt: 'Triage.', tools: {read: true, search: false}},
+      }),
+    ).toMatchObject({onFailure: 'session', session: {systemPrompt: 'Triage.', tools: ['read']}})
+    expect(triggerDocumentFields({session: {}})).toMatchObject({onFailure: null, session: null})
   })
   it('clears the tool and input', async () => {
     const {ops, blobs} = await triggerDocumentOps({tool: null, input: null})

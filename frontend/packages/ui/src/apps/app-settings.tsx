@@ -1,4 +1,4 @@
-import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId, type HMDocument} from '@seed-hypermedia/client/hm-types'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {
   selectBindingSchemaDrafts,
@@ -29,6 +29,7 @@ import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
 import {cn} from '../utils'
 import {AppServerSelect, type AppServerOption} from './app-server-select'
+import {SIGNING_KEY_KIND, SigningKeyPicker, SigningKeyRow, useHostConfig, useSetHostPrivateConfig} from './host-config'
 import {setAttribute, useAppsPublisher, type AppRef} from './publish'
 import {
   appServerErrorMessage,
@@ -81,7 +82,12 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
   const appRun = useAppRun(server.serverUrl, app.id.id)
   const publisher = useAppsPublisher()
   const publicFields = structFields(publicSchema.schema)
-  const privateFields = structFields(privateSchema.schema)
+  // Signing-key fields are attached as keys (their own section); the rest are secrets typed in.
+  const allPrivateFields = structFields(privateSchema.schema)
+  const keyFields = allPrivateFields.filter((field) => field.kind === SIGNING_KEY_KIND)
+  const privateFields = allPrivateFields.filter((field) => field.kind !== SIGNING_KEY_KIND)
+  const hostConfig = useHostConfig(server.serverUrl, app.id.id)
+  const savePrivate = useSetHostPrivateConfig(server.serverUrl, app.id.id)
   const publicConfig = (metadata.publicConfig ?? {}) as Record<string, unknown>
   const openSchemas = () =>
     schemasDialog.open({
@@ -141,14 +147,79 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
             privateFields,
             setKeys: appRun.status.data?.privateConfigKeys ?? [],
             onSave: async (privateConfig) => {
-              await appRun.run.mutateAsync({serverUrl: server.serverUrl, privateConfig})
+              await savePrivate.mutateAsync(privateConfig)
               toast.success('Private config updated')
             },
           })
         }
       />
+      {keyFields.length ? (
+        <SettingsSection label="Signing keys">
+          <div className="grid gap-3 p-3">
+            <SizableText size="xs" color="muted">
+              The accounts this app's tools publish as. The server keeps the keys and signs for the tools. Anyone who
+              can edit this app can act as these keys, so give each one only the access it needs.
+            </SizableText>
+            {keyFields.map((field) => {
+              const account = hostConfig.data?.signingKeys?.[field.name]
+              return (
+                <div key={field.name} className="grid gap-2">
+                  <SizableText size="xs" className="font-mono">
+                    {field.name}
+                    {field.required ? <span className="text-muted-foreground"> *</span> : null}
+                  </SizableText>
+                  {account ? (
+                    <SigningKeyRow
+                      account={account}
+                      space={app.id.uid}
+                      places={appPlaces(app.id, publicConfig)}
+                      onRemove={
+                        canEdit
+                          ? () =>
+                              savePrivate.mutate(
+                                {[field.name]: null},
+                                {onError: (error) => toast.error(appServerErrorMessage(error))},
+                              )
+                          : undefined
+                      }
+                    />
+                  ) : canEdit ? (
+                    <div>
+                      <SigningKeyPicker
+                        serverUrl={server.serverUrl}
+                        defaultName={metadata.name || 'App key'}
+                        disabled={savePrivate.isLoading}
+                        onPick={(picked) =>
+                          savePrivate.mutate(
+                            {[field.name]: picked},
+                            {onError: (error) => toast.error(appServerErrorMessage(error))},
+                          )
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <SizableText size="sm" color="muted">
+                      No key attached.
+                    </SizableText>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </SettingsSection>
+      ) : null}
     </section>
   )
+}
+
+/** Where an app's keys usually write: the app and the collections its public config names. */
+function appPlaces(appId: AppRef['id'], publicConfig: Record<string, unknown>) {
+  const places = [{label: 'This app', id: appId}]
+  for (const [name, value] of Object.entries(publicConfig)) {
+    const id = typeof value === 'string' ? unpackHmId(value) : null
+    if (id && id.uid === appId.uid && !places.some((place) => place.id.id === id.id)) places.push({label: name, id})
+  }
+  return places
 }
 
 /** A config schema: the draft's working copy when there is one, else the published reference. */
@@ -339,7 +410,7 @@ function HostingSection({
 }
 
 /** Password inputs for the app's private config; `setKeys` are already on the server. */
-function PrivateConfigFields({
+export function PrivateConfigFields({
   fields,
   values,
   setKeys = [],
@@ -425,7 +496,9 @@ function RunAppDialog({
     <div className="grid gap-5">
       <div className="grid gap-1">
         <DialogTitle>Run app</DialogTitle>
-        <DialogDescription>Anyone can call its tools once it runs.</DialogDescription>
+        <DialogDescription>
+          Once it runs, its writers and triggers can call its tools, and viewers can call those that allow them.
+        </DialogDescription>
       </div>
       <div className="grid gap-2">
         <Label>Server</Label>

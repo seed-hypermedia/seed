@@ -269,6 +269,49 @@ export type TriggerDocumentFields = {
   /** Input template for the tool. */
   input?: unknown
   enabled?: boolean
+  /**
+   * An agent's tool trigger: `"session"` starts a session with the agent when the tool call fails,
+   * with the trigger's body as its message and the failure attached. Null clears it.
+   */
+  onFailure?: 'session' | null
+  /** An agent's session trigger: the session's own instructions and a narrower tool list. Null clears it. */
+  session?: TriggerSessionOptions | null
+}
+
+/** How a trigger's session runs: extra instructions, and which of the agent's tools it may use. */
+export type TriggerSessionOptions = {
+  systemPrompt?: string
+  /** False leaves out the agent's own system prompt (the shared runtime instructions stay). */
+  includeAgentSystemPrompt?: boolean
+  /** The tools the session may use, a subset of the agent's (stored as `{<name>: true}`). */
+  tools?: string[]
+}
+
+/** Session options as stored in the document: the tool list as a set (`{<name>: true}`). */
+function sessionOptionsToMetadata(options: TriggerSessionOptions): Record<string, unknown> {
+  return {
+    ...(options.systemPrompt ? {systemPrompt: options.systemPrompt} : {}),
+    ...(options.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+    ...(options.tools?.length ? {tools: Object.fromEntries(options.tools.map((tool) => [tool, true]))} : {}),
+  }
+}
+
+/** Session options read from the document, or null when it has none. */
+export function triggerSessionOptionsFromMetadata(value: unknown): TriggerSessionOptions | null {
+  if (!isPlainRecord(value)) return null
+  const tools = isPlainRecord(value.tools)
+    ? Object.entries(value.tools)
+        .filter(([, on]) => on === true || on === 'true')
+        .map(([tool]) => tool)
+    : Array.isArray(value.tools)
+      ? value.tools.filter((tool): tool is string => typeof tool === 'string')
+      : []
+  const options: TriggerSessionOptions = {
+    ...(typeof value.systemPrompt === 'string' && value.systemPrompt ? {systemPrompt: value.systemPrompt} : {}),
+    ...(value.includeAgentSystemPrompt === false ? {includeAgentSystemPrompt: false} : {}),
+    ...(tools.length ? {tools} : {}),
+  }
+  return Object.keys(options).length ? options : null
 }
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -335,12 +378,16 @@ export function triggerDocumentFields(metadata: Record<string, unknown> | undefi
   tool: string | null
   input: unknown
   enabled: boolean
+  onFailure: 'session' | null
+  session: TriggerSessionOptions | null
 } {
   return {
     source: isPlainRecord(metadata?.source) ? triggerSourceFromMetadata(metadata.source) : undefined,
     tool: typeof metadata?.tool === 'string' && metadata.tool ? metadata.tool : null,
     input: metadata?.input ?? undefined,
     enabled: metadata?.enabled !== false && metadata?.enabled !== 'false',
+    onFailure: metadata?.onFailure === 'session' ? 'session' : null,
+    session: triggerSessionOptionsFromMetadata(metadata?.session),
   }
 }
 
@@ -371,6 +418,8 @@ export async function triggerDocumentOps(
   if (fields.tool !== undefined) attrs.push({key: ['tool'], value: fields.tool || null})
   if (fields.input !== undefined) replace('input', fields.input)
   if (fields.enabled !== undefined) attrs.push({key: ['enabled'], value: fields.enabled})
+  if (fields.onFailure !== undefined) attrs.push({key: ['onFailure'], value: fields.onFailure ?? null})
+  if (fields.session !== undefined) replace('session', fields.session ? sessionOptionsToMetadata(fields.session) : null)
   return {
     ops: attrs.length ? [{type: 'SetAttributes', attrs: attrs as {key: string[]; value: string}[]}] : [],
     blobs: [],

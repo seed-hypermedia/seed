@@ -10,14 +10,28 @@ import type {Database} from 'bun:sqlite'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import {appEmbeddedChildren, HM_TOOL_TYPE, isToolHostType, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {
+  appEmbeddedChildren,
+  HM_TOOL_TYPE,
+  isToolHostType,
+  parentDocumentId,
+  TOOL_ENTRY_FILE,
+} from '@seed-hypermedia/client/apps'
 import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {createSeedClient} from '@seed-hypermedia/client'
 import {unpackHmId, packHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {structFields, validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
 import {loadSchemaRef} from '@seed-hypermedia/client/schema-resolve'
 import type * as api from '@/api'
-import {APP_PRIVATE_CONFIG_ENV, buildAppToolProgram, parseLambdaResult, type CodeExecutor} from '@/code-exec'
+import {
+  APP_PRIVATE_CONFIG_ENV,
+  APP_TOOL_SEED_TOKEN_ENV,
+  APP_TOOL_SEED_URL_ENV,
+  buildAppToolProgram,
+  parseLambdaResult,
+  type CodeExecutor,
+} from '@/code-exec'
+import * as hostConfig from '@/host-config'
 
 type SeedClient = ReturnType<typeof createSeedClient>
 
@@ -34,7 +48,56 @@ export type AppRunDeps = {
   serverId: string
   /** The URL clients reach this server at, when configured: an app naming it needs no lookup. */
   publicUrl?: string
+  /** Whether `accountId` holds the signing key of `keyAccount` on this server (its own server accounts). */
+  holdsSigningKey: (accountId: string, keyAccount: string) => boolean
+  /**
+   * Seed access for tools (`ctx.seed`): where a tool sends its requests and the host port its
+   * sandbox may reach for that. Without it, tools have no Seed access.
+   */
+  toolSeed?: {url: string; hostPort?: number}
+  /**
+   * Publishes a document signed by a key this server holds (the host's attached key), with the
+   * same checks as an agent's write: the key's account must be able to write there.
+   */
+  publishAs?: (
+    keyAccount: string,
+    document: ToolSeedDocument & {id: UnpackedHypermediaId},
+  ) => Promise<{version: string}>
+  /**
+   * An agent's built-in `signing` private config field, kept in its definition: `get` answers null
+   * for a host that is not an agent here; `set` is the owner's change (see {@link api.HostConfigInfo}).
+   */
+  agentSigning?: {
+    get(hostId: string): AgentSigning | null
+    set(signer: string, hostId: string, signing: unknown): void
+  }
+  /** An agent's state directory (its memory lives in it), or null when the host is not an agent here. */
+  agentStateDir?: (hostId: string) => string | null
+  /** Called after a tool changed its agent host's memory, so clients watching it refresh. */
+  onAgentMemoryChanged?: (hostId: string) => void
+  /** Starts a background session with an agent host (`ctx.agent.start`); returns its id. */
+  startAgentSession?: (
+    hostId: string,
+    start: {message: string; title?: string; systemPrompt?: string; tools?: string[]; runId: string},
+  ) => Promise<{sessionId: string}>
 }
+
+/** How many sessions one tool call may start with its agent (`ctx.agent.start`). */
+export const MAX_SESSIONS_PER_TOOL_CALL = 3
+
+/** The accounts an agent publishes as, and which one is its default. */
+export type AgentSigning = {keys: {account: string; label?: string}[]; primary?: string}
+
+/** What a tool publishes with `ctx.seed.publish(id, document)`. */
+export type ToolSeedDocument = {
+  name?: string
+  metadata?: Record<string, unknown>
+  /** The body as markdown; replaces the old body. */
+  content?: string
+}
+
+/** The schema type of a private config field that names a signing key the server holds. */
+export const SIGNING_KEY_TYPE = 'hm://hyper.media/signing-key'
 
 /** An error with an HTTP status, which the service turns into its own APIError. */
 export class AppRunError extends Error {
@@ -50,7 +113,6 @@ type AppRunRow = {
   app_id: string
   space_uid: string
   started_by: string
-  private_config_ciphertext: Uint8Array | null
   created_at: number
   updated_at: number
 }
@@ -66,7 +128,24 @@ type ToolCallRow = {
   error: string | null
   duration_ms: number | null
   created_at: number
+  effects_json?: string | null
 }
+
+/** A tool call's Seed access: alive only while the call runs, found by the call's token. */
+type ToolSeedSession = {
+  callId: string
+  host: UnpackedHypermediaId
+  toolMetadata: Record<string, unknown>
+  caller: string
+  /** Signing-key field -> the account it names, from the host's private config. */
+  signingKeys: Record<string, string>
+  /** The key used when a publish names none and there are several (an agent's primary). */
+  defaultKey?: string
+  writes: api.AppToolWrite[]
+  sessions: {sessionId: string; at: number}[]
+}
+
+const toolSeedSessions = new Map<string, ToolSeedSession>()
 
 function versionless(raw: string, what: string): UnpackedHypermediaId {
   const id = unpackHmId(raw)
@@ -198,31 +277,25 @@ async function requireSpaceWriter(client: SeedClient, appId: UnpackedHypermediaI
   if (appId.uid === signer) return
   const path = appId.path?.length ? `/${appId.path.join('/')}` : ''
   const capability = await resolveCapability(client, appId.uid, signer, path).catch(() => undefined)
-  if (!capability) throw new AppRunError(403, 'Only someone who can write to the app’s space can run or stop it')
+  if (!capability)
+    throw new AppRunError(403, 'Only someone who can write to the app’s space can run it, stop it or change its config')
 }
 
 function toRunInfo(row: AppRunRow, deps: AppRunDeps): api.AppRunInfo {
-  const privateConfig = readPrivateConfig(row, deps)
   return {
     appId: row.app_id,
     spaceUid: row.space_uid,
     startedBy: row.started_by,
-    privateConfigKeys: Object.keys(privateConfig).sort(),
+    privateConfigKeys: hostConfig.hostConfigState(deps.db, deps, row.app_id).privateConfigKeys,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-function readPrivateConfig(row: AppRunRow, deps: AppRunDeps): Record<string, unknown> {
-  if (!row.private_config_ciphertext) return {}
-  const parsed = JSON.parse(new TextDecoder().decode(deps.decrypt(new Uint8Array(row.private_config_ciphertext))))
-  return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-}
-
 /**
  * How an app or agent runs here. An app runs once someone runs it (an `app_runs` row); an agent
- * mounted on this server is always running, so its tools run with no Run step (and, until it has
- * an explicit run with private config, no private config).
+ * mounted on this server is always running, so its tools run with no Run step. Private config is
+ * kept apart from runs (host-config.ts), so an agent has it without being run.
  */
 function effectiveRun(db: Database, hostId: string): AppRunRow | null {
   const row = getRunRow(db, hostId)
@@ -237,7 +310,6 @@ function effectiveRun(db: Database, hostId: string): AppRunRow | null {
     app_id: hostId,
     space_uid: unpackHmId(hostId)?.uid ?? agent.account_id,
     started_by: agent.account_id,
-    private_config_ciphertext: null,
     created_at: agent.created_at,
     updated_at: agent.updated_at,
   }
@@ -261,13 +333,33 @@ async function expectedFields(client: SeedClient, ref: unknown): Promise<string 
   return `{${fields.map((field) => `${field.name}${field.required ? '' : '?'}: ${kind(field.schema)}`).join(', ')}}`
 }
 
-async function schemaViolations(client: SeedClient, ref: unknown, value: unknown): Promise<string[]> {
+async function schemaViolations(
+  client: SeedClient,
+  ref: unknown,
+  value: unknown,
+  options: {partial?: boolean} = {},
+): Promise<string[]> {
   if (typeof ref !== 'string' || !ref) return []
   const loaded = await loadSchemaRef(client, ref).catch(() => null)
   if (!loaded) return [`schema ${ref} could not be loaded`]
-  return validateSchema(loaded.schema, value, '$', {}, loaded.registry).map((violation) =>
+  // Partial: every value given must have its field's type, but required fields may still be
+  // missing (a config is filled in steps; a tool call checks it is complete).
+  const schema = options.partial ? withoutRequired(loaded.schema) : loaded.schema
+  return validateSchema(schema, value, '$', {}, loaded.registry).map((violation) =>
     typeof violation === 'string' ? violation : JSON.stringify(violation),
   )
+}
+
+/** A struct schema whose top-level fields are all optional. */
+function withoutRequired<T>(schema: T): T {
+  const properties = (schema as {properties?: Record<string, Record<string, unknown>>}).properties
+  if (!properties) return schema
+  return {
+    ...schema,
+    properties: Object.fromEntries(
+      Object.entries(properties).map(([name, entry]) => [name, {...entry, required: false}]),
+    ),
+  }
 }
 
 /**
@@ -280,40 +372,125 @@ export async function runApp(
   action: {appId: string; privateConfig?: Record<string, unknown>},
 ): Promise<api.AppRunInfo> {
   const appId = versionless(action.appId, 'app')
-  let app = await loadDocument(deps.client, appId, isToolHostType, 'app')
-  try {
-    await requireRunsHere(deps, appId, app)
-  } catch (error) {
-    // A client names this server on the app and runs it straight away, so this node can still
-    // hold the version from before: look for a newer one once, then let the answer stand.
-    if (!(error instanceof AppRunError) || !(await discoverDocument(deps.client, appId, STALE_APP_WAIT_MS))) throw error
-    app = await loadDocument(deps.client, appId, isToolHostType, 'app')
-    await requireRunsHere(deps, appId, app)
-  }
+  const app = await loadHostHere(deps, appId)
   await requireSpaceWriter(deps.client, appId, signer)
+  if (action.privateConfig !== undefined) await savePrivateConfig(deps, signer, appId, app, action.privateConfig)
   const existing = getRunRow(deps.db, appId.id)
-  let privateConfig = existing ? readPrivateConfig(existing, deps) : {}
-  if (action.privateConfig !== undefined) {
-    // New values replace the ones held for the same fields; fields not given keep theirs, so a
-    // single secret can change without sending the others again.
-    const merged = {...privateConfig, ...action.privateConfig}
-    const violations = await schemaViolations(deps.client, app.metadata.privateConfigSchema, merged)
-    if (violations.length) throw new AppRunError(400, `Private config does not match the app: ${violations.join('; ')}`)
-    privateConfig = merged
-  }
-  const ciphertext = Object.keys(privateConfig).length
-    ? deps.encrypt(new TextEncoder().encode(JSON.stringify(privateConfig)))
-    : null
   const now = Date.now()
   deps.db
     .query(
-      `INSERT INTO app_runs (app_id, space_uid, started_by, private_config_ciphertext, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (app_id) DO UPDATE SET started_by = excluded.started_by,
-         private_config_ciphertext = excluded.private_config_ciphertext, updated_at = excluded.updated_at`,
+      `INSERT INTO app_runs (app_id, space_uid, started_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (app_id) DO UPDATE SET started_by = excluded.started_by, updated_at = excluded.updated_at`,
     )
-    .run(appId.id, appId.uid, signer, ciphertext, existing?.created_at ?? now, now)
+    .run(appId.id, appId.uid, signer, existing?.created_at ?? now, now)
   return toRunInfo(getRunRow(deps.db, appId.id)!, deps)
+}
+
+/** The host document, after checking it is an app or agent that runs on this server. */
+async function loadHostHere(deps: AppRunDeps, hostId: UnpackedHypermediaId) {
+  let host = await loadDocument(deps.client, hostId, isToolHostType, 'app')
+  try {
+    await requireRunsHere(deps, hostId, host)
+  } catch (error) {
+    // A client names this server on the app and runs it straight away, so this node can still
+    // hold the version from before: look for a newer one once, then let the answer stand.
+    if (!(error instanceof AppRunError) || !(await discoverDocument(deps.client, hostId, STALE_APP_WAIT_MS)))
+      throw error
+    host = await loadDocument(deps.client, hostId, isToolHostType, 'app')
+    await requireRunsHere(deps, hostId, host)
+  }
+  return host
+}
+
+/** Merges `changes` into the host's private config, checks it against the host's schema, and stores it. */
+async function savePrivateConfig(
+  deps: AppRunDeps,
+  signer: string,
+  hostId: UnpackedHypermediaId,
+  host: {metadata: {privateConfigSchema?: unknown}},
+  changes: Record<string, unknown>,
+) {
+  const stored = hostConfig.readPrivateConfig(deps.db, deps, hostId.id)
+  const merged = hostConfig.mergePrivateConfig(stored, changes)
+  const violations = await schemaViolations(deps.client, host.metadata.privateConfigSchema, merged, {partial: true})
+  if (violations.length) throw new AppRunError(400, `Private config does not match: ${violations.join('; ')}`)
+  // A signing key is attached only by someone who holds it here: a writer of the host cannot lend
+  // the host a key that belongs to someone else. Detaching (null) and keeping a key are allowed.
+  for (const field of await signingKeyFields(deps.client, host.metadata.privateConfigSchema)) {
+    const value = changes[field]
+    if (value === undefined || value === null || value === stored[field]) continue
+    if (typeof value !== 'string' || !deps.holdsSigningKey(signer, value))
+      throw new AppRunError(
+        403,
+        `${field} must be a signing key your account holds on this server: generate one for this host, or import a key file, in its settings.`,
+      )
+  }
+  hostConfig.writePrivateConfig(deps.db, deps, {hostId: hostId.id, spaceUid: hostId.uid}, merged, signer)
+}
+
+/** The private config fields whose type is a signing key. */
+async function signingKeyFields(client: SeedClient, ref: unknown): Promise<string[]> {
+  if (typeof ref !== 'string' || !ref) return []
+  const loaded = await loadSchemaRef(client, ref).catch(() => null)
+  return structFields(loaded?.schema)
+    .filter((field) => (field.schema as {type?: unknown}).type === SIGNING_KEY_TYPE)
+    .map((field) => field.name)
+}
+
+/**
+ * A host's config on this server: which private config fields are set (never their values), and
+ * the account each signing-key field names (public: it is who the host publishes as).
+ */
+export async function getHostConfig(deps: AppRunDeps, action: {hostId: string}): Promise<api.HostConfigInfo> {
+  const hostId = versionless(action.hostId, 'host')
+  const state = hostConfig.hostConfigState(deps.db, deps, hostId.id)
+  const agentSigning = deps.agentSigning?.get(hostId.id)
+  const info: api.HostConfigInfo = {
+    hostId: hostId.id,
+    ...state,
+    ...(agentSigning?.keys.length
+      ? {privateConfigKeys: [...state.privateConfigKeys, 'signing'].sort(), agentSigning}
+      : {}),
+  }
+  if (!state.privateConfigKeys.length) return info
+  const host = await loadDocument(deps.client, hostId, isToolHostType, 'app').catch(() => null)
+  const fields = host ? await signingKeyFields(deps.client, host.metadata.privateConfigSchema) : []
+  const values = fields.length ? hostConfig.readPrivateConfig(deps.db, deps, hostId.id) : {}
+  const signingKeys = Object.fromEntries(
+    fields.filter((field) => typeof values[field] === 'string').map((field) => [field, values[field] as string]),
+  )
+  return Object.keys(signingKeys).length ? {...info, signingKeys} : info
+}
+
+/**
+ * Changes a host's private config: a value replaces that field, a null removes it, and fields not
+ * named keep their values. The host (an app or an agent) must run on this server, and the signer
+ * must be able to write its space. An app does not need to be running.
+ */
+export async function setHostPrivateConfig(
+  deps: AppRunDeps,
+  signer: string,
+  action: {hostId: string; privateConfig: Record<string, unknown>},
+): Promise<api.HostConfigInfo> {
+  const hostId = versionless(action.hostId, 'host')
+  if (!action.privateConfig || typeof action.privateConfig !== 'object' || Array.isArray(action.privateConfig))
+    throw new AppRunError(400, 'privateConfig is an object of field values (null removes a field)')
+  const host = await loadHostHere(deps, hostId)
+  await requireSpaceWriter(deps.client, hostId, signer)
+  // An agent's keys are its built-in `signing` field, kept with the agent; the rest is its
+  // schema-described private config, kept here.
+  const {signing, ...changes} = action.privateConfig
+  if (signing !== undefined) {
+    if (!deps.agentSigning?.get(hostId.id))
+      throw new AppRunError(
+        400,
+        'Only an agent has the built-in signing field. An app names its keys with signing-key fields in its privateConfigSchema.',
+      )
+    deps.agentSigning.set(signer, hostId.id, signing)
+  }
+  if (Object.keys(changes).length) await savePrivateConfig(deps, signer, hostId, host, changes)
+  return getHostConfig(deps, {hostId: hostId.id})
 }
 
 /**
@@ -343,6 +520,7 @@ export async function stopApp(deps: AppRunDeps, signer: string, action: {appId: 
   const appId = versionless(action.appId, 'app')
   await requireSpaceWriter(deps.client, appId, signer)
   deps.db.query('DELETE FROM app_runs WHERE app_id = ?').run(appId.id)
+  hostConfig.deletePrivateConfig(deps.db, appId.id)
 }
 
 /** Whether an app runs here, with the names (never the values) of its private config. */
@@ -362,8 +540,125 @@ function toCallInfo(row: ToolCallRow): api.AppToolCallInfo {
     ...(row.output_json !== null ? {output: JSON.parse(row.output_json)} : {}),
     ...(row.error !== null ? {error: row.error} : {}),
     ...(row.duration_ms !== null ? {durationMs: row.duration_ms} : {}),
+    ...(row.effects_json ? (JSON.parse(row.effects_json) as Pick<api.AppToolCallInfo, 'writes' | 'sessions'>) : {}),
     createdAt: row.created_at,
   }
+}
+
+/**
+ * Serves one `ctx.seed` request from a running tool. Reads return public documents. A publish is
+ * signed with one of the host's attached keys, after checking that the caller may make the host
+ * publish (a writer of the host, which its triggers are, unless the tool allows viewers) and, in the
+ * write itself, that the key's account can write there. Every publish is recorded on the call.
+ */
+export async function toolSeedRequest(deps: AppRunDeps, token: string, body: unknown): Promise<unknown> {
+  const session = toolSeedSessions.get(token)
+  if (!session) throw new AppRunError(401, 'This tool call is over, or the token is not one this server gave out')
+  if (!body || typeof body !== 'object') throw new AppRunError(400, 'A ctx.seed request is a JSON object')
+  const request = body as {op?: unknown; id?: unknown; document?: unknown; as?: unknown}
+  if (request.op === 'startAgent') return startAgentFromTool(deps, session, body as Record<string, unknown>)
+  const id = typeof request.id === 'string' ? unpackHmId(request.id) : null
+  if (!id) throw new AppRunError(400, `ctx.seed.${String(request.op)} needs an hm:// address`)
+  const target = {...id, version: null, latest: true, blockRef: null, blockRange: null}
+  switch (request.op) {
+    case 'resource': {
+      const resource = await deps.client.request('Resource', target)
+      if (resource.type !== 'document') throw new AppRunError(404, `No document at ${id.id}`)
+      if (resource.document.visibility === 'PRIVATE')
+        throw new AppRunError(403, `${id.id} is private: tools read only public documents`)
+      return {
+        url: id.id,
+        version: resource.document.version,
+        metadata: resource.document.metadata,
+        content: resource.document.content,
+      }
+    }
+    case 'directory': {
+      const result = await deps.client.request('Query', {
+        includes: [{space: id.uid, path: id.path?.length ? `/${id.path.join('/')}` : '', mode: 'Children'}],
+      })
+      return (result?.results ?? [])
+        .filter((info) => (info as {visibility?: unknown}).visibility !== 'PRIVATE')
+        .map((info) => ({
+          url: info.id.id,
+          id: {id: info.id.id, uid: info.id.uid, path: info.id.path},
+          metadata: info.metadata,
+          updateTime: isoTime(info.updateTime),
+        }))
+    }
+    case 'publish': {
+      if (!deps.publishAs) throw new AppRunError(503, 'This app environment cannot publish for tools')
+      const keyAccount = chooseSigningKey(session, request.as)
+      const document = (request.document ?? {}) as ToolSeedDocument
+      if (typeof document !== 'object' || Array.isArray(document))
+        throw new AppRunError(400, 'ctx.seed.publish(id, {name?, metadata?, content?})')
+      const {version} = await deps.publishAs(keyAccount, {...document, id: target})
+      session.writes.push({id: id.id, version, as: keyAccount, at: Date.now()})
+      return {url: id.id, version}
+    }
+    default:
+      throw new AppRunError(400, `ctx.seed has no ${String(request.op)}: use resource, directory or publish`)
+  }
+}
+
+/**
+ * Starts a session with the tool's agent (`ctx.agent.start(message, options)`): the check-first
+ * pattern, where cheap code decides whether there is work and only then wakes the model. Only a
+ * call acting for the agent may, at most {@link MAX_SESSIONS_PER_TOOL_CALL} times per call.
+ */
+async function startAgentFromTool(deps: AppRunDeps, session: ToolSeedSession, body: Record<string, unknown>) {
+  if (!deps.startAgentSession || !deps.agentStateDir?.(session.host.id))
+    throw new AppRunError(
+      409,
+      "ctx.agent.start works in an agent's tools: an app has no agent to start. Use a trigger document under the agent for that work.",
+    )
+  if (session.sessions.length >= MAX_SESSIONS_PER_TOOL_CALL)
+    throw new AppRunError(429, `A tool call may start the agent at most ${MAX_SESSIONS_PER_TOOL_CALL} times`)
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  if (!message) throw new AppRunError(400, 'ctx.agent.start(message): the message is the session’s first message')
+  const options = (body.options ?? {}) as Record<string, unknown>
+  const tools = Array.isArray(options.tools)
+    ? options.tools.filter((tool): tool is string => typeof tool === 'string')
+    : undefined
+  const {sessionId} = await deps.startAgentSession(session.host.id, {
+    message,
+    runId: `tool-call-${session.callId}-${session.sessions.length + 1}`,
+    ...(typeof options.title === 'string' && options.title ? {title: options.title} : {}),
+    ...(typeof options.systemPrompt === 'string' && options.systemPrompt ? {systemPrompt: options.systemPrompt} : {}),
+    ...(tools?.length ? {tools} : {}),
+  })
+  session.sessions.push({sessionId, at: Date.now()})
+  return {sessionId}
+}
+
+/** A daemon time (an ISO string, or a protobuf timestamp with BigInt seconds) as an ISO string. */
+function isoTime(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object' && 'seconds' in value)
+    return new Date(Number((value as {seconds: bigint | number}).seconds) * 1000).toISOString()
+  return undefined
+}
+
+/** The account to publish as: the one named by `as` (a key field or its account), or the only key. */
+function chooseSigningKey(session: ToolSeedSession, as: unknown): string {
+  const keys = session.signingKeys
+  const accounts = Object.values(keys)
+  if (typeof as === 'string' && as) {
+    const account = keys[as] ?? (accounts.includes(as) ? as : undefined)
+    if (!account) throw new AppRunError(403, `${as} is not a signing key of this app`)
+    return account
+  }
+  if (accounts.length === 1) return accounts[0]!
+  if (session.defaultKey && accounts.includes(session.defaultKey)) return session.defaultKey
+  if (!accounts.length)
+    throw new AppRunError(
+      409,
+      "This app has no signing key: add a signing-key field to its private config schema and attach a key in the app's Settings",
+    )
+  throw new AppRunError(
+    400,
+    `This app has several signing keys (${Object.keys(keys).join(', ')}): pass {as: ctx.privateConfig.<field>}`,
+  )
 }
 
 async function fetchToolSource(ipfsServerUrl: string, code: unknown): Promise<string> {
@@ -375,8 +670,32 @@ async function fetchToolSource(ipfsServerUrl: string, code: unknown): Promise<st
 }
 
 /**
+ * Who may call a host's tool. Its writers may, and its triggers (they call as their author, a
+ * writer). Viewers may only when the tool's document says `callableBy: "viewers"`; for a private
+ * host that still means writers, since this server cannot yet tell who may read it. A call that is
+ * allowed runs with all of the host: its memory, its keys and (for an agent) the agent.
+ */
+async function requireMayCall(
+  deps: AppRunDeps,
+  hostId: UnpackedHypermediaId,
+  host: {visibility?: unknown},
+  tool: {metadata: Record<string, unknown>},
+  caller: string,
+): Promise<void> {
+  if (await isSpaceWriter(deps.client, hostId, caller)) return
+  if (tool.metadata.callableBy === 'viewers' && host.visibility !== 'PRIVATE') return
+  throw new AppRunError(
+    403,
+    tool.metadata.callableBy === 'viewers'
+      ? 'This tool’s host is private: only its writers and its triggers may call its tools.'
+      : 'Only the writers of this app or agent, and its triggers, may call this tool. Its document can allow viewers with callableBy: "viewers".',
+  )
+}
+
+/**
  * Calls a tool of a running app: its latest code, with the app's public config and private config
- * as `ctx`. Anyone may call. The call is recorded whether it succeeds or fails.
+ * as `ctx`. Its host's writers and triggers may call (viewers when the tool allows them; see
+ * requireMayCall). The call is recorded whether it succeeds or fails.
  */
 export async function callAppTool(
   deps: AppRunDeps,
@@ -392,11 +711,24 @@ export async function callAppTool(
   if (!appEmbeddedChildren(appId, app.content).some((child) => child.id.id === toolId.id))
     throw new AppRunError(404, `${toolId.id} is not a tool of this app`)
   const tool = await loadDocument(deps.client, toolId, HM_TOOL_TYPE, 'tool')
+  await requireMayCall(deps, appId, app, tool, caller)
 
   const startedAt = Date.now()
   const callId = crypto.randomUUID()
   let output: unknown
   let error: string | undefined
+  let keyFields: string[] = []
+  // The call's Seed access: a token only this call holds, forgotten when it ends.
+  const seedToken = deps.toolSeed ? crypto.randomBytes(32).toString('base64url') : null
+  const session: ToolSeedSession = {
+    callId,
+    host: appId,
+    toolMetadata: tool.metadata as Record<string, unknown>,
+    caller,
+    signingKeys: {},
+    writes: [],
+    sessions: [],
+  }
   try {
     const inputViolations = await schemaViolations(deps.client, tool.metadata.inputSchema, action.input)
     if (inputViolations.length) {
@@ -407,31 +739,44 @@ export async function callAppTool(
         `Input does not match the tool: ${inputViolations.join('; ')}${expected ? `. It takes ${expected}.` : ''}`,
       )
     }
-    const privateViolations = await schemaViolations(
-      deps.client,
-      app.metadata.privateConfigSchema,
-      readPrivateConfig(run, deps),
-    )
+    const privateConfig = hostConfig.readPrivateConfig(deps.db, deps, appId.id)
+    keyFields = await signingKeyFields(deps.client, app.metadata.privateConfigSchema)
+    const privateViolations = await schemaViolations(deps.client, app.metadata.privateConfigSchema, privateConfig)
     if (privateViolations.length)
       throw new AppRunError(
         409,
         `The app’s private config is incomplete: ${privateViolations.join('; ')}. Set it in the app’s Settings.`,
       )
     if (!deps.codeExec.runtimes.includes('ts')) throw new AppRunError(503, 'This server cannot run TypeScript tools')
+    for (const field of keyFields)
+      if (typeof privateConfig[field] === 'string') session.signingKeys[field] = privateConfig[field] as string
+    // A tool under an agent publishes as the agent's keys, its primary unless it names another.
+    const agentSigning = deps.agentSigning?.get(appId.id)
+    for (const key of agentSigning?.keys ?? []) session.signingKeys[key.account] = key.account
+    if (agentSigning?.primary) session.defaultKey = agentSigning.primary
+    if (seedToken) toolSeedSessions.set(seedToken, session)
     const source = await fetchToolSource(deps.ipfsServerUrl, tool.metadata.code)
-    const stateDir = path.join(
-      deps.dataDir,
-      'app-runs',
-      crypto.createHash('sha256').update(appId.id).digest('hex').slice(0, 24),
-    )
+    // The host's memory: an agent's own memory, or the app's private memory on this server.
+    const agentStateDir = deps.agentStateDir?.(appId.id) ?? null
+    const hostStateDir =
+      agentStateDir ??
+      path.join(deps.dataDir, 'app-runs', crypto.createHash('sha256').update(appId.id).digest('hex').slice(0, 24))
+    const stateDir = hostStateDir
     fs.mkdirSync(stateDir, {recursive: true})
     const execution = await deps.codeExec.execute({
       principal: {accountId: appId.uid, agentId: `app:${appId.id}`, sessionId: callId},
       stateDir,
       runtime: 'ts',
       code: buildAppToolProgram(source, action.input, {app: appId.id, publicConfig: app.metadata.publicConfig ?? {}}),
-      env: {[APP_PRIVATE_CONFIG_ENV]: JSON.stringify(readPrivateConfig(run, deps))},
+      env: {
+        [APP_PRIVATE_CONFIG_ENV]: JSON.stringify(privateConfig),
+        ...(seedToken && deps.toolSeed
+          ? {[APP_TOOL_SEED_URL_ENV]: deps.toolSeed.url, [APP_TOOL_SEED_TOKEN_ENV]: seedToken}
+          : {}),
+      },
+      ...(seedToken && deps.toolSeed?.hostPort ? {hostPort: deps.toolSeed.hostPort} : {}),
     })
+    if (agentStateDir && execution.changedFiles?.length) deps.onAgentMemoryChanged?.(appId.id)
     const parsed = parseLambdaResult(execution.stdout)
     if (!execution.success) {
       const detail = readableToolError(execution.stderr.trim() || parsed.logs || '')
@@ -444,6 +789,8 @@ export async function callAppTool(
     output = parsed.result
   } catch (cause) {
     error = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    if (seedToken) toolSeedSessions.delete(seedToken)
   }
   const row: ToolCallRow = {
     id: callId,
@@ -456,11 +803,18 @@ export async function callAppTool(
     error: error ?? null,
     duration_ms: Date.now() - startedAt,
     created_at: startedAt,
+    effects_json:
+      session.writes.length || session.sessions.length
+        ? JSON.stringify({
+            ...(session.writes.length ? {writes: session.writes} : {}),
+            ...(session.sessions.length ? {sessions: session.sessions} : {}),
+          })
+        : null,
   }
   deps.db
     .query(
-      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO app_tool_calls (id, app_id, tool_id, caller, tool_version, input_json, output_json, error, duration_ms, created_at, effects_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       row.id,
@@ -473,28 +827,74 @@ export async function callAppTool(
       row.error,
       row.duration_ms,
       row.created_at,
+      row.effects_json ?? null,
     )
   return toCallInfo(row)
 }
 
-/** One recorded call by id. */
-export function getAppToolCall(deps: AppRunDeps, action: {callId: string}): api.AppToolCallInfo {
+/**
+ * Whether any of `readers` may read every call of a host's tools: a writer of the host's space.
+ * Everyone else reads only the calls they made. (A call's input and output can hold what the tool
+ * read from its host's memory or private config.)
+ */
+async function readsAllCalls(deps: AppRunDeps, hostId: string, readers: string[]): Promise<boolean> {
+  const host = unpackHmId(hostId)
+  if (!host) return false
+  for (const reader of readers) if (await isSpaceWriter(deps.client, host, reader)) return true
+  return false
+}
+
+/** One recorded call by id: for writers of its host, and for whoever made it. */
+export async function getAppToolCall(
+  deps: AppRunDeps,
+  action: {callId: string},
+  readers: string[],
+): Promise<api.AppToolCallInfo> {
   const row = deps.db.query('SELECT * FROM app_tool_calls WHERE id = ?').get(action.callId) as ToolCallRow | null
-  if (!row) throw new AppRunError(404, 'No such run')
+  // Someone else's call answers as no call at all, so its existence does not leak either.
+  if (!row || (!readers.includes(row.caller) && !(await readsAllCalls(deps, row.app_id, readers))))
+    throw new AppRunError(404, 'No such run')
   return toCallInfo(row)
 }
 
-/** A tool's recorded calls, newest first. Anyone who can read the tool can read them. */
-export function listAppToolCalls(
+/**
+ * A tool's recorded calls, newest first: all of them for writers of its host, otherwise only the
+ * calls `readers` made themselves.
+ */
+export async function listAppToolCalls(
   deps: AppRunDeps,
   action: {toolId: string; limit?: number; before?: number},
-): api.AppToolCallInfo[] {
+  readers: string[],
+): Promise<api.AppToolCallInfo[]> {
+  const toolId = versionless(action.toolId, 'tool')
+  const limit = Math.max(1, Math.min(200, Math.floor(action.limit ?? 50)))
+  const parent = parentDocumentId(toolId)
+  const all = parent ? await readsAllCalls(deps, parent.id, readers) : false
+  const rows = (
+    deps.db
+      .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`)
+      .all(toolId.id, action.before ?? Number.MAX_SAFE_INTEGER, all ? limit : 1000) as ToolCallRow[]
+  ).filter((row) => all || readers.includes(row.caller))
+  return rows.slice(0, limit).map(toCallInfo)
+}
+
+/** Recent calls with nothing they carried (no input, output, error text or writes): for unsigned readers. */
+export function listAppToolCallSummaries(
+  deps: AppRunDeps,
+  action: {toolId: string; limit?: number},
+): api.AppToolCallSummary[] {
   const toolId = versionless(action.toolId, 'tool')
   const limit = Math.max(1, Math.min(200, Math.floor(action.limit ?? 50)))
   const rows = deps.db
-    .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`)
-    .all(toolId.id, action.before ?? Number.MAX_SAFE_INTEGER, limit) as ToolCallRow[]
-  return rows.map(toCallInfo)
+    .query(`SELECT * FROM app_tool_calls WHERE tool_id = ? ORDER BY created_at DESC LIMIT ?`)
+    .all(toolId.id, limit) as ToolCallRow[]
+  return rows.map((row) => ({
+    id: row.id,
+    toolId: row.tool_id,
+    ok: row.error === null,
+    ...(row.duration_ms !== null ? {durationMs: row.duration_ms} : {}),
+    createdAt: row.created_at,
+  }))
 }
 
 /** Every app running on this server, most recently started or updated first. */

@@ -19,8 +19,10 @@ This page says what a trigger is and how the document relates to the server that
 | `tool` | optionally the [hm:// URL](./protocol/urls.md) of one of its host's tools to call |
 | `input` | optionally the input template for that tool, as nested attributes |
 | `enabled` | `false` turns it off |
+| `onFailure` | `session`: when an agent's tool trigger's call fails, start a session with the agent (see below) |
+| `session` | for an agent's session trigger: `{systemPrompt?, includeAgentSystemPrompt?, tools?: {<tool>: true}}`, the session's own instructions and a narrower tool list |
 
-The document's body is used too. For a trigger that starts an agent [session](./agent/session.md), the body is the session's first message.
+The document's body is used too. For a trigger that starts an agent [session](./agent/session.md), the body is the session's first message. For an agent's tool trigger with `onFailure: session`, it is the message of the session that a failed call starts.
 
 # What it does when it fires
 
@@ -32,9 +34,11 @@ Each time a trigger goes off is a [firing](./agent/firing.md). A firing does one
 - Without `input`, the tool gets the whole event.
 - An app's trigger must call a tool.
 - The server records the call like any other run of the tool, as made by the trigger's **author**. The author is the [account](./protocol/identity.md) that signed the trigger's latest version. The [space](./protocol/spaces.md) accepted that version, so the author is a writer of the host.
-- The call record is as public as any other call record. See [tool](./tool.md).
+- The host's writers can read the call record, as for any call. See [tool](./tool.md).
+- On an agent's trigger, `onFailure: session` starts a session with the agent when the call fails: the trigger's body is its message, with the failure attached, so the agent can find out what went wrong. An app has no agent, so an app's trigger cannot ask for one.
+- A tool under an agent can also start the agent itself, when its code finds work (`ctx.agent.start`, see [tool](./tool.md#starting-the-agent)). A scheduled trigger that calls such a tool wakes the model only when there is something to do.
 
-**Start a session** with an agent. Only an agent's trigger can do this. Leave out `tool`, and the trigger's body is the session's first message.
+**Start a session** with an agent. Only an agent's trigger can do this. Leave out `tool`, and the trigger's body is the session's first message. `session` gives those sessions their own instructions (`systemPrompt`, added to the agent's own unless `includeAgentSystemPrompt` is `false`) and a narrower list of the agent's tools.
 
 A trigger can only call a tool of its own host.
 

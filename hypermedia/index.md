@@ -168,3 +168,5 @@ These pages are markdown files in the folder `hypermedia/` of the public Seed re
 <./hm-url.md> <!-- id:ZZNvvsCP type:Embed attrs:{"view":"Card"} -->
 
 <./ipfs-url.md> <!-- id:A4dLZuF1 type:Embed attrs:{"view":"Card"} -->
+
+<./signing-key.md> <!-- id:AAqBMxwI type:Embed attrs:{"view":"Card"} -->

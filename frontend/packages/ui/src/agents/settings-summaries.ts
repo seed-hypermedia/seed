@@ -42,7 +42,7 @@ export function describeAgentIdentities(definition: AgentDefinition, identities:
     const identity = identities.find((entry) => entry.name === key)
     return identity ? identity.label || identity.accountId || identity.name : key
   })
-  return names.length ? `Authors as ${names.join(', ')}` : 'No identity granted yet.'
+  return names.length ? `Publishes as ${names.join(', ')}` : 'No signing key yet: it cannot publish.'
 }
 
 /** The Settings row summary of the MCP page: how many servers the agent may call. */
