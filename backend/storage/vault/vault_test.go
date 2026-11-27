@@ -11,7 +11,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -695,7 +697,7 @@ func TestMergeNormalizedStatesPrefersNewerNotificationServerURL(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2)
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "https://notify.remote.example.com", merged.NotificationServerURL)
@@ -729,7 +731,7 @@ func TestMergeNormalizedStatesDeduplicatesAccountsByPrincipal(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2)
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Len(t, merged.Accounts, 1)
@@ -766,7 +768,7 @@ func TestMergeNormalizedStatesDeletesRenamedAccountByPrincipal(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2)
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Empty(t, merged.Accounts)
@@ -822,7 +824,7 @@ func TestMergeNormalizedStatesKeepsLocalAccountMetadataAcrossRemoteVersionBump(t
 	})
 	require.NoError(t, err)
 
-	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2)
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Len(t, merged.Accounts, 2)
@@ -904,7 +906,7 @@ func TestMergeNormalizedStatesMergesMatchingAccountDelegationsByCID(t *testing.T
 	})
 	require.NoError(t, err)
 
-	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2)
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Len(t, merged.Accounts, 1)
@@ -1656,4 +1658,137 @@ func connectTestRemoteVault(t *testing.T, ks *Vault, remoteURL string, remoteVer
 		0,
 		syncTime,
 	))
+}
+
+// Two devices that hold one key under different names used to rewrite the remote vault on every
+// sync, each restoring its own name (one production vault reached version 242,000 this way).
+func TestRemoteSyncConvergesWhenDevicesNameOneKeyDifferently(t *testing.T) {
+	ctx := context.Background()
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	wrappedDEK, err := encryptXChaCha20Payload([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"), remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+
+	var (
+		mu            sync.Mutex
+		encryptedData string
+		version       int
+		posts         int
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.Method {
+		case http.MethodGet:
+			if version > 0 && r.URL.Query().Get("knownVersion") == strconv.Itoa(version) {
+				require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{Unchanged: true}))
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				EncryptedData: encryptedData,
+				RemoteVersion: version,
+				Credentials: []Credential{{
+					Kind:         "secret",
+					CredentialID: testRemoteCredentialID,
+					WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+				}},
+			}))
+		case http.MethodPost:
+			var req saveRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			if req.ExpectedVersion != version {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			encryptedData = req.EncryptedData
+			version++
+			posts++
+			require.NoError(t, json.NewEncoder(w).Encode(saveResponse{Success: true}))
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+	uploads := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return posts
+	}
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	newDevice := func(name string) *Vault {
+		secretStore, err := NewMemorySecretStore()
+		require.NoError(t, err)
+		require.NoError(t, secretStore.Store(localVaultKEKName, "", []byte("0123456789abcdef0123456789abcdef")))
+		ks, err := New(t.TempDir(), secretStore)
+		require.NoError(t, err)
+		require.NoError(t, ks.StoreKey(ctx, name, kp))
+		connectTestRemoteVault(t, ks, server.URL, 0, time.Time{})
+		return ks
+	}
+	nameOf := func(ks *Vault) string {
+		keys, err := ks.ListKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		return keys[0].Name
+	}
+	syncBoth := func(devices ...*Vault) {
+		for round := 0; round < 3; round++ {
+			for _, ks := range devices {
+				require.NoError(t, ks.ForceSyncNow(ctx))
+			}
+		}
+	}
+
+	one := newDevice("hm-sync-hypermedia")
+	two := newDevice("hm-sync-hypermedia-tzWdT55r")
+
+	syncBoth(one, two)
+	settled := uploads()
+	require.Equal(t, nameOf(one), nameOf(two), "both devices must settle on one name")
+
+	syncBoth(one, two)
+	require.Equal(t, settled, uploads(), "devices that agree must stop rewriting the remote vault")
+
+	// A rename is a local edit the remote has not seen: it wins and reaches the other device.
+	require.NoError(t, two.ChangeKeyName(ctx, nameOf(two), "renamed"))
+	require.NoError(t, two.Close())
+	syncBoth(two, one)
+	require.Equal(t, "renamed", nameOf(one))
+	require.Equal(t, "renamed", nameOf(two))
+	settled = uploads()
+	syncBoth(one, two)
+	require.Equal(t, settled, uploads())
+}
+
+func TestMergeNormalizedStatesTakesRemoteNameWithoutUnsyncedLocalChanges(t *testing.T) {
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	seed, err := exportedSeed(kp)
+	require.NoError(t, err)
+	state := func(name string, conflict string) State {
+		return State{
+			SchemaVersion: stateSchemaVersion,
+			Accounts: []AccountInfo{{
+				Name:        name,
+				Seed:        seed,
+				CreateTime:  1,
+				Delegations: []DelegationInfo{},
+				Extra:       map[string]any{"conflict": conflict, conflict: "value"},
+			}},
+		}
+	}
+	local, err := normalizeLocalState(state("local-name", "local"))
+	require.NoError(t, err)
+	remoteState := state("remote-name", "remote")
+	remote, err := normalizeRemoteState(remoteState)
+	require.NoError(t, err)
+
+	merged, changed, err := mergeNormalizedStates(local, remote, 1, 2, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "remote-name", merged.Accounts[0].Name)
+	require.Equal(t, map[string]any{"conflict": "remote", "local": "value", "remote": "value"}, merged.Accounts[0].Extra)
+
 }

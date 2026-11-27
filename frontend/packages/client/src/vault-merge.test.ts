@@ -89,7 +89,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
     const local = normalizeState(makeState([], {notificationServerUrl: 'https://notify.local.example.com'}), 'local')
     const remote = normalizeState(makeState([], {notificationServerUrl: 'https://notify.remote.example.com'}), 'remote')
 
-    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(changedFromLocal).toBe(true)
     expect(merged.notificationServerUrl).toBe('https://notify.remote.example.com')
   })
@@ -121,7 +121,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
     const local = normalizeState(makeState([account('shared', SEED_A, 1)]), 'local')
     const remote = normalizeState(makeState([account('renamed', SEED_A, 2)]), 'remote')
 
-    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(changedFromLocal).toBe(true)
     expect(merged.accounts).toHaveLength(1)
     expect(merged.accounts[0]!.name).toBe('shared')
@@ -134,7 +134,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
     const local = normalizeState(makeState([account('renamed', SEED_A, 10)]), 'local')
     const remote = normalizeState(makeState([], {deletedAccounts: {[accountId]: 20}}), 'remote')
 
-    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(changedFromLocal).toBe(true)
     expect(merged.accounts).toHaveLength(0)
     expect(merged.deletedAccounts?.[accountId]).toBe(20)
@@ -145,7 +145,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
     const local = normalizeState(makeState([account('reborn', SEED_A, 30)]), 'local')
     const remote = normalizeState(makeState([], {deletedAccounts: {[accountId]: 20}}), 'remote')
 
-    const {merged} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(merged.accounts).toHaveLength(1)
     expect(merged.accounts[0]!.name).toBe('reborn')
     expect(merged.deletedAccounts?.[accountId]).toBeUndefined()
@@ -160,7 +160,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
     setUnknownFields(staleRemote, {conflict: 'remote', remote: 'value'})
     const remote = normalizeState(makeState([staleRemote, account('remote-only', SEED_B, 2)]), 'remote')
 
-    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(changedFromLocal).toBe(true)
     expect(merged.accounts).toHaveLength(2)
     expect(merged.accounts[0]!.name).toBe('remote-only')
@@ -194,7 +194,7 @@ describe('mergeNormalizedStates (vault_test.go transcriptions)', () => {
       'remote',
     )
 
-    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog)
+    const {merged, changedFromLocal} = mergeNormalizedStates(local, remote, 1, 2, noLog, true)
     expect(changedFromLocal).toBe(true)
     expect(merged.accounts).toHaveLength(1)
     expect(merged.accounts[0]!.name).toBe('renamed-locally')
@@ -369,5 +369,30 @@ describe('Go-parity codec (serializeState/deserializeState)', () => {
     expect(toHex(cbor)).toBe(
       'a46776657273696f6e02686163636f756e747383a4646e616d65646d61696e6473656564582005050505050505050505050505050505050505050505050505050505050505056a63726561746554696d651903e76b64656c65676174696f6e7380a4646e616d6578307a364d6b775644664367394c62625936786a4833455a6b38595346515a756a5635593479315a57654552397444694e336473656564582009090909090909090909090909090909090909090909090909090909090909096a63726561746554696d6518c86b64656c65676174696f6e7380a4646e616d6578307a364d6b74554c75645474417341685265675950695a363633315256337669763132716434475146387a3178423232536473656564582011111111111111111111111111111111111111111111111111111111111111116a63726561746554696d6519012c6b64656c65676174696f6e73806f64656c657465644163636f756e7473a1657a476f6e65186f756e6f74696669636174696f6e53657276657255726c781a68747470733a2f2f6e6f746966792e6578616d706c652e636f6d',
     )
+  })
+
+  test('differing names and unknown fields: remote wins unless local has unsynced changes, so devices converge', () => {
+    const seed = new Uint8Array(32).fill(5)
+    const make = (name: string, side: string): State => {
+      const account: Account = {name, seed, createTime: 1, delegations: []}
+      setUnknownFields(account, {conflict: side, [side]: 'value'})
+      return {version: 2, accounts: [account]}
+    }
+    const local = make('hm-sync-hypermedia', 'local')
+    const remote = make('hm-sync-hypermedia-tzWdT55r', 'remote')
+
+    const clean = mergeStates(local, remote, 1, 2, noLog, false)
+    expect(clean.merged.accounts[0]!.name).toBe('hm-sync-hypermedia-tzWdT55r')
+    expect(getUnknownFields(clean.merged.accounts[0]!)).toEqual({conflict: 'remote', local: 'value', remote: 'value'})
+    expect(clean.changedFromLocal).toBe(true)
+
+    const dirty = mergeStates(local, remote, 1, 2, noLog, true)
+    expect(dirty.merged.accounts[0]!.name).toBe('hm-sync-hypermedia')
+    expect(getUnknownFields(dirty.merged.accounts[0]!)).toEqual({conflict: 'local', local: 'value', remote: 'value'})
+    expect(dirty.changedFromLocal).toBe(true)
+
+    // Two clean devices: whichever merges adopts the remote, then neither differs from it.
+    const adopted = mergeStates(local, remote, 1, 2, noLog).merged
+    expect(mergeStates(adopted, remote, 1, 2, noLog).merged.accounts[0]!.name).toBe('hm-sync-hypermedia-tzWdT55r')
   })
 })

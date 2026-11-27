@@ -138,6 +138,7 @@ export function mergeStates(
   localVersion: number,
   remoteVersion: number,
   log: VaultMergeLogger = defaultLog,
+  localHasUnsyncedChanges = false,
 ): {merged: State; changedFromLocal: boolean} {
   return mergeNormalizedStates(
     normalizeState(local, 'local'),
@@ -145,6 +146,7 @@ export function mergeStates(
     localVersion,
     remoteVersion,
     log,
+    localHasUnsyncedChanges,
   )
 }
 
@@ -159,6 +161,13 @@ export function mergeNormalizedStates(
   localVersion: number,
   remoteVersion: number,
   log: VaultMergeLogger = defaultLog,
+  /**
+   * Whether the local state holds edits the remote has not seen yet. Names and unknown fields that
+   * differ between the two sides take the local value when it does and the remote value otherwise,
+   * so every device settles on one value (Go mergeMatchingAccounts). "Local always wins" made two
+   * devices with different names for one key rewrite the remote vault on every sync.
+   */
+  localHasUnsyncedChanges = false,
 ): {merged: State; changedFromLocal: boolean} {
   const mergedDeleted: Record<string, number> = {...local.deletedAccounts}
   for (const [accountID, deleteTime] of Object.entries(remote.deletedAccounts)) {
@@ -180,7 +189,10 @@ export function mergeNormalizedStates(
   if (notificationServerUrl) {
     merged.notificationServerUrl = notificationServerUrl
   }
-  setUnknownFields(merged, {...remote.extra, ...local.extra})
+  setUnknownFields(
+    merged,
+    localHasUnsyncedChanges ? {...remote.extra, ...local.extra} : {...local.extra, ...remote.extra},
+  )
 
   const accountIDs = new Set<string>([
     ...local.accounts.keys(),
@@ -214,7 +226,7 @@ export function mergeNormalizedStates(
     let next: Account
     if (localAccount && remoteAccount) {
       if (bytesEqual(localAccount.account.seed, remoteAccount.account.seed)) {
-        next = mergeMatchingAccounts(localAccount.account, remoteAccount.account)
+        next = mergeMatchingAccounts(localAccount.account, remoteAccount.account, localHasUnsyncedChanges)
       } else if (accountWinsByTiebreak(localAccount, remoteAccount)) {
         log('divergent key material for principal: REMOTE account won the tiebreak', {accountID})
         next = remoteAccount.account
@@ -307,16 +319,17 @@ function mergeDuplicateAccount(existing: NormalizedAccount, candidate: Normalize
 }
 
 /** Go mergeMatchingAccounts: same principal + same key bytes on both sides. */
-function mergeMatchingAccounts(local: Account, remote: Account): Account {
+function mergeMatchingAccounts(local: Account, remote: Account, localHasUnsyncedChanges: boolean): Account {
   const mergedDelegations = normalizeDelegations([...local.delegations, ...remote.delegations])
+  const [winner, other] = localHasUnsyncedChanges ? [local, remote] : [remote, local]
 
   const merged: Account = {
-    name: local.name || remote.name,
+    name: winner.name || other.name,
     seed: local.seed.length > 0 ? new Uint8Array(local.seed) : remote.seed,
     createTime: Math.max(local.createTime, remote.createTime),
     delegations: mergedDelegations,
   }
-  setUnknownFields(merged, {...getUnknownFields(remote), ...getUnknownFields(local)})
+  setUnknownFields(merged, {...getUnknownFields(other), ...getUnknownFields(winner)})
   return merged
 }
 

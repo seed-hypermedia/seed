@@ -2148,7 +2148,15 @@ func (ks *Vault) mergeRemoteAccounts(
 		return err
 	}
 
-	mergedState, changed, err := mergeNormalizedStates(localNormalized, remoteNormalized, localVersion, remoteVersion)
+	// Local edits that the remote has not seen yet keep their names and extra fields; otherwise the
+	// remote's win. Without that, two devices holding different names for one key each kept its own and
+	// re-uploaded it on every sync, forever.
+	localHasUnsyncedChanges := false
+	if snapshot.Envelope != nil && snapshot.Envelope.Remote != nil {
+		localHasUnsyncedChanges = snapshot.Envelope.Remote.LocalVersion != snapshot.Envelope.Remote.SyncedLocalVersion
+	}
+
+	mergedState, changed, err := mergeNormalizedStates(localNormalized, remoteNormalized, localVersion, remoteVersion, localHasUnsyncedChanges)
 	if err != nil {
 		return err
 	}
@@ -2611,31 +2619,49 @@ func mergeRemoteDelegations(left []DelegationInfo, right []DelegationInfo) ([]De
 	return normalizeRemoteDelegations(combined)
 }
 
-func mergeMatchingAccounts(local AccountInfo, remote AccountInfo) (AccountInfo, error) {
+// mergeMatchingAccounts merges two records of one account (same principal, same key).
+//
+// Name and extra fields have one winner, chosen the same way on every device so that all of them
+// settle on one value: the local side when it holds edits the remote has not seen yet
+// (localHasUnsyncedChanges), the remote side otherwise. "Local always wins" does not converge:
+// two devices with different names for one key each kept its own name, found the remote different,
+// and uploaded again on every sync.
+func mergeMatchingAccounts(local AccountInfo, remote AccountInfo, localHasUnsyncedChanges bool) (AccountInfo, error) {
 	mergedDelegations, err := mergeRemoteDelegations(local.Delegations, remote.Delegations)
 	if err != nil {
 		return AccountInfo{}, err
 	}
 
+	winner, other := remote, local
+	if localHasUnsyncedChanges {
+		winner, other = local, remote
+	}
+
 	merged := remote
-	merged.Name = local.Name
+	merged.Name = winner.Name
 	if merged.Name == "" {
-		merged.Name = remote.Name
+		merged.Name = other.Name
 	}
 	if len(local.Seed) > 0 {
 		merged.Seed = bytes.Clone(local.Seed)
 	}
 	merged.CreateTime = max(local.CreateTime, remote.CreateTime)
 	merged.Delegations = mergedDelegations
-	merged.Extra = maps.Clone(remote.Extra)
-	for key, value := range local.Extra {
-		if merged.Extra == nil {
-			merged.Extra = map[string]any{}
-		}
-		merged.Extra[key] = value
-	}
+	merged.Extra = mergeExtraFields(winner.Extra, other.Extra)
 
 	return merged, nil
+}
+
+// mergeExtraFields keeps every unknown field of both sides; where both have a key, winner's value stays.
+func mergeExtraFields(winner map[string]any, other map[string]any) map[string]any {
+	merged := maps.Clone(other)
+	for key, value := range winner {
+		if merged == nil {
+			merged = map[string]any{}
+		}
+		merged[key] = value
+	}
+	return merged
 }
 
 func normalizeRemoteDelegations(delegations []DelegationInfo) ([]DelegationInfo, error) {
@@ -2705,19 +2731,18 @@ func mergeNormalizedStates(
 	remote normalizedState,
 	localVersion int,
 	remoteVersion int,
+	localHasUnsyncedChanges bool,
 ) (State, bool, error) {
 	merged := State{
 		SchemaVersion:         stateSchemaVersion,
 		NotificationServerURL: chooseMergedNotificationServerURL(local.NotificationServerURL, remote.NotificationServerURL, localVersion, remoteVersion),
 		Accounts:              []AccountInfo{},
 		DeletedAccounts:       maps.Clone(local.DeletedAccounts),
-		Extra:                 maps.Clone(remote.Extra),
 	}
-	for key, value := range local.Extra {
-		if merged.Extra == nil {
-			merged.Extra = map[string]any{}
-		}
-		merged.Extra[key] = value
+	if localHasUnsyncedChanges {
+		merged.Extra = mergeExtraFields(local.Extra, remote.Extra)
+	} else {
+		merged.Extra = mergeExtraFields(remote.Extra, local.Extra)
 	}
 	if merged.DeletedAccounts == nil {
 		merged.DeletedAccounts = map[string]int64{}
@@ -2776,7 +2801,7 @@ func mergeNormalizedStates(
 				return State{}, false, fmt.Errorf("failed to compare remote account %q key material: %w", accountID, err)
 			}
 			if keyMatch {
-				next, err = mergeMatchingAccounts(localAccount.Account, remoteAccount.Account)
+				next, err = mergeMatchingAccounts(localAccount.Account, remoteAccount.Account, localHasUnsyncedChanges)
 				if err != nil {
 					return State{}, false, fmt.Errorf("failed to merge account %q: %w", accountID, err)
 				}
