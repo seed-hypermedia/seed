@@ -460,6 +460,11 @@ function yieldToEventLoop(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // One background task's rejected promise must not exit the server and every session on it (Bun
+  // exits on an unhandled rejection by default). Log it and keep serving.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[agents] unhandled rejection', reason instanceof Error ? reason.stack ?? reason.message : reason)
+  })
   if (process.argv.includes('--exec-selfcheck')) {
     // Verifies the microsandbox SDK is loadable through the same path execute_code uses. The SDK
     // is external to the compiled binary and staged on disk by build-binary.ts, so this catches

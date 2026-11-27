@@ -296,6 +296,8 @@ CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
 CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
 -- Live-run flag per agent (`busy` in agentActivityColumns): answered from the index alone.
 CREATE INDEX runs_by_agent_status ON runs (agent_id, status);
+-- The foreign key check when a trigger firing is deleted, and detaching runs from a deleted trigger.
+CREATE INDEX runs_by_trigger_firing ON runs (trigger_firing_id) WHERE trigger_firing_id IS NOT NULL;
 -- Unfinished runs only (a few dozen against every run ever made): the queue's and the boot passes'
 -- `status = '<live status>'` lookups, which `sqlite_stat1` averages otherwise steer onto a
 -- skip-scan of runs_dispatch. A query's `status = 'x'` implies one arm of the OR.

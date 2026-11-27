@@ -14,6 +14,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Deleting a trigger firing makes SQLite check runs.trigger_firing_id (foreign keys are on), and
+  // without an index each check scanned every run, inside the write transaction.
+  `CREATE INDEX IF NOT EXISTS runs_by_trigger_firing ON runs (trigger_firing_id) WHERE trigger_firing_id IS NOT NULL;`,
   // Triggers are documents (hypermedia/trigger.md): a trigger document under an agent or an
   // app is projected into these rows while its host lives on this server. A trigger now belongs to
   // an agent OR an app, so agent_id becomes nullable beside the new app_id; document_id names the
@@ -660,7 +663,14 @@ export function applyConnectionTuning(db: Database, tuning: ConnectionTuning): v
   db.run(`PRAGMA journal_size_limit = ${Math.max(0, Math.floor(tuning.walLimitBytes))}`)
   db.run('PRAGMA synchronous = NORMAL')
   db.run('PRAGMA temp_store = MEMORY')
+  // Wait out a write lock instead of failing at once with SQLITE_BUSY. The server is the database's
+  // only writer, but an operator's script, a backup or a sqlite3 shell can hold the lock for a
+  // moment, and without a timeout every server write in that moment throws.
+  db.run(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`)
 }
+
+/** How long a statement waits for another connection's write lock before SQLITE_BUSY. */
+export const BUSY_TIMEOUT_MS = 5_000
 
 /** The settings in effect (SQLite caps mmap at its compiled maximum) and the file's shape, for the startup log. */
 export function connectionSettings(db: Database): Record<string, number> {
