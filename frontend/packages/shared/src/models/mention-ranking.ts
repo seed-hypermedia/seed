@@ -6,10 +6,10 @@ const VISIT_HALF_LIFE = 7 * DAY
 const ACTIVITY_HALF_LIFE = 14 * DAY
 
 const accountRoleLabels = {
-  'site-owner': 'Site owner',
-  'site-editor': 'Site editor',
+  'site-owner': 'Space owner',
+  'site-editor': 'Space editor',
   'document-editor': 'Document editor',
-  'site-follower': 'Site follower',
+  'site-follower': 'Space follower',
 }
 
 /** Loaded conversation participants used only for account mention relevance. */

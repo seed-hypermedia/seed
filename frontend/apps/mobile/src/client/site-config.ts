@@ -27,11 +27,11 @@ export async function fetchSiteConfig(serverUrl: string): Promise<SiteConfig> {
     clearTimeout(timer)
   }
   if (!response.ok) {
-    throw new Error(`Failed to fetch site config from ${serverUrl}: ${response.status}`)
+    throw new Error(`Failed to fetch space config from ${serverUrl}: ${response.status}`)
   }
   const data = (await response.json()) as SiteConfig & {message?: string}
   if (typeof data !== 'object' || data === null) {
-    throw new Error(`Invalid site config response from ${serverUrl}`)
+    throw new Error(`Invalid space config response from ${serverUrl}`)
   }
   return {
     registeredAccountUid: data.registeredAccountUid ?? null,

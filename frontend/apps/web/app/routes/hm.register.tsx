@@ -73,9 +73,9 @@ function BrowserRegistration() {
     setState({status: 'busy'})
     try {
       const configResponse = await fetch('/hm/api/config', {credentials: 'include'})
-      if (!configResponse.ok) throw new Error(`Could not read site config (${configResponse.status})`)
+      if (!configResponse.ok) throw new Error(`Could not read space config (${configResponse.status})`)
       const config = (await configResponse.json()) as {peerId?: string}
-      if (!config.peerId) throw new Error('Site config is missing its peer ID')
+      if (!config.peerId) throw new Error('Space config is missing its peer ID')
       // Passing the site's own peer tells the register action the space is
       // already on this daemon, so it skips the libp2p connection step.
       const response = await fetch('/hm/api/register', {
@@ -99,10 +99,10 @@ function BrowserRegistration() {
         </p>
       </SizableText>
       {state.status === 'done' ? (
-        <SizableText color="success">This space is now registered on this site.</SizableText>
+        <SizableText color="success">This space is now registered on this server.</SizableText>
       ) : (
         <Button onClick={register} loading={state.status === 'busy'} disabled={state.status === 'busy'}>
-          Register this space on this site
+          Register this space on this server
         </Button>
       )}
       {state.status === 'error' ? (

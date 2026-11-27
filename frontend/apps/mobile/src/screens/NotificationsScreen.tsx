@@ -21,7 +21,7 @@ const REASON_LABELS: Record<string, string> = {
   mention: 'mentioned you',
   reply: 'replied to you',
   discussion: 'started a discussion',
-  'site-new-discussion': 'new discussion on your site',
+  'site-new-discussion': 'new discussion on your space',
   'site-doc-update': 'updated a document',
   'user-comment': 'commented',
 }

@@ -65,7 +65,10 @@ export const action: ActionFunction = async ({request}) => {
     const config = await getConfig(hostname)
     if (!config) throw new Error(`No config defined for ${hostname}`)
     if (config.registeredAccountUid) {
-      return json({message: 'This site is already registered', accountUid: config.registeredAccountUid}, {status: 409})
+      return json(
+        {message: 'This server is already registered to a space', accountUid: config.registeredAccountUid},
+        {status: 409},
+      )
     }
     const name = input.name || hostname
 

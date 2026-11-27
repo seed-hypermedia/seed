@@ -85,8 +85,8 @@ describe('mention context and subtitles', () => {
       [],
       now,
     )
-    expect(candidate?.hint).toBe('Published 2m ago · Site editor')
-    expect(mentionCandidateSubtitle(candidate!)).toBe('Published 2m ago · Site editor')
+    expect(candidate?.hint).toBe('Published 2m ago · Space editor')
+    expect(mentionCandidateSubtitle(candidate!)).toBe('Published 2m ago · Space editor')
   })
   it('uses comment activity and contact fallback without calling followers members', () => {
     expect(
@@ -102,7 +102,7 @@ describe('mention context and subtitles', () => {
         [],
         now,
       )[0]?.hint,
-    ).toBe('Commented 2m ago · Site follower')
+    ).toBe('Commented 2m ago · Space follower')
     expect(rankMentionCandidates([account('a', 'Alice', {sameSite: true})], '', [], now)[0]?.hint).toBeUndefined()
   })
   it('uses public name as fallback and a clean short ID only without useful hints', () => {

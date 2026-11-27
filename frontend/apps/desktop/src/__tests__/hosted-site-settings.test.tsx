@@ -95,24 +95,24 @@ describe('desktop Seed Hosting controls', () => {
   it('hides management for selfhosted spaces even if their hostname resembles Seed hosting', () => {
     state.sites[0].activeConfig.registeredAccountUid = 'other-space'
     render()
-    expect(container.textContent).not.toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Change Space Address')
     expect(container.textContent).not.toContain('Transfer Hosting')
   })
   it('hides controls after the space has moved to selfhosting', () => {
     render('https://selfhost.example.com')
-    expect(container.textContent).not.toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Change Space Address')
     expect(container.textContent).not.toContain('Transfer Hosting')
   })
   it('hides cached controls when signed out', () => {
     state.loggedIn = false
     render()
-    expect(container.textContent).not.toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Change Space Address')
     click('Sign in to Seed Hosting')
     expect(document.body.textContent).toContain('Hosting Login')
   })
   it('requires confirmation before moving and then updates publication', async () => {
     render()
-    click('Change Site Address')
+    click('Change Space Address')
     input('New subdomain', 'newspace')
     expect(button('Change Address').disabled).toBe(true)
     await submit()
@@ -132,7 +132,7 @@ describe('desktop Seed Hosting controls', () => {
   it('keeps the dialog open on hosting errors', async () => {
     state.rename.mockRejectedValue(new Error('That address is already in use.'))
     render()
-    click('Change Site Address')
+    click('Change Space Address')
     input('New subdomain', 'newspace')
     input('Type myspace', 'myspace')
     await submit()
@@ -142,7 +142,7 @@ describe('desktop Seed Hosting controls', () => {
   it('retries publication without renaming again when publishing fails after the move', async () => {
     state.publish.mockRejectedValueOnce(new Error('Device disconnected'))
     render()
-    click('Change Site Address')
+    click('Change Space Address')
     input('New subdomain', 'newspace')
     input('Type myspace', 'myspace')
     await submit()
@@ -155,7 +155,7 @@ describe('desktop Seed Hosting controls', () => {
   it('can close after a publication error and recover persisted moves after reopening', async () => {
     state.publish.mockRejectedValueOnce(new Error('Device disconnected'))
     render()
-    click('Change Site Address')
+    click('Change Space Address')
     input('New subdomain', 'newspace')
     input('Type myspace', 'myspace')
     await submit()
@@ -177,7 +177,7 @@ describe('desktop Seed Hosting controls', () => {
       },
     ]
     render()
-    expect(container.textContent).not.toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Change Space Address')
     await act(async () => button('Resume Address Change').click())
     expect(state.recover).toHaveBeenCalledWith(state.pendingMoves[0])
     expect(state.clearMove).toHaveBeenCalledWith('hosting-1')
@@ -185,7 +185,7 @@ describe('desktop Seed Hosting controls', () => {
   })
   it('explains that a custom primary domain stays unchanged', () => {
     render('https://custom.example.com')
-    click('Change Site Address')
+    click('Change Space Address')
     expect(document.body.textContent).toContain('Your published domain stays at https://custom.example.com')
   })
   it('transfers hosting with confirmation without changing publication or space identity', async () => {
@@ -202,6 +202,6 @@ describe('desktop Seed Hosting controls', () => {
     state.sites[0].services = [{serviceEnd: null, plan: {dedicatedServerType: 'dedicated'}}]
     render()
     expect(button('Transfer Hosting').disabled).toBe(true)
-    expect(button('Change Site Address').disabled).toBe(true)
+    expect(button('Change Space Address').disabled).toBe(true)
   })
 })

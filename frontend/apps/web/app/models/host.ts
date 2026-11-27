@@ -492,7 +492,7 @@ export function useHostSession({
         await hostAPI(`sites/${encodeURIComponent(move.id)}`, 'GET', undefined, state),
       )
       if (site.activeConfig?.registeredAccountUid !== move.siteUid)
-        throw new Error('This hosted site is no longer registered to the space.')
+        throw new Error('This hosting is no longer registered to this space.')
       if (site.name === move.newName) return site.url
       if (site.name !== move.oldName)
         throw new Error('The hosting address changed again. Review it in Seed Hosting before updating publication.')
@@ -582,12 +582,12 @@ export function useHostSession({
         await hostAPI(`sites/${encodeURIComponent(hostingSiteId)}`, 'GET', undefined, state),
       )
       if (site.activeConfig?.registeredAccountUid !== id.uid)
-        throw new Error('This hosted site is no longer registered to the space.')
+        throw new Error('This hosting is no longer registered to this space.')
       const domains = z
         .array(HostedDomainSchema)
         .parse(await hostAPI(`sites/${encodeURIComponent(hostingSiteId)}/domains`, 'GET', undefined, state))
       const domain = domains.find((domain) => domain.hostname === hostname)
-      if (!domain) throw new Error('This domain no longer belongs to the hosted site.')
+      if (!domain) throw new Error('This domain no longer belongs to the hosted space.')
       assertSession(state.authGeneration)
       const current = readState()
       const existing = current.pendingDomains.find((pending) => pending.id === domain.id)

@@ -728,7 +728,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         </button>
       ) : null}
       <div className="bg-border h-px" />
-      <AccountMenuSection>My sites</AccountMenuSection>
+      <AccountMenuSection>My spaces</AccountMenuSection>
       {canCreateSpace ? (
         <button
           className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left font-normal text-green-600 dark:text-green-500"
@@ -738,7 +738,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           }}
         >
           <Plus className="size-4" />
-          <span className="text-sm">Create new site</span>
+          <span className="text-sm">Create new space</span>
         </button>
       ) : (
         <>
@@ -862,14 +862,14 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <AccountMenuSection>My sites</AccountMenuSection>
+              <AccountMenuSection>My spaces</AccountMenuSection>
               {canCreateSpace ? (
                 <DropdownMenuItem
                   onClick={openCreateSpaceDialog}
                   className="font-normal text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
                 >
                   <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create new site
+                  Create new space
                 </DropdownMenuItem>
               ) : (
                 <>

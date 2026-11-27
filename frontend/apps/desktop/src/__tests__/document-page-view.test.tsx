@@ -232,9 +232,9 @@ describe('DocumentPageView', () => {
     expect(window.document.body.textContent).toContain('Allow this request only.')
     await act(async () => (window.document.querySelector('input[value="type-site"]') as HTMLInputElement).click())
     expect(window.document.body.textContent).toContain(
-      'This page can sign future requests of this type on this site without asking again.',
+      'This page can sign future requests of this type on this space without asking again.',
     )
-    await click('Allow comments on this site')
+    await click('Allow comments on this space')
     await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
     expect(
       (decode(new Uint8Array(mocks.publish.mock.calls[0]![0].blobs[0].data)) as Record<string, unknown>).path,
@@ -271,7 +271,7 @@ describe('DocumentPageView', () => {
     await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(3))
     expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
     await click('Page permissions')
-    expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow comments on this site')
+    expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow comments on this space')
     expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow all reading')
     await click('Reset additional permissions')
     expect(window.localStorage.getItem(pagePermissionStorageKey(mocks.account, docId.id))).toBe('[]')

@@ -45,7 +45,7 @@ export function CreateSpaceCallToAction({onCreate, className}: {onCreate: () => 
         <div className="flex flex-col gap-1">
           <span className="text-sm font-semibold">You don't have a space yet</span>
           <span className="text-muted-foreground text-sm">
-            A space is your own site, where you publish documents and invite people.
+            A space is your own home on the web, where you publish documents and invite people.
           </span>
         </div>
         <Button variant="default" onClick={onCreate}>
@@ -68,7 +68,7 @@ export function PageNotFoundOrCreateSpace({docId}: {docId: UnpackedHypermediaId}
   return (
     <PageMessageBox
       title="You don't have a space yet"
-      message="A space is your own site, where you publish documents and invite people."
+      message="A space is your own home on the web, where you publish documents and invite people."
     >
       <Button variant="default" onClick={openCreateSpace}>
         <Plus className="size-4" />

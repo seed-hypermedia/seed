@@ -231,7 +231,7 @@ export function PublishHostingChoice({
             icon={SelfHost}
             onClick={onSelfHost}
             label="Self Host on Your Own Server"
-            description="Run the Seed site software on a server that you manage."
+            description="Run the Seed space software on a server that you manage."
           />
         ) : null}
         {onSetupUrl ? (

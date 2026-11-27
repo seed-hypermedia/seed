@@ -99,7 +99,10 @@ describe('/hm/api/enterprise-bootstrap action', () => {
     mocks.getConfig.mockResolvedValue({registeredAccountUid: 'z6MkExisting', sourcePeerId: 'this-daemon'})
     const response = await bootstrap({body: {name: 'Acme'}})
     expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({message: 'This site is already registered', accountUid: 'z6MkExisting'})
+    expect(await response.json()).toEqual({
+      message: 'This server is already registered to a space',
+      accountUid: 'z6MkExisting',
+    })
     expect(mocks.genMnemonic).not.toHaveBeenCalled()
     expect(mocks.registerKey).not.toHaveBeenCalled()
     expect(mocks.writeConfig).not.toHaveBeenCalled()

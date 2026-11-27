@@ -93,9 +93,9 @@ async function fetchSite(origin: string, path: string, options?: RequestInit) {
 
 async function siteResponse(response: Response) {
   const data = await response.json().catch(() => {
-    throw new Error('The site returned an unreadable response. Please try again.')
+    throw new Error('The space returned an unreadable response. Please try again.')
   })
-  if (!response.ok) throw new Error(data.message || `The site returned status ${response.status}.`)
+  if (!response.ok) throw new Error(data.message || `The space returned status ${response.status}.`)
   return data
 }
 
