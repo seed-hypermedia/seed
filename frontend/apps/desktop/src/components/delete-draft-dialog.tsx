@@ -15,7 +15,15 @@ function DeleteDraftDialog({
   input,
 }: {
   onClose: () => void
-  input: {draftId: string; onSuccess?: () => void; onConfirm?: () => void | Promise<void>}
+  input: {
+    draftId: string
+    onSuccess?: () => void
+    onConfirm?: () => void | Promise<void>
+    /** Called when the user discards but keeps the referenced child drafts. */
+    onConfirmKeepDrafts?: () => void | Promise<void>
+    /** Number of unpublished child documents referenced by this draft's cards. */
+    childDraftCount?: number
+  }
 }) {
   const deleteDraft = useDeleteDraft({
     onSettled: input.onSuccess,
@@ -31,6 +39,11 @@ function DeleteDraftDialog({
           ? 'Your unpublished changes will be discarded and the document will revert to its last published version.'
           : 'This draft document and all its content will be permanently deleted. This action cannot be undone.'}
       </Text>
+      {input.childDraftCount ? (
+        <Text className="text-muted-foreground text-sm">
+          {`This draft contains ${input.childDraftCount} unpublished child document(s). Discarding removes their cards.`}
+        </Text>
+      ) : null}
 
       <AlertDialogFooter className="flex-col">
         <Button
@@ -41,6 +54,18 @@ function DeleteDraftDialog({
         >
           Cancel
         </Button>
+        {input.childDraftCount && input.onConfirmKeepDrafts ? (
+          <Button
+            variant="outline"
+            title="Not recommended"
+            onClick={() => {
+              void Promise.resolve(input.onConfirmKeepDrafts!()).then(input.onSuccess)
+              onClose()
+            }}
+          >
+            Discard and keep drafts (not recommended)
+          </Button>
+        ) : null}
         <Button
           variant="destructive"
           onClick={() => {
@@ -52,7 +77,7 @@ function DeleteDraftDialog({
             onClose()
           }}
         >
-          {editId ? 'Yes, discard changes' : 'Yes, discard draft'}
+          {input.childDraftCount ? 'Discard and delete drafts' : editId ? 'Yes, discard changes' : 'Yes, discard draft'}
         </Button>
       </AlertDialogFooter>
     </>

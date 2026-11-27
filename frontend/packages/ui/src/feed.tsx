@@ -5,6 +5,7 @@ import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/m
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {
+  selectDiscardChildDraftIds,
   selectDraftHidden,
   selectPublishedVersion,
   useDocumentSelector,
@@ -57,7 +58,7 @@ export type DraftVersionEntry = {
   draftId: string
   deps?: string[]
   metadata?: {name?: string}
-  onDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void) => void
+  onDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void, childDraftIds?: string[]) => void
 }
 
 export function shouldShowDraftVersionEntry(
@@ -363,6 +364,7 @@ export function DraftVersionItem({
 }) {
   const currentRoute = useNavRoute()
   const send = useDocumentSend()
+  const childDraftIds = useDocumentSelector(selectDiscardChildDraftIds)
   const draftHidden = useDocumentSelector(selectDraftHidden)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const draftRoute = {
@@ -437,7 +439,7 @@ export function DraftVersionItem({
             event.preventDefault()
             event.stopPropagation()
             if (draft.onDiscardConfirm) {
-              draft.onDiscardConfirm(draft.draftId, send)
+              draft.onDiscardConfirm(draft.draftId, send, childDraftIds)
             } else if (window.confirm('Discard draft changes?')) {
               send({type: 'edit.discard'})
             }

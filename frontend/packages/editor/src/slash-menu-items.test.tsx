@@ -36,12 +36,33 @@ describe('getSlashMenuItems', () => {
     expect(editor._tiptapEditor.view.dispatch).toHaveBeenCalledWith('scroll-tr')
   })
 
-  it('hides New document even when inline draft creation is available', () => {
-    const items = getSlashMenuItems({
-      docId: {id: 'hm://uid/parent', uid: 'uid', path: ['parent'], version: null, blockRef: null} as any,
-      onCreateInlineDraft: vi.fn(),
-    })
+  it('inserts New document draft embed without focusing/selecting the editor block', async () => {
+    const currentBlock = {id: 'block-1', content: [{type: 'text', text: '/'}]}
+    const editor = {
+      getTextCursorPosition: vi.fn(() => ({block: currentBlock})),
+      updateBlock: vi.fn(),
+      focus: vi.fn(),
+      setTextCursorPosition: vi.fn(),
+      _tiptapEditor: {
+        commands: {
+          command: vi.fn(),
+        },
+      },
+    }
+    const onCreateInlineDraft = vi.fn().mockResolvedValue({draftId: 'draft-1', draftPath: ['parent', '-draft-1']})
 
-    expect(items.find((item) => item.name === 'New document')).toBeUndefined()
+    const item = getSlashMenuItems({
+      docId: {id: 'hm://uid/parent', uid: 'uid', path: ['parent'], version: null, blockRef: null} as any,
+      onCreateInlineDraft,
+    }).find((item) => item.name === 'New document')
+
+    await item!.execute(editor as any)
+
+    expect(editor.updateBlock).toHaveBeenCalledWith(currentBlock, {
+      type: 'embed',
+      props: {draftId: 'draft-1', url: '', view: 'Card'},
+    })
+    expect(editor.focus).not.toHaveBeenCalled()
+    expect(editor.setTextCursorPosition).not.toHaveBeenCalled()
   })
 })

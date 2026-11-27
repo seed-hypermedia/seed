@@ -18,6 +18,7 @@ import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {useCallback, useMemo} from 'react'
+import {client} from '@/trpc'
 import {useDeleteDraftDialog} from './delete-draft-dialog'
 
 export {PublishPopoverBody} from '@shm/ui/editing-toolbar'
@@ -80,21 +81,27 @@ export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
   const callbacks: EditingToolbarCallbacks = useMemo(
     () => ({
       getDocumentUrl,
-      onDiscardConfirm: (discardDraftId: string, send) => {
-        deleteDraftDialog.open({
-          draftId: discardDraftId,
-          onConfirm: () => {
-            send({type: 'edit.discard'})
-            const nextId =
-              getDraftPlaceholderParentId(docId, discardDraftId) ??
-              getDraftReturnParentId(discardDraftId) ??
-              ({...docId, version: null} as UnpackedHypermediaId)
-            navigate({
-              ...(route.key === 'document' ? route : {key: 'document'}),
-              id: nextId,
-            } as any)
-            toast.success('Draft changes discarded')
-          },
+      onDiscardConfirm: (discardDraftId: string, send, childDraftIds = []) => {
+        const finish = (deleteChildDrafts: boolean) => {
+          send({type: 'edit.discard', deleteChildDrafts})
+          const nextId =
+            getDraftPlaceholderParentId(docId, discardDraftId) ??
+            getDraftReturnParentId(discardDraftId) ??
+            ({...docId, version: null} as UnpackedHypermediaId)
+          navigate({
+            ...(route.key === 'document' ? route : {key: 'document'}),
+            id: nextId,
+          } as any)
+          toast.success('Draft changes discarded')
+        }
+        // Only count child drafts that still exist; published children were already deleted.
+        void Promise.all(childDraftIds.map((id) => client.drafts.get.query(id).catch(() => null))).then((drafts) => {
+          deleteDraftDialog.open({
+            draftId: discardDraftId,
+            childDraftCount: drafts.filter(Boolean).length,
+            onConfirm: () => finish(true),
+            onConfirmKeepDrafts: () => finish(false),
+          })
         })
       },
       onGoToVersions: (id: UnpackedHypermediaId) => {

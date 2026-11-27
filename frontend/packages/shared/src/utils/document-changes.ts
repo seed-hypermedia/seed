@@ -240,6 +240,25 @@ export function createBlocksMap(blockNodes: Array<HMBlockNode> = [], parentId: s
   return result
 }
 
+/**
+ * Return copies of the editor blocks with `props.draftId` removed from embed
+ * blocks. Draft card references are working-draft state and must never be
+ * written into published changes.
+ */
+export function stripDraftIdsFromEditorBlocks(blocks: Array<EditorBlock>): Array<EditorBlock> {
+  return blocks.map((block) => {
+    const needsStrip = block.type === 'embed' && !!(block.props as {draftId?: string}).draftId
+    const children = block.children?.length ? stripDraftIdsFromEditorBlocks(block.children) : block.children
+    if (!needsStrip && children === block.children) return block
+    const {draftId: _draftId, ...restProps} = block.props as EditorBlock['props'] & {draftId?: string}
+    return {
+      ...block,
+      ...(needsStrip ? {props: restProps} : {}),
+      children,
+    } as EditorBlock
+  })
+}
+
 export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
   const repaired = deduplicateBlockIds(blocks, new Set(Object.keys(blocksMap)))
   return compareUniqueBlocksWithMap(blocksMap, repaired, parentId)

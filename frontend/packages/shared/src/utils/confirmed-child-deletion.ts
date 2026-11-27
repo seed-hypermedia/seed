@@ -365,3 +365,47 @@ export async function resolveDirectDocumentReferences(
   }
   return {ids: Array.from(ids.values()), unresolved}
 }
+
+/**
+ * Reports whether authored content already references a document. hm links
+ * compare canonically without any network access; web links are resolved only
+ * when their URL path could plausibly point at the target, and all candidates
+ * resolve in parallel.
+ */
+export async function contentReferencesDocument(content: HMBlockNode[], targetDocumentId: string): Promise<boolean> {
+  const target = unpackHmId(targetDocumentId)
+  if (!target) return false
+  const canonicalTarget = hmId(target.uid, {path: target.path}).id
+  const matches = (id: UnpackedHypermediaId | null | undefined) =>
+    !!id && hmId(id.uid, {path: id.path}).id === canonicalTarget
+  const targetPath = target.path ?? []
+  const suffix = targetPath.length ? `/${targetPath.join('/')}` : null
+  const candidates: string[] = []
+  for (const link of Array.from(new Set(getDocumentReferenceLinks(content)))) {
+    const id = unpackHmId(link)
+    if (id) {
+      if (matches(id)) return true
+      continue
+    }
+    if (!/^https?:\/\//.test(link)) continue
+    if (suffix) {
+      try {
+        const pathname = decodeURIComponent(new URL(link).pathname).replace(/\/+$/, '')
+        if (!pathname.endsWith(suffix)) continue
+      } catch {
+        continue
+      }
+    }
+    candidates.push(link)
+  }
+  if (!candidates.length) return false
+  const {resolveHypermediaUrl} = await import('@seed-hypermedia/client')
+  const resolved = await Promise.all(
+    candidates.map((link) =>
+      resolveHypermediaUrl(link, {requireSuccessfulResponse: true})
+        .then((result) => result?.hmId ?? null)
+        .catch(() => null),
+    ),
+  )
+  return resolved.some(matches)
+}
