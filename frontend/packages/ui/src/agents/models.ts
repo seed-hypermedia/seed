@@ -1,6 +1,7 @@
 import type {CreateAgent} from '@seed-hypermedia/apps-protocol'
 import {
   getAgentServerHealth,
+  type AgentServerHealth,
   getAgentWebSocketUrl,
   isSafeAgentServerSecretTarget,
   normalizeAgentServerUrl,
@@ -44,12 +45,18 @@ import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
 import {useSiteAgentMounts} from '../site-agents'
 import {unmountedOwnedAgents} from './orphan-agents'
-import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/apps-protocol'
+import {
+  APP_ENVIRONMENT_FEATURES,
+  getToolReferencedUrls,
+  type AgentActivity,
+  type AppEnvironmentFeature,
+  type Thoroughness,
+} from '@seed-hypermedia/apps-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
-import {AGENTS_LOCAL_SERVER_SETTING_KEY} from '@shm/shared/constants'
+import {AGENTS_LOCAL_SERVER_SETTING_KEY, LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY} from '@shm/shared/constants'
 import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 // Deep import, not the `@shm/shared` barrel: that barrel pulls in protobuf, connectrpc, cheerio,
 // katex, lowlight and react-tweet, none of which belong in a React Native bundle. This module is
@@ -496,6 +503,73 @@ export function useLocalAgentServerSetting() {
   })
 }
 
+/**
+ * Whether the user has decided what the local app environment runs: the stored list, or null on a
+ * build that has not settled it yet (see `useLocalAgentsServerMigration` in the desktop app).
+ */
+export function useLocalAgentServerFeaturesSetting() {
+  return useQuery({
+    queryKey: ['agents', 'settings', LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY],
+    queryFn: async (): Promise<AppEnvironmentFeature[] | null> => {
+      const value = await getAgentsPlatform().getSetting(LOCAL_APP_ENVIRONMENT_FEATURES_SETTING_KEY)
+      return Array.isArray(value) ? APP_ENVIRONMENT_FEATURES.filter((feature) => value.includes(feature)) : null
+    },
+    useErrorBoundary: false,
+  })
+}
+
+/**
+ * What the user checked for the local app environment to run (desktop only): tools on their own,
+ * apps, agents. This is the setting. What a running server offers is {@link useLocalServerFeatures}.
+ */
+export function useLocalAgentServerFeatures() {
+  const getLocalServerFeatures = getAgentsPlatform().getLocalServerFeatures
+  return useQuery({
+    queryKey: ['agents', 'local-server-features'],
+    queryFn: async (): Promise<AppEnvironmentFeature[]> => (getLocalServerFeatures ? getLocalServerFeatures() : []),
+    useErrorBoundary: false,
+  })
+}
+
+/** Sets what the local app environment runs (desktop only), persistently, and restarts it to apply it. */
+export function useSetLocalAgentServerFeatures() {
+  return useMutation({
+    mutationFn: async (features: AppEnvironmentFeature[]) => {
+      const setLocalServerFeatures = getAgentsPlatform().setLocalServerFeatures
+      if (!setLocalServerFeatures) throw new Error('This app runs no local app environment')
+      return setLocalServerFeatures(features)
+    },
+    onSettled() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/**
+ * What a server runs, from its health: tools on their own, apps, agents. A server that lists
+ * nothing is one from before the list existed, and runs all three.
+ */
+export function serverFeatures(
+  health: Pick<AgentServerHealth, 'features'> | undefined,
+): readonly AppEnvironmentFeature[] {
+  return health?.features ?? APP_ENVIRONMENT_FEATURES
+}
+
+/**
+ * What the local app environment offers right now, as the running server itself reports it: the
+ * one the app started runs what the user checked, and a development server the app attached to
+ * runs what its own flags say. Empty when no local server runs. `data` is undefined while that is
+ * still being found out.
+ */
+export function useLocalServerFeatures(): {data: readonly AppEnvironmentFeature[] | undefined; canRunCode: boolean} {
+  const local = useLocalAgentServerUrl()
+  const health = useAgentServerHealth(local.data || undefined)
+  if (local.isInitialLoading) return {data: undefined, canRunCode: false}
+  if (!local.data) return {data: [], canRunCode: false}
+  if (!health.data) return {data: health.isError ? [] : undefined, canRunCode: false}
+  return {data: serverFeatures(health.data), canRunCode: health.data.codeExec !== false}
+}
+
 /** Turns the local app environment on or off (desktop only), persistently and right away. */
 export function useSetLocalAgentServerEnabled() {
   return useMutation({
@@ -584,17 +658,27 @@ export function useAgentServerUrls() {
  * built-in default. It is a list of suggestions, never a limit: the picker also takes a URL.
  * Undefined until the remembered list has loaded.
  */
-export function useAgentServerOptions(): string[] | undefined {
+export function useAgentServerOptions(
+  /**
+   * What is about to be put on the chosen server. The local app environment is offered only when
+   * it runs that: out of the box it runs tools, and neither apps nor agents.
+   */
+  feature?: AppEnvironmentFeature,
+): string[] | undefined {
   const own = useAgentServerUrls()
   const mounts = useSiteAgentMounts(useSiteUidInView())
+  const localServerUrl = useLocalAgentServerUrl()
+  const localFeatures = useLocalServerFeatures()
+  const localOffers = !feature || !!localFeatures.data?.includes(feature)
   return useMemo(() => {
     if (!own.data) return undefined
     const urls = new Set(own.data)
     for (const mount of mounts.data ?? []) urls.add(mount.serverUrl)
     const defaultServerUrl = getDefaultAgentServerUrl()
     if (defaultServerUrl) urls.add(defaultServerUrl)
+    if (!localOffers && localServerUrl.data) urls.delete(localServerUrl.data)
     return Array.from(urls)
-  }, [own.data, mounts.data])
+  }, [own.data, mounts.data, localOffers, localServerUrl.data])
 }
 
 /** Account uid of the space whose document is on screen, or the space serving the app; null elsewhere. */

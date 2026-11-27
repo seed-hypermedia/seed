@@ -1,7 +1,8 @@
 /**
  * Keeps an app's card embeds in step with the tools and pages written under it (see
  * hypermedia/app.md). Creating a child of an app adds its embed in the same
- * publish; deleting one removes it. A tool or a trigger must be a child of an app or an agent.
+ * publish; deleting one removes it. A trigger must be a child of an app or an agent. A tool may be
+ * written anywhere: under a host it joins that host's list, and anywhere else it stands on its own.
  */
 
 import {
@@ -23,15 +24,13 @@ import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 /** The app a child document is written under, with its current content. */
 export type AppParent = {id: UnpackedHypermediaId; document: HMDocument}
 
-/** Why a tool was refused: it was not written directly under an app or an agent. */
-export const TOOL_OUTSIDE_APP_ERROR = `A tool lives directly under an app or an agent. Write the app first (a document with metadata.type "${HM_APP_TYPE}"), or use an agent's document, then write the tool at hm://<account>/<app or agent path>/<tool name>. Read ~/tools/write/apps.`
-
 /** Why a trigger was refused: it was not written directly under an app or an agent. */
 export const TRIGGER_OUTSIDE_APP_ERROR = `A trigger lives directly under an app or an agent, like a tool: write it at hm://<account>/<app or agent path>/<trigger name>. Read ~/tools/write/triggers.`
 
 /**
  * The app that a new document of `type` at `childId` belongs to (`app` is null when it is not an
- * app child), or a refusal when a tool is written anywhere but directly under an app.
+ * app child), or a refusal when a trigger is written anywhere but directly under an app or an agent.
+ * A tool written elsewhere has no app: it stands on its own.
  */
 export async function resolveAppParent(
   client: Pick<SeedClient, 'request'>,
@@ -46,7 +45,6 @@ export async function resolveAppParent(
   }
   if (!appChildKind(type)) return {app: null}
   const app = await findListingApp(client, childId)
-  if (!app && type === HM_TOOL_TYPE) return {app: null, refusal: TOOL_OUTSIDE_APP_ERROR}
   if (!app && type === HM_TRIGGER_TYPE) return {app: null, refusal: TRIGGER_OUTSIDE_APP_ERROR}
   return {app}
 }

@@ -128,7 +128,7 @@ More write behavior: <!-- id:6PdHCPGt -->
   - A comment mentions an account only through an inline mention. See [comments and mentions](./comments-and-mentions.md).
   - `options.fromPath` on an `hm://` address publishes a memory markdown file, with its frontmatter and its images. Path `/` takes the document path from the file's frontmatter name. <!-- id:gZfg4J0I -->
   - `document.create` refuses a nested path whose parent is not published. Top-level paths are always allowed. The server enforces this, also in `dryRun`. <!-- id:KlGDRPlO -->
-  - `options.skipLinkCheck` publishes without checking that every link in the body resolves. <!-- id:WV4ngnGU -->
+  - `options.skipLinkCheck` publishes without checking that every link in the body resolves. Links into the document being published are never checked, because on a first publication it does not exist yet. With `options.fromPath`, a `#blockId` link in the markdown becomes such a link, to that block of the published document. <!-- id:WV4ngnGU -->
   - Root-level `server` and `dev` are accepted only when they name the HM server the agent is configured with. Publishing always uses that server, never one the model picks (`api-service.ts`). <!-- id:Dlh1Pqbd -->
   - `path: "/"` means the account's [home document](../protocol/spaces.md). It is published as the empty HM path. <!-- id:zkDp34Z8 -->
   - [Tables](../block/table.md) are written as GFM markdown tables that carry identity comments. See [markdown tables](./markdown-tables.md).

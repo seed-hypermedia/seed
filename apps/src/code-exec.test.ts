@@ -473,19 +473,47 @@ describe('code exec', () => {
   })
 
   test('an app tool gets (input, ctx) with private config from the environment, never from the program', async () => {
-    const program = buildAppToolProgram(
-      'export default async function (input: {city: string}, ctx: any) {\n  return {city: input.city, key: ctx.privateConfig.apiKey, units: ctx.publicConfig.units, app: ctx.app, leaked: process.env.SEED_APP_PRIVATE_CONFIG ?? null}\n}',
-      {city: 'Lisbon'},
-      {app: 'hm://z6MkApp/weather', publicConfig: {units: 'metric'}},
-    )
-    expect(program).not.toContain('sekret')
-    const run = Bun.spawnSync(['bun', '-e', program], {
-      env: {...process.env, [APP_PRIVATE_CONFIG_ENV]: JSON.stringify({apiKey: 'sekret'})},
-    })
-    expect(run.exitCode).toBe(0)
-    const {result} = parseLambdaResult(run.stdout.toString())
-    // The tool sees the key; the env var is gone before its code runs, so it cannot be dumped wholesale.
-    expect(result).toEqual({city: 'Lisbon', key: 'sekret', units: 'metric', app: 'hm://z6MkApp/weather', leaked: null})
+    // The tool's source, its input and its result are files in the call's folder, as the app
+    // environment lays them out in the host's workspace.
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-app-tool-program-'))
+    try {
+      const callDir = path.join(workspace, 'calls', 'c1')
+      fs.mkdirSync(callDir, {recursive: true})
+      // Longer than bun imports from a `data:` URL, which is why the source is a file.
+      const padding = `// ${'x'.repeat(40_000)}\n`
+      fs.writeFileSync(
+        path.join(callDir, 'index.ts'),
+        `${padding}export default async function (input: {city: string}, ctx: any) {\n  console.log("working")\n  return {city: input.city, key: ctx.privateConfig.apiKey, units: ctx.publicConfig.units, app: ctx.app, call: ctx.callId, leaked: process.env.SEED_APP_PRIVATE_CONFIG ?? null}\n}`,
+      )
+      fs.writeFileSync(path.join(callDir, 'input.json'), JSON.stringify({city: 'Lisbon'}))
+      const program = buildAppToolProgram({
+        app: 'hm://z6MkApp/weather',
+        publicConfig: {units: 'metric'},
+        callId: 'c1',
+        callDir: 'calls/c1',
+      })
+      expect(program).not.toContain('sekret')
+      expect(program).not.toContain('Lisbon')
+      const run = Bun.spawnSync(['bun', '-e', program], {
+        cwd: workspace,
+        env: {...process.env, [APP_PRIVATE_CONFIG_ENV]: JSON.stringify({apiKey: 'sekret'})},
+      })
+      expect(run.stderr.toString()).toBe('')
+      expect(run.exitCode).toBe(0)
+      // The tool sees the key; the env var is gone before its code runs, so it cannot be dumped wholesale.
+      expect(JSON.parse(fs.readFileSync(path.join(callDir, 'output.json'), 'utf8'))).toEqual({
+        city: 'Lisbon',
+        key: 'sekret',
+        units: 'metric',
+        app: 'hm://z6MkApp/weather',
+        call: 'c1',
+        leaked: null,
+      })
+      // Stdout is only what the tool printed.
+      expect(run.stdout.toString().trim()).toBe('working')
+    } finally {
+      fs.rmSync(workspace, {recursive: true, force: true})
+    }
   })
 
   test('the TypeScript wrapper really runs a lambda under bun, end to end', async () => {

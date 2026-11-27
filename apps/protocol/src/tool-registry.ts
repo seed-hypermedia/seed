@@ -274,7 +274,16 @@ const callVerb = {
     additionalProperties: false,
     properties: {
       tool: {type: 'string', minLength: 1, description: 'The tool name, as listed under ~/tools/.'},
-      input: {type: 'object', description: "The tool's input, matching its contract."},
+      input: {
+        type: 'object',
+        description:
+          'The tool\'s input, matching its contract. Where a tool called by its hm:// URL takes a file ({name, mimeType, data}), write {"fromPath": "~/memory/<path>"} or {"fromAttachment": "<id>"} in its place, with "name" to rename it.',
+      },
+      saveTo: {
+        type: 'string',
+        description:
+          'Only for a tool called by its hm:// URL: the memory folder (~/memory/<path>) that receives the files the tool returns, each at its name. Without it they become attachments of this session.',
+      },
       description: {
         type: 'string',
         minLength: 3,

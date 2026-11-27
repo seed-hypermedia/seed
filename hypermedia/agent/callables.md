@@ -25,7 +25,7 @@ This page lists every callable, and documents the ones that have no page of thei
 
 The registry also holds `navigate`. It belongs to a runtime that the [app environment](../software/app-environment.md) does not run, so no agent is offered it.
 
-The app environment has no PDF importer of its own. The [Datalab PDF importer](./datalab-importer.md) page describes an add-on that a server offers only when someone has added it.
+The app environment has no document importer of its own. The [document converter](./datalab-importer.md) is a tool resource that a server offers only when someone has published it under an app or an agent and run that host.
 
 ## `search` <!-- id:hXDTk_mE -->
 

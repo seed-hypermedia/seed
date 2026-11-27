@@ -34,7 +34,7 @@ There is no list of servers to manage. You choose a server at the moment you put
 
 A server's **Model providers** and **Server accounts** dialogs open from the Settings tab of an agent that runs on it. Only the owner sees them.
 
-On desktop, General settings has a **Local app environment** switch that runs or stops the bundled server. It is off by default, so a fresh install never starts the bundled server. The switch is disabled while the app is attached to a development server. See [environments](../operate/environments.md).
+On desktop, General settings has a **Local app environment** switch that runs or stops the bundled server. It is on by default. Under it, three checks say what that server runs: **Tools**, **Apps** and **Agents**. Only Tools is checked at first, so a fresh install runs [tools](../tool.md) on your computer and offers no local server for a new app or agent. Check Agents to run agents there. Changing a check restarts the server. The switch and the checks are disabled while the app is attached to a development server, which runs what it was started with. See [environments](../operate/environments.md).
 
 ## The providers dialog <!-- id:oCo4dRsk -->
 
@@ -61,7 +61,7 @@ The tabs: <!-- id:vzOPua2M -->
   - **Triggers** lists and edits triggers. The [triggers](./triggers.md) page describes the forms and the firing history. <!-- id:L_LGlu75 -->
   - **Memory** browses and edits `~/memory`: entries with sizes, a monospace editor with Save and Revert for text files, inline image, audio, and video previews, download, upload (including drag and drop onto the list or a folder), download from a URL, new file with nested paths, and **Publish to IPFS** with a copyable [`ipfs://`](../protocol/files.md) address. Files over 32 MiB have no preview. The tab updates live from `agent-memory-changed` events, so you see files appear while code writes them. A `~/memory/…` link in a tool row opens the file here. <!-- id:HKDoTQey -->
   - **People** lists who can use the agent and shows what the agent itself can write. See [sharing an agent](./sharing.md) and [what the agent can write](./mounting.md).
-  - **Settings** edits the model, the [reasoning level](./reasoning-levels.md) and the [thoroughness](./delegation-budgets.md), shows the server, and has one row for each of the pages below. Each row summarises its page: the enabled grants, the granted identities, the number of servers. The owner also finds **Model providers** and **Server accounts** there.
+  - **Settings** edits the model, the [reasoning level](./reasoning-levels.md) and the [thoroughness](./delegation-budgets.md), shows the server, asks for the secrets and settings the agent's [tools](../tool.md) declare, and has one row for each of the pages below. Each row summarises its page: the enabled grants, the granted identities, the number of servers. The owner also finds **Model providers** and **Server accounts** there.
 
 An agent without a document has a page of its own with the tabs **Sessions**, **Triggers**, **Memory**, **Collaborators** and **Settings**, and an **Adopt agent** banner.
 

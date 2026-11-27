@@ -8,7 +8,7 @@ The assistant panel is the column of the [Seed app](../software/desktop.md) wher
 
 The **Assistant** is an ordinary agent. The desktop app creates it on the app's own local server when three things are true:
 
-- the local server is in use: the app is attached to a development server, or the **Local app environment** switch is on;
+- the local server runs agents: the app is attached to a development server, or the **Local app environment** switch is on with **Agents** checked under it;
 - a [model provider](./model-providers.md) exists there;
 - your [account](../protocol/identity.md) has no agent there yet.
 

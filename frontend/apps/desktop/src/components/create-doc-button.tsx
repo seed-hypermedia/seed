@@ -162,6 +162,12 @@ export function useCreateDocumentMenuItem({
           onClick: () => createApp.open({location: locationId}),
         },
         {
+          key: 'new-standalone-tool',
+          label: 'Tool',
+          icon: <Wrench className="size-4" />,
+          onClick: () => createTool.open({location: locationId}),
+        },
+        {
           key: 'import',
           label: 'Import',
           icon: <Import className="size-4" />,
@@ -215,7 +221,7 @@ function useCreateAgentAtLocation(
   content: ReactNode
 } {
   const dialog = useAppDialog(CreateAgentDialog)
-  const serverUrls = useAgentServerOptions()
+  const serverUrls = useAgentServerOptions('agents')
   const selectedAccountId = useSelectedAccountId()
   const open = useMemo(() => {
     if (!serverUrls || !selectedAccountId || !atHome || locationId.path?.length) return undefined
@@ -289,6 +295,7 @@ function DesktopActorButton({
   const createDraft = useCreateDraft()
   const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
   const createApp = useAppDialog(CreateAppDialog)
+  const createTool = useAppDialog(CreateToolDialog)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -353,6 +360,7 @@ function DesktopActorButton({
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
         onCreateAgent={createAgent.open}
         onCreateApp={() => createApp.open({location: destination})}
+        onCreateTool={() => createTool.open({location: destination})}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -388,6 +396,7 @@ function DesktopActorButton({
       {importing.content}
       {createAgent.content}
       {createApp.content}
+      {createTool.content}
     </>
   )
 }

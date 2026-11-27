@@ -9,6 +9,7 @@ import {
   useLocalAgentServerSetting,
   useLocalAgentServerState,
   useLocalAgentServerUrl,
+  useLocalServerFeatures,
   useModelProviders,
   useProviderModels,
 } from '@shm/ui/agents/models'
@@ -99,7 +100,9 @@ export function useEnsureLocalAssistantAgent(accountUid: string | null | undefin
   // bundled server stays: creating the Assistant then would count as the server being in use. The
   // attached dev server and a server the user chose to keep on are always fair game.
   const serverSettled = serverState.data?.t === 'attached' || serverSetting.data === 'on'
-  const serverUrl = serverSettled ? localServerUrl.data || undefined : undefined
+  // And only where agents run: out of the box the local server runs tools and nothing else.
+  const runsAgents = !!useLocalServerFeatures().data?.includes('agents')
+  const serverUrl = serverSettled && runsAgents ? localServerUrl.data || undefined : undefined
   const serverUrls = useMemo(() => (serverUrl ? [serverUrl] : []), [serverUrl])
   const agentsQuery = useAgentLists(serverUrls, accountUid)[0]
   const providers = useModelProviders(serverUrl, accountUid)

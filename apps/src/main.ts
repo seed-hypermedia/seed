@@ -175,6 +175,11 @@ export function createAPIRoutes(
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
+        // What this server runs: tools on their own, apps, agents. A client offers only these.
+        features: svc.features,
+        // The one-time start of the first sandbox, when this server was asked to do it at startup:
+        // while it is `warming`, a first tool run is slow, and a client can say why.
+        sandboxWarmUp: svc.sandboxWarmUp,
         // Resolved to the knowledge base account: clients write it into documents (a new agent's
         // document embeds it), where the `hm://hyper.media` alias would not load.
         defaultPromptUrl: defaultPromptUrl ? resolveDocsUrl(defaultPromptUrl) : defaultPromptUrl,
@@ -668,6 +673,7 @@ async function main(): Promise<void> {
     web: cfg.web,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,
+    features: cfg.features,
     titleGeneration: cfg.titleGeneration,
     runQueue: cfg.runQueue,
     storage: {path: filepath.dirname(filepath.resolve(cfg.dbPath)), minFreeBytes: cfg.storage.minFreeDiskBytes},
@@ -716,6 +722,8 @@ async function main(): Promise<void> {
   // on for the hosted server). See exec-canary.ts for the outage that motivated it.
   const execCanary = new ExecCanary({probe: () => svc.probeCodeExec(), intervalMs: cfg.execCanaryIntervalMs})
   execCanary.start()
+  // Pays for the sandbox's slow first start now, in the background, and not on someone's first Run.
+  if (cfg.execWarmUp) void svc.warmUpCodeExec()
   // Bounds the database's growth: drops durable stores of long-idle sessions and compacts the
   // journals of long-finished runs, in throttled steps (see db-retention.ts).
   const retentionTask = new retention.RetentionTask(db, {

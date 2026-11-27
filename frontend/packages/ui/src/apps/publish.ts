@@ -8,6 +8,7 @@ import {resolveCapability} from '@seed-hypermedia/client/capability'
 import type {SeedClient} from '@seed-hypermedia/client/client'
 import {createDocumentBlobs} from '@seed-hypermedia/client/create-document'
 import type {DocumentOperation} from '@seed-hypermedia/client/change'
+import {followToDocument} from '@seed-hypermedia/client/document-state'
 import {directoryToIpfsBlobs, type CollectedBlob} from '@seed-hypermedia/client/file-to-ipfs'
 import {
   hmIdPathToEntityQueryPath,
@@ -15,16 +16,34 @@ import {
   type HMSigner,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {createVersionRef} from '@seed-hypermedia/client/ref'
 import {encodeDagCbor} from '@seed-hypermedia/client/signed-blob'
-import {useUniversalAppContext, useUniversalClient} from '@shm/shared'
+import {hmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useStream} from '@shm/shared/use-stream'
+import {pathNameify} from '@shm/shared/utils/path'
 import {base58btc} from 'multiformats/bases/base58'
 import {useMemo} from 'react'
 
 /** An app with its current content: what adding or removing a child changes. */
 export type AppRef = {id: UnpackedHypermediaId; document: HMDocument}
+
+/** The free path for `name` under `parent`: its slug, or the slug with a number when taken. */
+export async function freeChildId(
+  client: Pick<ReturnType<typeof useUniversalClient>, 'request'>,
+  parent: UnpackedHypermediaId,
+  name: string,
+): Promise<UnpackedHypermediaId> {
+  const slug = pathNameify(name) || 'untitled'
+  for (let attempt = 1; attempt < 50; attempt++) {
+    const path = [...(parent.path ?? []), attempt === 1 ? slug : `${slug}-${attempt}`]
+    const id = hmId(parent.uid, {path})
+    const existing = await client.request('Resource', id).catch(() => null)
+    if (existing?.type !== 'document') return id
+  }
+  throw new Error('Choose a different name')
+}
 
 /**
  * Publishing for apps and tools, signed by the selected identity. Every write that adds or deletes
@@ -131,6 +150,37 @@ export function useAppsPublisher() {
       async removeFromApp(app: AppRef, child: UnpackedHypermediaId) {
         const blobs = await appChildBlobs(app, child, 'remove')
         if (blobs.length) await publish(blobs, [app.id])
+      },
+
+      /**
+       * Puts a copy of the document at `source` directly under `app`, lists it there, and resolves
+       * to the copy's id. The copy starts as the version of `source` that was read (the one its id
+       * names, or its latest) and is a document of its own from then on: nothing published at
+       * `source` later reaches it. It keeps the last segment of the source's path, with a number
+       * added when that name is taken.
+       */
+      async copyInto(app: AppRef, source: UnpackedHypermediaId): Promise<UnpackedHypermediaId> {
+        if (!signer) throw new Error('Select an account to sign with')
+        const {document} = await followToDocument(requestClient, source)
+        const id = await freeChildId(client, app.id, source.path?.at(-1) ?? document.metadata.name ?? '')
+        const access = await writeAccess(id)
+        const ref = await createVersionRef(
+          {
+            space: id.uid,
+            path: hmIdPathToEntityQueryPath(id.path),
+            genesis: document.generationInfo?.genesis ?? document.genesis,
+            version: document.version,
+            generation: Date.now(),
+            capability: access.capability,
+          },
+          signer,
+        )
+        const appBlobs = await appChildBlobs(app, id, 'add')
+        await publish(
+          [...access.blobs, ...ref.blobs.map((blob) => ({cid: blob.cid!, data: blob.data})), ...appBlobs],
+          [id, app.id],
+        )
+        return id
       },
 
       /** Lists `child` on `app`, for children that exist under the app but are not listed. */

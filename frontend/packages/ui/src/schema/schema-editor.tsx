@@ -1164,11 +1164,17 @@ export function StructFieldsSchemaEditor({
   onSchema,
   addLabel,
   emptyLabel,
+  noDefaults,
 }: {
   schema: HypermediaSchema
   onSchema: (s: HypermediaSchema) => void
   addLabel?: string
   emptyLabel?: string
+  /**
+   * The fields take no default value. For fields that hold secrets: a default is part of the
+   * schema, and a schema is published for anyone to read.
+   */
+  noDefaults?: boolean
 }) {
   const options = useMemo(coreFieldTypeOptions, [])
   return (
@@ -1179,6 +1185,7 @@ export function StructFieldsSchemaEditor({
       addLabel={addLabel}
       emptyLabel={emptyLabel}
       closed
+      noDefaults={noDefaults}
     />
   )
 }
@@ -1191,6 +1198,7 @@ function StructFieldsEditor({
   addLabel,
   emptyLabel,
   closed,
+  noDefaults,
 }: {
   schema: HypermediaSchema
   onSchema: (s: HypermediaSchema) => void
@@ -1200,6 +1208,8 @@ function StructFieldsEditor({
   emptyLabel?: string
   /** Always closed: no open/closed switch. */
   closed?: boolean
+  /** No default values: neither set here nor shown (see {@link StructFieldsSchemaEditor}). */
+  noDefaults?: boolean
 }) {
   const fields = structFields(schema)
   const signed = !path && isSignedBlobType(schema)
@@ -1292,7 +1302,7 @@ function StructFieldsEditor({
               />
             </div>
             <div className="flex items-center gap-0.5">
-              {defaultValue === undefined && (
+              {defaultValue === undefined && !noDefaults && (
                 <IconAction
                   label={`Set default value of ${q(name)}`}
                   tooltip="Set a default: the value a new document or object starts with for this field"
@@ -1342,7 +1352,7 @@ function StructFieldsEditor({
             options={options}
             ariaPrefix={q(name)}
           />
-          {defaultValue !== undefined && (
+          {defaultValue !== undefined && !noDefaults && (
             <PropertyDefaultEditor
               schema={ps}
               value={defaultValue}

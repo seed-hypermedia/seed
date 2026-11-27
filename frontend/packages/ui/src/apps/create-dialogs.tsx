@@ -7,9 +7,8 @@ import {
 } from '@seed-hypermedia/client/apps'
 import type {DocumentOperation} from '@seed-hypermedia/client/change'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, useUniversalClient} from '@shm/shared'
+import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {pathNameify} from '@shm/shared/utils/path'
 import {useState, type ReactNode} from 'react'
 import {useAgentServerOptions, useRememberAgentServer} from '../agents/models'
 import {CreateServerChoice, useCreateServerChoice} from '../agents/server-picker'
@@ -20,7 +19,7 @@ import {Label} from '../components/label'
 import {Textarea} from '../components/textarea'
 import {SizableText} from '../text'
 import {toast} from '../toast'
-import {toolCodeFolder, useAppsPublisher, type AppRef} from './publish'
+import {freeChildId, toolCodeFolder, useAppsPublisher, type AppRef} from './publish'
 import {DEFAULT_TRIGGER_SOURCE} from './trigger-view'
 
 function attrs(values: Record<string, string>): DocumentOperation {
@@ -32,27 +31,12 @@ function attrs(values: Record<string, string>): DocumentOperation {
   }
 }
 
-/** The free path for `name` under `parent`: its slug, or the slug with a number when taken. */
-async function freeChildId(
-  client: ReturnType<typeof useUniversalClient>,
-  parent: UnpackedHypermediaId,
-  name: string,
-): Promise<UnpackedHypermediaId> {
-  const slug = pathNameify(name) || 'untitled'
-  for (let attempt = 1; attempt < 50; attempt++) {
-    const path = [...(parent.path ?? []), attempt === 1 ? slug : `${slug}-${attempt}`]
-    const id = hmId(parent.uid, {path})
-    const existing = await client.request('Resource', id).catch(() => null)
-    if (existing?.type !== 'document') return id
-  }
-  throw new Error('Choose a different name')
-}
-
 function NameAndSummaryForm({
   title,
   description,
   namePlaceholder,
   summaryPlaceholder,
+  summaryHint,
   submitLabel,
   extra,
   onSubmit,
@@ -62,6 +46,8 @@ function NameAndSummaryForm({
   description: string
   namePlaceholder: string
   summaryPlaceholder: string
+  /** What the description is used for, said under its field when that is worth knowing. */
+  summaryHint?: string
   submitLabel: string
   /** Further fields, shown under the description. */
   extra?: ReactNode
@@ -106,6 +92,11 @@ function NameAndSummaryForm({
           placeholder={summaryPlaceholder}
           onChange={(event) => setSummary(event.target.value)}
         />
+        {summaryHint ? (
+          <SizableText size="xs" color="muted">
+            {summaryHint}
+          </SizableText>
+        ) : null}
       </div>
       {extra}
       {error ? (
@@ -133,7 +124,7 @@ export function CreateAppDialog({input, onClose}: {input: {location: UnpackedHyp
   const client = useUniversalClient()
   const publisher = useAppsPublisher()
   const navigate = useNavigate()
-  const serverOptions = useAgentServerOptions()
+  const serverOptions = useAgentServerOptions('apps')
   const {serverUrl, setServerUrl} = useCreateServerChoice(serverOptions)
   const rememberServer = useRememberAgentServer()
   return (
@@ -156,28 +147,46 @@ export function CreateAppDialog({input, onClose}: {input: {location: UnpackedHyp
   )
 }
 
-/** Creates a tool inside `app`, lists it on the app and opens it. */
-export function CreateToolDialog({input, onClose}: {input: {app: AppRef}; onClose: () => void}) {
+/**
+ * Why a tool's description deserves care, said wherever one is written. An agent that has the tool
+ * is shown its name and this description, and nothing else, until it decides to read the tool.
+ */
+export const TOOL_DESCRIPTION_HINT =
+  'Be precise: this is all an agent knows about the tool when it decides whether to use it. Say what the tool does, what it takes and gives back, and when to use it. How to use it goes in the documentation.'
+
+/**
+ * Creates a tool and opens it. Inside `app` the tool joins the app's list and runs with the app.
+ * At a `location` that is no app, the tool stands on its own. It names no server: the app or agent
+ * that later takes it says where it runs, and until then its author runs it on their own.
+ */
+export function CreateToolDialog({
+  input,
+  onClose,
+}: {
+  input: {app: AppRef} | {location: UnpackedHypermediaId}
+  onClose: () => void
+}) {
   const client = useUniversalClient()
   const publisher = useAppsPublisher()
   const navigate = useNavigate()
+  const app = 'app' in input ? input.app : undefined
   return (
     <NameAndSummaryForm
       title="New tool"
-      description="A tool is one function of this app: an input schema, an output schema and its code."
+      description={
+        app
+          ? 'A tool is one function of this app: an input schema, an output schema and its code.'
+          : 'A tool is one function: an input schema, an output schema and its code. On its own it is a document you can try and share. An app or an agent uses it by linking to it.'
+      }
       namePlaceholder="forecast"
-      summaryPlaceholder="What the tool does"
+      summaryPlaceholder="What the tool does, with what, and when to use it"
+      summaryHint={TOOL_DESCRIPTION_HINT}
       submitLabel="Create tool"
       onClose={onClose}
       onSubmit={async ({name, summary}) => {
-        const id = await freeChildId(client, input.app.id, name)
+        const id = await freeChildId(client, app ? app.id : (input as {location: UnpackedHypermediaId}).location, name)
         const folder = await toolCodeFolder(TOOL_CODE_TEMPLATE)
-        await publisher.create(
-          id,
-          [attrs({name, summary, type: HM_TOOL_TYPE, code: folder.code})],
-          input.app,
-          folder.blobs,
-        )
+        await publisher.create(id, [attrs({name, summary, type: HM_TOOL_TYPE, code: folder.code})], app, folder.blobs)
         toast.success(`Created ${name}`)
         navigate({key: 'document', id})
       }}

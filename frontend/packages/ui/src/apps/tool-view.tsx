@@ -1,6 +1,9 @@
-import {HM_AGENT_TYPE, parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
+import {HM_AGENT_TYPE, hostListsChild, parentDocumentId, TOOL_ENTRY_FILE} from '@seed-hypermedia/client/apps'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useUniversalClient} from '@shm/shared'
+import {hmId, useUniversalClient} from '@shm/shared'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {selectCanEdit, selectIsEditing, useDocumentMachineRefOptional} from '@shm/shared/models/use-document-machine'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {useResource} from '@shm/shared/models/entity'
 import {useQuery} from '@tanstack/react-query'
@@ -10,6 +13,7 @@ import {AgentSubpageHeader} from '../agents/header'
 import {Button} from '../button'
 import {CodeTextArea} from '../code-text-area'
 import {Textarea} from '../components/textarea'
+import {cn} from '../utils'
 import {useFileUrl} from '../get-file-url'
 import type {HypermediaSchema} from '../schema/engine'
 import {SchemaView} from '../schema/explorer'
@@ -18,31 +22,60 @@ import {publishSchemaObject} from '../schema/schema-document'
 import {useResolvedSchema} from '../schema/schema-resolve'
 import {SizableText} from '../text'
 import {toast} from '../toast'
+import {useAppDialog} from '../universal-dialog'
+import {HostSettings, useToolRunConfig} from './app-settings'
+import {TOOL_DESCRIPTION_HINT} from './create-dialogs'
 import {toolCodeFolder} from './publish'
 import {useResourceDraft} from './resource-draft'
 import {ToolRunSection} from './running'
+import {UseToolInHostDialog} from './use-tool-dialogs'
 
 const noSchemaNav = () => {}
 
 /**
- * A tool, shown inside its app or agent (the host's tabs stay above it, Tools selected) like an
- * agent session: a header with a back button and the tool's name, then one page with its
- * description, schemas and code. Edits stage into the document's draft like any document's: it
- * saves itself, the top bar's Publish button appears once there are changes, and Discard Changes
- * drops them.
+ * A tool: a header with a back button and the tool's name, then one page with its description,
+ * its Run form, and its schemas and code. Edits stage into the document's draft like any
+ * document's: it saves itself, the top bar's Publish button appears once there are changes, and
+ * Discard Changes drops them. Someone who can edit the tool can run a draft before publishing it.
+ *
+ * A tool declares the config it needs. Inside an app or an agent (the host's tabs stay above it,
+ * Tools selected) the host supplies the values and runs the tool for every caller. A tool in
+ * neither is its author's to try: its page takes the values the author runs it with. Moving or
+ * copying it into an app or an agent is how anyone else gets to use it.
  */
 export function ToolDocumentView({
   docId,
   document,
   canEdit,
+  documentation,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   canEdit: boolean
+  /**
+   * The document's body, as the page around renders it: the editor for someone who can edit. It is
+   * the tool's documentation. Without it (a page that cannot render a body) the part is left out.
+   */
+  documentation?: ReactNode
 }) {
   const client = useUniversalClient()
   const navigate = useNavigate()
+  const useInHost = useAppDialog(UseToolInHostDialog, {className: 'w-full max-w-lg'})
   const draft = useResourceDraft(document)
+  // Running needs the right to write the tool, not an editable page: an earlier version opened from
+  // the tool's history cannot be edited, and its code runs all the same.
+  const {canWriteDocument} = useDocumentActions()
+  const canRun = canEdit || !!canWriteDocument?.(docId)
+  // A document's body opens for editing when its text is clicked. A tool with no documentation yet
+  // has no text to click, so a click anywhere in the part starts the editing, with the cursor in it.
+  const machine = useDocumentMachineRefOptional()
+  const {isEditing} = useEditorGate()
+  const startWriting = () => {
+    if (!machine) return
+    const snapshot = machine.getSnapshot()
+    if (!selectCanEdit(snapshot) || selectIsEditing(snapshot)) return
+    machine.send({type: 'edit.start', cursorPosition: 'end'})
+  }
   const [showDefinition, setShowDefinition] = useState(false)
   const definitionOpen = showDefinition || draft.hasDraft
   const saved = draft.metadata
@@ -59,11 +92,36 @@ export function ToolDocumentView({
     if (saved.code !== written.current.code) setCode(null)
     written.current = {inputSchema: saved.inputSchema, outputSchema: saved.outputSchema, code: saved.code}
   }, [saved.inputSchema, saved.outputSchema, saved.code])
-  const appId = parentDocumentId(docId)
-  const appResource = useResource(appId)
-  const appDocument = appResource.data?.type === 'document' ? appResource.data.document : null
+  const parentId = parentDocumentId(docId)
+  const parentResource = useResource(parentId)
+  const parentDocument = parentResource.data?.type === 'document' ? parentResource.data.document : null
+  // The parent says whether the tool has a host: until it has loaded, the tool is not run from here.
+  const hostKnown = !parentId || !parentResource.isInitialLoading
+  const hosted = !!parentId && hostListsChild(parentId, parentDocument, docId)
+  const standalone = hostKnown && !hosted
+  const appId = hosted ? parentId : docId
+  // A tool on its own is its own host: it runs with its own server and config, draft included.
+  const appDocument = hosted ? parentDocument : {...document, metadata: saved}
   // Apps and agents both host tools; an agent's tools go back to the agent itself.
-  const hostIsAgent = appDocument?.metadata.type === HM_AGENT_TYPE
+  const hostIsAgent = hosted && parentDocument?.metadata.type === HM_AGENT_TYPE
+  // What the tool cannot run without, and has not been given: Run waits for it and says so.
+  const runConfig = useToolRunConfig({
+    host: {id: appId, document: appDocument ?? document},
+    standalone,
+    canEdit,
+  })
+  const missingConfig = hostKnown ? [...runConfig.missing.public, ...runConfig.missing.private] : []
+  const configPart = useRef<HTMLDivElement>(null)
+  const openHostSettings = () => navigate({key: 'document', id: appId, appView: 'settings'})
+  // A tool on its own takes its private config in a dialog and its public config in the Config part
+  // below; inside an app or an agent, the host's settings hold both.
+  const setConfig = !standalone
+    ? openHostSettings
+    : !canEdit
+      ? undefined
+      : runConfig.missing.private.length && runConfig.setPrivate
+        ? runConfig.setPrivate
+        : () => configPart.current?.scrollIntoView({behavior: 'smooth', block: 'start'})
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   function later(key: string, run: () => Promise<void>) {
@@ -101,32 +159,99 @@ export function ToolDocumentView({
         placeholder="Tool name"
         subtitle={draft.hasDraft ? 'Unpublished changes: publish or discard them in the top bar.' : undefined}
         onTitleChange={canEdit ? (next) => draft.change({name: next}) : undefined}
-        backLabel={hostIsAgent ? 'Back to agent' : 'Back to app tools'}
+        backLabel={!hosted ? 'Back' : hostIsAgent ? 'Back to agent' : 'Back to app tools'}
         onBack={() =>
-          appId && navigate(hostIsAgent ? {key: 'document', id: appId} : {key: 'document', id: appId, appView: 'tools'})
+          navigate(
+            !hosted
+              ? {key: 'document', id: parentId ?? hmId(docId.uid)}
+              : hostIsAgent
+                ? {key: 'document', id: appId}
+                : {key: 'document', id: appId, appView: 'tools'},
+          )
         }
       />
-      <section className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6 overflow-y-auto p-4">
+      {runConfig.dialog}
+      {/* relative: whatever is positioned inside (the editor's menus, hidden form inputs) is laid out
+          against this column and scrolls with it, instead of stretching the page behind it. */}
+      <section className="relative mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-6 overflow-y-auto p-4">
         <Section title="Description">
           {canEdit ? (
-            <Textarea
-              aria-label="Tool description"
-              value={summary}
-              placeholder="What the tool does"
-              onChange={(event) => draft.change({summary: event.target.value || null})}
-            />
+            <>
+              <SizableText size="sm" color="muted" className="shrink-0" data-testid="tool-description-hint">
+                {TOOL_DESCRIPTION_HINT}
+              </SizableText>
+              <Textarea
+                aria-label="Tool description"
+                value={summary}
+                placeholder="What the tool does, with what, and when to use it"
+                onChange={(event) => draft.change({summary: event.target.value || null})}
+              />
+            </>
           ) : (
             <SizableText color="muted">{summary || 'No description.'}</SizableText>
           )}
         </Section>
-        {appId ? (
+        {documentation ? (
+          <Section title="Documentation">
+            <SizableText size="sm" color="muted" className="shrink-0">
+              How to use this tool: what to prepare before a call, and what to do with the result. It is written like
+              any document, with links, embeds and media. An agent reads it when it decides to use the tool, before its
+              first call.
+            </SizableText>
+            {/* The document's own body and editor. shrink-0: it sits in this page's scrolling column.
+                On a document's own page the editor ends in 500px of empty space to click in. Here the
+                next part follows, and a click anywhere in the box already starts the writing, so that
+                space is cut down to a line. */}
+            <div
+              className={cn(
+                'shrink-0 rounded-lg border py-2 [&_[data-editor-end-area]]:h-6',
+                canEdit && !isEditing && 'cursor-text',
+              )}
+              data-testid="tool-documentation"
+              onClick={canEdit ? startWriting : undefined}
+            >
+              {canEdit && !isEditing && !draft.content.length ? (
+                <SizableText size="sm" color="muted" className="px-4 pt-2">
+                  No documentation yet. Click here to write it.
+                </SizableText>
+              ) : null}
+              {documentation}
+            </div>
+          </Section>
+        ) : null}
+        {hostKnown ? (
           <ToolRunSection
             appId={appId}
             app={appDocument}
             toolId={docId}
             inputSchemaRef={inputSchemaRef}
-            onOpenSettings={() => navigate({key: 'document', id: appId, appView: 'settings'})}
+            outputSchemaRef={outputSchemaRef}
+            standalone={standalone}
+            draft={canRun ? {source: code ?? (saved.code ? source.data : '')} : undefined}
+            onOpenSettings={standalone ? undefined : openHostSettings}
+            missingConfig={missingConfig}
+            onSetConfig={setConfig}
           />
+        ) : null}
+        {hostKnown ? (
+          <div ref={configPart} className="flex shrink-0 flex-col gap-4" data-testid="tool-config">
+            <HostSettings host={{id: docId, document}} canEdit={canEdit} kind="tool" standalone={standalone} />
+          </div>
+        ) : null}
+        {standalone ? (
+          <div
+            className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border p-4"
+            data-testid="tool-use-in-host"
+          >
+            <SizableText size="sm" color="muted" className="min-w-0 flex-1">
+              This tool is in no app or agent. One that uses it supplies the config it declares and runs it for its
+              callers. The tool stays here.
+            </SizableText>
+            <Button size="sm" variant="outline" onClick={() => useInHost.open({tool: {id: docId, document}})}>
+              Use in an app or agent
+            </Button>
+            {useInHost.content}
+          </div>
         ) : null}
         {/* Using the tool ends here; below is what defines it, edited in a draft and published. It
             starts folded, so the page reads as a tool to run, and opens itself while a draft is pending. */}
@@ -188,7 +313,8 @@ export function ToolDocumentView({
               )}
               <SizableText size="xs" color="muted">
                 The tool's code: <code>export default async function (input, ctx): Promise&lt;output&gt;</code>, where{' '}
-                <code>ctx</code> holds the app's <code>publicConfig</code> and <code>privateConfig</code>.
+                <code>ctx</code> holds the <code>publicConfig</code> and <code>privateConfig</code> of{' '}
+                {standalone ? 'this tool' : 'its app'}.
               </SizableText>
             </Section>
           </>

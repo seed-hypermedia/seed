@@ -2360,9 +2360,12 @@ function DocumentBody({
             ? undefined
             : appKind === 'app'
               ? appResourceTabs(docId, route.appView, panelRoute)
-              : hostIsAgent && hostId
-                ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
-                : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
+              : // A tool outside any app or agent stands on its own: there are no host tabs to show.
+                appKind === 'tool' && hostType !== 'hm://hyper.media/app' && !hostIsAgent
+                ? undefined
+                : hostIsAgent && hostId
+                  ? agentResourceTabs(hostId, appKind === 'trigger' ? 'triggers' : 'home')
+                  : appResourceTabs(hostId ?? docId, appKind === 'trigger' ? 'triggers' : 'tools'),
     [appKind, route, docId, panelRoute, hostIsAgent, hostId, isPage, hostType],
   )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
@@ -3180,6 +3183,64 @@ function DocumentBody({
   )
 
   // Main page content (used in both mobile and desktop layouts)
+  /**
+   * The document's body as the content view shows it: the editor for someone who can edit, the
+   * rendered content for everyone else. A document page shows it with its side columns; a tool's
+   * page puts it, without them, in its Documentation part.
+   */
+  const renderDocumentBody = (sidebars: boolean) => (
+    <DocumentViewContent
+      activeView={activeView}
+      collection={
+        isCollection ? (
+          <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+        ) : undefined
+      }
+    >
+      <CommentsFooterContext.Provider value={mainCommentsFooter}>
+        <MainContent
+          docId={docId}
+          resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+          document={document}
+          activeView={activeView}
+          contentMaxWidth={contentMaxWidth}
+          wrapperProps={wrapperProps}
+          sidebarProps={sidebarProps}
+          mainContentProps={mainContentProps}
+          showSidebars={sidebars}
+          showCollapsed={showCollapsed}
+          discussionsParams={discussionsParams}
+          suppressCommentEditor={suppressMainCommentEditor}
+          activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+          onActivityFilterChange={handleMainActivityFilterChange}
+          blockCitations={blockCitations}
+          citationFragmentHighlights={citationFragmentHighlights}
+          onCitationFragmentClick={handleCitationFragmentClick}
+          onBlockCitationClick={handleBlockCitationClick}
+          onBlockCommentClick={handleBlockCommentClick}
+          onBlockSelect={handleBlockSelect}
+          onTextSelection={handleTextSelection}
+          isUnpublishedDraft={isUnpublishedDraft}
+          isBlockInPublishedVersion={isBlockInPublishedVersion}
+          CommentEditor={CommentEditor}
+          directory={directory.data}
+          siteUrl={siteUrl}
+          inlineCards={inlineCards}
+          inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={handleEditorReadyWrapped}
+          existingDraftContent={effectiveContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          ssrContentHTML={ssrContentHTML}
+          perspectiveAccountUid={perspectiveAccountUid}
+          linkExtensionOptions={linkExtensionOptions}
+          fileUpload={fileUpload}
+          draftVersionEntry={draftVersionEntry}
+        />
+      </CommentsFooterContext.Provider>
+    </DocumentViewContent>
+  )
+
   const mainPageContent = documentPage ? (
     <div data-document-page-main className="flex min-h-0 flex-1 flex-col">
       {documentConversionDialog}
@@ -3402,7 +3463,13 @@ function DocumentBody({
           </ResourceViewBoundary>
         ) : route.key === 'document' && appKind === 'tool' ? (
           <ResourceViewBoundary resetKey={docId.id}>
-            <ToolDocumentView docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
+            <ToolDocumentView
+              docId={docId}
+              document={document}
+              canEdit={!!canEditCurrentRoute}
+              // A tool's documentation is its document's body, edited like any document's.
+              documentation={renderDocumentBody(false)}
+            />
           </ResourceViewBoundary>
         ) : route.key === 'document' && appKind === 'trigger' ? (
           <ResourceViewBoundary resetKey={docId.id}>
@@ -3418,56 +3485,7 @@ function DocumentBody({
                 <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
               </>
             ) : null}
-            <DocumentViewContent
-              activeView={activeView}
-              collection={
-                isCollection ? (
-                  <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-                ) : undefined
-              }
-            >
-              <CommentsFooterContext.Provider value={mainCommentsFooter}>
-                <MainContent
-                  docId={docId}
-                  resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-                  document={document}
-                  activeView={activeView}
-                  contentMaxWidth={contentMaxWidth}
-                  wrapperProps={wrapperProps}
-                  sidebarProps={sidebarProps}
-                  mainContentProps={mainContentProps}
-                  showSidebars={showSidebars}
-                  showCollapsed={showCollapsed}
-                  discussionsParams={discussionsParams}
-                  suppressCommentEditor={suppressMainCommentEditor}
-                  activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-                  onActivityFilterChange={handleMainActivityFilterChange}
-                  blockCitations={blockCitations}
-                  citationFragmentHighlights={citationFragmentHighlights}
-                  onCitationFragmentClick={handleCitationFragmentClick}
-                  onBlockCitationClick={handleBlockCitationClick}
-                  onBlockCommentClick={handleBlockCommentClick}
-                  onBlockSelect={handleBlockSelect}
-                  onTextSelection={handleTextSelection}
-                  isUnpublishedDraft={isUnpublishedDraft}
-                  isBlockInPublishedVersion={isBlockInPublishedVersion}
-                  CommentEditor={CommentEditor}
-                  directory={directory.data}
-                  siteUrl={siteUrl}
-                  inlineCards={inlineCards}
-                  inlineInsert={inlineInsert}
-                  DocumentContentComponent={DocumentContentComponent}
-                  onEditorReady={handleEditorReadyWrapped}
-                  existingDraftContent={effectiveContent}
-                  existingDraftCursorPosition={existingDraftCursorPosition}
-                  ssrContentHTML={ssrContentHTML}
-                  perspectiveAccountUid={perspectiveAccountUid}
-                  linkExtensionOptions={linkExtensionOptions}
-                  fileUpload={fileUpload}
-                  draftVersionEntry={draftVersionEntry}
-                />
-              </CommentsFooterContext.Provider>
-            </DocumentViewContent>
+            {renderDocumentBody(showSidebars)}
             {isAgentDocument && activeView === 'content' ? (
               <AgentHomeComposer docId={docId} document={document} />
             ) : null}
@@ -3632,7 +3650,9 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
         header={documentPanelHeader ?? activityPanelHeader}
       >
-        <div className="relative flex h-full min-h-0 flex-col">
+        {/* A fixed-height view scrolls inside itself. Nothing in it may stretch the pane around it,
+            which would then scroll the whole view away: so what leaves its box is clipped. */}
+        <div className={cn('relative flex h-full min-h-0 flex-col', fixedHeightMain && 'overflow-clip')}>
           {documentTopBar}
           {fixedHeightMain ? (
             mainPageContent

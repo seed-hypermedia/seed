@@ -60,7 +60,7 @@ A thread or run that used the owner's private browser data reads as a private st
 
 - A built-in tool the agent is not granted reads as "no tool named …" plus the listing. So a read does not reveal which grants exist.
 - The [`execute`](./code-execution.md) contract is narrowed to the languages this server can run, and says so (`contractMarkdownForThisServer()`, `api-service.ts`). The contract a model reads is the one it can call.
-- A tool resource is not under `~/tools/`. Read its `hm://` address to see its input, output and code. `read ~/tools/hm://…` is refused with a message that says so.
+- A tool resource is not under `~/tools/`. Read its `hm://` address before the first call. The body is the tool's [documentation](../tool.md#documentation). The result also has `tool`, with how to call it and its input and output schemas resolved, so one read is enough to use the tool. `read ~/tools/hm://…` is refused with a message that says so.
 
 A contract that enters the transcript this way [promotes](./promotion.md) the tool.
 

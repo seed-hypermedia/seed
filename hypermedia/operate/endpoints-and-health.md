@@ -77,6 +77,8 @@ The health endpoint reports what this server can do: <!-- id:15g_rrEQ -->
   "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
   "subscriptionAuth": false,
+  "features": ["tools", "apps", "agents"],
+  "sandboxWarmUp": {"state": "ready", "durationMs": 41250},
   "defaultPromptUrl": "hm://<knowledge base account>/agent/guide",
   "codeExec": true,
   "codeExecReason": "…",
@@ -106,6 +108,8 @@ The other fields:
 - `publicUrl` is `SEED_APPS_PUBLIC_URL`, or `null`. `serverId` is this server's stable identity: a server checks that the URL an app names is itself by matching it.
 - `defaultPromptUrl` is the [Agent Guide](../agent/guide.md) a new agent embeds, with the `hm://hyper.media` alias resolved to the knowledge base account.
 - `subscriptionAuth` says whether provider sign-in is offered; see [model providers](../agent/model-providers.md).
+- `sandboxWarmUp` is the one-time start of the first sandbox, on a server started with `SEED_APPS_EXEC_WARM_UP`. `state` is `off`, `warming`, `ready` or `failed`. While it is `warming`, a tool run waits for the sandbox, and a client can say so.
+- `features` lists what the server runs: tools on their own, apps, agents. A client offers the server only for those. A server that sends no list is an older one, and runs all three. See [configuration](./configuration.md).
 - `execCanary` is the last result of the sandbox probe, or `null` when the canary is off. It never turns health `503`. See the [code execution backend](./code-execution-backend.md#is-code-execution-working).
 - `protocol` and `minClientProtocol` are the protocol versions of the [signed API](../build/signed-api.md).
 

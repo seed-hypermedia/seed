@@ -18,14 +18,23 @@ const strayId = hmId('alice', {path: ['weather', 'old-tool']})
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   addToApp: vi.fn(async () => {}),
+  update: vi.fn(async (..._args: unknown[]) => {}),
+  request: vi.fn(),
+  openDialog: vi.fn(),
   resources: new Map<string, unknown>(),
   directory: [] as unknown[],
+  missing: {public: [] as string[], private: [] as string[]},
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResources: (ids: {id: string}[]) => ids.map((id) => ({data: mocks.resources.get(id.id), isInitialLoading: false})),
   useResource: () => ({data: undefined}),
   useDirectory: () => ({data: mocks.directory}),
+}))
+// The overview asks which required config the app lacks; these apps lack none.
+vi.mock('../apps/app-settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../apps/app-settings')>()),
+  useAppMissingConfig: () => mocks.missing,
 }))
 vi.mock('../apps/running', () => ({
   ToolRunSection: () => <div data-testid="tool-run" />,
@@ -37,9 +46,13 @@ vi.mock('../apps/running', () => ({
   useHostTriggers: () => ({data: undefined, isInitialLoading: false}),
 }))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => mocks.navigate}))
-vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))
+vi.mock('@shm/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared')>()),
+  useUniversalClient: () => ({request: mocks.request}),
+}))
+vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: mocks.openDialog, content: null})}))
 vi.mock('../apps/publish', () => ({
-  useAppsPublisher: () => ({canSign: true, addToApp: mocks.addToApp}),
+  useAppsPublisher: () => ({canSign: true, addToApp: mocks.addToApp, update: mocks.update}),
   setAttribute: vi.fn(),
 }))
 vi.mock('../document-page', () => ({
@@ -73,6 +86,9 @@ beforeEach(() => {
   ]
   mocks.navigate.mockClear()
   mocks.addToApp.mockClear()
+  mocks.update.mockClear()
+  mocks.request.mockReset()
+  mocks.openDialog.mockClear()
 })
 afterEach(() => {
   act(() => root.unmount())
@@ -103,6 +119,97 @@ describe('AppDocumentView', () => {
     expect(mocks.addToApp).toHaveBeenCalledWith(expect.objectContaining({id: appId}), strayId)
   })
 
+  describe('tools used by reference', () => {
+    const convertId = hmId('bob', {path: ['tools', 'convert']})
+    const unitsId = hmId('alice', {path: ['shared', 'units']})
+    const guideId = hmId('docs', {path: ['guide']})
+    const tool = (name: string, version: string) => ({
+      type: 'document',
+      document: {...doc({name, summary: `${name} things.`, type: 'hm://hyper.media/tool'}), version},
+    })
+    const withReferences = doc({name: 'Weather', type: 'hm://hyper.media/app'}, [
+      embed('b1', forecastId.id),
+      embed('r1', `${convertId.id}?v=bafyold`),
+      embed('r2', unitsId.id),
+      // A card of a document that is not a tool is content, not one of the app's tools.
+      embed('r3', guideId.id),
+    ])
+    const click = (text: string, index = 0) => {
+      const found = Array.from(container.querySelectorAll('button')).filter((el) => el.textContent?.trim() === text)
+      act(() => found[index]!.click())
+    }
+    /** The link the last published change gave a reference, or what it removed. */
+    const published = () => JSON.stringify(mocks.update.mock.calls.at(-1)?.[1])
+
+    beforeEach(() => {
+      mocks.resources.set(convertId.id, tool('convert', 'bafynew'))
+      mocks.resources.set(unitsId.id, tool('units', 'bafyunits'))
+      mocks.resources.set(guideId.id, {type: 'document', document: doc({name: 'Guide'})})
+    })
+
+    it('lists them apart from the app’s own tools, saying where each is from and which version runs', () => {
+      act(() => root.render(<AppDocumentView docId={appId} document={withReferences} appView="tools" canEdit />))
+      const section = container.querySelector('[data-testid="referenced-tools"]')!
+      expect(section.textContent).toContain('From elsewhere')
+      expect(section.textContent).toContain('convert')
+      expect(section.textContent).toContain('Pinned to an earlier version. A newer one is published.')
+      expect(section.textContent).toContain('units')
+      expect(section.textContent).toContain('Follows the latest version.')
+      expect(section.textContent).not.toContain('Guide')
+      // The app's own tool stays above, outside the section.
+      expect(section.textContent).not.toContain('Forecast for a city.')
+      expect(container.textContent).toContain('Forecast for a city.')
+    })
+
+    it('moves a pinned tool to the newer version, lets it follow the latest, pins one, and removes one', async () => {
+      act(() => root.render(<AppDocumentView docId={appId} document={withReferences} appView="tools" canEdit />))
+      click('Update')
+      expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({id: appId.id}), expect.anything())
+      expect(published()).toContain(`${convertId.id}?v=bafynew`)
+      await act(async () => {})
+      click('Follow latest')
+      expect(published()).toContain(convertId.id)
+      expect(published()).not.toContain('?v=')
+      await act(async () => {})
+      // The tool that follows the latest is pinned to the version on screen.
+      click('Pin')
+      expect(published()).toContain(`${unitsId.id}?v=bafyunits`)
+      await act(async () => {})
+      click('Remove', 1)
+      expect(published()).toContain('DeleteBlocks')
+      expect(published()).toContain('r2')
+    })
+
+    it('offers, above the list, to make a tool or to add one that lives elsewhere', () => {
+      const plain = doc({name: 'Weather', type: 'hm://hyper.media/app'}, [embed('b1', forecastId.id)])
+      act(() => root.render(<AppDocumentView docId={appId} document={plain} appView="tools" canEdit />))
+      const actions = container.querySelector('[data-testid="add-tool-actions"]')!
+      expect(Array.from(actions.querySelectorAll('button')).map((el) => el.textContent)).toEqual([
+        'New tool',
+        'Add existing tool',
+      ])
+      // An app that references nothing shows no empty section for it.
+      expect(container.querySelector('[data-testid="referenced-tools"]')).toBeNull()
+      click('Add existing tool')
+      expect(mocks.openDialog).toHaveBeenLastCalledWith({
+        host: {id: expect.objectContaining({id: appId.id}), document: plain},
+      })
+      click('New tool')
+      expect(mocks.openDialog).toHaveBeenLastCalledWith({
+        app: {id: expect.objectContaining({id: appId.id}), document: plain},
+      })
+    })
+
+    it('shows readers the list with nothing to change', () => {
+      act(() =>
+        root.render(<AppDocumentView docId={appId} document={withReferences} appView="tools" canEdit={false} />),
+      )
+      expect(container.textContent).toContain('convert')
+      expect(Array.from(container.querySelectorAll('button')).map((el) => el.textContent)).not.toContain('Remove')
+      expect(container.querySelector('[data-testid="add-tool-actions"]')).toBeNull()
+    })
+  })
+
   it('shows pages on the Pages tab and no editing controls to readers', () => {
     act(() => root.render(<AppDocumentView docId={appId} document={app} appView="pages" canEdit={false} />))
     expect(container.textContent).toContain('Radar')
@@ -116,6 +223,19 @@ describe('AppDocumentView', () => {
     expect(container.textContent).toContain('1 tool')
     expect(container.textContent).toContain('1 page')
     expect(container.querySelector('[data-testid="home-page"]')).toBeNull()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('says in red, on the overview, which required config the app lacks', () => {
+    mocks.missing = {public: ['mode'], private: ['datalabApiKey']}
+    try {
+      act(() => root.render(<AppDocumentView docId={appId} document={app} appView={undefined} canEdit />))
+      const alert = container.querySelector('[role="alert"]')!
+      expect(alert.textContent).toContain('Config missing: mode, datalabApiKey')
+      expect(alert.className).toContain('text-destructive')
+    } finally {
+      mocks.missing = {public: [], private: []}
+    }
   })
 })
 

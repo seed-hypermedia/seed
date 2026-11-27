@@ -60,6 +60,27 @@ describe('config', () => {
     })
   })
 
+  test('a server runs tools, apps and agents unless --features names fewer', () => {
+    expect(config.create(config.parseArgs([], {})).features).toEqual(['tools', 'apps', 'agents'])
+    expect(config.create(config.parseArgs(['--features=tools'], {})).features).toEqual(['tools'])
+    // Order and spacing do not matter; the flag wins over the environment.
+    expect(config.create(config.parseArgs([], {SEED_APPS_FEATURES: 'agents, tools'})).features).toEqual([
+      'tools',
+      'agents',
+    ])
+    expect(config.create(config.parseArgs(['--features=apps'], {SEED_APPS_FEATURES: 'agents'})).features).toEqual([
+      'apps',
+    ])
+    // A name that is not a feature is refused, so a typo cannot quietly turn something off.
+    expect(() => config.create(config.parseArgs(['--features=tool'], {}))).toThrow('Unknown feature: tool')
+  })
+
+  test('the sandbox warm-up is off unless asked for', () => {
+    expect(config.create(config.parseArgs([], {})).execWarmUp).toBe(false)
+    expect(config.create(config.parseArgs(['--exec-warm-up=true'], {})).execWarmUp).toBe(true)
+    expect(config.create(config.parseArgs([], {SEED_APPS_EXEC_WARM_UP: '1'})).execWarmUp).toBe(true)
+  })
+
   test('log level defaults to info, honors env and flag, and rejects unknown levels', () => {
     expect(config.create(config.flags({} as NodeJS.ProcessEnv)).logLevel).toBe('info')
     expect(config.create(config.flags({SEED_AGENTS_LOG_LEVEL: 'debug'} as NodeJS.ProcessEnv)).logLevel).toBe('debug')

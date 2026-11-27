@@ -1391,32 +1391,57 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
 /** The env var an app tool's private config travels in, so the secret never enters the program text. */
 export const APP_PRIVATE_CONFIG_ENV = 'SEED_APP_PRIVATE_CONFIG'
 
+/** The folder, inside a host's workspace, that holds one folder per tool call in flight. */
+export const APP_TOOL_CALL_DIR = '.seed-tool-calls'
+/** The file, in a call's folder, that the server writes the tool's source to. */
+export const APP_TOOL_SOURCE_FILE = 'index.ts'
+/** The file, in a call's folder, that the server writes the call's input to as JSON. */
+export const APP_TOOL_INPUT_FILE = 'input.json'
+/** The file, in a call's folder, that the program writes the tool's returned value to as JSON. */
+export const APP_TOOL_OUTPUT_FILE = 'output.json'
+
 /**
- * Wraps an app tool's TypeScript source like {@link buildLambdaProgram}, and also hands it a context:
- * `export default async function (input, ctx)` with `ctx.app` (the app's hm:// id),
- * `ctx.publicConfig` and `ctx.privateConfig`. Public config is baked in like the input; private config
- * is read inside the sandbox from {@link APP_PRIVATE_CONFIG_ENV}, which the caller passes as `env`.
+ * The program that runs one call of an app tool: `export default async function (input, ctx)` with
+ * `ctx.app` (the app's hm:// id), `ctx.publicConfig`, `ctx.privateConfig` and `ctx.callId`.
+ *
+ * The tool's source, its input and its result cross the sandbox as files in `context.callDir`, a
+ * folder given relative to the working directory. The caller writes {@link APP_TOOL_SOURCE_FILE} and
+ * {@link APP_TOOL_INPUT_FILE} there first, and reads {@link APP_TOOL_OUTPUT_FILE} afterwards. None of
+ * the three fits elsewhere: bun refuses to import a `data:` URL of more than a few kilobytes, a
+ * program's text is one command-line argument, and stdout is cut at {@link MAX_EXEC_OUTPUT_BYTES}.
+ * Stdout carries only what the tool printed.
+ *
+ * Public config is baked into the program. Private config is read inside the sandbox from
+ * {@link APP_PRIVATE_CONFIG_ENV}, which the caller passes as `env`, and removed from the
+ * environment before the tool's code loads.
  */
-export function buildAppToolProgram(
-  source: string,
-  input: unknown,
-  context: {app: string; publicConfig: unknown},
-): string {
-  const inputLiteral = JSON.stringify(JSON.stringify(input ?? null))
-  const contextLiteral = JSON.stringify(JSON.stringify({app: context.app, publicConfig: context.publicConfig ?? {}}))
-  const sourceUrl = `data:text/typescript;base64,${Buffer.from(source, 'utf8').toString('base64')}`
+export function buildAppToolProgram(context: {
+  app: string
+  publicConfig: unknown
+  callId?: string
+  callDir: string
+}): string {
+  const contextLiteral = JSON.stringify(
+    JSON.stringify({
+      app: context.app,
+      publicConfig: context.publicConfig ?? {},
+      ...(context.callId ? {callId: context.callId} : {}),
+    }),
+  )
   return [
-    `const __seedInput = JSON.parse(${inputLiteral})`,
+    'const __seedFs = await import("node:fs")',
+    `const __seedCallDir = process.cwd() + "/" + ${JSON.stringify(context.callDir)}`,
+    `const __seedInput = JSON.parse(__seedFs.readFileSync(__seedCallDir + "/${APP_TOOL_INPUT_FILE}", "utf8"))`,
     `const __seedContext = JSON.parse(${contextLiteral})`,
     `__seedContext.privateConfig = JSON.parse(process.env.${APP_PRIVATE_CONFIG_ENV} || "{}")`,
     `delete process.env.${APP_PRIVATE_CONFIG_ENV}`,
-    `const __seedModule = await import(${JSON.stringify(sourceUrl)})`,
+    `const __seedModule = await import(__seedCallDir + "/${APP_TOOL_SOURCE_FILE}")`,
     'const __seedEntry = __seedModule.default',
     'if (typeof __seedEntry !== "function") {',
     '  throw new Error("An app tool must `export default` a function taking (input, ctx)")',
     '}',
     'const __seedResult = await __seedEntry(__seedInput, __seedContext)',
-    `console.log(${JSON.stringify(LAMBDA_RESULT_PREFIX)} + JSON.stringify(__seedResult ?? null))`,
+    `__seedFs.writeFileSync(__seedCallDir + "/${APP_TOOL_OUTPUT_FILE}", JSON.stringify(__seedResult ?? null))`,
     '',
   ].join('\n')
 }

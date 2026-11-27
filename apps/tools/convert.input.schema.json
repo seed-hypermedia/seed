@@ -1,0 +1,60 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "file": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "name": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's name.",
+            "required": true
+          },
+          "mimeType": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's MIME type.",
+            "required": true
+          },
+          "data": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "The file's bytes, as base64.",
+            "required": true
+          }
+        },
+        "description": "A file inside a tool's JSON."
+      },
+      "description": "The document to convert. Its name's extension says what it is: .pdf, .docx, .pptx, .xlsx, .epub, .html, an image, and the like. Required to start a conversion."
+    },
+    "job": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "The job value a call that answered pending returned. Give it, and no file, to collect that conversion."
+    },
+    "pageRange": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Pages to convert, counted from zero, such as 0-5,10. All pages when left out."
+    },
+    "maxPages": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "The most pages to convert. It can lower the app's own cap, never raise it."
+    },
+    "mode": {
+      "value": {
+        "anyOf": ["fast", "balanced", "accurate"]
+      },
+      "description": "fast, balanced or accurate. It can lower the app's own mode, never raise it."
+    }
+  },
+  "description": "Input of the convert tool: start a conversion with file, or collect one that was still running with job."
+}

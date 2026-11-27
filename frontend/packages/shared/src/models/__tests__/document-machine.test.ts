@@ -342,6 +342,39 @@ describe('document collection helpers', () => {
     actor.stop()
   })
 
+  it('leaves a tool’s body to the editor when its settings change, so its documentation is not replaced', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'tool-draft', content: []}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    // The published tool has no documentation yet; the draft on screen has some, in the editor.
+    loadDocument(actor, {
+      ...mockDocument,
+      metadata: {...mockDocument.metadata, type: 'hm://hyper.media/tool'},
+      content: [],
+    } as unknown as HMDocument)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', metadata: {summary: 'Converts a document'}})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    // No body is forced on the save: whoever writes the draft reads the editor.
+    expect(writeInputs[0].contentOverride).toBeUndefined()
+    actor.stop()
+  })
+
   it('derives a loaded collection without creating a style repair draft', async () => {
     const actor = createTestActor().start()
     const query = createDefaultCollectionQueryBlock('query')

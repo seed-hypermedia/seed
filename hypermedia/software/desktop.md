@@ -21,9 +21,9 @@ The running app is several processes: a main process, a renderer for each window
 
 1. It starts the daemon with `-http.port`, `-grpc.port`, `-p2p.port` and `-data-dir`, and waits for `/debug/version` to answer.
 2. It starts its own HTTP server, the API bridge.
-3. It looks for a local app environment. It attaches to one that is already running. It starts the bundled one only when the local server setting is on.
+3. It looks for a local app environment. It attaches to one that is already running. Otherwise it starts the bundled one, unless the local server setting is off.
 
-A fresh install does not start a local app environment. It uses the hosted one.
+A fresh install starts the bundled app environment to run [tools](../tool.md) and nothing else. Apps and agents go to the hosted one unless you check them in Settings.
 
 The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and the main process talk to each other over tRPC. <!-- id:vBQ_4i5w -->
 
@@ -43,7 +43,7 @@ While the daemon starts or reindexes its database, a small loading window shows 
 The app has four settings that matter to a person who builds or runs it.
 
 - **Ports.** A released app and a development app use different daemon and bridge ports, so both can run at the same time. The development values come from `.env.vars`. See the [port table](../software.md).
-- **Local app environment.** The switch under Settings > App environments turns the bundled server on or off. `SEED_NO_APPS_SPAWN` skips it, and `SEED_APPS_SERVER_URL` attaches the app to a server that you name. [The app environment](./app-environment.md) gives the full order.
+- **Local app environment.** The switch under Settings > App environments turns the bundled server on or off. It is on by default. Three checks under it say what the server runs: **Tools**, **Apps** and **Agents**. Only Tools is checked by default. `SEED_NO_APPS_SPAWN` skips it, and `SEED_APPS_SERVER_URL` attaches the app to a server that you name. [The app environment](./app-environment.md) gives the full order.
 - **Notify service.** The build sets the default with `VITE_NOTIFY_SERVICE_HOST`, and account settings can override it. See [The notify API](../build/notify-api.md).
 - **Integrated web browser.** Off by default. See [The web browser](#the-web-browser).
 

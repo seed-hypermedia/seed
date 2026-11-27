@@ -8,11 +8,11 @@ vi.mock('@/grpc-client', () => ({grpcClient: {}}))
 import {resolveLocalAgentsServerMigration} from '../models/local-agents-server'
 
 /**
- * Settling the local-server setting after an upgrade from a build that always ran the server.
+ * Settling what the local server runs after an upgrade from a build that always ran everything.
  *
- * The regression this guards in both directions: retiring a server that still holds somebody's
- * agents (they would vanish from every list with no way back short of the settings switch), and
- * keeping a server alive forever on machines that never used it.
+ * The regression this guards in both directions: turning agents off under a server that still
+ * holds somebody's agents (they would stop answering with no way back short of the settings
+ * check), and keeping agents on forever on machines that never used them.
  */
 
 const agent = {id: 'legacy-1', accessRole: 'owner'} as AgentInfo
@@ -20,8 +20,9 @@ const spawned = {t: 'spawned' as const, url: 'http://localhost:3050'}
 
 describe('resolveLocalAgentsServerMigration', () => {
   it('does nothing once the setting is decided, or while it is loading', () => {
-    expect(resolveLocalAgentsServerMigration({setting: 'on', state: spawned, lists: [[]]})).toBeNull()
-    expect(resolveLocalAgentsServerMigration({setting: 'off', state: spawned, lists: [[]]})).toBeNull()
+    expect(resolveLocalAgentsServerMigration({setting: ['tools'], state: spawned, lists: [[]]})).toBeNull()
+    // Nothing checked is a decision too.
+    expect(resolveLocalAgentsServerMigration({setting: [], state: spawned, lists: [[]]})).toBeNull()
     expect(resolveLocalAgentsServerMigration({setting: undefined, state: spawned, lists: [[]]})).toBeNull()
   })
 
@@ -35,11 +36,11 @@ describe('resolveLocalAgentsServerMigration', () => {
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: [[], undefined]})).toBeNull()
   })
 
-  it('keeps the server as soon as any account has an agent in it', () => {
+  it('keeps agents on as soon as any account has an agent in it', () => {
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: ['error', [agent]]})).toBe('keep')
   })
 
-  it('retires the server only when every account answered with no agents', () => {
+  it('goes to tools only when every account answered with no agents', () => {
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: [[], []]})).toBe('retire')
     // No local accounts at all looks the same as a failed key listing: decide next launch.
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: []})).toBeNull()

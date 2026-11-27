@@ -34,6 +34,8 @@ type AppRunInfo = {
   - Omitting `privateConfig` keeps everything.
   - To remove a field, stop the app and run it again.
   - The server keeps private config encrypted and never returns it.
+  - The server checks the fields the app's own `privateConfigSchema` declares. Other fields are kept for the app's tools, each of which declares the ones it needs.
+  - With the id of a tool in no app or agent, `RunApp` only stores the private config its writers run it with. Such a tool is never open to other callers.
 - `StopApp` stops the app and forgets its private config. It answers `run: null`.
 - `GetAppRun` answers `run: null` when the app does not run here. For an [agent](../agent.md) mounted here it always answers a run, because an agent's tools need no run step.
 - `CheckAppRun` asks whether the server would accept `RunApp` from the signer, without running the app. `reason` says why not, in words.
@@ -44,6 +46,9 @@ type AppRunInfo = {
 {_: 'CallAppTool'; appId: string; toolId: string; input: unknown}
 {_: 'GetAppToolCall'; callId: string}
   → {_: 'AppToolCallResponse'; call: AppToolCallInfo}
+
+{_: 'TestAppTool'; appId?: string; toolId: string; source: string; publicConfig?: unknown; input: unknown}
+  → {_: 'AppToolTestResponse'; test: {output?: unknown; error?: string; durationMs: number; logs?: string}}
 
 {_: 'ListAppToolCalls'; toolId: string; limit?: number; before?: number} // before: ms since epoch
   → {_: 'ListAppToolCallsResponse'; calls: AppToolCallInfo[]}
@@ -62,7 +67,8 @@ type AppToolCallInfo = {
 }
 ```
 
-- `CallAppTool` calls a tool of an app running on this server, with the tool's latest code. Any signed [account](../protocol/identity.md) may call. A failed run is still a response, with `call.error` set.
+- `CallAppTool` calls a tool running on this server, with the tool's latest code. `appId` names the tool's host: the app or agent that lists it as its own or [references it](../tool.md#using-someone-elses-tool). A referenced tool runs at the version the host's embed pins. Any signed [account](../protocol/identity.md) may call a host's tool. For a tool in no app or agent, `appId` is the tool's own id, nothing needs to be running, the tool names no server, and only an account that can write the tool's space may call. A failed run is still a response, with `call.error` set.
+- `TestAppTool` runs `source`, the text of an `index.ts` that is not published, once as the tool at `toolId` would run it. Only an account that can write the host's space may send it, because the code runs with the host's private config. The host must name this server but need not be running; a tool in no app or agent names no server and runs where it is sent. Nothing is recorded, and the schemas are not checked. A failed run is still a response, with `test.error` set. `logs` is what the code printed. `publicConfig` replaces the host's published one for this run. Without `appId` the server works the host out.
 - `GetAppToolCall` returns one recorded call by id. The server makes no access check: any signed account that knows the call id gets the call.
 - `ListAppToolCalls` lists a tool's recorded calls, newest first, 50 at a time unless `limit` says otherwise (at most 200). The server makes no access check: any signed account that knows the tool's id gets the calls.
 

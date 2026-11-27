@@ -32,6 +32,15 @@ export function isToolHostType(type: unknown): boolean {
   return type === HM_APP_TYPE || type === HM_AGENT_TYPE
 }
 
+/**
+ * Documents a server can run: an app, an agent, and a tool that stands on its own. A tool that an
+ * app or an agent lists runs under that host; any other tool is its own host, with its own config
+ * (see {@link hostListsChild}). Such a tool names no server: it runs on the one its writer uses.
+ */
+export function isRunnableType(type: unknown): boolean {
+  return isToolHostType(type) || type === HM_TOOL_TYPE
+}
+
 /** The file a tool's code folder must contain: `export default async function (input) {…}`. */
 export const TOOL_ENTRY_FILE = 'index.ts'
 
@@ -56,8 +65,9 @@ export function appChildKind(type: unknown): AppChildKind | null {
 export type AppEmbeddedChild = {blockId: string; id: UnpackedHypermediaId}
 
 /**
- * The children an app lists, in content order: its top-level embeds. Only embeds whose target sits
- * directly under the app count, so an app cannot claim someone else's documents as its tools.
+ * The children an app lists, in content order: its top-level embeds of documents directly under
+ * it. These are the app's own tools, pages and triggers. A tool that lives elsewhere is used by
+ * reference instead ({@link hostToolReferences}).
  */
 export function appEmbeddedChildren(
   appId: UnpackedHypermediaId,
@@ -76,6 +86,115 @@ export function appEmbeddedChildren(
     children.push({blockId: block.id, id: versionless(id)})
   }
   return children
+}
+
+/**
+ * Whether `host` is an app or an agent that lists `childId` as one of its children. A tool for which
+ * this is false of its parent document stands on its own.
+ */
+export function hostListsChild(
+  hostId: UnpackedHypermediaId,
+  host: {metadata?: {type?: unknown}; content?: HMBlockNode[]} | null | undefined,
+  childId: UnpackedHypermediaId,
+): boolean {
+  if (!host || !isToolHostType(host.metadata?.type)) return false
+  const key = packHmId(versionless(childId))
+  return appEmbeddedChildren(hostId, host.content).some((child) => packHmId(child.id) === key)
+}
+
+/**
+ * A tool a host uses without holding it: a card embed, in the host's document, of a tool document
+ * that lives somewhere else, in this space or another. The host does not claim the tool. It points
+ * at it, as any document points at another, and the tool stays its author's.
+ *
+ * `version` is the exact version the embed pins, or null when the host follows the tool's latest
+ * version. Pinned, the host runs that code whatever the tool's author publishes later.
+ */
+export type HostToolReference = {blockId: string; id: UnpackedHypermediaId; version: string | null}
+
+/**
+ * The card embeds of a host that point at documents outside it, in content order. These are the
+ * candidates for referenced tools: a caller keeps the ones whose target is a tool document. Embeds
+ * of the host's own children are its own tools, pages and triggers ({@link appEmbeddedChildren}),
+ * and an embed in any other view is content, not a listing.
+ */
+export function hostToolReferences(
+  hostId: UnpackedHypermediaId,
+  content: HMBlockNode[] | undefined,
+): HostToolReference[] {
+  const references: HostToolReference[] = []
+  const seen = new Set<string>()
+  const hostKey = packHmId(versionless(hostId))
+  for (const node of content ?? []) {
+    const block = node.block as {id?: string; type?: string; link?: string; attributes?: {view?: unknown}}
+    if (block.type !== 'Embed' || !block.link || !block.id || block.attributes?.view !== 'Card') continue
+    const id = unpackHmId(block.link)
+    if (!id || !id.path?.length || id.blockRef || isAppChildId(hostId, id)) continue
+    const key = packHmId(versionless(id))
+    if (key === hostKey || seen.has(key)) continue
+    seen.add(key)
+    // `?v=<version>&l` asks for the latest version; only a bare `?v=<version>` pins one.
+    references.push({blockId: block.id, id: versionless(id), version: id.version && !id.latest ? id.version : null})
+  }
+  return references
+}
+
+/** The reference by which `host` uses the tool at `toolId`, or null when it has none. */
+export function hostToolReference(
+  hostId: UnpackedHypermediaId,
+  host: {metadata?: {type?: unknown}; content?: HMBlockNode[]} | null | undefined,
+  toolId: UnpackedHypermediaId,
+): HostToolReference | null {
+  if (!host || !isToolHostType(host.metadata?.type)) return null
+  const key = packHmId(versionless(toolId))
+  return hostToolReferences(hostId, host.content).find((reference) => packHmId(reference.id) === key) ?? null
+}
+
+/** The link of a card that references a tool: pinned to `version`, or following the latest without one. */
+export function toolReferenceLink(toolId: UnpackedHypermediaId, version: string | null): string {
+  return packHmId({...versionless(toolId), version, latest: !version})
+}
+
+/**
+ * Ops that make a host reference the tool at `toolId`: a card embed after the rest of its content,
+ * pinned to `version` or following the latest. An existing reference to that tool is moved to
+ * `version` instead, in its place.
+ */
+export function setToolReferenceOps(
+  hostId: UnpackedHypermediaId,
+  content: HMBlockNode[] | undefined,
+  toolId: UnpackedHypermediaId,
+  version: string | null,
+): DocumentOperation[] {
+  const key = packHmId(versionless(toolId))
+  const existing = hostToolReferences(hostId, content).find((reference) => packHmId(reference.id) === key)
+  const link = toolReferenceLink(toolId, version)
+  const card = (blockId: string): HMBlockNode =>
+    ({
+      block: {type: 'Embed', id: blockId, text: '', annotations: [], link, attributes: {view: 'Card'}},
+      children: [],
+    }) as unknown as HMBlockNode
+  const after = existing
+    ? (content ?? []).map((node) =>
+        (node.block as {id?: string}).id === existing.blockId ? card(existing.blockId) : node,
+      )
+    : [...(content ?? []), card(newBlockId())]
+  return replaceContentOps(content, after)
+}
+
+/** Ops that drop a host's reference to the tool at `toolId`, or none when it has none. */
+export function removeToolReferenceOps(
+  hostId: UnpackedHypermediaId,
+  content: HMBlockNode[] | undefined,
+  toolId: UnpackedHypermediaId,
+): DocumentOperation[] {
+  const key = packHmId(versionless(toolId))
+  const existing = hostToolReferences(hostId, content).find((reference) => packHmId(reference.id) === key)
+  if (!existing) return []
+  return replaceContentOps(
+    content,
+    (content ?? []).filter((node) => (node.block as {id?: string}).id !== existing.blockId),
+  )
 }
 
 /** Whether `childId` is exactly one path segment under `appId`, in the same space. */

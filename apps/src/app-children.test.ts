@@ -53,6 +53,14 @@ describe('tool errors', () => {
     expect(text).not.toContain('LnN0YXR1')
     expect(text).toContain('index.ts:3:4')
   })
+  test('stack frames name the tool code index.ts instead of its place in the call folder', async () => {
+    const {readableToolError} = await import('@/app-running')
+    const text = readableToolError(
+      'error: Unable to connect\n      at convert (/workspace/.seed-tool-calls/0b6f1c2e-77aa-4c7e-9d1e-5a1f0c2b3d4e/index.ts:12:9)',
+    )
+    expect(text).toContain('at convert (index.ts:12:9)')
+    expect(text).not.toContain('seed-tool-calls')
+  })
   test('the error message comes before the source lines Bun prints above it', async () => {
     const {readableToolError} = await import('@/app-running')
     const text = readableToolError(

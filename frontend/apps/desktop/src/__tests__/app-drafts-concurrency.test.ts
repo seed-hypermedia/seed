@@ -52,6 +52,22 @@ it('creates a browser archive as an editable, account-listed draft with source m
   expect(JSON.stringify((await api.get(created.id))?.content)).toContain('Saved article content.')
 })
 
+it('forgets a draft whose file was removed behind the app, so its document is not left waiting for it', async () => {
+  const api = drafts.draftsApi.createCaller({})
+  await api.write(initial)
+  expect((await api.listAccount('account')).map((draft) => draft.id)).toEqual([initial.id])
+  // The CLI removes the draft's file while the app runs. The app's list still names it.
+  for (const file of await readdir(join(directory, 'drafts')))
+    if (file.startsWith(initial.id)) await rm(join(directory, 'drafts', file))
+  // Asked for it, the app finds no file: there is no draft, and the list stops naming one.
+  expect(await api.get(initial.id)).toBeNull()
+  expect(await api.listAccount('account')).toEqual([])
+  expect(JSON.parse(await readFile(join(directory, 'drafts', 'index.json'), 'utf-8'))).toEqual([])
+  // A draft can be written for that document again.
+  await api.write({...initial, id: 'draft67890', metadata: {name: 'Again'}})
+  expect((await api.get('draft67890'))?.metadata.name).toBe('Again')
+})
+
 it('CAS rejects a concurrent edit without losing the new content', async () => {
   const api = drafts.draftsApi.createCaller({})
   await api.write(initial)

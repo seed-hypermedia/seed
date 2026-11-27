@@ -87,6 +87,16 @@ describe('DocumentCreateButton', () => {
     expect(onCreateAgent).toHaveBeenCalledTimes(1)
   })
 
+  it('offers Tool in the menu when tool creation is wired, and not otherwise', () => {
+    const onCreateTool = vi.fn()
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
+    openMenu()
+    expect(menuItem('Tool')).toBeUndefined()
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} onCreateTool={onCreateTool} />))
+    act(() => menuItem('Tool')!.click())
+    expect(onCreateTool).toHaveBeenCalledTimes(1)
+  })
+
   it('renders nothing when hidden', () => {
     act(() => root.render(<DocumentCreateButton hidden onCreate={vi.fn()} onImport={vi.fn()} />))
     expect(container.innerHTML).toBe('')

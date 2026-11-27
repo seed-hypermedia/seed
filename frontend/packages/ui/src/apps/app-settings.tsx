@@ -1,4 +1,7 @@
-import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {appEmbeddedChildren, HM_TOOL_TYPE, hostToolReferences} from '@seed-hypermedia/client/apps'
+import {packHmId, unpackHmId, type HMDocument, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {loadSchemaRef, type SchemaFetchClient} from '@seed-hypermedia/client/schema-resolve'
+import {useUniversalClient} from '@shm/shared'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {
   selectBindingSchemaDrafts,
@@ -6,6 +9,7 @@ import {
   useDocumentSelector,
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
+import {useQuery} from '@tanstack/react-query'
 import {KeyRound, Play, Server, SlidersHorizontal, Square} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {
@@ -55,6 +59,36 @@ type Change = {
  * the draft).
  */
 export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) {
+  return (
+    <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto p-4 pt-6">
+      <HostSettings host={app} canEdit={canEdit} kind="app" />
+    </section>
+  )
+}
+
+/**
+ * The config of an app, or of a tool.
+ *
+ * An app holds the values: its public config, and under Hosting where it runs and its private
+ * config. It asks for its own fields and for those its tools declare, since the app is what gives
+ * a tool its config, matched by name.
+ *
+ * A tool only declares what it needs (Config fields). Inside an app or an agent that is all: the
+ * host supplies the values. A tool in neither (`standalone`) is its author's to try, so its page
+ * also takes the values the author runs it with. There is nothing to turn on.
+ */
+export function HostSettings({
+  host: app,
+  canEdit,
+  kind,
+  standalone = false,
+}: {
+  host: AppRef
+  canEdit: boolean
+  kind: 'app' | 'tool'
+  /** For a tool: whether it is in no app or agent. */
+  standalone?: boolean
+}) {
   const ctx = useDocumentSelector(selectContext)
   const bindingDrafts = useDocumentSelector(selectBindingSchemaDrafts) as Partial<
     Record<ConfigKey, Record<string, unknown>>
@@ -77,21 +111,93 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
   const schemasDialog = useAppDialog(ConfigSchemasDialog, {className: 'w-full max-w-2xl'})
   const serverDialog = useAppDialog(RunAppDialog, {className: 'w-full max-w-lg'})
   const privateDialog = useAppDialog(PrivateConfigDialog, {className: 'w-full max-w-lg'})
-  const server = useAppServerUrl(app.id, draftApp.document)
+  const server = useAppServerUrl(app.id, draftApp.document, kind === 'tool' && standalone)
   const appRun = useAppRun(server.serverUrl, app.id.id)
   const publisher = useAppsPublisher()
-  const publicFields = structFields(publicSchema.schema)
-  const privateFields = structFields(privateSchema.schema)
+  // An app also asks for what its tools declare: a field of its own wins over a tool's of that name.
+  const toolFields = useToolConfigFields(kind === 'app' ? app : null)
+  const publicFields = withToolFields(structFields(publicSchema.schema), toolFields.data?.publicFields)
+  const privateFields = withToolFields(structFields(privateSchema.schema), toolFields.data?.privateFields)
   const publicConfig = (metadata.publicConfig ?? {}) as Record<string, unknown>
+  const missing = missingConfig({
+    publicFields,
+    privateFields,
+    publicConfig,
+    privateKeys: appRun.status.data ? appRun.status.data.privateConfigKeys : null,
+  })
   const openSchemas = () =>
     schemasDialog.open({
       publicSchema: publicSchema.schema ?? null,
       privateSchema: privateSchema.schema ?? null,
       onDone: change,
     })
+  const openPrivateConfig = () =>
+    privateDialog.open({
+      privateFields,
+      setKeys: appRun.status.data?.privateConfigKeys ?? [],
+      onSave: async (privateConfig) => {
+        await appRun.run.mutateAsync({serverUrl: server.serverUrl, privateConfig})
+        toast.success('Private config updated')
+      },
+    })
+
+  if (kind === 'tool')
+    return (
+      <>
+        {schemasDialog.content}
+        {privateDialog.content}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <SizableText size="sm" weight="bold">
+              Config
+            </SizableText>
+            <SizableText size="sm" color="muted">
+              {standalone
+                ? 'What the tool reads from ctx.publicConfig and ctx.privateConfig. An app or an agent that takes this tool supplies these values; here you set the ones you run it with.'
+                : 'What the tool reads from ctx.publicConfig and ctx.privateConfig. The app this tool is in supplies the values, in its Settings.'}
+            </SizableText>
+          </div>
+          {canEdit ? (
+            <Button size="sm" variant="outline" className="shrink-0" onClick={openSchemas}>
+              <SlidersHorizontal className="size-4" /> Config fields
+            </Button>
+          ) : null}
+        </div>
+        {standalone ? (
+          <>
+            <PublicConfigSection
+              fields={publicFields}
+              values={publicConfig}
+              canEdit={canEdit}
+              onChange={(next) => change({metadata: {publicConfig: next}})}
+            />
+            {privateFields.length && canEdit ? (
+              <SettingsSection label="Private config">
+                <SettingsRow
+                  icon={<KeyRound />}
+                  label={privateConfigLabel(privateFields, appRun.status.data?.privateConfigKeys ?? [])}
+                  description={
+                    server.serverUrl
+                      ? `Kept by ${describeHostServer(server.serverUrl, undefined)} for your own runs. Never published.`
+                      : 'You have no app environment to keep them.'
+                  }
+                  action={
+                    server.serverUrl ? (
+                      <Button size="sm" variant="outline" onClick={openPrivateConfig}>
+                        <KeyRound className="size-4" /> Set
+                      </Button>
+                    ) : null
+                  }
+                />
+              </SettingsSection>
+            ) : null}
+          </>
+        ) : null}
+      </>
+    )
 
   return (
-    <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto p-4 pt-6">
+    <>
       {schemasDialog.content}
       {serverDialog.content}
       {privateDialog.content}
@@ -110,6 +216,7 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
         onChange={(next) => change({metadata: {publicConfig: next}})}
       />
       <HostingSection
+        missing={missing}
         serverUrl={server.serverUrl}
         serverLoading={server.isLoading}
         appRun={appRun}
@@ -136,19 +243,312 @@ export function AppSettingsTab({app, canEdit}: {app: AppRef; canEdit: boolean}) 
             },
           })
         }
-        onEditPrivateConfig={() =>
+        onEditPrivateConfig={openPrivateConfig}
+      />
+    </>
+  )
+}
+
+/**
+ * The secrets a host's tools declare, and the way to give them to the host's server. An app has
+ * this in its Settings; this is for an agent, which has no config of its own.
+ *
+ * The values go to the server that runs the agent, which keeps them encrypted and hands a tool the
+ * ones it declares, by name. They are not put in the agent's memory: the model reads its memory,
+ * and a secret it can read can end up in a conversation or a published document.
+ */
+export function HostToolSecrets({host, canEdit}: {host: AppRef; canEdit: boolean}) {
+  const server = useAppServerUrl(host.id, host.document)
+  const hostRun = useAppRun(server.serverUrl, host.id.id)
+  const toolFields = useToolConfigFields(host)
+  const privateDialog = useAppDialog(PrivateConfigDialog, {className: 'w-full max-w-lg'})
+  const privateFields = toolFields.data?.privateFields ?? []
+  if (!privateFields.length) return null
+  const setKeys = hostRun.status.data?.privateConfigKeys ?? []
+  const missing = privateFields.filter((field) => field.required && !setKeys.includes(field.name))
+  return (
+    <>
+      {privateDialog.content}
+      <SettingsSection label="Tool secrets">
+        <SettingsRow
+          icon={<KeyRound />}
+          label={privateConfigLabel(privateFields, setKeys)}
+          description={
+            missing.length ? (
+              <span role="alert" className="text-destructive">
+                Not set: {missing.map((field) => field.name).join(', ')}. The tools that need them fail until they are.
+              </span>
+            ) : server.serverUrl ? (
+              `Kept by ${describeHostServer(
+                server.serverUrl,
+                undefined,
+              )} for this agent’s tools. Never published, and never shown to the agent.`
+            ) : (
+              'This agent names no server to keep them.'
+            )
+          }
+          action={
+            canEdit && server.serverUrl ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  privateDialog.open({
+                    privateFields,
+                    setKeys,
+                    onSave: async (privateConfig) => {
+                      await hostRun.run.mutateAsync({serverUrl: server.serverUrl, privateConfig})
+                      toast.success('Tool secrets updated')
+                    },
+                  })
+                }
+              >
+                <KeyRound className="size-4" /> Set
+              </Button>
+            ) : null
+          }
+        />
+      </SettingsSection>
+    </>
+  )
+}
+
+/**
+ * The settings an agent's tools declare (their `publicConfigSchema`), set on the agent. An app sets
+ * them in its Settings; an agent has no config of its own, so its tools' settings are asked for
+ * here, beside their secrets. They are saved in the agent's document as its `publicConfig`, where a
+ * tool reads them as `ctx.publicConfig`. Anyone who can read the agent can read them: a secret
+ * belongs in the tool secrets above, never here. Nothing is published until Save.
+ */
+export function HostToolSettings({host, canEdit}: {host: AppRef; canEdit: boolean}) {
+  const publisher = useAppsPublisher()
+  const toolFields = useToolConfigFields(host)
+  const [edited, setEdited] = useState<Record<string, unknown> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const fields = toolFields.data?.publicFields ?? []
+  if (!fields.length) return null
+  const saved = (host.document.metadata.publicConfig ?? {}) as Record<string, unknown>
+  const values = edited ?? saved
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  const changed = fields.filter((field) => !same(values[field.name], saved[field.name]))
+  async function save() {
+    setSaving(true)
+    try {
+      const attrs = changed.map((field) => {
+        const value = values[field.name] ?? null
+        // A document attribute holds one plain value; a tool setting that is a list or an object
+        // cannot be saved this way.
+        if (value !== null && typeof value === 'object')
+          throw new Error(`${field.name} is not a plain value and cannot be set here`)
+        return {key: ['publicConfig', field.name], value: value as string | number | boolean | null}
+      })
+      await publisher.update(host.id, [{type: 'SetAttributes', attrs}])
+      setEdited(null)
+      toast.success('Tool settings saved')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2" data-testid="host-tool-settings">
+      <PublicConfigSection
+        label="Tool settings"
+        fields={fields}
+        values={values}
+        canEdit={canEdit}
+        onChange={setEdited}
+      />
+      {canEdit ? (
+        <div className="flex items-center justify-between gap-3">
+          <SizableText size="xs" color="muted">
+            Saved in the agent’s document, which anyone who can read the agent can see. A field left empty uses the
+            tool’s own default.
+          </SizableText>
+          <Button size="sm" variant="outline" disabled={!changed.length || saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** How many of a tool's secrets the server holds, in words. */
+function privateConfigLabel(fields: StructField[], setKeys: string[]): string {
+  const set = fields.filter((field) => setKeys.includes(field.name)).length
+  return set === fields.length ? `${fields.length} of ${fields.length} set` : `${set} of ${fields.length} set`
+}
+
+/** The names of the required config fields an app lacks. */
+export type MissingConfig = {public: string[]; private: string[]}
+
+/**
+ * Which required config an app lacks. A public field is missing when the app's public config has no
+ * value for it. A private one is missing when the server says it holds none: `privateKeys` is the
+ * names it holds, or null while the app does not run (the Run dialog then asks for them).
+ */
+export function missingConfig({
+  publicFields,
+  privateFields,
+  publicConfig,
+  privateKeys,
+}: {
+  publicFields: StructField[]
+  privateFields: StructField[]
+  publicConfig: Record<string, unknown>
+  privateKeys: string[] | null
+}): MissingConfig {
+  const empty = (value: unknown) => value === undefined || value === null || value === ''
+  return {
+    public: publicFields.filter((field) => field.required && empty(publicConfig[field.name])).map((f) => f.name),
+    private: privateKeys
+      ? privateFields.filter((field) => field.required && !privateKeys.includes(field.name)).map((f) => f.name)
+      : [],
+  }
+}
+
+/**
+ * The required config an app, as published, lacks: its own fields and those its tools declare. For
+ * the places that show an app without editing it.
+ */
+export function useAppMissingConfig(app: AppRef): MissingConfig {
+  const server = useAppServerUrl(app.id, app.document)
+  const {status} = useAppRun(server.serverUrl, app.id.id)
+  const publicSchema = useResolvedSchema(configRef(app.document.metadata.publicConfigSchema))
+  const privateSchema = useResolvedSchema(configRef(app.document.metadata.privateConfigSchema))
+  const toolFields = useToolConfigFields(app)
+  return missingConfig({
+    publicFields: withToolFields(structFields(publicSchema.schema), toolFields.data?.publicFields),
+    privateFields: withToolFields(structFields(privateSchema.schema), toolFields.data?.privateFields),
+    publicConfig: (app.document.metadata.publicConfig ?? {}) as Record<string, unknown>,
+    privateKeys: status.data ? status.data.privateConfigKeys : null,
+  })
+}
+
+const configRef = (ref: unknown) => (typeof ref === 'string' ? ref : undefined)
+
+/**
+ * The required config a tool cannot run without, for its Run form, and how to set it from there.
+ * `host` is what supplies the config: the app or agent the tool is in, as published, or the tool
+ * itself when it stands on its own, as the page shows it (its draft included). A tool on its own
+ * has no run until its private config is set, so a server that holds nothing for it holds none of
+ * its fields. `setPrivate` opens the private config for a tool on its own that someone can edit.
+ */
+export function useToolRunConfig({host, standalone, canEdit}: {host: AppRef; standalone: boolean; canEdit: boolean}): {
+  missing: MissingConfig
+  setPrivate?: () => void
+  dialog: React.ReactNode
+} {
+  const bindingDrafts = useDocumentSelector(selectBindingSchemaDrafts) as Partial<
+    Record<ConfigKey, Record<string, unknown>>
+  > | null
+  const metadata = host.document.metadata
+  const server = useAppServerUrl(host.id, host.document, standalone)
+  const appRun = useAppRun(server.serverUrl, host.id.id)
+  // The fields a tool on its own is drafting count too: they are what the page asks for.
+  const publicSchema = useConfigSchema(
+    metadata.publicConfigSchema,
+    standalone ? bindingDrafts?.publicConfigSchema : undefined,
+  )
+  const privateSchema = useConfigSchema(
+    metadata.privateConfigSchema,
+    standalone ? bindingDrafts?.privateConfigSchema : undefined,
+  )
+  const toolFields = useToolConfigFields(standalone ? null : host)
+  const privateFields = withToolFields(structFields(privateSchema.schema), toolFields.data?.privateFields)
+  const privateDialog = useAppDialog(PrivateConfigDialog, {className: 'w-full max-w-lg'})
+  const status = appRun.status
+  const settled = !!server.serverUrl && !server.isLoading && !status.isLoading && !status.isError
+  const missing = missingConfig({
+    publicFields: withToolFields(structFields(publicSchema.schema), toolFields.data?.publicFields),
+    privateFields,
+    publicConfig: (metadata.publicConfig ?? {}) as Record<string, unknown>,
+    privateKeys: status.data ? status.data.privateConfigKeys : standalone && settled ? [] : null,
+  })
+  const setPrivate =
+    standalone && canEdit && server.serverUrl
+      ? () =>
           privateDialog.open({
             privateFields,
-            setKeys: appRun.status.data?.privateConfigKeys ?? [],
+            setKeys: status.data?.privateConfigKeys ?? [],
             onSave: async (privateConfig) => {
               await appRun.run.mutateAsync({serverUrl: server.serverUrl, privateConfig})
               toast.success('Private config updated')
             },
           })
-        }
-      />
-    </section>
-  )
+      : undefined
+  return {missing, setPrivate, dialog: privateDialog.content}
+}
+
+/** A host's own config fields, then those its tools declare under names the host does not use. */
+export function withToolFields(own: StructField[], fromTools: StructField[] | undefined): StructField[] {
+  const names = new Set(own.map((field) => field.name))
+  const added: StructField[] = []
+  for (const field of fromTools ?? []) {
+    if (names.has(field.name)) continue
+    names.add(field.name)
+    added.push(field)
+  }
+  return [...own, ...added]
+}
+
+/**
+ * The config fields a list of tools declare (their own `publicConfigSchema` and
+ * `privateConfigSchema`), each described by the tool that needs it. A document that is not a tool,
+ * or a schema that cannot be read, adds nothing.
+ */
+export async function toolConfigFields(
+  client: Pick<ReturnType<typeof useUniversalClient>, 'request'>,
+  tools: UnpackedHypermediaId[],
+): Promise<{publicFields: StructField[]; privateFields: StructField[]}> {
+  const publicFields: StructField[] = []
+  const privateFields: StructField[] = []
+  for (const toolId of tools) {
+    const resource = await client.request('Resource', toolId).catch(() => null)
+    if (resource?.type !== 'document' || resource.document.metadata.type !== HM_TOOL_TYPE) continue
+    const metadata = resource.document.metadata as Record<string, unknown>
+    const toolName = typeof metadata.name === 'string' && metadata.name ? metadata.name : toolId.path?.at(-1)
+    for (const [key, into] of [
+      ['publicConfigSchema', publicFields],
+      ['privateConfigSchema', privateFields],
+    ] as const) {
+      const ref = metadata[key]
+      if (typeof ref !== 'string' || !ref) continue
+      const loaded = await loadSchemaRef(client as unknown as SchemaFetchClient, ref).catch(() => null)
+      for (const field of structFields(loaded?.schema as HypermediaSchema | undefined))
+        into.push({
+          ...field,
+          description: field.description ? `${field.description} (for ${toolName})` : `For ${toolName}`,
+        })
+    }
+  }
+  return {publicFields, privateFields}
+}
+
+/**
+ * The config fields an app's tools declare. The app gives a tool its config by name, so these are
+ * fields of the app's settings too.
+ */
+function useToolConfigFields(app: AppRef | null) {
+  const client = useUniversalClient()
+  // Its own tools, and the ones it references, each at the version the app runs.
+  const tools = app
+    ? [
+        ...appEmbeddedChildren(app.id, app.document.content).map((child) => child.id),
+        ...hostToolReferences(app.id, app.document.content).map(({id, version}) =>
+          version ? unpackHmId(packHmId({...id, version, latest: false}))! : id,
+        ),
+      ]
+    : []
+  return useQuery({
+    queryKey: ['app-tool-config-fields', app?.id.id, tools.map((tool) => tool.id)],
+    enabled: tools.length > 0,
+    useErrorBoundary: false,
+    staleTime: 30_000,
+    queryFn: () => toolConfigFields(client, tools),
+  })
 }
 
 /** A config schema: the draft's working copy when there is one, else the published reference. */
@@ -238,15 +638,17 @@ function PublicConfigSection({
   values,
   canEdit,
   onChange,
+  label = 'Public config',
 }: {
   fields: StructField[]
   values: Record<string, unknown>
   canEdit: boolean
   onChange: (next: Record<string, unknown>) => void
+  label?: string
 }) {
   if (!fields.length) return null
   return (
-    <SettingsSection label="Public config">
+    <SettingsSection label={label}>
       {fields.map((field, index) => (
         <div key={field.name}>
           {index ? <Separator /> : null}
@@ -270,6 +672,7 @@ function PublicConfigSection({
  * dialog (secrets the server keeps and never shows back).
  */
 function HostingSection({
+  missing,
   serverUrl,
   serverLoading,
   appRun,
@@ -278,6 +681,8 @@ function HostingSection({
   onRunApp,
   onEditPrivateConfig,
 }: {
+  /** Required config the app does not have yet. */
+  missing: MissingConfig
   serverUrl: string
   serverLoading: boolean
   appRun: ReturnType<typeof useAppRun>
@@ -291,25 +696,48 @@ function HostingSection({
   const running = status.data
   const host = describeHostServer(serverUrl, local)
   const checking = serverLoading || (!!serverUrl && status.isInitialLoading)
-  const label = checking ? 'Checking…' : running ? `Running on ${host}` : 'App not yet running'
+  // An app that lacks required config is shown in red: its tools that need it fail until it is set.
+  // Public config must be there before the app runs; the Run dialog asks for the secrets itself.
+  const lacksSecrets = !!running && missing.private.length > 0
+  const lacksPublic = missing.public.length > 0
+  const incomplete = !checking && (lacksSecrets || lacksPublic)
+  const label = checking
+    ? 'Checking…'
+    : running
+      ? incomplete
+        ? `Running on ${host}, with config missing`
+        : `Running on ${host}`
+      : 'App not yet running'
   const description = checking
     ? null
-    : running
-      ? host !== serverUrl
-        ? serverUrl
-        : null
-      : status.isError
-        ? `${appServerErrorMessage(status.error)} (${host})`
-        : serverUrl
-          ? `Runs on ${host}`
-          : 'Choose a server to run it'
+    : incomplete
+      ? `Not set: ${[...missing.public, ...missing.private].join(', ')}. ${
+          lacksPublic ? 'Fill the required public config above' : 'Set them under Private config'
+        }${running ? '; the tools that need them fail until then.' : ' before running the app.'}`
+      : running
+        ? host !== serverUrl
+          ? serverUrl
+          : null
+        : status.isError
+          ? `${appServerErrorMessage(status.error)} (${host})`
+          : serverUrl
+            ? `Runs on ${host}`
+            : 'Choose a server to run it'
 
   return (
     <SettingsSection label="Hosting">
       <SettingsRow
-        icon={<Server />}
+        icon={<Server className={incomplete ? 'text-destructive' : undefined} />}
         label={label}
-        description={description}
+        description={
+          incomplete ? (
+            <span className="text-destructive" role="alert">
+              {description}
+            </span>
+          ) : (
+            description
+          )
+        }
         action={
           !canEdit || checking ? null : running ? (
             <div className="flex gap-2">
@@ -328,7 +756,7 @@ function HostingSection({
               </Button>
             </div>
           ) : (
-            <Button size="sm" variant="brand" onClick={onRunApp}>
+            <Button size="sm" variant="brand" disabled={lacksPublic} onClick={onRunApp}>
               <Play className="size-4" /> Run App
             </Button>
           )
@@ -545,7 +973,7 @@ export function ConfigSchemasDialog({
       <div className="grid gap-1">
         <DialogTitle>Config fields</DialogTitle>
         <DialogDescription>
-          The settings this app takes. Changes go into the draft; publish them from the toolbar.
+          The settings and secrets this takes. Changes go into the draft; publish them from the toolbar.
         </DialogDescription>
       </div>
       <div className="grid gap-1">
@@ -563,13 +991,15 @@ export function ConfigSchemasDialog({
       <div className="grid gap-1">
         <Label>Private config</Label>
         <SizableText size="xs" color="muted">
-          Secrets, such as API keys: whoever runs the app fills them in, and they stay on the app server.
+          Secrets, such as API keys: whoever runs the app fills them in, and they stay on the app server. Only the field
+          names are published, so a secret has no default value here.
         </SizableText>
         <StructFieldsSchemaEditor
           schema={privateSchema}
           onSchema={setPrivateSchema}
           addLabel="Add private field"
           emptyLabel="No private config."
+          noDefaults
         />
       </div>
       {badName || clash ? (
@@ -591,7 +1021,8 @@ export function ConfigSchemasDialog({
             const bindingSchemaDrafts: Change['bindingSchemaDrafts'] = {}
             for (const [schema, key, before] of [
               [publicSchema, 'publicConfigSchema', input.publicSchema],
-              [privateSchema, 'privateConfigSchema', input.privateSchema],
+              // A default set before this dialog stopped offering one must not be published again.
+              [withoutDefaults(privateSchema), 'privateConfigSchema', input.privateSchema],
             ] as const) {
               const after = configSchema(schema)
               if (JSON.stringify(after) === JSON.stringify(before ?? null)) continue
@@ -612,6 +1043,22 @@ export function ConfigSchemasDialog({
 }
 
 /** A config schema as the app keeps it: the struct, or null once it has no fields. */
+/**
+ * A struct schema with every field's default removed. For the schema of secrets: a schema is
+ * published, so a default in it would publish the secret to everyone who can read the document,
+ * and to every copy of it.
+ */
+export function withoutDefaults(schema: HypermediaSchema): HypermediaSchema {
+  const properties = (schema.properties ?? {}) as Record<string, Record<string, unknown>>
+  if (!Object.values(properties).some((property) => 'default' in property)) return schema
+  return {
+    ...schema,
+    properties: Object.fromEntries(
+      Object.entries(properties).map(([name, {default: _dropped, ...property}]) => [name, property]),
+    ),
+  } as HypermediaSchema
+}
+
 export function configSchema(schema: HypermediaSchema): Record<string, unknown> | null {
   return Object.keys(schema.properties ?? {}).length ? (schema as Record<string, unknown>) : null
 }

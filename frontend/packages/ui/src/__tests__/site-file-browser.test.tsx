@@ -514,9 +514,10 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[aria-label="Create root document"]')).toBeTruthy()
   })
 
-  it('offers Agent from the root creation menu when the New menu has it', () => {
+  it('offers Agent and Tool from the root creation menu when the New menu has them', () => {
     setDirectory({directory: [], drafts: []})
     const createAgent = vi.fn()
+    const createTool = vi.fn()
     act(() =>
       root.render(
         <SiteFileBrowser
@@ -529,6 +530,8 @@ describe('SiteFileBrowser', () => {
             children: [
               {key: 'new-document', label: 'Document', icon: null, onClick: vi.fn()},
               {key: 'new-agent', label: 'Agent', icon: null, onClick: createAgent},
+              // A tool can be made anywhere a document can, so the root of a space offers one too.
+              {key: 'new-standalone-tool', label: 'Tool', icon: null, onClick: createTool},
               {key: 'import', label: 'Import', icon: null, onClick: vi.fn()},
             ],
           }}
@@ -540,8 +543,9 @@ describe('SiteFileBrowser', () => {
       trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0}))
     })
     const items = Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent?.trim())
-    expect(items).toEqual(['Document', 'Agent'])
+    expect(items).toEqual(['Document', 'Agent', 'Tool'])
     act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
     expect(createAgent).toHaveBeenCalledTimes(1)
+    expect(createTool).not.toHaveBeenCalled()
   })
 })

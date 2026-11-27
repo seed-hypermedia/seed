@@ -15,7 +15,7 @@ import {
   requiredFieldNames,
   structFields,
 } from '../engine'
-import {emptyStructSchema, SchemaEditor} from '../schema-editor'
+import {emptyStructSchema, SchemaEditor, StructFieldsSchemaEditor} from '../schema-editor'
 
 let container: HTMLDivElement
 let root: Root
@@ -134,6 +134,33 @@ describe('SchemaEditor (property defaults)', () => {
       el.dispatchEvent(new Event('input', {bubbles: true}))
     })
   const entry = (name: string) => latest.properties[name]
+
+  it('offers no default, and shows none, for fields that hold secrets', () => {
+    const fields = {type: STRUCT, properties: {api_key: {value: {type: STRING}, default: 'k-1'}}}
+    act(() =>
+      root.render(
+        <AppShell>
+          <StructFieldsSchemaEditor schema={fields} onSchema={() => {}} noDefaults />
+        </AppShell>,
+      ),
+    )
+    // A default would be published with the schema, for anyone to read.
+    expect(container.querySelector('[aria-label="Set default value of api_key"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Default value of api_key"]')).toBeNull()
+    expect(container.textContent).not.toContain('k-1')
+    // The same fields elsewhere still take one.
+    act(() =>
+      root.render(
+        <AppShell>
+          <StructFieldsSchemaEditor
+            schema={{type: STRUCT, properties: {city: {value: {type: STRING}}}}}
+            onSchema={() => {}}
+          />
+        </AppShell>,
+      ),
+    )
+    expect(container.querySelector('[aria-label="Set default value of city"]')).not.toBeNull()
+  })
 
   it('sets, edits and removes a default on a field', () => {
     act(() => root.render(<Harness initial={{type: STRUCT, properties: {title: {value: {type: STRING}}}}} />))

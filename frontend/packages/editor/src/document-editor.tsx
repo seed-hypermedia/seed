@@ -779,11 +779,14 @@ export function DocumentEditor({
 
         {/* Click-to-edit affordance below the content. Only for users who can
             edit — for readers it would add 500px of dead space that the SSR
-            HTML doesn't have, shifting everything below it on hydration. */}
+            HTML doesn't have, shifting everything below it on hydration.
+            A page that shows the document as one part among others (a tool's
+            documentation) shortens it through `data-editor-end-area`. */}
         {canEdit && (
           <button
             type="button"
             aria-label="Focus editor at end"
+            data-editor-end-area
             tabIndex={-1}
             className="block h-[500px] w-full cursor-text appearance-none border-0 bg-transparent p-0 text-left"
             onPointerDown={(event) => {

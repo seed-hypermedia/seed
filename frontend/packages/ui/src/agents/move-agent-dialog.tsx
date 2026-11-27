@@ -44,7 +44,7 @@ export function MoveAgentDialog({
   onClose: () => void
 }) {
   // Suggestions only: the picker also takes the URL of a server the app has never talked to.
-  const serverOptions = useAgentServerOptions()
+  const serverOptions = useAgentServerOptions('agents')
   const targetUrls = (serverOptions || []).filter((url) => url !== input.sourceServerUrl)
   const rememberServer = useRememberAgentServer()
   const [targetServerUrl, setTargetServerUrl] = useState('')

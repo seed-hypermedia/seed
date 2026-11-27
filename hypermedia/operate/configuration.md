@@ -33,6 +33,8 @@ Each setting is an environment variable named `SEED_APPS_<NAME>`. The server als
 | `SEED_APPS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. With it, a web read can fall back to a real browser for pages that need one. <!-- id:0R7M1OGu --> |
 | `SEED_APPS_CRAWLER_TOKEN` | _(unset)_ | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). <!-- id:ABE0a0Tv --> |
 | `SEED_APPS_SUBSCRIPTION_AUTH` | _(off)_ | Offer provider OAuth sign-in ("Sign in with ChatGPT"). Only `1`/`true`/`yes`/`on` enables it. <!-- id:Sv4pKPqe --> |
+| `SEED_APPS_EXEC_WARM_UP` | _(off)_ | Start one sandbox when the server starts, so the first [tool](../tool.md) run does not wait for the sandbox's slow first start. Only `1`/`true`/`yes`/`on` enables it. The desktop app turns it on for its own server. |
+| `SEED_APPS_FEATURES` | `tools,apps,agents` | What the server runs: `tools` (a tool in no app or agent, for its writers), `apps` and `agents`. A name left out is refused by the server. An unknown name stops the server at startup. The [desktop app](../software/desktop.md) sets it for its own server, to `tools` by default. |
 | `SEED_APPS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. Use the environment variable to turn it off; the flag form does not. <!-- id:ED7y2rAF --> |
 | `SEED_APPS_EXEC_BACKEND` | `microsandbox` | [Code-execution backend](./code-execution-backend.md) for `execute`. Set empty/`off`/`none` to disable. When it is off, or the host cannot run sandboxes, agents are not offered `execute`. <!-- id:81BYtsXO --> |
 | `SEED_APPS_EXEC_IMAGE` | `python` | OCI image used for execution sandboxes. <!-- id:QRvggCQy --> |

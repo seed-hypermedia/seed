@@ -11,7 +11,20 @@ import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import {filterDocumentsByTitle} from '@shm/shared/utils/all-documents-tree'
 import {getIndexedCardNavigationTargets} from '@shm/shared/utils/card-navigation'
-import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
+import {
+  Blocks,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Grid3X3,
+  Home,
+  Lock,
+  Plus,
+  Search,
+  Wrench,
+  X,
+} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ComponentProps} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
@@ -116,6 +129,7 @@ export function SiteFileBrowser({
       'new-collection',
       'new-agent',
       'new-app',
+      'new-standalone-tool',
       'new-private-document',
     ].includes(item.key),
   )
@@ -151,6 +165,8 @@ export function SiteFileBrowser({
               <Bot className="size-4" />
             ) : item.key === 'new-app' ? (
               <Blocks className="size-4" />
+            ) : item.key === 'new-standalone-tool' ? (
+              <Wrench className="size-4" />
             ) : (
               <Lock className="size-4" />
             )}

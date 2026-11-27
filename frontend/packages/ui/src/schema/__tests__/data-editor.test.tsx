@@ -120,6 +120,79 @@ describe('SchemaDataEditor (property defaults)', () => {
   })
 })
 
+describe('SchemaDataEditor (a form to fill in)', () => {
+  const string = {type: 'hm://hyper.media/string'}
+  // A tool's input, in small: everything optional, as when a call takes either a file or a job.
+  const input = {
+    type: 'hm://hyper.media/struct',
+    properties: {
+      file: {
+        value: {
+          type: 'hm://hyper.media/struct',
+          properties: {name: {value: string}, mimeType: {value: string}, data: {value: string}},
+        },
+      },
+      maxPages: {value: {type: 'hm://hyper.media/integer'}},
+      mode: {value: {anyOf: ['fast', 'balanced', 'accurate']}},
+      pageRange: {value: string},
+      options: {
+        value: {type: 'hm://hyper.media/struct', properties: {strict: {value: {type: 'hm://hyper.media/boolean'}}}},
+      },
+    },
+  }
+  let latest: unknown
+  function Form() {
+    const [value, setValue] = React.useState<unknown>({})
+    latest = value
+    return <SchemaDataEditor schema={input} value={value} onValue={setValue} plainOptional />
+  }
+  const set = (el: HTMLInputElement | HTMLSelectElement, text: string, event: string) =>
+    act(() => {
+      const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+      Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(el, text)
+      el.dispatchEvent(new Event(event, {bubbles: true}))
+    })
+
+  it('shows an optional text, number, choice or file as its control, with no switch to include it', () => {
+    act(() => root.render(<Form />))
+    expect((container.querySelector('input[aria-label="maxPages"]') as HTMLInputElement).type).toBe('number')
+    expect((container.querySelector('input[aria-label="pageRange"]') as HTMLInputElement).type).toBe('text')
+    const mode = container.querySelector('select[aria-label="mode"]') as HTMLSelectElement
+    expect(Array.from(mode.options).map((option) => option.textContent)).toEqual([
+      'Not set',
+      '"fast"',
+      '"balanced"',
+      '"accurate"',
+    ])
+    expect(container.querySelector('button[aria-label="Choose file for file"]')).not.toBeNull()
+    for (const name of ['file', 'maxPages', 'mode', 'pageRange'])
+      expect(container.querySelector(`[aria-label="Include ${name}"]`)).toBeNull()
+    // Nothing is in the value until something is entered.
+    expect(latest).toEqual({})
+  })
+
+  it('puts a field in the value while its control holds something, and takes it out when emptied', () => {
+    act(() => root.render(<Form />))
+    set(container.querySelector('input[aria-label="maxPages"]')!, '3', 'input')
+    set(container.querySelector('select[aria-label="mode"]')!, '"fast"', 'change')
+    expect(latest).toEqual({maxPages: 3, mode: 'fast'})
+    set(container.querySelector('input[aria-label="maxPages"]')!, '', 'input')
+    set(container.querySelector('select[aria-label="mode"]')!, '', 'change')
+    expect(latest).toEqual({})
+  })
+
+  it('keeps the switch for an optional field that has no empty state of its own', () => {
+    act(() => root.render(<Form />))
+    expect(container.querySelector('[aria-label="Include options"]')).not.toBeNull()
+  })
+
+  it('leaves every optional field behind its switch where the form is not one to fill in', () => {
+    act(() => root.render(<SchemaDataEditor schema={input} value={{}} onValue={() => {}} />))
+    expect(container.querySelector('[aria-label="Include maxPages"]')).not.toBeNull()
+    expect(container.querySelector('input[aria-label="maxPages"]')).toBeNull()
+  })
+})
+
 describe('SchemaDataEditorPanel', () => {
   it('shows a live dag-json preview and a validation status', () => {
     const schema = HM_SCHEMAS['example/geo']
