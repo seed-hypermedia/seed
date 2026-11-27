@@ -124,4 +124,18 @@ describe('Markdown', () => {
 
     cleanupRendered(root, container)
   })
+
+  it('opens external links through the platform opener instead of a native popup', () => {
+    const {container, root} = renderMarkdown('[Resend](https://resend.com/docs)')
+    const web = container.querySelector('a')
+
+    const webClick = new MouseEvent('click', {bubbles: true, cancelable: true})
+    act(() => {
+      web!.dispatchEvent(webClick)
+    })
+    expect(webClick.defaultPrevented).toBe(true)
+    expect(openUrlMock).toHaveBeenCalledWith('https://resend.com/docs', true)
+
+    cleanupRendered(root, container)
+  })
 })
