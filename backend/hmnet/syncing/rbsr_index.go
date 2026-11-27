@@ -50,6 +50,33 @@ var dirStructureTypes = BlobTypesString(docStructureTypes)
 // non-indexed rebuild, which honors arbitrary filters.
 var errScopeNotRepresentable = errors.New("discovery key has no maintained scope kind")
 
+// errMaterializeRaced means the maintained index changed while a cold scope's
+// blob set was being computed off the writer, so the computed set may miss
+// blobs and was not persisted. The caller falls back to the legacy rebuild; the
+// scope stays cold and the next load tries again.
+var errMaterializeRaced = errors.New("maintained index changed while a scope was materializing")
+
+// indexGeneration reads the database's count of applied index hook batches
+// (see blob.BumpRBSRGeneration). A cold load reads it in the snapshot it
+// computes a scope's set from, and again under the writer before persisting.
+// The hook only patches materialized scopes, so a batch applied in between
+// skipped the scope, and its blobs may be missing from the computed set.
+func indexGeneration(conn *sqlite.Conn) (gen string, err error) {
+	err = sqlitex.Exec(conn, qIndexGeneration(), func(stmt *sqlite.Stmt) error {
+		gen = stmt.ColumnText(0)
+		return nil
+	}, blob.RBSRGenerationKey)
+	return gen, err
+}
+
+var qIndexGeneration = dqb.Str(`SELECT value FROM kv WHERE key = :key;`)
+
+// materializeSlot admits one cold materialization at a time, as the writer
+// used to when the closure ran under it. Without it every concurrent discovery
+// task would run its closure at once, each pinning a read connection for
+// seconds and starving API reads of the pool.
+var materializeSlot = make(chan struct{}, 1)
+
 // scopeKindFor maps a DiscoveryKey to its persisted scope kind, or
 // errScopeNotRepresentable when the key's filter isn't one the index maintains.
 func scopeKindFor(dkey DiscoveryKey) (scopeKind, error) {
@@ -158,10 +185,13 @@ const lastAccessRefreshInterval = time.Hour
 // and never contends with the persist feeder for the writer:
 //
 //  1. read: map discovery keys to scope rows (lookupScope);
-//  2. write (only when some scope is missing or unmaterialized): resolve and
-//     materialize those — the one place the expensive collectBlobs closure
-//     runs — and fill the store on the same connection, so the freshly
-//     committed rows are guaranteed visible;
+//  2. only when some scope is missing or unmaterialized: compute those
+//     scopes' sets on a read connection — the one place the expensive
+//     collectBlobs closure runs — then take the writer just to persist them
+//     and fill the store on that same connection, so the freshly committed
+//     rows are guaranteed visible. The closure must not run under the writer:
+//     it takes seconds on a large permission graph, and every local write
+//     (publishing a document, posting a comment) queued behind it;
 //  3. read (all-warm case only): fill store from the persisted rows, after
 //     re-checking the scopes are still materialized (a full reindex may drop
 //     the derived tables between phases; the miss surfaces as an error and the
@@ -215,27 +245,30 @@ func loadIndexedScopes(ctx context.Context, db *sqlitex.Pool, dkeys colx.HashSet
 	}
 
 	if len(cold) > 0 {
-		// Materialize AND build on the same writer connection: a fresh read
+		select {
+		case materializeSlot <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+
+		defer func() { <-materializeSlot }()
+
+		computed, err := collectColdScopes(ctx, db, cold)
+		if err != nil {
+			return nil, err
+		}
+
+		// Persist AND build on the same writer connection: a fresh read
 		// connection's snapshot may predate the materializing commit, which
 		// used to fail the phase-3 re-check every time for these scopes —
 		// a permanent serve fallback that also starved last_access refreshes
 		// until the sweep's cold-skip horizon disowned the scope entirely.
 		if err := db.WithTx(ctx, func(conn *sqlite.Conn) error {
-			for _, dkey := range cold {
-				id, materialized, err := resolveScope(conn, dkey)
-				if err != nil {
-					return err
-				}
-				// May have been materialized by a concurrent load of the same
-				// scope (the writer serializes them; materializeScope is
-				// idempotent).
-				if !materialized {
-					if err := materializeScope(conn, id, dkey); err != nil {
-						return err
-					}
-				}
-				scopeIDs = append(scopeIDs, id)
+			ids, err := persistColdScopes(conn, cold, computed)
+			if err != nil {
+				return err
 			}
+			scopeIDs = append(scopeIDs, ids...)
 			return buildFinal(conn)
 		}); err != nil {
 			return nil, err
@@ -248,6 +281,84 @@ func loadIndexedScopes(ctx context.Context, db *sqlitex.Pool, dkeys colx.HashSet
 	}
 
 	return refresh, nil
+}
+
+// coldScopes is what collectColdScopes computed off the writer: each cold
+// scope's blob set, and the index generation of the snapshot they came from.
+type coldScopes struct {
+	gen  string
+	sets map[DiscoveryKey][]int64
+}
+
+// collectColdScopes computes the blob sets of cold scopes on a read
+// connection, in one snapshot. Scopes a concurrent load materialized in the
+// meantime are left out.
+func collectColdScopes(ctx context.Context, db *sqlitex.Pool, cold []DiscoveryKey) (out coldScopes, err error) {
+	out.sets = make(map[DiscoveryKey][]int64, len(cold))
+	err = db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) (err error) {
+		if out.gen, err = indexGeneration(conn); err != nil {
+			return err
+		}
+
+		for _, dkey := range cold {
+			l, err := lookupScope(conn, dkey)
+			if err != nil {
+				return err
+			}
+
+			if l.found && l.materialized {
+				continue
+			}
+
+			ids, err := collectScopeBlobs(conn, dkey)
+			if err != nil {
+				return err
+			}
+
+			out.sets[dkey] = ids
+		}
+
+		return nil
+	})
+	return out, err
+}
+
+// persistColdScopes stores the computed sets under the writer and returns the
+// scopes' row ids. It returns errMaterializeRaced, storing nothing the caller
+// should keep, when the index changed after the sets were computed.
+func persistColdScopes(conn *sqlite.Conn, cold []DiscoveryKey, computed coldScopes) (scopeIDs []int64, err error) {
+	gen, err := indexGeneration(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	if gen != computed.gen {
+		return nil, errMaterializeRaced
+	}
+
+	for _, dkey := range cold {
+		id, materialized, err := resolveScope(conn, dkey)
+		if err != nil {
+			return nil, err
+		}
+
+		if !materialized {
+			ids, ok := computed.sets[dkey]
+			if !ok {
+				// Warm in the snapshot, demoted since: nothing was computed
+				// for it.
+				return nil, errMaterializeRaced
+			}
+
+			if err := storeScopeItems(conn, id, ids); err != nil {
+				return nil, err
+			}
+		}
+
+		scopeIDs = append(scopeIDs, id)
+	}
+
+	return scopeIDs, nil
 }
 
 // touchScopesAsync best-effort-bumps last_access for the given scopes so the
@@ -306,36 +417,74 @@ func resolveScope(conn *sqlite.Conn, dkey DiscoveryKey) (id int64, materialized 
 	return id, materialized, nil
 }
 
-// qMaterializeReplace reads from the rbsr_blobs TEMP table (created by
+// qCollectedBlobs reads from the rbsr_blobs TEMP table (created by
 // collectBlobs), so it is a plain const rather than a dqb.Str — dqb queries are
 // validated against the schema-only DB by TestDBQueries, which has no temp
 // tables. Same convention as the temp-table queries in discovery.go.
-const qMaterializeReplace = `
-	INSERT OR IGNORE INTO rbsr_item (scope, blob)
-	SELECT :scope, rb.id
+const qCollectedBlobs = `
+	SELECT rb.id
 	FROM rbsr_blobs rb
 	JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 	WHERE b.size >= 0;`
+
+// qMaterializeInsert re-checks size >= 0 under the writer, so the rbsr_item
+// membership contract (downloaded blobs only) holds whatever the caller
+// computed.
+var qMaterializeInsert = dqb.Str(`
+	INSERT OR IGNORE INTO rbsr_item (scope, blob)
+	SELECT :scope, b.id
+	FROM json_each(:ids) j
+	JOIN blobs b INDEXED BY blobs_metadata ON b.id = j.value
+	WHERE b.size >= 0;`)
 
 var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)
 
 var qMarkMaterialized = dqb.Str(`
 	UPDATE rbsr_scope SET materialized = 1, last_access = :now WHERE id = :scope;`)
 
-// materializeScope (re)builds a scope's persisted blob set from collectBlobs —
-// the one place the expensive closure runs. Idempotent: it clears and refills
-// the scope's rbsr_item rows, then marks it materialized.
-func materializeScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error {
+// collectScopeBlobs computes a scope's blob set from collectBlobs — the one
+// place the expensive closure runs. It writes only TEMP tables, so it runs on
+// a read connection.
+func collectScopeBlobs(conn *sqlite.Conn, dkey DiscoveryKey) ([]int64, error) {
 	if err := collectBlobs(conn, map[DiscoveryKey]struct{}{dkey: {}}, false); err != nil {
-		return err
+		return nil, err
 	}
+	ids := []int64{}
+
+	if err := sqlitex.Exec(conn, qCollectedBlobs, func(stmt *sqlite.Stmt) error {
+		ids = append(ids, stmt.ColumnInt64(0))
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
+// storeScopeItems replaces a scope's persisted blob set with ids and marks it
+// materialized. Idempotent, and short enough to run under the writer.
+func storeScopeItems(conn *sqlite.Conn, scopeID int64, ids []int64) error {
 	if err := sqlitex.Exec(conn, qMaterializeClear(), nil, scopeID); err != nil {
 		return err
 	}
-	if err := sqlitex.Exec(conn, qMaterializeReplace, nil, scopeID); err != nil {
+
+	if err := sqlitex.Exec(conn, qMaterializeInsert(), nil, scopeID, int64SliceJSON(ids)); err != nil {
 		return err
 	}
 	return sqlitex.Exec(conn, qMarkMaterialized(), nil, time.Now().Unix(), scopeID)
+}
+
+// materializeScope (re)builds a scope's persisted blob set on one connection.
+// It holds the writer through the closure, so it is for the shadow-verify heal
+// and tests only; serving goes through loadIndexedScopes, which computes the
+// set off the writer.
+func materializeScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error {
+	ids, err := collectScopeBlobs(conn, dkey)
+	if err != nil {
+		return err
+	}
+
+	return storeScopeItems(conn, scopeID, ids)
 }
 
 // qScopeItems mirrors loadRBSRStore's result query but sources the blob set from
@@ -469,6 +618,12 @@ var qStaleMarkAllScopes = dqb.Str(`
 // the materialized scopes instead, because their authority effects can cross
 // resource boundaries; ordinary document edits remain incremental.
 func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
+	// Before anything else: a cold load computing a scope off the writer must
+	// see that this batch was applied without it. See indexGeneration.
+	if err := blob.BumpRBSRGeneration(conn); err != nil {
+		return err
+	}
+
 	keys, idsByKey, err := loadMaterializedScopes(conn)
 	if err != nil {
 		return err

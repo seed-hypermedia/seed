@@ -3,6 +3,7 @@ package syncing
 import (
 	"context"
 	"testing"
+	"time"
 
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -289,4 +290,69 @@ func TestRbsrIndex_PrivateVisibilityFollowsItemsNotRows(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRbsrIndex_ColdLoadComputesOffWriter: a cold scope's closure must not need
+// the writer. It took seconds on a large permission graph, and every local
+// write queued behind it. Here the writer is held for the whole computation.
+func TestRbsrIndex_ColdLoadComputesOffWriter(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	var computed coldScopes
+
+	require.NoError(t, db.WithTx(ctx, func(*sqlite.Conn) (err error) {
+		computed, err = collectColdScopes(ctx, db, []DiscoveryKey{dkey})
+		return err
+	}), "computing a cold scope must not wait for the writer")
+
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		_, err := persistColdScopes(conn, []DiscoveryKey{dkey}, computed)
+		return err
+	}))
+	require.Equal(t, collectBlobIDs(t, db, dkey), itemSetForScope(t, db, scopeIDFor(t, db, dkey)))
+}
+
+// TestRbsrIndex_ColdLoadRacesIndexHook: the hook patches only materialized
+// scopes, so a batch applied between computing a cold scope's set and
+// persisting it is in neither. The stale set must not be persisted, and the
+// next load must pick the batch up.
+func TestRbsrIndex_ColdLoadRacesIndexHook(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
+	ctx := t.Context()
+
+	computed, err := collectColdScopes(ctx, db, []DiscoveryKey{dkey})
+	require.NoError(t, err)
+
+	// A new document arrives under the scope and its hook runs: the scope is
+	// still cold, so the hook leaves it alone.
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		for _, q := range []string{
+			`INSERT INTO resources (id, iri) VALUES (200, '` + base + `/newdoc')`,
+			`INSERT INTO blobs (id, multihash, codec, size) VALUES (70, X'70', 113, 1)`,
+			`INSERT INTO structural_blobs (id, type, resource) VALUES (70, 'Ref', 200)`,
+		} {
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
+		}
+
+		return MaintainRBSRIndex(conn, []int64{70})
+	}))
+
+	err = db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		_, err := persistColdScopes(conn, []DiscoveryKey{dkey}, computed)
+		return err
+	})
+	require.ErrorIs(t, err, errMaterializeRaced)
+
+	// The scope stayed cold, so the next load computes it again.
+	set := servedItemSet(t, db, dkey)
+	require.Contains(t, set, int64(70), "the next load must include the blob that raced")
+	require.Equal(t, collectBlobIDs(t, db, dkey), set)
 }
