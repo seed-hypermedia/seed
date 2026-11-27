@@ -1675,6 +1675,7 @@ func TestRemoteSyncConvergesWhenDevicesNameOneKeyDifferently(t *testing.T) {
 		version       int
 		posts         int
 	)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -1684,6 +1685,7 @@ func TestRemoteSyncConvergesWhenDevicesNameOneKeyDifferently(t *testing.T) {
 				require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{Unchanged: true}))
 				return
 			}
+
 			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
 				EncryptedData: encryptedData,
 				RemoteVersion: version,
@@ -1695,11 +1697,14 @@ func TestRemoteSyncConvergesWhenDevicesNameOneKeyDifferently(t *testing.T) {
 			}))
 		case http.MethodPost:
 			var req saveRequest
+
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
 			if req.ExpectedVersion != version {
 				w.WriteHeader(http.StatusConflict)
 				return
 			}
+
 			encryptedData = req.EncryptedData
 			version++
 			posts++
@@ -1790,5 +1795,4 @@ func TestMergeNormalizedStatesTakesRemoteNameWithoutUnsyncedLocalChanges(t *test
 	require.True(t, changed)
 	require.Equal(t, "remote-name", merged.Accounts[0].Name)
 	require.Equal(t, map[string]any{"conflict": "remote", "local": "value", "remote": "value"}, merged.Accounts[0].Extra)
-
 }

@@ -2638,6 +2638,7 @@ func mergeMatchingAccounts(local AccountInfo, remote AccountInfo, localHasUnsync
 	}
 
 	merged := remote
+
 	merged.Name = winner.Name
 	if merged.Name == "" {
 		merged.Name = other.Name
@@ -2659,8 +2660,10 @@ func mergeExtraFields(winner map[string]any, other map[string]any) map[string]an
 		if merged == nil {
 			merged = map[string]any{}
 		}
+
 		merged[key] = value
 	}
+
 	return merged
 }
 
