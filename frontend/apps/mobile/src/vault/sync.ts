@@ -87,7 +87,16 @@ export async function runRemoteSync(host: RemoteSyncHost): Promise<void> {
     if (!snapshot.unchanged && snapshot.encryptedData && snapshot.encryptedData.trim()) {
       remoteState = await deserializeState(await decrypt(b64url.decode(snapshot.encryptedData), dek))
       const local = host.getLocalSnapshot()
-      const {merged, changedFromLocal} = mergeStates(local.state, remoteState, local.localVersion, snapshot.version)
+      // Names and unknown fields that differ take the local value only while this device holds edits the
+      // remote has not seen; otherwise the remote's, so devices settle on one value instead of each re-uploading its own.
+      const {merged, changedFromLocal} = mergeStates(
+        local.state,
+        remoteState,
+        local.localVersion,
+        snapshot.version,
+        undefined,
+        local.localVersion !== ctx.syncedLocalVersion,
+      )
       log(
         `mergeNormalizedStates result: localVersion=${local.localVersion} remoteVersion=${snapshot.version} changedLocalVault=${changedFromLocal} mergedIdentityCount=${merged.accounts.length}`,
       )
