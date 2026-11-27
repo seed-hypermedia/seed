@@ -152,8 +152,8 @@ Three more ways to define a schema in the app:
   3. Or publish it with one command. `document create -f person.md -p types/person --schema-definition person.schema.json` publishes the page and the schema blob together and binds them. `document update hm://<acct>/types/person --schema-definition person.schema.json` binds a new schema to a page that exists. <!-- id:gQHfxmM2 -->
 
 **Through an agent** <!-- id:t6nL0N72 -->
-  1. Call `write ipfs://` with the schema as JSON `content` and `options: {schema: "schema"}`. This checks it against the meta-schema, publishes the schema blob, and returns its CID. <!-- id:sC-PJ9DS -->
-  2. Call `write hm://<acct>/types/person` with `options: {name: "Person", metadata: {schemaDefinition: "ipfs://<cid>"}}`. This binds the blob to a type page. A `schemaDefinition` that is not a valid schema comes back as a `warning`.
+  1. Call `write hm://<acct>/types/person` with `options: {name: "Person", metadata: {schemaDefinition: <the schema object>}}`. The agent checks the schema against the meta-schema, publishes the schema blob and the page together, and sets `schemaDefinition` to the blob's `ipfs://<cid>`. A schema that is not valid is refused, unless you force it. <!-- id:sC-PJ9DS -->
+  2. Don't publish the schema alone with `write ipfs://` first. A blob that nothing public links to is [not public](../protocol/privacy.md), so the server can't read it, and a page whose `schemaDefinition` points at it is refused. `attributesSchema` and `childAttributesSchema` also take a schema object this way.
 
 # Which surface runs which check <!-- id:Emb84qw3 -->
 

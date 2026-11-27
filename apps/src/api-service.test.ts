@@ -6941,6 +6941,161 @@ describe('api service', () => {
     }
   })
 
+  test('a type document can carry its schema object, published with it in one batch', async () => {
+    // Live incident (Ion session 5f17b1ac, 2026-11-27): Ion published a schema alone with
+    // write ipfs://, then pointed a type document at it. A blob nothing links to is not public, so
+    // the server could not read the schema, and the type document was refused for it. Neither step
+    // could go first. A schema object given inline is checked from memory and published with the
+    // change that links it.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      const publishes: {blobs: {cid?: string; data: Uint8Array}[]}[] = []
+      const doc = (path: string, metadata: Record<string, unknown>) => ({
+        type: 'document',
+        id: unpackHmId(`hm://${signerPublicKey}${path}`),
+        document: {
+          content: [],
+          version: 'v1',
+          account: signerPublicKey,
+          authors: [signerPublicKey],
+          path,
+          createTime: '',
+          updateTime: '',
+          metadata,
+          genesis: 'v1',
+          visibility: 'PUBLIC',
+        },
+      })
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = decodeURIComponent(url instanceof Request ? url.url : String(url))
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push(cbor.decode(new Uint8Array(init?.body as ArrayBuffer)))
+          return Response.json(serialize({cids: ['published']}))
+        }
+        if (href.includes('/api/GetCID')) {
+          // The server, like hyper.media: a schema blob nothing public links to is not served.
+          const cid = href.match(/baf[a-z0-9]+/)?.[0] ?? ''
+          return new Response(`Failed to fetch /ipfs/${cid}.dagjson: blob ${cid} is not public`, {status: 500})
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/PrepareDocumentChange')) {
+          return Response.json(
+            serialize({unsignedChange: fakePreparedChange(new Uint8Array(init?.body as ArrayBuffer))}),
+          )
+        }
+        if (href.includes('/api/Resource')) {
+          const requested = new URL(href).searchParams.get('id') ?? ''
+          if (requested.includes('/types/contact'))
+            return Response.json(serialize({type: 'not-found', id: unpackHmId(requested)}))
+          if (requested.includes('/types')) return Response.json(serialize(doc('/types', {name: 'Types'})))
+          return Response.json(serialize(doc('', {name: 'Root'})))
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse' || !identity.identity.accountId)
+        throw new Error('unexpected response')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'Type writer', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+      })
+      const write = async (input: Record<string, unknown>) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+      const address = `hm://${signerPublicKey}/types/contact`
+      const schema = {
+        type: 'hm://hyper.media/struct',
+        properties: {
+          contactKey: {value: {type: 'hm://hyper.media/string'}, required: true},
+          status: {value: {anyOf: ['pending', 'subscribed']}, required: true, default: 'pending'},
+        },
+      }
+
+      const setup = publishes.length
+
+      // The two-step way is refused, and the error says why and what to do instead.
+      const twoStep = await write({
+        address,
+        content: 'A contact.',
+        options: {
+          name: 'Contact',
+          metadata: {schemaDefinition: 'ipfs://bafyreicwhj2vug2qzr76bbi7vtqoygm7vchmenlcnfq5ykbjnmeh5pa3mq'},
+        },
+      })
+      expect(String(twoStep.error)).toContain('is not public')
+      expect(String(twoStep.error)).toContain('pass the schema object itself')
+      expect(publishes).toHaveLength(setup)
+
+      // An invalid schema object is refused before anything is published.
+      const invalid = await write({
+        address,
+        content: 'A contact.',
+        options: {name: 'Contact', metadata: {schemaDefinition: {type: 'hm://hyper.media/struct', properties: 'none'}}},
+      })
+      expect(String(invalid.error)).toContain('is not a valid Hypermedia schema')
+      expect(publishes).toHaveLength(setup)
+
+      // A dry run names the CID the schema would get, and publishes nothing.
+      const preview = await write({
+        address,
+        content: 'A contact.',
+        dryRun: true,
+        options: {name: 'Contact', metadata: {schemaDefinition: schema}},
+      })
+      expect(preview.error).toBeUndefined()
+      const inline = preview.inlineSchemas as Record<string, string>
+      expect(inline.schemaDefinition).toMatch(/^ipfs:\/\/bafyrei/)
+      expect((preview.metadata as Record<string, unknown>).schemaDefinition).toBe(inline.schemaDefinition)
+      expect(publishes).toHaveLength(setup)
+
+      // The real write publishes the schema blob in the same batch as the change that links it.
+      const created = await write({
+        address,
+        content: 'A contact.',
+        options: {name: 'Contact', metadata: {schemaDefinition: schema}},
+      })
+      expect(created.error).toBeUndefined()
+      expect(created.inlineSchemas).toEqual(inline)
+      expect(publishes).toHaveLength(setup + 1)
+      const cid = inline.schemaDefinition!.slice('ipfs://'.length)
+      const schemaBlob = publishes[setup]!.blobs.find((blob) => blob.cid === cid)
+      expect(schemaBlob).toBeDefined()
+      expect(publishes[setup]!.blobs.length).toBeGreaterThan(1)
+      const decoded = cbor.decode(schemaBlob!.data) as Record<string, unknown>
+      expect(decoded.properties).toBeDefined()
+      expect(decoded.schema).toBeDefined()
+      // ...and a change in that batch carries the link that makes the schema public.
+      const linking = publishes[setup]!.blobs.filter(
+        (blob) => blob.cid !== cid && new TextDecoder('latin1').decode(blob.data).includes(`ipfs://${cid}`),
+      )
+      expect(linking.length).toBeGreaterThan(0)
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('write with options.tool publishes a tool under its app and keeps the app list in step', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

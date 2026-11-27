@@ -59,7 +59,10 @@ async function queryDaemon<T>(pathAndQuery: string, authorization?: string | nul
     headers: authorization ? {Authorization: authorization} : undefined,
   })
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${pathAndQuery}: ${response.statusText}`)
+    // The daemon says why in the body ("blob … is not public"); the status text alone reads as a
+    // missing blob.
+    const reason = (await response.text().catch(() => '')).trim().slice(0, 300)
+    throw new Error(`Failed to fetch ${pathAndQuery}: ${reason || response.statusText}`)
   }
   return (await response.json()) as T
 }

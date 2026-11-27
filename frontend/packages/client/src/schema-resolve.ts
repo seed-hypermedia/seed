@@ -131,6 +131,8 @@ export type ResolvedSchemaRef = {
   cid?: string
   /** For an `hm-doc` reference: the type document's canonical URL. */
   documentUrl?: string
+  /** Why the schema blob could not be fetched, when it could not (for example, it is not public yet). */
+  error?: string
 }
 
 /**
@@ -144,16 +146,28 @@ export async function resolveSchemaRef(client: SchemaFetchClient, ref: string): 
   if (cls.kind === 'none') return {kind: 'none'}
   if (cls.kind === 'hm-bundled') return {kind: cls.kind, schema: HM_SCHEMAS[cls.name], cid: schemaCid(cls.name)}
   if (cls.kind === 'cid') {
-    const schema = await fetchSchemaBlob(client, cls.cid).catch(() => undefined)
-    return {kind: cls.kind, schema, cid: schema ? cls.cid : undefined}
+    const {schema, error} = await tryFetchSchemaBlob(client, cls.cid)
+    return {kind: cls.kind, schema, cid: schema ? cls.cid : undefined, ...(error ? {error} : {})}
   }
   const id = unpackHmId(cls.url)
   if (!id) return {kind: 'none'}
   const resource = await client.request('Resource', id).catch(() => undefined)
   const cid = resource?.type === 'document' ? schemaDefinitionCid(resource.document.metadata) : null
   if (!cid) return {kind: cls.kind, documentUrl: cls.url}
-  const schema = await fetchSchemaBlob(client, cid).catch(() => undefined)
-  return {kind: cls.kind, schema, cid: schema ? cid : undefined, documentUrl: cls.url}
+  const {schema, error} = await tryFetchSchemaBlob(client, cid)
+  return {kind: cls.kind, schema, cid: schema ? cid : undefined, documentUrl: cls.url, ...(error ? {error} : {})}
+}
+
+/** fetchSchemaBlob that reports a failed fetch instead of throwing it. */
+async function tryFetchSchemaBlob(
+  client: SchemaFetchClient,
+  cid: string,
+): Promise<{schema?: HypermediaSchema; error?: string}> {
+  try {
+    return {schema: await fetchSchemaBlob(client, cid)}
+  } catch (error) {
+    return {error: error instanceof Error ? error.message : String(error)}
+  }
 }
 
 /** Every reference string a schema node makes (ref, type, args, and nested schemas). */
@@ -282,11 +296,13 @@ export async function loadSchemaRef(
   if (resolved.kind === 'none')
     throw new Error(`Not a schema reference: ${ref} (expected an ipfs:// CID or an hm:// URL)`)
   if (!resolved.schema) {
+    if (resolved.kind === 'hm-doc' && resolved.error)
+      throw new Error(`The schema blob that ${ref} points at could not be fetched (${resolved.error})`)
     if (resolved.kind === 'hm-doc')
       throw new Error(
         `${ref} does not define a schema (no schemaDefinition on the document, or the document was not found)`,
       )
-    throw new Error(`Could not fetch the schema at ${ref}`)
+    throw new Error(`Could not fetch the schema at ${ref}${resolved.error ? ` (${resolved.error})` : ''}`)
   }
   return {
     schema: resolved.schema,
