@@ -532,7 +532,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			// keys and canceled contexts are expected; anything else deserves
 			// a Warn before degrading to the legacy rebuild.
 			switch {
-			case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable):
+			case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable), errors.Is(err, errMaterializeRaced):
 				s.log.Debug("RBSRIndexClientFallback", zap.Error(err))
 			default:
 				s.log.Warn("RBSRIndexClientFallback", zap.Error(err))

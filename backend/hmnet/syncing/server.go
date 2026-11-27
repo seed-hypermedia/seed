@@ -398,13 +398,14 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		}
 		// Expected fallbacks, logged at Debug so they don't drown the logs:
 		// errScopeNotRepresentable (a filter the flattened index doesn't maintain),
+		// errMaterializeRaced (the index changed while a cold scope was computed),
 		// and anything that happens once the serve context is done — the peer sync
 		// was torn down mid-serve, which surfaces as context.Canceled OR as a
 		// SQLITE_INTERRUPT/SQLITE_BUSY from a query aborted by the interrupt handler.
 		// Keying on ctx.Err() catches all of those without enumerating error codes.
 		// Anything else is a real index-path failure worth a Warn.
 		switch {
-		case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable):
+		case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable), errors.Is(err, errMaterializeRaced):
 			s.log.Debug("RBSRIndexServeFallback", zap.Error(err))
 		default:
 			s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
@@ -433,7 +434,7 @@ func (s *Server) loadStoreLegacy(ctx context.Context, dkeys colx.HashSet[Discove
 // loadStoreFromIndex serves from the maintained index via the shared
 // three-phase load (see loadIndexedScopes): warm scopes never touch the writer
 // connection, cold ones materialize once — the only place the expensive
-// collectBlobs closure runs. The incremental oracle keeps the sets current so
+// collectBlobs closure runs, and it runs on a read connection. The incremental oracle keeps the sets current so
 // reconciliation no longer rebuilds them per round.
 func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal) (rbsr.Store, error) {
 	store := newAuthorizedTreeStore()

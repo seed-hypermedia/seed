@@ -275,13 +275,36 @@ func (idx *Index) applyIndexedHook(ids []int64) {
 			// import syncing. rbsr_scope is part of the shared schema; the
 			// serve path (see rbsr_index.go) treats materialized = 0 as cold
 			// and rebuilds the scope from collectBlobs.
+			// The failed hook's own bump rolled back with it, so bump again:
+			// a scope materializing off the writer right now is not demoted
+			// by the UPDATE, and must not persist a set without this batch.
 			if merr := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+				if err := BumpRBSRGeneration(conn); err != nil {
+					return err
+				}
+
 				return sqlitex.Exec(conn, `UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;`, nil)
 			}); merr != nil && !errors.Is(merr, sqlitex.ErrPoolClosed) {
 				idx.log.Error("IndexedHookStaleMarkFailed", zap.Error(merr))
 			}
 		}
 	}
+}
+
+// RBSRGenerationKey is the kv row counting indexed hook batches applied to the
+// maintained RBSR index.
+const RBSRGenerationKey = "rbsr_index_generation"
+
+// BumpRBSRGeneration records, in the caller's write transaction, that a batch
+// of indexed blobs was applied to the maintained RBSR index (or failed to be).
+// The syncing package compares the count across the window in which it
+// computes a scope's blob set without holding the writer. It lives here
+// because the hook's failure path above must bump it too, and blob must not
+// import syncing.
+func BumpRBSRGeneration(conn *sqlite.Conn) error {
+	return sqlitex.Exec(conn, `
+		INSERT INTO kv (key, value) VALUES (?, '1')
+		ON CONFLICT (key) DO UPDATE SET value = CAST(value AS INTEGER) + 1;`, nil, RBSRGenerationKey)
 }
 
 // WaitIndexedHook blocks until every blob id enqueued for the indexed hook so
