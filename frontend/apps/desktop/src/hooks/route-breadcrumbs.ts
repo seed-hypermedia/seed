@@ -1,5 +1,5 @@
-import {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {findContentBlock, getBlockText, getContactMetadata, getDocumentTitle, hmId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {findContentBlock, getBlockText, getDocumentTitle, getSpaceName, hmId} from '@shm/shared'
 import type {NavRoute} from '@shm/shared/routes'
 import {activityFilterToSlug} from '@shm/shared/utils/entity-id-url'
 
@@ -175,7 +175,6 @@ export function computeProfileBreadcrumbs(name?: string): BreadcrumbItem[] {
 export function computeEntityBreadcrumbs(params: {
   entityIds: UnpackedHypermediaId[]
   entityContents: EntityContent[]
-  contacts: HMContactRecord[] | null | undefined
   draftName?: string
   replaceLastItem?: boolean
   blockRef?: string | null
@@ -188,7 +187,6 @@ export function computeEntityBreadcrumbs(params: {
   const {
     entityIds,
     entityContents,
-    contacts,
     draftName,
     replaceLastItem,
     blockRef,
@@ -207,7 +205,7 @@ export function computeEntityBreadcrumbs(params: {
     if (id.path?.length) {
       name = getDocumentTitle(contents?.entity?.document) || ''
     } else {
-      name = getContactMetadata(id.uid, contents?.entity?.document?.metadata, contacts ?? undefined).name
+      name = getSpaceName(contents?.entity?.document?.metadata)
     }
     const isNotFound = contents?.entity?.isNotFound || false
     const isTombstone = contents?.entity?.isTombstone || false

@@ -21,7 +21,7 @@ import {
   useSelectedAccountId,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName, UNKNOWN_PROFILE_NAME} from '@shm/shared/content'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Users} from 'lucide-react'
 import {forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
@@ -46,7 +46,7 @@ export type SearchResult = {
 
 /** Returns the invite label using the same identity precedence as account mentions. */
 export function getInviteAccountLabel(result: SearchResult) {
-  return result.petname || result.publicName || result.label || abbreviateUid(result.id.uid)
+  return result.petname || result.publicName || result.label || UNKNOWN_PROFILE_NAME
 }
 
 /** Converts ranked mention candidates into canonical, selectable invite accounts. */
@@ -61,7 +61,7 @@ export function getInviteAccountResults(
     return [
       {
         id: hmId(candidate.id.uid),
-        label: candidate.petname || candidate.publicName || candidate.title || abbreviateUid(candidate.id.uid),
+        label: candidate.petname || candidate.publicName || candidate.title || UNKNOWN_PROFILE_NAME,
         publicName: candidate.publicName,
         petname: candidate.petname,
         subtitle: mentionCandidateSubtitle(candidate),
@@ -321,7 +321,7 @@ function PublisherCollaborator({uid, siteUid, account}: {uid: string; siteUid: s
       <AccountAvatar id={publisherId} name={metadata?.name} icon={metadata?.icon} size={32} siteUid={siteUid} />
       <a {...linkProps} className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
-          {metadata?.name || abbreviateUid(uid)}
+          {getProfileName(metadata)}
         </SizableText>
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           Publisher
@@ -356,7 +356,7 @@ function CollaboratorListItem({
       <AccountAvatar id={collaboratorId} name={metadata?.name} icon={metadata?.icon} size={32} siteUid={docId.uid} />
       <a {...linkProps} className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
-          {metadata?.name || abbreviateUid(capability.accountUid)}
+          {getProfileName(metadata)}
         </SizableText>
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           {getRoleDisplayName(capability.role)}
@@ -494,7 +494,7 @@ function MemberListItem({
           }`}
         >
           <SizableText size="sm" className="truncate">
-            {metadata?.name || abbreviateUid(member.account.uid)}
+            {getProfileName(metadata)}
           </SizableText>
         </a>
         {showAddAsWriter ? (
@@ -741,7 +741,7 @@ function UnresolvedItem({value}: {value: SearchResult}) {
     perspectiveAccountUid: selectedAccountId,
   }).suggestions.find((candidate) => candidate.id.uid === value.id.uid)
   const metadata = account.data?.metadata
-  const label = mention?.petname || mention?.publicName || metadata?.name || abbreviateUid(value.id.uid)
+  const label = mention?.petname || mention?.publicName || getProfileName(metadata)
   return (
     <>
       <AccountAvatar id={value.id} name={label} icon={mention?.icon || metadata?.icon} size={20} />

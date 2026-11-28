@@ -5,7 +5,7 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {abbreviateUid, useRouteLink} from '@shm/shared'
+import {abbreviateUid, getProfileName, getSpaceName, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
 import {useTx} from '@shm/shared/translation'
@@ -63,6 +63,7 @@ export function DocumentHeader({
   siteUrl,
   documentTools,
   showTitle = true,
+  showByline = true,
   children,
   onRemoveIcon,
   onChangeIcon,
@@ -79,6 +80,8 @@ export function DocumentHeader({
   visibility?: HMResourceVisibility
   version?: HMDocument['version'] | null
   showTitle?: boolean
+  /** Show the authors/date/siteUrl/mobileBylineAction row. Default true; set false to hide the whole row (e.g. home documents). */
+  showByline?: boolean
   children?: React.ReactNode
   onRemoveIcon?: () => void
   /** Replaces the document icon with an image chosen in the icon picker. */
@@ -175,7 +178,7 @@ export function DocumentHeader({
                   weight="bold"
                   {...highlighter(docId)}
                 >
-                  {isHomeDoc ? 'Home' : docMetadata?.name}
+                  {isHomeDoc ? getSpaceName(docMetadata) : docMetadata?.name}
                 </SizableText>
                 {titleAccessory}
               </div>
@@ -185,81 +188,83 @@ export function DocumentHeader({
             ) : null}
           </>
         )}
-        <div className={cn('flex flex-col gap-2', !flushByline && 'pb-2 md:pb-4')}>
-          {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
-          <div className="flex flex-1 items-center justify-between gap-3">
-            <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
-              {displayAuthorName ? (
-                <>
-                  <p className="text-sm font-bold">
+        {showByline ? (
+          <div className={cn('flex flex-col gap-2', !flushByline && 'pb-2 md:pb-4')}>
+            {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
+            <div className="flex flex-1 items-center justify-between gap-3">
+              <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
+                {displayAuthorName ? (
+                  <>
+                    <p className="text-sm font-bold">
+                      <DisplayAuthorByline name={displayAuthorName} authors={displayAuthors} siteUid={docId?.uid} />
+                    </p>
+                    <div className="bg-border h-6 w-px" />
+                  </>
+                ) : displayAuthors.length ? (
+                  <>
+                    <p className="text-sm font-bold">
+                      {displayAuthors.flatMap((a, index) => {
+                        return [
+                          <AuthorLink id={a.id} key={a.id.id} siteUid={docId?.uid} />,
+                          index !== displayAuthors.length - 1 ? (
+                            index === displayAuthors.length - 2 ? (
+                              <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
+                                {' & '}
+                              </SizableText>
+                            ) : (
+                              <SizableText size="xs" key={`${a.id.id}-comma`} weight="bold">
+                                {', '}
+                              </SizableText>
+                            )
+                          ) : null,
+                        ]
+                      })}
+                    </p>
+                    <div className="bg-border h-6 w-px" />
+                  </>
+                ) : null}
+                {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
+              </div>
+              <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+                {displayAuthorName ? (
+                  <p className="min-w-0 truncate text-xs font-medium">
                     <DisplayAuthorByline name={displayAuthorName} authors={displayAuthors} siteUid={docId?.uid} />
                   </p>
-                  <div className="bg-border h-6 w-px" />
-                </>
-              ) : displayAuthors.length ? (
-                <>
-                  <p className="text-sm font-bold">
-                    {displayAuthors.flatMap((a, index) => {
-                      return [
-                        <AuthorLink id={a.id} key={a.id.id} siteUid={docId?.uid} />,
-                        index !== displayAuthors.length - 1 ? (
-                          index === displayAuthors.length - 2 ? (
-                            <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
-                              {' & '}
-                            </SizableText>
-                          ) : (
-                            <SizableText size="xs" key={`${a.id.id}-comma`} weight="bold">
-                              {', '}
-                            </SizableText>
-                          )
-                        ) : null,
-                      ]
-                    })}
-                  </p>
-                  <div className="bg-border h-6 w-px" />
-                </>
-              ) : null}
-              {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
+                ) : displayAuthors.length ? (
+                  <>
+                    <div className="flex shrink-0 items-center -space-x-2">
+                      {displayAuthors.slice(0, 3).map((author) => (
+                        <div
+                          key={author.id.id}
+                          className="dark:border-background dark:bg-background size-5 overflow-hidden rounded-full border-2 border-white bg-white"
+                        >
+                          <AccountAvatar
+                            id={author.id}
+                            name={author.metadata?.name}
+                            icon={author.metadata?.icon}
+                            size={20}
+                            siteUid={docId?.uid}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="min-w-0 truncate text-xs font-medium">
+                      <AuthorLink id={displayAuthors[0]!.id} siteUid={docId?.uid} />
+                      {displayAuthors.length > 1 ? ` & ${displayAuthors.length - 1} others` : null}
+                    </p>
+                  </>
+                ) : null}
+                {(displayAuthorName || displayAuthors.length) && updateTime ? (
+                  <SizableText size="xs" className="shrink-0" aria-hidden="true">
+                    ·
+                  </SizableText>
+                ) : null}
+                {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
+              </div>
+              {mobileBylineAction}
             </div>
-            <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
-              {displayAuthorName ? (
-                <p className="min-w-0 truncate text-xs font-medium">
-                  <DisplayAuthorByline name={displayAuthorName} authors={displayAuthors} siteUid={docId?.uid} />
-                </p>
-              ) : displayAuthors.length ? (
-                <>
-                  <div className="flex shrink-0 items-center -space-x-2">
-                    {displayAuthors.slice(0, 3).map((author) => (
-                      <div
-                        key={author.id.id}
-                        className="dark:border-background dark:bg-background size-5 overflow-hidden rounded-full border-2 border-white bg-white"
-                      >
-                        <AccountAvatar
-                          id={author.id}
-                          name={author.metadata?.name}
-                          icon={author.metadata?.icon}
-                          size={20}
-                          siteUid={docId?.uid}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <p className="min-w-0 truncate text-xs font-medium">
-                    <AuthorLink id={displayAuthors[0]!.id} siteUid={docId?.uid} />
-                    {displayAuthors.length > 1 ? ` & ${displayAuthors.length - 1} others` : null}
-                  </p>
-                </>
-              ) : null}
-              {(displayAuthorName || displayAuthors.length) && updateTime ? (
-                <SizableText size="xs" className="shrink-0" aria-hidden="true">
-                  ·
-                </SizableText>
-              ) : null}
-              {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
-            </div>
-            {mobileBylineAction}
           </div>
-        </div>
+        ) : null}
       </div>
       {documentTools}
     </Container>
@@ -305,15 +310,17 @@ function DisplayAuthorByline({name, authors, siteUid}: {name: string; authors: A
 function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string}) {
   const currentRoute = useNavRoute()
   const account = useAccount(id.uid, {subscribe: true})
-  const resolvedName = account.data?.metadata?.name
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
+  const isLoading = account.isLoading
+  const resolvedName = account.data?.metadata?.name
+  const displayName = isLoading ? abbreviateUid(id.uid) : getProfileName(account.data?.metadata)
   return (
     <a
       {...linkProps}
       className={`no-underline underline-offset-4 hover:underline ${resolvedName ? '' : 'text-muted-foreground'}`}
     >
-      {resolvedName || abbreviateUid(id.uid)}
-      {!resolvedName ? (
+      {displayName}
+      {isLoading ? (
         <span className="ml-1">
           <Spinner size="small" />
         </span>

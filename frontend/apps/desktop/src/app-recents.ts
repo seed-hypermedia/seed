@@ -1,5 +1,5 @@
 import {loadAccount} from '@shm/shared/api-account'
-import {getDocumentTitle} from '@shm/shared/content'
+import {getDocumentTitle, getProfileName, UNKNOWN_PROFILE_NAME} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {RecentsResult} from '@shm/shared/models/recents'
 import {createResourceResolver} from '@shm/shared/resource-loader'
@@ -55,7 +55,7 @@ export async function updateRecentRoute(route: NavRoute) {
   if (route.key === 'profile' || route.key === 'site-profile') {
     const uid = route.key === 'site-profile' ? route.accountUid ?? route.id.uid : route.id.uid
     const account = await loadAccount(grpcClient, uid)
-    name = account.type === 'account' ? account.metadata?.name || uid : uid
+    name = account.type === 'account' ? getProfileName(account.metadata) : UNKNOWN_PROFILE_NAME
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {

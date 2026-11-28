@@ -16,6 +16,7 @@ const Translations = {
   'Document Activity': 'Actividad del Documento',
   'Account Activity': 'Actividad de la Cuenta',
   'Unknown Profile': 'Perfil desconocido',
+  'Unknown Space': 'Espacio desconocido',
   Activity: 'Actividad',
   Discussions: 'Discusiones',
   'Start a Comment': 'Inicia un debate',

@@ -201,12 +201,8 @@ async function loadVisibleAccountsMetadata(
       return
     }
 
-    const name =
-      nonEmptyString(account.profile?.name) ??
-      readMetadataStringField(account.homeDocumentInfo?.metadata || account.metadata, 'name')
-    const icon =
-      nonEmptyString(account.profile?.icon) ??
-      readMetadataStringField(account.homeDocumentInfo?.metadata || account.metadata, 'icon')
+    const name = nonEmptyString(account.profile?.name)
+    const icon = nonEmptyString(account.profile?.icon)
 
     accountsMetadata[uid] = {
       id: hmId(uid, {

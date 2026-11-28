@@ -32,6 +32,7 @@ import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onb
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMRole} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
+import {getProfileName} from '@shm/shared/content'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {HOSTED_NOTIFY_SERVICE_URL} from '@shm/shared/notify-url'
@@ -159,7 +160,7 @@ export default function AccountSettingsPage() {
       <AccountSettingsLayout
         accounts={accountOptions.map((option) => ({
           id: option.uid,
-          name: option.data?.metadata?.name || `?${option.uid.slice(-8)}`,
+          name: getProfileName(option.data?.metadata),
           icon: (
             <HMIcon
               id={hmId(option.uid)}

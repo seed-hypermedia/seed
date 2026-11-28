@@ -2,9 +2,9 @@ import {useBookmarks, useRemoveBookmark, type BookmarkItem} from '@/models/bookm
 import {getRoutePanel} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {useRouteLink} from '@shm/shared'
-import {getContactMetadata} from '@shm/shared/content'
+import {getContactMetadata, getSpaceName} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {useResources} from '@shm/shared/models/entity'
+import {useAccounts, useResources} from '@shm/shared/models/entity'
 import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
 import {hmId, viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -108,8 +108,13 @@ export function useBookmarksPanel() {
 export function BookmarksPanel() {
   const {close} = useBookmarksPanel()
   const bookmarks = newestBookmarksFirst(useBookmarks())
-  const bookmarkEntities = useResources(
-    bookmarks.map((bookmark) => (bookmark.key === 'comment' ? hmId(bookmark.authorAccountId) : bookmark.id)),
+  const bookmarkEntities = useResources(bookmarks.map((bookmark) => (bookmark.key === 'comment' ? null : bookmark.id)))
+  const authorAccountUids = bookmarks
+    .filter((bookmark) => bookmark.key === 'comment')
+    .map((bookmark) => bookmark.authorAccountId)
+  const authorAccounts = useAccounts(authorAccountUids)
+  const authorAccountByUid = new Map(
+    authorAccountUids.map((uid, index) => [uid, authorAccounts[index]?.data?.metadata ?? null]),
   )
   const contacts = useSelectedAccountContacts()
   const removeBookmark = useRemoveBookmark()
@@ -136,7 +141,7 @@ export function BookmarksPanel() {
               const authorId = hmId(bookmark.authorAccountId)
               const authorMetadata = getContactMetadata(
                 bookmark.authorAccountId,
-                entity?.data?.type === 'document' ? entity.data.document?.metadata : undefined,
+                authorAccountByUid.get(bookmark.authorAccountId) ?? undefined,
                 contacts.data,
               )
               return (
@@ -176,7 +181,7 @@ export function BookmarksPanel() {
             const {id, document} = entity.data
             const metadata = id.path?.length
               ? document?.metadata
-              : getContactMetadata(id.uid, document?.metadata, contacts.data)
+              : {...(document?.metadata ?? {}), name: getSpaceName(document?.metadata)}
 
             return (
               <BookmarkRow

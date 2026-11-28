@@ -14,8 +14,8 @@ import {
 import {PlainMessage} from '@bufbuild/protobuf'
 import {HMInvoice, HMWallet} from '@seed-hypermedia/client/hm-types'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
-import {getAccountName} from '@shm/shared/content'
-import {useResource} from '@shm/shared/models/entity'
+import {getProfileName} from '@shm/shared/content'
+import {useAccount} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -126,12 +126,11 @@ export function WalletPage({
   onClose: () => void
 }) {
   const wallet = useWallet(walletId)
-  const accountDoc = useResource(hmId(accountUid))
+  const account = useAccount(accountUid)
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)
-  const document = accountDoc.data?.type === 'document' ? accountDoc.data.document : undefined
-  const walletName = `${getAccountName(document)} Main Wallet`
+  const walletName = `${getProfileName(account.data?.metadata)} Main Wallet`
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-between">

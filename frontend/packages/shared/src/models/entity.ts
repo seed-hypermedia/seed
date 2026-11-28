@@ -523,6 +523,19 @@ export function useAccounts(ids: (string | null | undefined)[], options?: UseQue
   })
 }
 
+/**
+ * Home document metadata for each space uid: the source of a space's name and icon.
+ * Fetches each account's home document via `useResources` and returns its metadata,
+ * or `undefined` when the resource is not a document (or still loading).
+ */
+export function useSpacesHomeMetadata(uids: string[]): {data: (HMMetadata | undefined)[]; isLoading: boolean} {
+  const ids = useMemo(() => uids.map((uid) => hmId(uid)), [uids.join(',')])
+  const results = useResources(ids)
+  const data = results.map((result) => (result.data?.type === 'document' ? result.data.document.metadata : undefined))
+  const isLoading = results.some((result) => result.isLoading)
+  return {data, isLoading}
+}
+
 export type HMAccountsMetadataResult = {
   data: HMAccountsMetadata
   isLoading: boolean

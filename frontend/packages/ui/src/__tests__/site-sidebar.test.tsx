@@ -30,6 +30,15 @@ vi.mock('@shm/shared/models/entity', () => ({
   }),
   useAccount: (uid: string) => ({data: {metadata: {name: uid}}}),
   useAccounts: (uids: string[]) => uids.map((uid) => ({data: {metadata: {name: uid}}})),
+  useResources: (ids: any[]) =>
+    ids.map((id) => ({
+      data: {type: 'document', document: {metadata: {name: id.uid}}},
+      isLoading: false,
+    })),
+  useSpacesHomeMetadata: (uids: string[]) => ({
+    data: uids.map((uid) => ({name: uid})),
+    isLoading: false,
+  }),
 }))
 vi.mock('@shm/shared/models/contacts', () => ({
   useSelectedAccountContacts: () => ({

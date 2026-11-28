@@ -300,4 +300,37 @@ describe('DocumentHeader Breadcrumbs', () => {
     expect(container.querySelector('.border-b')).toBeNull()
     expect(container.querySelector('.pb-2')).toBeNull()
   })
+
+  it('renders the home document title and summary with no byline', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site')}
+        docMetadata={{name: 'My Space', summary: 'A place for things'} as any}
+        authors={[{id: hmId('alice'), metadata: {name: 'Alice'}} as any]}
+        updateTime={{seconds: 1, nanos: 0} as any}
+        showByline={false}
+      />,
+    )
+
+    expect(container.textContent).toContain('My Space')
+    expect(container.textContent).toContain('A place for things')
+    // No author byline and no date row.
+    expect(container.textContent).not.toContain('Alice')
+    expect(container.querySelector('.pb-2')).toBeNull()
+  })
+
+  it('renders "Unknown Space" for a home document with no name', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site')}
+        docMetadata={{summary: 'No name set'} as any}
+        authors={[]}
+        updateTime={null}
+        showByline={false}
+      />,
+    )
+
+    expect(container.textContent).toContain('Unknown Space')
+    expect(container.textContent).toContain('No name set')
+  })
 })

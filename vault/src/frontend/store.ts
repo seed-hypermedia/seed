@@ -873,16 +873,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         try {
           const account = await client.getAccount({id: principal})
           const profile = account.profile
-          const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
 
           delete state.profileLoadStates[principal]
 
-          if (profile || metadata) {
+          if (profile) {
             state.profiles[principal] = {
-              name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
-              avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
-              description:
-                profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+              name: profile.name || undefined,
+              avatar: profile.icon || undefined,
+              description: profile.description || undefined,
             }
           }
           return

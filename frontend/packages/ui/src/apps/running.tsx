@@ -1,7 +1,7 @@
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {AgentTriggerInfo, AppRunInfo, AppToolCallInfo, TriggerFiringInfo} from '@seed-hypermedia/apps-protocol'
 import {useUniversalAppContext} from '@shm/shared/routing'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName} from '@shm/shared/content'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {useAccount, useResource} from '@shm/shared/models/entity'
@@ -543,7 +543,7 @@ export function CallerName({uid, size = 20, className}: {uid: string; size?: num
   return (
     <span className={cn('flex min-w-0 items-center gap-1.5', className)}>
       <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={size} />
-      <span className="truncate">{metadata?.name || abbreviateUid(uid)}</span>
+      <span className="truncate">{getProfileName(metadata)}</span>
     </span>
   )
 }

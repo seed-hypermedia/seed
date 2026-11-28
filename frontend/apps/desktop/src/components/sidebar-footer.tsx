@@ -1,6 +1,6 @@
 import {useMyAccountIds} from '@/models/daemon'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId, useUniversalAppContext} from '@shm/shared'
+import {getProfileName, hmId, useUniversalAppContext} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -78,9 +78,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
           className="flex w-full min-w-0 items-center justify-start rounded-md bg-transparent py-1 pr-3"
           {...highlighter(hmId(selectedIdentityValue))}
         >
-          <p className="truncate text-sm select-none">
-            {selectedAccountData?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
-          </p>
+          <p className="truncate text-sm select-none">{getProfileName(selectedAccountData?.metadata)}</p>
         </PopoverTrigger>
         <PopoverContent
           side="right"
@@ -103,7 +101,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
                   {...highlighter(option.id)}
                 >
                   <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} />
-                  {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
+                  {getProfileName(option.metadata)}
                 </div>
               ) : null,
             )}

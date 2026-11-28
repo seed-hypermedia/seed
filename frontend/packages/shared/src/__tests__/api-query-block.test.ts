@@ -458,6 +458,45 @@ describe('QueryBlock.getData', () => {
     consoleInfoSpy.mockRestore()
   })
 
+  it('does not fall back to home document metadata for a person name/icon when the profile is missing', async () => {
+    const queryDocuments = vi.fn().mockResolvedValue({documents: [resultA], nextPageToken: ''})
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const homeMetadata = {toJson: () => ({name: 'Home Name', icon: 'home-icon'})}
+    const grpcClient = {
+      documents: {
+        queryDocuments,
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts: vi.fn().mockResolvedValue({
+          accounts: {
+            'author-a': {
+              // No profile fields; home document carries name/icon, which must be ignored.
+              homeDocumentInfo: {version: 'va', metadata: homeMetadata},
+            },
+          },
+          errors: {},
+        }),
+      },
+    } as any
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {
+          includes: [{space: 'alice', path: '/projects', mode: 'Children'}],
+          sort: [{term: 'updated', reverse: true}],
+          limit: 1,
+        },
+      },
+      undefined as any,
+    )
+
+    expect(result?.accountsMetadata['author-a']).toEqual({
+      id: hmId('author-a', {version: 'va'}),
+      metadata: {},
+    })
+    consoleInfoSpy.mockRestore()
+  })
+
   it('returns null when there is no resolvable target and still logs perf data', async () => {
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const result = await QueryBlock.getData(

@@ -112,12 +112,12 @@ export function useAccountProfileNames(accountIds: string[]): Record<string, str
   return names
 }
 
-/** Display name for an identity: published profile name → local vault key name → shortened id. */
+/** Display name for an identity: published profile name → local vault key name → "Unknown Profile". */
 export function identityDisplayName(
   identity: {name: string; accountId: string},
   profileName: string | undefined,
 ): string {
   if (profileName) return profileName
   if (identity.name && identity.name !== identity.accountId) return identity.name
-  return shortAccountId(identity.accountId)
+  return 'Unknown Profile'
 }
