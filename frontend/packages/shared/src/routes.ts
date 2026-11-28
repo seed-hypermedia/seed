@@ -134,9 +134,29 @@ export const directoryRouteSchema = z.object({
 })
 export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
 
+/** Sortable column of the All documents view. */
+export const ALL_DOCUMENTS_SORTS = ['title', 'type', 'updated'] as const
+/** One sortable All documents column. `location` is the default and not URL-encoded. */
+export type AllDocumentsSort = (typeof ALL_DOCUMENTS_SORTS)[number]
+
+/** Filter tab of the All documents view. `all` is the default and not URL-encoded. */
+export const ALL_DOCUMENTS_TYPES = ['documents', 'collections'] as const
+/** One filter tab of the All documents view. */
+export type AllDocumentsType = (typeof ALL_DOCUMENTS_TYPES)[number]
+
+/** Tree/list view of the All documents view. `list` is the default and not URL-encoded. */
+export const ALL_DOCUMENTS_VIEWS = ['tree', 'list'] as const
+/** One view mode of the All documents view. */
+export type AllDocumentsView = (typeof ALL_DOCUMENTS_VIEWS)[number]
+
 export const allDocumentsRouteSchema = z.object({
   key: z.literal('all-documents'),
   id: unpackedHmIdSchema,
+  view: z.enum(ALL_DOCUMENTS_VIEWS).optional(),
+  type: z.enum(ALL_DOCUMENTS_TYPES).optional(),
+  sort: z.enum(ALL_DOCUMENTS_SORTS).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  q: z.string().optional(),
 })
 export type AllDocumentsRoute = z.infer<typeof allDocumentsRouteSchema>
 

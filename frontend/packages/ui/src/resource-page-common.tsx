@@ -127,6 +127,7 @@ import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-setti
 import {DocumentPageView, documentPageCid} from './document-page'
 import {DraftHiddenActions, usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {allDocumentsRouteFromState, allDocumentsStateFromRoute} from '@shm/shared/utils/all-documents-view'
 import {
   activityFilterToSlug,
   activitySlugToFilter,
@@ -2342,8 +2343,8 @@ function DocumentBody({
   })
 
   // Explore searches the whole space rather than presenting a document,
-  // so it drops the document's chrome.
-  const showDocumentChrome = activeView !== 'explore'
+  // so it drops the document's chrome. All documents is a space-level view too.
+  const showDocumentChrome = activeView !== 'explore' && activeView !== 'all-documents'
   // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
   // its tabs, which are the whole page.
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
@@ -2614,10 +2615,10 @@ function DocumentBody({
       collaborators: 'People',
       directory: 'Sub documents',
       activity: 'Activity',
-      'all-documents': 'All Documents',
+      'all-documents': 'All documents',
       metadata: 'Attributes',
     }
-    if (activeView !== 'content' && panelLabels[activeView]) {
+    if (activeView !== 'content' && activeView !== 'all-documents' && panelLabels[activeView]) {
       items.push({
         label:
           route.key === 'activity' && activityFilterToSlug(route.filterEventType) === 'citations'
@@ -3165,7 +3166,11 @@ function DocumentBody({
   // The bar always states where you are, so a home document is its own single crumb.
   const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
   const topBarBreadcrumbs: BreadcrumbEntry[] =
-    activeView === 'explore' ? [...spaceBreadcrumbs, {label: 'Explore'}] : spaceBreadcrumbs
+    activeView === 'explore'
+      ? [...spaceBreadcrumbs, {label: 'Explore'}]
+      : activeView === 'all-documents'
+        ? [{label: 'All documents'}]
+        : spaceBreadcrumbs
   const documentTopBar = (
     <DocumentTopBar
       breadcrumbs={topBarBreadcrumbs}
@@ -3355,10 +3360,7 @@ function DocumentBody({
                       activeView === 'activity' &&
                       activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                         ? 'citations'
-                        : activeView === 'activity' ||
-                            activeView === 'directory' ||
-                            activeView === 'site-profile' ||
-                            activeView === 'all-documents'
+                        : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
                           ? undefined
                           : activeView
                     }
@@ -4999,26 +5001,35 @@ function MainContent({
   )
 
   switch (activeView) {
-    case 'all-documents':
+    case 'all-documents': {
+      const allDocumentsState =
+        route.key === 'all-documents'
+          ? allDocumentsStateFromRoute(route)
+          : allDocumentsStateFromRoute({key: 'all-documents', id: allDocumentsSiteId})
       return (
         <AllDocumentsPage
           siteId={allDocumentsSiteId}
           scopeId={allDocumentsSiteId}
+          state={allDocumentsState}
+          onStateChange={(next) => {
+            replaceRoute(allDocumentsRouteFromState(allDocumentsSiteId, next))
+          }}
           onNavigateToDocument={(id, opts) => {
-            const route = {key: 'document' as const, id}
+            const documentRoute = {key: 'document' as const, id}
             if (opts?.newWindow) {
               if (openRouteNewWindow) {
-                openRouteNewWindow(route)
+                openRouteNewWindow(documentRoute)
               } else {
-                const href = routeToHref(route, {originHomeId})
+                const href = routeToHref(documentRoute, {originHomeId})
                 if (href) window.open(href, '_blank')
               }
               return
             }
-            navigate(route)
+            navigate(documentRoute)
           }}
         />
       )
+    }
 
     case 'explore':
       return (

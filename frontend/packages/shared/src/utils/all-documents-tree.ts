@@ -1,10 +1,14 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {hmId} from './entity-id-url'
+import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '../draft-breadcrumb-context'
 import {getDocumentTitle} from '../content'
 
 export type DocumentTreeNode = {
   doc: HMDocumentInfo
   children: DocumentTreeNode[]
   depth: number
+  /** True when this node is an ancestor kept only for context (not a filter match). */
+  contextOnly?: boolean
 }
 
 export type FlatRow = {
@@ -12,6 +16,8 @@ export type FlatRow = {
   depth: number
   hasChildren: boolean
   pathKey: string
+  /** True when this row is an ancestor kept only for context (not a filter match). */
+  contextOnly?: boolean
 }
 
 function pathKeyOf(doc: HMDocumentInfo): string {
@@ -84,7 +90,7 @@ export function flattenTree(
     for (const node of sorted) {
       const pathKey = pathKeyOf(node.doc)
       const hasChildren = node.children.length > 0
-      result.push({doc: node.doc, depth: node.depth, hasChildren, pathKey})
+      result.push({doc: node.doc, depth: node.depth, hasChildren, pathKey, contextOnly: node.contextOnly})
       if (hasChildren && expandedPaths.has(pathKey)) {
         walk(node.children)
       }
@@ -93,4 +99,61 @@ export function flattenTree(
 
   walk(nodes)
   return result
+}
+
+/** A published directory doc plus the drafts derived from it, keyed by document id. */
+export type AllDocumentsWithDrafts = {
+  documents: HMDocumentInfo[]
+  /** Document ids that are unpublished drafts (for icon/marker rendering). */
+  unpublishedDraftIds: Set<string>
+}
+
+/**
+ * Merges a space's published directory with the account's unpublished drafts, turning each
+ * unlinked draft into a synthetic document at `/<location>/-<draftId>`. Shared by the sidebar
+ * and the All documents page so both list drafts identically. Maps draft `lastUpdateTime`
+ * (milliseconds) to `updateTime` (seconds) so drafts show and sort by it.
+ */
+export function mergeDraftDocuments(
+  directory: HMDocumentInfo[] | null | undefined,
+  drafts: HMListedDraftWithLocation[] | null | undefined,
+): AllDocumentsWithDrafts {
+  const unpublished = (drafts ?? []).flatMap((draft) => {
+    const {editId, locationId} = draft
+    if (!locationId || (editId && !isDraftPlaceholderPath(editId.path, draft.id))) return []
+    const path = [...(locationId.path ?? []), `-${draft.id}`]
+    // Draft lastUpdateTime is epoch milliseconds; HMDocumentInfo.updateTime is a Timestamp with .seconds.
+    const updateTime =
+      typeof draft.lastUpdateTime === 'number' ? {seconds: Math.floor(draft.lastUpdateTime / 1000)} : undefined
+    return [
+      {
+        id: editId ?? hmId(locationId.uid, {path}),
+        path,
+        metadata: draft.metadata,
+        isCollection: draft.isCollection ?? false,
+        visibility: draft.visibility ?? 'PUBLIC',
+        updateTime,
+      } as HMDocumentInfo,
+    ]
+  })
+  return {
+    documents: [...(directory ?? []), ...unpublished],
+    unpublishedDraftIds: new Set(unpublished.map((draft) => draft.id.id)),
+  }
+}
+
+/**
+ * The space's documents for the All documents view: published non-home docs plus unpublished
+ * drafts. The home doc (empty path) is excluded so it never appears in the list or count.
+ * Shared by the page and the sidebar so the sidebar count always equals the page's All count.
+ */
+export function listSpaceDocuments(
+  directory: HMDocumentInfo[] | null | undefined,
+  drafts: HMListedDraftWithLocation[] | null | undefined,
+): AllDocumentsWithDrafts {
+  const merged = mergeDraftDocuments(directory, drafts)
+  return {
+    documents: merged.documents.filter((doc) => (doc.path?.length ?? 0) > 0),
+    unpublishedDraftIds: merged.unpublishedDraftIds,
+  }
 }

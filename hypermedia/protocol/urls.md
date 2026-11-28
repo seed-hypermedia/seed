@@ -66,6 +66,8 @@ A path segment that begins with `:` after the document path selects a view of th
 | `/:feed`, `/:all-documents`, `/:explore`, `/:settings` | site-level views | app and web only; `/:settings` is site-level on a space, and on an agent document it opens the agent's settings <!-- id:qj1efh9h --> |
 | `/:app/<view>`, `/:sessions`, `/:session/<id>`, `/:triggers`, `/:memory`, `/:access`, `/:call/<id>` | the tabs of an [app](../app.md) or a mounted [agent](../agent/mounting.md) | app and web only |
 
+`/:all-documents` keeps its view in the query: `view=tree`, `type=documents` or `type=collections`, `sort=title`, `sort=type` or `sort=updated`, `order=asc` or `order=desc`, and `q=<search>`. A default value is left out: the list view, every type, location order, the sort's usual direction (newest first for `updated`, ascending otherwise) and an empty search. An unknown value is ignored.
+
 An [agent](../agent.md)'s [`read`](../agent/read.md) verb accepts `/:directory`, `/:attributes`, `/:profile` and `/:comments` on an `hm://` address. The daemon's [discovery](./network.md) request also understands two wildcards: `hm://<uid>/<path>/*` (one level) and `hm://<uid>/<path>/**` (everything beneath). <!-- id:P-bycAsF -->
 
 # Comments and other records <!-- id:MTAqFeRT -->

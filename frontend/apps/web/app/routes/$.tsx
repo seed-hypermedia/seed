@@ -53,6 +53,7 @@ import {
   extractAgentDocumentView,
   type DocumentRoute,
 } from '@shm/shared'
+import {parseAllDocumentsSearchParams} from '@shm/shared/utils/all-documents-view'
 import {useNavigationState} from '@shm/shared/utils/navigation'
 import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
@@ -76,6 +77,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   exploreQ?: string | null
   exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
+  allDocumentsParams?: ReturnType<typeof parseAllDocumentsSearchParams>
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   replyCommentId?: string | null
   openComment?: string | null
@@ -363,6 +365,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     rawExploreSort === 'title'
       ? rawExploreSort
       : null
+  const allDocumentsParams = parseAllDocumentsSearchParams(url.searchParams)
 
   const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))
   if (!serviceConfig) {
@@ -547,6 +550,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     viewTerm,
     exploreQ,
     exploreSort,
+    allDocumentsParams,
     panelParam: effectivePanelParam,
     replyCommentId,
     openComment,
@@ -663,7 +667,9 @@ export default function UnifiedDocumentPage() {
             agentTriggerId: siteData.agentTriggerId,
             agentMemoryPath: siteData.agentMemoryPath,
           }
-        : initialRoute
+        : initialRoute.key === 'all-documents'
+          ? {...initialRoute, ...siteData.allDocumentsParams}
+          : initialRoute
   const initialInspectRoute = createInspectNavRoute(
     siteData.id,
     siteData.viewTerm,

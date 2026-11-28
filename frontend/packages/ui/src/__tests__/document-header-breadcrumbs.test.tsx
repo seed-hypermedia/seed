@@ -156,6 +156,15 @@ describe('DocumentHeader Breadcrumbs', () => {
     expect(container.textContent).not.toContain('Loading…')
   })
 
+  it('renders a lone label crumb as plain text with aria-current', () => {
+    renderBreadcrumbs([{label: 'All documents'}])
+
+    expect(container.textContent).toContain('All documents')
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('All documents')
+    expect(container.querySelectorAll('a').length).toBe(0)
+    expect(container.textContent).not.toContain('>')
+  })
+
   it('deduplicates repeated authors before rendering the author list', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const authorId = hmId('alice')
