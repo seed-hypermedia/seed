@@ -505,4 +505,117 @@ describe('desktop published parent reconciliation', () => {
     ])
     expect(compareAndSwapDraftMock.mock.calls[0]?.[1].content[1].props.url).toBe(source)
   })
+
+  it('add-cards publishes all cards in one publish and records added/skipped targets', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const about = 'hm://alice/about'
+    const projects = 'hm://alice/projects'
+    const blog = 'hm://alice/blog'
+    let published = false
+    getDocumentMock.mockImplementation(async () =>
+      published
+        ? {...makeParentDocument([text('intro'), card(about), card(projects), card(blog)]), version: 'new'}
+        : makeParentDocument([text('intro')]),
+    )
+    requestMock.mockImplementation(async (_key: string, input: any) => {
+      if (input.id === about || input.id === projects || input.id === blog) return {type: 'document'}
+      return {type: 'document'}
+    })
+    publishDocumentMock.mockImplementation(async () => {
+      published = true
+    })
+    const result = await api.enqueue({
+      operation: 'add-cards',
+      parentDocumentId: 'hm://alice',
+      signingAccountUid: 'alice',
+      targetDocumentIds: [about, projects, blog],
+    })
+    expect(result.enqueued).toBe(true)
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).toHaveBeenCalledOnce()
+    const publishInput = (publishDocumentMock.mock.calls[0] as any[])[0]
+    const replaceBlocks = publishInput.changes.filter((c: any) => c.op.case === 'replaceBlock')
+    expect(replaceBlocks).toHaveLength(3)
+    const job = mod.getDocumentCardCleanupSnapshotForTest().jobs[0]
+    expect(job.state).toBe('done')
+    expect(job.addedTargetIds).toEqual([about, projects, blog])
+    expect(job.skippedTargetIds).toEqual([])
+    expect(job.cardTargets).toHaveLength(3)
+  })
+
+  it('add-cards dedupes id on enqueue and skips already-card targets', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const about = 'hm://alice/about'
+    getDocumentMock.mockResolvedValue(makeParentDocument([card(about)]))
+    requestMock.mockResolvedValue({type: 'document'})
+    const first = await api.enqueue({
+      operation: 'add-cards',
+      parentDocumentId: 'hm://alice',
+      signingAccountUid: 'alice',
+      targetDocumentIds: [about],
+    })
+    expect(first.enqueued).toBe(true)
+    const second = await api.enqueue({
+      operation: 'add-cards',
+      parentDocumentId: 'hm://alice',
+      signingAccountUid: 'alice',
+      targetDocumentIds: [about],
+    })
+    expect(second.enqueued).toBe(false)
+    expect(second.reason).toBe('duplicate')
+    await mod.runNextDocumentCardCleanupForTest()
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    const job = mod.getDocumentCardCleanupSnapshotForTest().jobs[0]
+    expect(job.state).toBe('done')
+    expect(job.addedTargetIds).toEqual([])
+    expect(job.skippedTargetIds).toEqual([about])
+  })
+
+  it('add-cards skips non-document targets and retries only still-missing after a failed publish', async () => {
+    const mod = await loadCleanupModule()
+    const api = mod.documentCardCleanupApi.createCaller({})
+    const about = 'hm://alice/about'
+    const projects = 'hm://alice/projects'
+    let publishAttempts = 0
+    let publishedCards: string[] = []
+    getDocumentMock.mockImplementation(async () => {
+      const content = [text('intro'), ...publishedCards.map((link) => card(link))]
+      return {...makeParentDocument(content), version: publishedCards.length ? 'new' : 'parent-version'}
+    })
+    requestMock.mockImplementation(async (_key: string, input: any) => {
+      if (input.id === 'hm://alice/non-doc') return {type: 'not-found'}
+      return {type: 'document'}
+    })
+    publishDocumentMock.mockImplementation(async () => {
+      publishAttempts++
+      if (publishAttempts === 1) {
+        // Simulate another device added 'about' between plan and retry
+        publishedCards = [about]
+        throw new Error('publish failed')
+      }
+      publishedCards = [...publishedCards, projects]
+    })
+    await api.enqueue({
+      operation: 'add-cards',
+      parentDocumentId: 'hm://alice',
+      signingAccountUid: 'alice',
+      targetDocumentIds: [about, projects, 'hm://alice/non-doc'],
+    })
+    await mod.runNextDocumentCardCleanupForTest()
+    // First attempt failed; job should be retryScheduled
+    const jobAfterFirst = mod.getDocumentCardCleanupSnapshotForTest().jobs[0]
+    expect(['retryScheduled', 'failedNeedsAttention']).toContain(jobAfterFirst.state)
+    expect(jobAfterFirst.skippedTargetIds).toContain('hm://alice/non-doc')
+    // Retry: only 'projects' should be added now (about already added by other device)
+    if (jobAfterFirst.state === 'retryScheduled' && jobAfterFirst.nextRunAt) {
+      vi.setSystemTime(jobAfterFirst.nextRunAt)
+    }
+    await mod.runNextDocumentCardCleanupForTest()
+    const jobFinal = mod.getDocumentCardCleanupSnapshotForTest().jobs[0]
+    expect(jobFinal.state).toBe('done')
+    expect(jobFinal.addedTargetIds).toEqual([projects])
+    expect(jobFinal.skippedTargetIds).toContain('hm://alice/non-doc')
+  })
 })

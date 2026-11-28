@@ -34,7 +34,7 @@ export function rebaseDocumentReferenceDraft(
         })
       return resolve(content)
     }
-    if (operation === 'add' || operation === 'delete-child') return content
+    if (operation === 'add' || operation === 'delete-child' || operation === 'add-cards') return content
     return applyDocumentCardCleanupToBlockNodes(content, {
       operation,
       sourceDocumentId,

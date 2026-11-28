@@ -43,6 +43,7 @@ import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {reportTelemetry, telemetryKeyForId, TelemetryStage} from '@/telemetry'
 import {client} from '@/trpc'
+import {DesktopShapeHomeHelper} from '../components/shape-home-helper'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
@@ -175,7 +176,7 @@ type DraftExternallyModifiedEvent = {
   targetBlockId?: string
   maintenanceRevision?: number
   jobId?: string
-  operation?: 'add' | 'remove' | 'rewrite'
+  operation?: 'add' | 'remove' | 'rewrite' | 'add-cards'
   sourceDocumentId?: string
   targetDocumentId?: string
   deletedDocumentId?: string
@@ -859,6 +860,16 @@ export default function DesktopResourcePage() {
   )
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
+  const shapeHomeState = useQuery({
+    queryKey: ['trpc.shapeHome.getState'],
+    queryFn: () => client.shapeHome.getState.query(),
+  })
+  const shapeHomeRecord = shapeHomeState.data?.sites[docId.uid]
+  const showShapeHomeHelper =
+    canEdit &&
+    !docId.path?.length &&
+    (!!shapeHomeState.data?.needsShaping.includes(docId.uid) || shapeHomeRecord?.status === 'adding')
+
   // Key off the route's docId rather than the resolved doc.{account,path,version}
   // so this stamp matches what useNavigate/navigation-container emit for
   // renderer.link_click. Using doc.version would produce a versioned key
@@ -1360,6 +1371,9 @@ export default function DesktopResourcePage() {
                     attributeAutocomplete={attributeAutocomplete}
                     fileUpload={fileUpload}
                     editNavPane={<EditNavHeaderPane homeId={hmId(docId.uid)} />}
+                    contentTopInsert={
+                      showShapeHomeHelper ? <DesktopShapeHomeHelper uid={docId.uid} record={shapeHomeRecord} /> : null
+                    }
                   />
                   {draftVersionDeleteDraftDialog.content}
                 </QuerySearchInputProvider>

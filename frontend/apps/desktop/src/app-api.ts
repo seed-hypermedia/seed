@@ -23,6 +23,7 @@ import {documentCardCleanupApi, startDocumentCardCleanupCoordinator} from './app
 import {draftsApi, getListedDraft} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
+import {shapeHomeApi, startShapeHome} from './app-shape-home'
 import {notificationConfigApi} from './app-notification-config'
 import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
 import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
@@ -186,6 +187,7 @@ export async function openInitialWindows() {
     }
     finishWindowSessionRestore(Array.from(getAllWindows().keys()))
     if (reconciled.removed.length) log.info('[MAIN]: Reconciled duplicate saved windows', {removed: reconciled.removed})
+    void startShapeHome()
   } catch (error) {
     log.error('[MAIN]: Could not restore saved windows; original session retained', {error: String(error)})
     // Keep the saved session recoverable even when an old draft cannot be resolved.
@@ -195,6 +197,7 @@ export async function openInitialWindows() {
       'Could not restore windows',
       'Your saved session has been preserved for the next restart. ' + String(error),
     )
+    void startShapeHome()
   }
 }
 
@@ -325,6 +328,7 @@ export const router = t.router({
   recents: recentsApi,
   sites: sitesApi,
   prompting: promptingApi,
+  shapeHome: shapeHomeApi,
   appSettings: appSettingsApi,
   /** Reports the local app environment the desktop spawned or attached to, if any. */
   localAgentsServer: t.procedure.query(async () => {

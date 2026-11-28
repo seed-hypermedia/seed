@@ -24,6 +24,7 @@ import {
 import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
 import {WebDocumentMaintenance} from './document-maintenance'
+import {WebShapeHomeAnnouncement} from './shape-home/shape-home-announcement'
 import {WebSidePanelHost} from './web-side-panel-host'
 import {WebDomainHost} from './components/web-domain-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
@@ -185,6 +186,7 @@ export const Providers = (props: {children: any}) => {
           <AssistantPanelProvider>
             <WebSidePanelHost>
               <WebDocumentMaintenance>{props.children}</WebDocumentMaintenance>
+              <WebShapeHomeAnnouncement />
               <WebDomainHost />
             </WebSidePanelHost>
           </AssistantPanelProvider>

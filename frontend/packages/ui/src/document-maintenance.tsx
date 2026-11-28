@@ -51,9 +51,11 @@ export function documentCleanupItems(jobs: DocumentCardCleanupJob[]): DocumentMa
             ? 'Delete confirmed child document'
             : operation === 'add'
               ? 'Add child card'
-              : operation === 'rewrite'
-                ? 'Update document references'
-                : 'Remove child card',
+              : operation === 'add-cards'
+                ? 'Add Cards to Home'
+                : operation === 'rewrite'
+                  ? 'Update document references'
+                  : 'Remove child card',
         needsAttention: job.state === 'failedNeedsAttention',
         dismissedAt: job.state === 'dismissed' ? job.dismissedAt ?? job.updatedAt : undefined,
         createdAt: job.createdAt,

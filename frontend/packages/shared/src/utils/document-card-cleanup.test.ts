@@ -9,6 +9,7 @@ import {
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
   planDocumentCardMoveOperations,
+  planDocumentCardsAppend,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
   rebaseDocumentReferenceDraft,
@@ -371,6 +372,176 @@ describe('planDocumentCardRewrite', () => {
 
     expect(plainChanges(result.changes)).toEqual([{case: 'replaceBlock'}])
     expect(result.rewrittenBlockIds).toEqual(['old-card'])
+  })
+})
+
+describe('planDocumentCardsAppend', () => {
+  function plainAppendChanges(changes: ReturnType<typeof planDocumentCardsAppend>['changes']) {
+    return changes.map((change) => {
+      if (change.op.case === 'moveBlock') {
+        return {
+          case: 'moveBlock',
+          blockId: change.op.value.blockId,
+          parent: change.op.value.parent,
+          leftSibling: change.op.value.leftSibling,
+        }
+      }
+      if (change.op.case === 'deleteBlock') return {case: 'deleteBlock', blockId: change.op.value}
+      return {case: change.op.case}
+    })
+  }
+
+  it('appends a chain of cards at the end of top-level content', () => {
+    const result = planDocumentCardsAppend({content: [paragraph('intro')], navigationCards: []}, 'hm://parent/site', [
+      {documentId: 'hm://parent/site/about', blockId: 'card-about'},
+      {documentId: 'hm://parent/site/projects', blockId: 'card-projects'},
+    ])
+    expect(plainAppendChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'card-about', parent: '', leftSibling: 'intro'},
+      {case: 'replaceBlock'},
+      {case: 'moveBlock', blockId: 'card-projects', parent: '', leftSibling: 'card-about'},
+      {case: 'replaceBlock'},
+    ])
+    expect(result.addedBlockIds).toEqual(['card-about', 'card-projects'])
+    expect(result.addedTargetIds).toEqual(['hm://parent/site/about', 'hm://parent/site/projects'])
+    expect(result.skippedTargetIds).toEqual([])
+  })
+
+  it('replaces the first self-query at its position and deletes it', () => {
+    const query: HMBlockNode = {
+      block: {
+        id: 'query',
+        type: 'Query',
+        attributes: {query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]}},
+      } as HMBlockNode['block'],
+      children: [],
+    }
+    const result = planDocumentCardsAppend(
+      {content: [paragraph('intro'), query, paragraph('tail')], navigationCards: []},
+      'hm://parent/site',
+      [{documentId: 'hm://parent/site/about', blockId: 'card-about'}],
+    )
+    expect(plainAppendChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'card-about', parent: '', leftSibling: 'intro'},
+      {case: 'replaceBlock'},
+      {case: 'deleteBlock', blockId: 'query'},
+    ])
+  })
+
+  it('replaces a self-query nested inside a parent block at its position', () => {
+    const query: HMBlockNode = {
+      block: {
+        id: 'query',
+        type: 'Query',
+        attributes: {query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]}},
+      } as HMBlockNode['block'],
+      children: [],
+    }
+    const wrapper: HMBlockNode = {
+      block: {id: 'wrapper', type: 'Paragraph', text: '', attributes: {}},
+      children: [query],
+    }
+    const result = planDocumentCardsAppend(
+      {content: [paragraph('intro'), wrapper], navigationCards: []},
+      'hm://parent/site',
+      [{documentId: 'hm://parent/site/about', blockId: 'card-about'}],
+    )
+    expect(plainAppendChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'card-about', parent: 'wrapper', leftSibling: ''},
+      {case: 'replaceBlock'},
+      {case: 'deleteBlock', blockId: 'query'},
+    ])
+  })
+
+  it('replaces only the first self-query and leaves a second one untouched', () => {
+    const query1: HMBlockNode = {
+      block: {
+        id: 'query1',
+        type: 'Query',
+        attributes: {query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]}},
+      } as HMBlockNode['block'],
+      children: [],
+    }
+    const query2: HMBlockNode = {
+      block: {
+        id: 'query2',
+        type: 'Query',
+        attributes: {query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]}},
+      } as HMBlockNode['block'],
+      children: [],
+    }
+    const result = planDocumentCardsAppend(
+      {content: [paragraph('intro'), query1, query2], navigationCards: []},
+      'hm://parent/site',
+      [{documentId: 'hm://parent/site/about', blockId: 'card-about'}],
+    )
+    const deletes = plainAppendChanges(result.changes).filter((c) => c.case === 'deleteBlock')
+    expect(deletes).toEqual([{case: 'deleteBlock', blockId: 'query1'}])
+  })
+
+  it('leaves a multi-include query untouched and appends at the end', () => {
+    const query: HMBlockNode = {
+      block: {
+        id: 'query',
+        type: 'Query',
+        attributes: {
+          query: {
+            includes: [
+              {space: 'parent', path: '/site', mode: 'Children'},
+              {space: 'parent', path: '/other', mode: 'Children'},
+            ],
+          },
+        },
+      } as HMBlockNode['block'],
+      children: [],
+    }
+    const result = planDocumentCardsAppend(
+      {content: [paragraph('intro'), query], navigationCards: []},
+      'hm://parent/site',
+      [{documentId: 'hm://parent/site/about', blockId: 'card-about'}],
+    )
+    expect(plainAppendChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'card-about', parent: '', leftSibling: 'query'},
+      {case: 'replaceBlock'},
+    ])
+  })
+
+  it('skips targets already a Card via navigationCards or Card embed', () => {
+    const result = planDocumentCardsAppend(
+      {
+        content: [embedCard('existing', 'hm://parent/site/projects')],
+        navigationCards: ['hm://parent/site/about'],
+      },
+      'hm://parent/site',
+      [
+        {documentId: 'hm://parent/site/about', blockId: 'card-about'},
+        {documentId: 'hm://parent/site/projects', blockId: 'card-projects'},
+        {documentId: 'hm://parent/site/blog', blockId: 'card-blog'},
+      ],
+    )
+    expect(result.addedTargetIds).toEqual(['hm://parent/site/blog'])
+    expect(result.skippedTargetIds).toEqual(['hm://parent/site/about', 'hm://parent/site/projects'])
+  })
+
+  it('returns no changes when all targets are already cards', () => {
+    const result = planDocumentCardsAppend(
+      {content: [], navigationCards: ['hm://parent/site/about']},
+      'hm://parent/site',
+      [{documentId: 'hm://parent/site/about', blockId: 'card-about'}],
+    )
+    expect(result.changes).toEqual([])
+    expect(result.addedBlockIds).toEqual([])
+    expect(result.addedTargetIds).toEqual([])
+    expect(result.skippedTargetIds).toEqual(['hm://parent/site/about'])
+  })
+
+  it('deduplicates repeated target ids', () => {
+    const result = planDocumentCardsAppend({content: [paragraph('intro')], navigationCards: []}, 'hm://parent/site', [
+      {documentId: 'hm://parent/site/about', blockId: 'card-about'},
+      {documentId: 'hm://parent/site/about', blockId: 'card-about-2'},
+    ])
+    expect(result.addedTargetIds).toEqual(['hm://parent/site/about'])
+    expect(result.skippedTargetIds).toEqual(['hm://parent/site/about'])
   })
 })
 

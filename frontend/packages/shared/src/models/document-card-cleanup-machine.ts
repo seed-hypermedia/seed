@@ -14,7 +14,7 @@ export const RETRY_DELAYS_MS = [1_000, 5_000, 15_000]
 export type CleanupCoordinatorState = 'idle' | 'running' | 'retryWaiting'
 
 /** Supported parent-reference mutations. */
-export type DocumentCardCleanupOperation = 'remove' | 'add' | 'rewrite' | 'delete-child'
+export type DocumentCardCleanupOperation = 'remove' | 'add' | 'rewrite' | 'delete-child' | 'add-cards'
 
 /** Terminal reason why a document content mutation was declined before publication. */
 export type DocumentContentMutationFailureReason =
@@ -77,6 +77,12 @@ export type DocumentCardCleanupJob = {
   cardLeftSibling?: string
   targetBlockId?: string
   childDraftId?: string
+  /** Targets for an add-cards batch operation, with blockIds fixed at enqueue for idempotent retries. */
+  cardTargets?: Array<{id: UnpackedHypermediaId; blockId: string}>
+  /** Recorded result of an add-cards publish: target ids that received a new Card. */
+  addedTargetIds?: string[]
+  /** Recorded result of an add-cards publish: target ids skipped because already a Card or non-document. */
+  skippedTargetIds?: string[]
   /** Verified publication checkpoint; retries reconcile drafts without republishing. */
   publishedVersion?: string
   /** Address requested by the operation before redirect resolution. */
@@ -123,6 +129,8 @@ type CleanupDocument = {
 type CleanupJobPlan = {
   changes: unknown[]
   removedBlockIds: string[]
+  addedTargetIds?: string[]
+  skippedTargetIds?: string[]
 }
 
 type CleanupJobEffects = {
@@ -207,6 +215,7 @@ export function getCleanupJobParent(
   job: Pick<DocumentCardCleanupJob, 'source' | 'target' | 'container' | 'operation'>,
 ): UnpackedHypermediaId {
   if (job.container) return job.container
+  if (job.operation === 'add-cards') throw new Error('add-cards job requires an explicit container (Home id)')
   const child = job.operation === 'add' ? job.target ?? job.source : job.source ?? job.target
   if (!child) throw new Error('Maintenance job has no document identity')
   return hmId(child.uid, {path: (child.path ?? []).slice(0, -1)})
@@ -218,7 +227,7 @@ function migrateCleanupJob(raw: LegacyCleanupJob): DocumentCardCleanupJob {
   const target = job.target ?? unpackHmId(targetDocumentId) ?? undefined
   const identity = {operation: job.operation, source, target, container: job.container}
   const parent = parentDocumentId ? unpackHmId(parentDocumentId) : undefined
-  const derived = source || target ? getCleanupJobParent({...identity, container: undefined}) : null
+  const derived = source || target ? getCleanupJobParent(identity) : null
   const container = job.container ?? (parent && parent.id !== derived?.id ? parent : undefined)
   return {
     ...job,
@@ -267,10 +276,16 @@ export function cleanupJobId(input: {
   targetDocumentId?: string
   parentDocumentId: string
   signingAccountUid: string
+  /** Sorted target document ids for an add-cards batch. */
+  cardTargetIds?: string[]
 }): string {
   if (input.intentId) return input.intentId
   if (input.targetBlockId) return `${cleanupJobId({...input, targetBlockId: undefined})}|block:${input.targetBlockId}`
   const operation = input.operation || 'remove'
+  if (operation === 'add-cards') {
+    const sortedTargetIds = [...(input.cardTargetIds || [])].sort()
+    return ['add-cards', sortedTargetIds.join(','), input.parentDocumentId, input.signingAccountUid].join('|')
+  }
   if (operation === 'remove' && input.deletedDocumentId && !input.sourceDocumentId && !input.targetDocumentId) {
     return `${input.deletedDocumentId}|${input.parentDocumentId}|${input.signingAccountUid}`
   }
@@ -432,21 +447,35 @@ export function createDocumentCardCleanupJobMachine(effects: CleanupJobEffects) 
         job: updateJob(context.job, {state: params.state}, effects.now()),
       })),
       progress: ({context}) => effects.onJobProgress?.(context.job),
-      loaded: assign(({context, event}) => ({
-        parentDocument: event.output.document,
-        publishedPlan: event.output.plan,
-        job: event.output.document
-          ? updateJob(
-              context.job,
-              {
-                requestedDocumentId: event.output.document.requestedDocumentId,
-                resolvedDocumentId: event.output.document.resolvedDocumentId,
-                redirectHops: event.output.document.redirectHops,
-              },
-              effects.now(),
-            )
-          : context.job,
-      })),
+      loaded: assign(({context, event}) => {
+        const plan = event.output.plan as any
+        const planHasChanges = plan && Array.isArray(plan.changes) && plan.changes.length > 0
+        const planHasResults = plan && 'addedTargetIds' in plan
+        const jobHasRecordedResults =
+          context.job.addedTargetIds !== undefined || context.job.skippedTargetIds !== undefined
+        const shouldRecordResults = planHasResults && (planHasChanges || !jobHasRecordedResults)
+        return {
+          parentDocument: event.output.document,
+          publishedPlan: event.output.plan,
+          job: event.output.document
+            ? updateJob(
+                context.job,
+                {
+                  requestedDocumentId: event.output.document.requestedDocumentId,
+                  resolvedDocumentId: event.output.document.resolvedDocumentId,
+                  redirectHops: event.output.document.redirectHops,
+                  ...(shouldRecordResults
+                    ? {
+                        addedTargetIds: plan.addedTargetIds,
+                        skippedTargetIds: plan.skippedTargetIds,
+                      }
+                    : {}),
+                },
+                effects.now(),
+              )
+            : context.job,
+        }
+      }),
       checkpoint: assign(({context, event}) => ({
         parentDocument: event.output,
         job: updateJob(context.job, {publishedVersion: event.output.version}, effects.now()),
@@ -711,6 +740,9 @@ export function createDocumentCardCleanupCoordinatorMachine(effects: CleanupCoor
           ? {id: event.parentDocumentId}
           : effects.getParentDocumentId(event.deletedDocumentId)
         if (!parent) return {}
+        const cardTargetIds = (
+          event.cardTargets as Array<{id: UnpackedHypermediaId; blockId: string}> | undefined
+        )?.map((target) => target.id.id)
         const jobId = cleanupJobId({
           targetBlockId: event.targetBlockId,
           intentId: event.intentId,
@@ -720,6 +752,7 @@ export function createDocumentCardCleanupCoordinatorMachine(effects: CleanupCoor
           targetDocumentId: event.targetDocumentId,
           parentDocumentId: parent.id,
           signingAccountUid: event.signingAccountUid,
+          cardTargetIds,
         })
         if (
           context.jobs.some(
@@ -753,6 +786,12 @@ export function createDocumentCardCleanupCoordinatorMachine(effects: CleanupCoor
           maxRetries: 3,
           createdAt: now,
           updatedAt: now,
+          ...(operation === 'add-cards'
+            ? {
+                container: unpackHmId(parent.id) || undefined,
+                cardTargets: event.cardTargets as Array<{id: UnpackedHypermediaId; blockId: string}>,
+              }
+            : {}),
         }
         return {
           jobs: [

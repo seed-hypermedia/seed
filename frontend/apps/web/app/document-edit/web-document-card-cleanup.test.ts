@@ -409,4 +409,92 @@ describe('web document card cleanup', () => {
     expect(queryClient.getQueryState([queryKeys.ENTITY, parentId.id, undefined, false])?.isInvalidated).toBe(true)
     expect(mod.getWebDocumentCardCleanupSnapshot().jobs[0]?.state).toBe('retryScheduled')
   })
+
+  it('add-cards publishes all cards in one publish and records added/skipped targets', async () => {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']})
+    const parentId = makeId('alice', [])
+    const about = makeId('alice', ['about'])
+    const projects = makeId('alice', ['projects'])
+    let published = false
+    const client = {
+      request: vi.fn(async (key: string, input: any) => {
+        if (key === 'Resource' && (input.id === about.id || input.id === projects.id)) return {type: 'document'}
+        if (key === 'Resource' && input.id === parentId.id) {
+          return {
+            type: 'document',
+            document: {
+              ...makeDocument(parentId, [
+                paragraph('intro'),
+                ...(published ? [embed('card-about', about.id), embed('card-projects', projects.id)] : []),
+              ]),
+              version: published ? 'new-version' : 'parent-version',
+            },
+          }
+        }
+        return {type: 'document'}
+      }),
+      publishDocument: vi.fn(async () => {
+        published = true
+      }),
+    }
+    const mod = await import('./web-document-card-cleanup')
+    await mod.enqueueWebDocumentCardCleanup(
+      {
+        operation: 'add-cards',
+        parentDocumentId: parentId.id,
+        signingAccountUid: 'alice',
+        targetDocumentIds: [about.id, projects.id],
+      },
+      {client} as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
+    expect(client.publishDocument).toHaveBeenCalledTimes(1)
+    const job = mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]!
+    expect(job.state).toBe('done')
+    expect(job.addedTargetIds).toEqual([about.id, projects.id])
+    expect(job.skippedTargetIds).toEqual([])
+    expect(job.cardTargets).toHaveLength(2)
+  })
+
+  it('add-cards skips non-document targets without throwing', async () => {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']})
+    const parentId = makeId('alice', [])
+    const about = makeId('alice', ['about'])
+    const nonDoc = makeId('alice', ['missing'])
+    let published = false
+    const client = {
+      request: vi.fn(async (key: string, input: any) => {
+        if (key === 'Resource' && input.id === nonDoc.id) return {type: 'not-found'}
+        if (key === 'Resource' && input.id === about.id) return {type: 'document'}
+        if (key === 'Resource' && input.id === parentId.id) {
+          return {
+            type: 'document',
+            document: {
+              ...makeDocument(parentId, [paragraph('intro'), ...(published ? [embed('card-about', about.id)] : [])]),
+              version: published ? 'new-version' : 'parent-version',
+            },
+          }
+        }
+        return {type: 'document'}
+      }),
+      publishDocument: vi.fn(async () => {
+        published = true
+      }),
+    }
+    const mod = await import('./web-document-card-cleanup')
+    await mod.enqueueWebDocumentCardCleanup(
+      {
+        operation: 'add-cards',
+        parentDocumentId: parentId.id,
+        signingAccountUid: 'alice',
+        targetDocumentIds: [about.id, nonDoc.id],
+      },
+      {client} as any,
+    )
+    await mod.runNextWebDocumentCardCleanupForTest({now: () => 1_000})
+    const job = mod.getWebDocumentCardCleanupSnapshotForTest().jobs[0]!
+    expect(job.state).toBe('done')
+    expect(job.addedTargetIds).toEqual([about.id])
+    expect(job.skippedTargetIds).toEqual([nonDoc.id])
+  })
 })
