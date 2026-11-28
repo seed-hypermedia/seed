@@ -9,6 +9,7 @@ import {
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, normalizeDate, unpackHmId, type AnyTimestamp} from '@shm/shared'
+import {getProfileName} from '@shm/shared/content'
 import {getQueryBlockRefKey, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
 
 /** Primitive presentation types inferred for custom Query table attributes. */
@@ -161,7 +162,7 @@ export function getQueryTableValue(item: HMDocumentInfo, columnId: string, conte
   if (columnId === 'authors') {
     const authors = Array.isArray(item.authors) ? item.authors : []
     return authors
-      .map((uid) => context?.accountsMetadata?.[uid]?.metadata?.name || uid)
+      .map((uid) => getProfileName(context?.accountsMetadata?.[uid]?.metadata))
       .filter(Boolean)
       .join(', ')
   }

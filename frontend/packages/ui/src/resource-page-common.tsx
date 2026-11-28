@@ -41,13 +41,14 @@ import {
   getBlockText,
   getDraftMentionRefs,
   getDraftNodesOutline,
-  getMetadataName,
   getNodesOutline,
+  getSpaceName,
   hmId,
   NavRoute,
   ProfileTab,
   packHmId,
   replaceRouteDocumentId,
+  UNKNOWN_PROFILE_NAME,
   routeToHref,
   unpackHmId,
   useUniversalAppContext,
@@ -474,7 +475,7 @@ function CitationFragmentPopover({
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="text-muted-foreground truncate text-xs">
-                        {author?.metadata?.name || authorUid || 'Comment'}
+                        {author?.metadata?.name || authorUid || UNKNOWN_PROFILE_NAME}
                       </div>
                       <div className="line-clamp-2 text-sm">{commentPreviewText(comment)}</div>
                     </div>
@@ -1824,7 +1825,7 @@ export function PageShell({
     <SiteFileBrowserLayout
       siteId={hmId(siteHomeId.uid)}
       activeDocumentId={docId}
-      siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
+      siteName={getSpaceName(headerData.siteHomeDocument?.metadata)}
       mobileOpen={isFileBrowserOpen}
       onMobileOpenChange={setIsFileBrowserOpen}
       onPrefetch={onPrefetchDocument}
@@ -3246,8 +3247,7 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
             style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {!isHomeDoc &&
-              !isAgentDocument &&
+            {!isAgentDocument &&
               !appKind &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -3259,6 +3259,7 @@ function DocumentBody({
                   version={document.version}
                   fileUpload={fileUpload}
                   flushByline={isCollection}
+                  showByline={!isHomeDoc}
                 />
               ) : (
                 <DocumentHeader
@@ -3269,6 +3270,7 @@ function DocumentBody({
                   visibility={headerVisibility}
                   version={document.version}
                   flushByline={isCollection}
+                  showByline={!isHomeDoc}
                 />
               ))}
           </div>
@@ -3279,8 +3281,7 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
           style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
-          {!isHomeDoc &&
-            !isAgentDocument &&
+          {!isAgentDocument &&
             !appKind &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -3292,6 +3293,7 @@ function DocumentBody({
                 version={document.version}
                 fileUpload={fileUpload}
                 flushByline={isCollection}
+                showByline={!isHomeDoc}
               />
             ) : (
               <DocumentHeader
@@ -3302,6 +3304,7 @@ function DocumentBody({
                 visibility={headerVisibility}
                 version={document.version}
                 flushByline={isCollection}
+                showByline={!isHomeDoc}
               />
             ))}
         </div>
@@ -3686,6 +3689,7 @@ function EditableDocumentHeader({
   version,
   fileUpload,
   flushByline,
+  showByline = true,
   titleAccessory,
 }: {
   docId: UnpackedHypermediaId
@@ -3696,6 +3700,7 @@ function EditableDocumentHeader({
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
   flushByline?: boolean
+  showByline?: boolean
   titleAccessory?: React.ReactNode
 }) {
   const ctx = useDocumentSelector(selectContext)
@@ -3718,6 +3723,7 @@ function EditableDocumentHeader({
       visibility={visibility as any}
       version={version}
       flushByline={flushByline}
+      showByline={showByline}
       titleAccessory={titleAccessory}
       mobileBylineAction={
         <DocumentMetadataAffordanceButtons

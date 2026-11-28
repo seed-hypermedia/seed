@@ -2,6 +2,7 @@ import React from 'react'
 import {Eye, Play, PenLine, ShieldCheck, Upload} from 'lucide-react'
 import {useQuery} from '@tanstack/react-query'
 import {queryAccount} from '@shm/shared/models/queries'
+import {getProfileName, getSpaceName} from '@shm/shared/content'
 import {useUniversalClient} from '@shm/shared/routing'
 import {useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -31,7 +32,7 @@ function PermissionTarget({site, resource}: {site?: string; resource?: string}) 
   const path = resource?.replace(/^hm:\/\/[^/]+/, '')
   return site || path ? (
     <div className="border-border flex flex-col gap-1 border-b pb-3 text-sm">
-      {site && <span className="font-medium">{account.data?.metadata?.name || 'Unnamed space'}</span>}
+      {site && <span className="font-medium">{getSpaceName(account.data?.metadata)}</span>}
       {path && (
         <span className="text-muted-foreground break-all">
           {path === '/:profile' ? 'Account identity' : path || 'Home'}
@@ -69,7 +70,7 @@ function GrantTarget({kind, site, resource}: {kind: PagePermissionRequest['kind'
 function AccountName({uid}: {uid: string}) {
   const client = useUniversalClient()
   const account = useQuery(queryAccount(client, uid))
-  return <>{account.data?.metadata?.name || `${uid.slice(0, 12)}…`}</>
+  return <>{getProfileName(account.data?.metadata)}</>
 }
 
 function AccountNames({uids}: {uids: readonly string[]}) {

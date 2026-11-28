@@ -1,5 +1,5 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
-import {getMetadataName} from '@shm/shared/content'
+import {getMetadataName, getProfileName, getSpaceName, UNKNOWN_SPACE_NAME} from '@shm/shared/content'
 import {isExploreSpaceId} from '@shm/shared/explore'
 import {useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
@@ -39,14 +39,12 @@ export function ExploreDocumentCard({document, spaceName}: {document: HMDocument
   const interactions = useInteractionSummary(id)
   const authorUids = document.authors ?? []
   const accountsMetadata = useAccountsMetadata(authorUids)
-  const authorName = authorUids.length
-    ? getMetadataName(accountsMetadata.data?.[authorUids[0]!]?.metadata) || undefined
-    : undefined
+  const authorName = authorUids.length ? getProfileName(accountsMetadata.data?.[authorUids[0]!]?.metadata) : undefined
   const tag =
     spaceName ||
     document.breadcrumbs?.[0]?.name ||
-    (isExploreSpaceId(id) ? getMetadataName(document.metadata) : undefined) ||
-    id.uid.slice(0, 8)
+    (isExploreSpaceId(id) ? getSpaceName(document.metadata) : undefined) ||
+    UNKNOWN_SPACE_NAME
   const trail = (document.breadcrumbs ?? [])
     .slice(1, -1)
     .map((crumb) => crumb.name)
@@ -128,7 +126,7 @@ export function ExploreSpaceCard({space}: {space: HMDocumentInfo}) {
   // so show member role if no capability.
   const role = exploreRoleLabel(capability?.role) ?? 'Member'
   const linkProps = useRouteLink({key: 'document', id})
-  const name = getMetadataName(space.metadata) || space.id.uid.slice(0, 8)
+  const name = getSpaceName(space.metadata)
   const updated = space.updateTime
   return (
     <a {...linkProps} className={exploreCardClassName}>
@@ -149,7 +147,7 @@ export function ExplorePersonCard({account}: {account: ExploreAccount & {role?: 
   const id = hmId(account.uid)
   const linkProps = useRouteLink({key: 'profile', id})
   const metadata = useAccountsMetadata([account.uid])
-  const name = account.name || getMetadataName(metadata.data?.[account.uid]?.metadata) || account.uid.slice(0, 8)
+  const name = account.name || getProfileName(metadata.data?.[account.uid]?.metadata)
   const role = exploreRoleLabel(account.role)
   return (
     <div className={cn(exploreCardClassName, 'gap-2')}>

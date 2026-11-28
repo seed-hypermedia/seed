@@ -1,7 +1,8 @@
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
-import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {Struct} from '@bufbuild/protobuf'
+import {Account, DocumentInfo, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
@@ -492,6 +493,56 @@ describe('Store', () => {
 
       expect(state.profileLoadStates.alice).toBeUndefined()
       expect(state.profiles.alice).toEqual({name: 'Alice', avatar: undefined, description: undefined})
+    })
+
+    test('does not fall back to home document metadata when the profile is missing', async () => {
+      // The home document carries name/icon/summary, but those describe the
+      // space, not the person — they must not populate the profile entry.
+      const homeMetadata = new Struct({
+        fields: {
+          name: {kind: {case: 'stringValue', value: 'Home Name'}},
+          icon: {kind: {case: 'stringValue', value: 'home-icon'}},
+          summary: {kind: {case: 'stringValue', value: 'Home Summary'}},
+        },
+      })
+      const client = createMockClient({
+        getAccount: async () =>
+          new Account({
+            id: 'alice',
+            homeDocumentInfo: new DocumentInfo({metadata: homeMetadata}),
+          }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toBeUndefined()
+    })
+
+    test('uses only profile fields even when home document metadata is present', async () => {
+      const homeMetadata = new Struct({
+        fields: {
+          name: {kind: {case: 'stringValue', value: 'Home Name'}},
+          icon: {kind: {case: 'stringValue', value: 'home-icon'}},
+        },
+      })
+      const client = createMockClient({
+        getAccount: async () =>
+          new Account({
+            id: 'alice',
+            homeDocumentInfo: new DocumentInfo({metadata: homeMetadata}),
+            profile: new Profile({name: 'Alice', icon: 'profile-icon', description: 'Hello'}),
+          }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toEqual({
+        name: 'Alice',
+        avatar: 'profile-icon',
+        description: 'Hello',
+      })
     })
   })
 

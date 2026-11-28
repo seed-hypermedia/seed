@@ -1,8 +1,15 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, ListAccountsRequest, useRouteLink, useUniversalAppContext, useUniversalClient} from '@shm/shared'
+import {
+  getSpaceName,
+  hmId,
+  ListAccountsRequest,
+  useRouteLink,
+  useUniversalAppContext,
+  useUniversalClient,
+} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {useAccount, useAccounts, useDirectory, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useDirectory, useSelectedAccountId, useSpacesHomeMetadata} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
 import {ChevronsUpDown, Plus, Search} from 'lucide-react'
@@ -72,8 +79,8 @@ export function SiteSidebar({
     refetchInterval: 15_000,
   })
   const activityRanks = new Map(activityOrder.data?.map((uid, index) => [uid, index]))
-  const accounts = useAccounts(siteUids)
-  const sites = siteUids.map((uid, index) => ({uid, metadata: accounts[index]?.data?.metadata}))
+  const spacesHomeMetadata = useSpacesHomeMetadata(siteUids)
+  const sites = siteUids.map((uid, index) => ({uid, metadata: spacesHomeMetadata.data[index]}))
   sites.sort(
     (a, b) =>
       (activityRanks.get(a.uid) ?? Number.MAX_SAFE_INTEGER) - (activityRanks.get(b.uid) ?? Number.MAX_SAFE_INTEGER),
@@ -102,9 +109,7 @@ export function SiteSidebar({
         }}
       >
         <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={isOwn ? 40 : 24} />
-        <span className="min-w-0 flex-1 truncate">
-          {metadata?.name || (isCurrent ? 'Current space' : 'Untitled space')}
-        </span>
+        <span className="min-w-0 flex-1 truncate">{getSpaceName(metadata)}</span>
         {unreadCount > 0 && (
           <>
             <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-red-500" />
@@ -114,7 +119,7 @@ export function SiteSidebar({
       </DropdownMenuItem>
     )
   }
-  const current = useAccount(siteId.uid).data
+  const currentHomeMetadata = useSpacesHomeMetadata([siteId.uid]).data[0]
   const directory = useDirectory(siteId, {mode: 'AllDescendants'})
   const route = useNavRouteOrNull()
   const exploreLink = useRouteLink(
@@ -156,11 +161,11 @@ export function SiteSidebar({
                   className="bg-card border-border hover:bg-card/80 text-card-foreground h-15 w-full justify-start gap-3 rounded-xl px-3 py-2 shadow-xs"
                 >
                   {showingMissingOwnSpace ? null : (
-                    <HMIcon id={siteId} name={current?.metadata?.name} icon={current?.metadata?.icon} size={36} />
+                    <HMIcon id={siteId} name={currentHomeMetadata?.name} icon={currentHomeMetadata?.icon} size={36} />
                   )}
                   <span className="flex min-w-0 flex-1 flex-col items-start text-left">
                     <span className="w-full truncate text-sm font-semibold">
-                      {showingMissingOwnSpace ? 'Select a space' : current?.metadata?.name || 'Current space'}
+                      {showingMissingOwnSpace ? 'Select a space' : getSpaceName(currentHomeMetadata)}
                     </span>
                     {directory.data && !showingMissingOwnSpace && (
                       <span className="text-icon text-xs font-normal">

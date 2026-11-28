@@ -3,6 +3,7 @@ import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   createInspectNavRouteFromRoute,
+  getSpaceName,
   hmId,
   routeToUrl,
   useJoinSite,
@@ -14,7 +15,7 @@ import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock, deriveDocumentType} from '@shm/shared/models/document-machine'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount, useResource, useSpacesHomeMetadata} from '@shm/shared/models/entity'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
@@ -573,6 +574,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     }
   }, [myAccount.data])
 
+  const myHomeMetadata = useSpacesHomeMetadata(accountId ? [accountId] : []).data[0]
+
   const navigate = useNavigate()
   const vaultAccountSettingsUrl = getVaultAccountSettingsUrl({
     vaultUrl: keyPair?.vaultUrl,
@@ -643,7 +646,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const mySiteUrl = account?.metadata?.siteUrl || null
   const mySiteLabel = mySiteUrl
     ? mySiteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
-    : account?.metadata?.name || 'My space'
+    : getSpaceName(myHomeMetadata)
   const goToMySite = () => {
     if (mySiteUrl) window.open(mySiteUrl, '_blank', 'noopener,noreferrer')
     else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})

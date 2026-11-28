@@ -1,4 +1,5 @@
 import {hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink} from '@shm/shared'
+import {getProfileName} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useMemo} from 'react'
@@ -92,11 +93,11 @@ function FollowingItem({
       <AccountAvatar id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
       <a {...linkProps} className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
-          {petname || metadata?.name || accountUid}
+          {petname || getProfileName(metadata)}
         </SizableText>
         {petname && petname !== metadata?.name && (
           <SizableText color="muted" size="sm" className="truncate">
-            {metadata?.name || accountUid}
+            {getProfileName(metadata)}
           </SizableText>
         )}
       </a>

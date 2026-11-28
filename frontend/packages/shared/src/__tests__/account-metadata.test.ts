@@ -26,7 +26,7 @@ describe('accountMetadataFromAccount', () => {
     expect(result.layout).toBe('Seed/Experimental/Newspaper')
   })
 
-  test('falls back per field to home metadata when profile fields are missing', () => {
+  test('drops home metadata name/icon/summary when profile fields are missing or empty', () => {
     const homeMetadata = Struct.fromJson({
       name: 'Home Name',
       icon: 'home-icon',
@@ -42,12 +42,14 @@ describe('accountMetadataFromAccount', () => {
       },
     })
 
-    expect(result.name).toBe('Home Name')
+    // Empty/whitespace profile fields yield undefined even when the home
+    // document carries a value for the same field.
+    expect(result.name).toBeUndefined()
     expect(result.icon).toBe('profile-icon')
-    expect(result.summary).toBe('Home Summary')
+    expect(result.summary).toBeUndefined()
   })
 
-  test('uses home document metadata when available', () => {
+  test('name/icon/summary are undefined when no profile is present, even with home metadata', () => {
     const metadata = Struct.fromJson({
       name: 'Deprecated Metadata Name',
     })
@@ -62,12 +64,12 @@ describe('accountMetadataFromAccount', () => {
       homeDocumentInfo: {metadata: homeMetadata},
     })
 
-    expect(result.name).toBe('Home Name')
-    expect(result.icon).toBe('home-icon')
-    expect(result.summary).toBe('Home Summary')
+    expect(result.name).toBeUndefined()
+    expect(result.icon).toBeUndefined()
+    expect(result.summary).toBeUndefined()
   })
 
-  test('uses legacy metadata when home metadata is not present', () => {
+  test('name/icon/summary are undefined when only legacy metadata is present', () => {
     const metadata = Struct.fromJson({
       name: 'Home Name',
       icon: 'home-icon',
@@ -76,8 +78,27 @@ describe('accountMetadataFromAccount', () => {
 
     const result = accountMetadataFromAccount({metadata})
 
-    expect(result.name).toBe('Home Name')
-    expect(result.icon).toBe('home-icon')
-    expect(result.summary).toBe('Home Summary')
+    expect(result.name).toBeUndefined()
+    expect(result.icon).toBeUndefined()
+    expect(result.summary).toBeUndefined()
+  })
+
+  test('non-identity fields still come through from home metadata', () => {
+    const homeMetadata = Struct.fromJson({
+      name: 'Home Name',
+      icon: 'home-icon',
+      summary: 'Home Summary',
+      layout: 'Seed/Experimental/Newspaper',
+      siteUrl: 'https://example.com',
+    })
+
+    const result = accountMetadataFromAccount({
+      homeDocumentInfo: {metadata: homeMetadata},
+      profile: {name: 'Profile Name'},
+    })
+
+    expect(result.name).toBe('Profile Name')
+    expect(result.layout).toBe('Seed/Experimental/Newspaper')
+    expect(result.siteUrl).toBe('https://example.com')
   })
 })

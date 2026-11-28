@@ -2,7 +2,7 @@ import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName} from '@shm/shared/content'
 import {forwardRef, useEffect, useId, useRef} from 'react'
 import './combobox.css'
 import {HMIcon, LoadedHMIcon} from './hm-icon'
@@ -196,7 +196,7 @@ function SelectedAccountItem({value}: {value: AccountSearchResult}) {
 function UnresolvedAccountItem({value}: {value: AccountSearchResult}) {
   const account = useAccount(value.id.uid, {subscribe: true})
   const metadata = account.data?.metadata
-  const label = metadata?.name || abbreviateUid(value.id.uid)
+  const label = getProfileName(metadata)
   return (
     <>
       <HMIcon id={value.id} name={metadata?.name} icon={metadata?.icon} size={20} />

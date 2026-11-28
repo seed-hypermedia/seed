@@ -23,7 +23,7 @@ import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useUniversalAppContext} from '@shm/shared'
+import {useUniversalAppContext, getProfileName, getSpaceName} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
@@ -346,7 +346,7 @@ export function AccountProfileButton() {
             {accountUid ? (
               <HMIcon
                 id={hmId(accountUid)}
-                name={selectedAccount?.metadata?.name}
+                name={getProfileName(selectedAccount?.metadata)}
                 icon={selectedAccount?.metadata?.icon}
                 size={32}
               />
@@ -365,7 +365,7 @@ export function AccountProfileButton() {
                   accountUid ? (
                     <HMIcon
                       id={hmId(accountUid)}
-                      name={selectedAccount?.metadata?.name}
+                      name={getProfileName(selectedAccount?.metadata)}
                       icon={selectedAccount?.metadata?.icon}
                       size={40}
                     />
@@ -373,7 +373,7 @@ export function AccountProfileButton() {
                     <User className="size-10" />
                   )
                 }
-                name={selectedAccount?.metadata?.name}
+                name={getProfileName(selectedAccount?.metadata)}
                 role={role}
                 email={remoteVaultConnected ? vaultEmail.data : undefined}
               />
@@ -390,7 +390,7 @@ export function AccountProfileButton() {
                   }}
                 >
                   <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={24} />
-                  <span className="min-w-0 truncate">{option.metadata?.name || 'Account'}</span>
+                  <span className="min-w-0 truncate">{getProfileName(option.metadata)}</span>
                 </DropdownMenuItem>
               ) : null,
             )}
@@ -467,7 +467,7 @@ export function AccountProfileButton() {
               <span className="truncate">
                 {accountHome.data.document.metadata.siteUrl
                   ? getUrlHostname(accountHome.data.document.metadata.siteUrl)
-                  : accountHome.data.document.metadata.name || 'My space'}
+                  : getSpaceName(accountHome.data.document.metadata)}
               </span>
             </DropdownMenuItem>
           ) : (
@@ -778,7 +778,7 @@ function AccountSettingsOmnibarLabel({
     return <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">Identity Settings</span>
   }
 
-  const name = account.data?.metadata?.name || 'Account'
+  const name = getProfileName(account.data?.metadata)
   const tabLabel = ACCOUNT_SETTINGS_TAB_LABELS[tab ?? 'devices'] ?? 'Devices'
   return (
     <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1 truncate text-xs">

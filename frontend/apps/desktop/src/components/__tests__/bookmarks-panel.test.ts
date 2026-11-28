@@ -37,6 +37,7 @@ vi.mock('@/models/bookmarks', () => ({
 vi.mock('@shm/shared/models/contacts', () => ({useSelectedAccountContacts: () => ({data: []})}))
 vi.mock('@shm/shared/models/entity', () => ({
   useResources: (ids: any[]) => ids.map((id) => ({data: {type: 'document', id, document: {metadata: {name: id.uid}}}})),
+  useAccounts: (uids: string[]) => uids.map((uid) => ({data: {metadata: {name: uid}}})),
 }))
 vi.mock('@shm/shared', () => ({useRouteLink: (route: unknown) => ({onClick: () => state.navigate(route)})}))
 

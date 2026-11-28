@@ -24,6 +24,7 @@ import {
   getAnnotations,
   hmId,
   normalizeDate,
+  UNKNOWN_PROFILE_NAME,
   unpackHmId,
 } from '@shm/shared'
 import {FeedOrder} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
@@ -1319,7 +1320,7 @@ async function resolveContentReferenceName(
   const mentionedAccountUid = getMentionedAccountUid(id)
   if (mentionedAccountUid && mentionKind !== 'document') {
     const metadata = await getAccountMetadata(mentionedAccountUid)
-    return metadata?.name?.trim() || 'Untitled Profile'
+    return metadata?.name?.trim() || UNKNOWN_PROFILE_NAME
   }
 
   try {

@@ -18,6 +18,7 @@ import {EntityKindFilter} from '@shm/shared/client/.generated/entities/v1alpha/e
 import type {NavRoute} from '@shm/shared/routes'
 import {getEventRoute} from '@shm/ui/feed'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName, UNKNOWN_PROFILE_NAME} from '@shm/shared/content'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
@@ -714,7 +715,7 @@ function useTriggerEntityName(value: string, kind: 'document' | 'account') {
   const name = invalid
     ? undefined
     : kind === 'account'
-      ? account.data?.metadata?.name
+      ? getProfileName(account.data?.metadata)
       : resource.data?.type === 'document'
         ? resource.data.document.metadata?.name
         : undefined
@@ -723,7 +724,9 @@ function useTriggerEntityName(value: string, kind: 'document' | 'account') {
     : id?.uid
       ? id.path?.length
         ? id.path[id.path.length - 1]!
-        : abbreviateUid(id.uid)
+        : kind === 'account'
+          ? UNKNOWN_PROFILE_NAME
+          : abbreviateUid(id.uid)
       : value
   return {name, label: name || fallback, resolved: !!name, invalid}
 }

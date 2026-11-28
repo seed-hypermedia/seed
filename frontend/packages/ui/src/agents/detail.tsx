@@ -51,7 +51,7 @@ import {useClickNavigate, useNavigate} from './navigation'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName} from '@shm/shared/content'
 import {useAccount, useCollaborators, useResource} from '@shm/shared/models/entity'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -1467,7 +1467,7 @@ function AgentDocumentWriterRow({
       <AccountAvatar id={hmId(accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
-          {metadata?.name || abbreviateUid(accountId)}
+          {getProfileName(metadata)}
         </SizableText>
         <SizableText size="xs" color="muted">
           {inherited ? 'Writer in this space: can edit its instructions' : 'Can edit its instructions'}
@@ -1583,7 +1583,7 @@ function AgentCollaboratorRow({
       <AccountAvatar id={hmId(member.accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
-          {metadata?.name || abbreviateUid(member.accountId)}
+          {getProfileName(metadata)}
         </SizableText>
         {member.status === 'pending' ? (
           <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">

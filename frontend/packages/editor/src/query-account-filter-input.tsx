@@ -1,6 +1,6 @@
 import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
 import {useRootDocuments} from '@shm/shared/models/entity'
-import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {getProfileName, UNKNOWN_PROFILE_NAME} from '@shm/shared/content'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AccountSearchResult, AccountTagInput, AccountTagInputItem} from '@shm/ui/account-tag-input'
 import {SizableText} from '@shm/ui/text'
@@ -12,7 +12,7 @@ type QueryAccountFilterInputProps = {
 }
 
 function accountLabel(account: HMMetadataPayload | undefined, uid: string) {
-  return account?.metadata?.name || abbreviateUid(uid)
+  return getProfileName(account?.metadata)
 }
 
 function accountToResult(account: HMMetadataPayload): AccountSearchResult {
@@ -36,7 +36,7 @@ export function QueryAccountFilterInput({selectedUids, onSelectedUidsChange}: Qu
     return selectedUids.map((uid) => {
       const account = accountByUid.get(uid)
       if (account) return accountToResult(account)
-      return {id: hmId(uid), label: abbreviateUid(uid)}
+      return {id: hmId(uid), label: UNKNOWN_PROFILE_NAME}
     })
   }, [accountByUid, selectedUids])
 

@@ -13,8 +13,8 @@ import {parseRequest} from '@/request'
 import {HeadersFunction, json, LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {useLoaderData, useSearchParams} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {abbreviateUid, hmId, hostnameStripProtocol} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
+import {getProfileName, hmId, hostnameStripProtocol} from '@shm/shared'
+import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -187,9 +187,9 @@ function MyNotificationConfigRow({accountId, token}: {accountId: string; token: 
 
 /** Name of the account, falling back to its abbreviated id when this site cannot load it (e.g. members-only). */
 function useAccountName(accountId: UnpackedHypermediaId) {
-  const {data: resource} = useResource(accountId)
-  const metadata = resource?.type === 'document' ? resource.document?.metadata : undefined
-  return {name: metadata?.name || abbreviateUid(accountId.uid), icon: metadata?.icon}
+  const account = useAccount(accountId.uid)
+  const metadata = account.data?.metadata
+  return {name: getProfileName(metadata), icon: metadata?.icon}
 }
 
 function AccountTitle({accountId}: {accountId: UnpackedHypermediaId}) {

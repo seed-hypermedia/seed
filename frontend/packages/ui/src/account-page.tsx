@@ -8,6 +8,7 @@ import {
   useFollowProfile,
   useRouteLink,
 } from '@shm/shared'
+import {getProfileName} from '@shm/shared/content'
 import {useSaveContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useAccount, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
@@ -175,7 +176,7 @@ export function AccountPage({
               <div className="min-w-40 flex-1 space-y-1">
                 <ProfileName
                   key={`${viewerUid}:${accountUid}:${contact?.id || ''}`}
-                  publicName={account.data?.metadata?.name || accountUid}
+                  publicName={getProfileName(account.data?.metadata)}
                   petname={!isOwnAccount ? contact?.name : undefined}
                   onSave={
                     !isOwnAccount && viewerUid && contact

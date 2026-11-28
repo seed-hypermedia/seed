@@ -14,10 +14,6 @@ export type SidebarNavigate = (
   screen: 'SiteHome' | 'Vault' | 'Notifications' | 'MnemonicInput' | 'ServerSelect' | 'Agents',
 ) => void
 
-function abbreviateUid(uid: string): string {
-  return `?${uid.slice(-8)}`
-}
-
 /**
  * The app sidebar — a right-side sheet opened from the header button, mirroring
  * the desktop sidebar's role: navigation plus the current account, which opens
@@ -69,7 +65,7 @@ export function Sidebar({open, onClose, navigate}: {open: boolean; onClose: () =
     ? profileNames[currentIdentity.accountId] ??
       (currentIdentity.name !== currentIdentity.accountId
         ? currentIdentity.name
-        : abbreviateUid(currentIdentity.accountId))
+        : 'Unknown Profile')
     : ''
 
   return (

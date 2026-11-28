@@ -1,6 +1,7 @@
 import type {HMMentionCandidate, HMMentionCandidatesRequest} from '@seed-hypermedia/client/hm-types'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {loadAccount} from './api-account'
+import {UNKNOWN_PROFILE_NAME} from './content'
 import {EntityKindFilter} from './client/.generated/entities/v1alpha/entities_pb'
 import type {HMRequestImplementation} from './api-types'
 import type {GRPCClient} from './grpc-client'
@@ -241,7 +242,7 @@ export const MentionCandidates: HMRequestImplementation<HMMentionCandidatesReque
                 id: hmId(uid),
                 type: 'account',
                 sourceAccountUid: id.uid,
-                title: petname || metadata.name || uid,
+                title: petname || metadata.name || UNKNOWN_PROFILE_NAME,
                 publicName: metadata.name,
                 petname,
                 icon: metadata.icon || '',

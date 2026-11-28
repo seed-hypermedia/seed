@@ -7,8 +7,25 @@ import {
   HMContactRecord,
   HMDocument,
   HMDocumentInfo,
+  HMMetadata,
 } from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath, normalizeDate, unpackHmId} from './utils'
+
+/** Placeholder shown for a person (account) whose profile has no name. */
+export const UNKNOWN_PROFILE_NAME = 'Unknown Profile'
+
+/** Placeholder shown for a space whose home document has no name. */
+export const UNKNOWN_SPACE_NAME = 'Unknown Space'
+
+/** A person's display name: the profile name, or the placeholder when missing. */
+export function getProfileName(metadata?: HMMetadata | null): string {
+  return metadata?.name || UNKNOWN_PROFILE_NAME
+}
+
+/** A space's display name: the home document name, or the placeholder when missing. */
+export function getSpaceName(metadata?: HMMetadata | null): string {
+  return metadata?.name || UNKNOWN_SPACE_NAME
+}
 
 // Check if a block has meaningful content
 export function hasBlockContent(block: HMBlockNode): boolean {
@@ -108,20 +125,13 @@ export function getContactMetadata(
   const contact = contacts?.find((c) => c.subject === accountUid)
   if (contact) {
     // Only use contact.name if it's not empty, otherwise fall back to metadata name
-    return {...(metadata || {}), name: contact.name || metadata?.name || 'Untitled Contact'}
+    return {...(metadata || {}), name: contact.name || metadata?.name || UNKNOWN_PROFILE_NAME}
   }
-  return {...(metadata || {}), name: metadata?.name || 'Untitled Contact'}
+  return {...(metadata || {}), name: metadata?.name || UNKNOWN_PROFILE_NAME}
 }
 
 export function getMetadataName(metadata?: HMDocument['metadata'] | null) {
   return metadata?.name || 'Untitled Document'
-}
-
-export function getAccountName(document: HMDocument | null | undefined) {
-  if (!document) return ''
-  if (document.metadata.name) return document.metadata.name
-  if (document.account) return `${document.account.slice(0, -6)}`
-  return '?'
 }
 
 function lastUpdateOfEntry(entry: HMDocumentInfo) {

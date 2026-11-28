@@ -30,6 +30,7 @@ import {
   type HMExploreResultType,
   type ParsedExploreQuery,
 } from '../explore'
+import {UNKNOWN_SPACE_NAME} from '../content'
 import {useUniversalClient} from '../routing'
 import {packHmId} from '../utils/entity-id-url'
 import {useSelectedAccountContacts} from './contacts'
@@ -81,7 +82,7 @@ export function useExploreAccounts(enabled = true) {
         const homeMetadata = account.homeDocumentInfo?.metadata?.toJson() as {name?: string} | undefined
         return {
           value: account.id,
-          label: homeMetadata?.name || account.profile?.name || account.id,
+          label: homeMetadata?.name || UNKNOWN_SPACE_NAME,
         }
       })
     },

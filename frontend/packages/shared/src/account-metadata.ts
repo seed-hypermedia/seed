@@ -43,8 +43,8 @@ export function accountMetadataFromAccount(account: AccountMetadataInput): HMMet
 
   return {
     ...metadata,
-    name: nonEmptyProfileField(account.profile?.name) ?? metadata.name,
-    icon: nonEmptyProfileField(account.profile?.icon) ?? metadata.icon,
-    summary: nonEmptyProfileField(account.profile?.description) ?? metadata.summary,
+    name: nonEmptyProfileField(account.profile?.name),
+    icon: nonEmptyProfileField(account.profile?.icon),
+    summary: nonEmptyProfileField(account.profile?.description),
   }
 }

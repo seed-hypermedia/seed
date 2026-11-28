@@ -171,7 +171,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'My Site'}})],
-      contacts: [],
     })
     expect(items).toHaveLength(1)
     // root uses getContactMetadata which returns contact name or metadata name
@@ -188,7 +187,6 @@ describe('computeEntityBreadcrumbs', () => {
         makeEntityContent(rootId, {metadata: {name: 'My Site'}}),
         makeEntityContent(childId, {metadata: {name: 'Docs Page'}}),
       ],
-      contacts: [],
     })
     expect(items).toHaveLength(2)
     expect(items[0].crumbKey).toBe('id-0')
@@ -201,7 +199,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'My Page'}})],
-      contacts: [],
     })
     expect(items[0].fallbackName).toBe('my-page')
   })
@@ -211,7 +208,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
     })
     expect(items[0].fallbackName).toBe('abcdefgh')
   })
@@ -221,7 +217,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, undefined, {isTombstone: true})],
-      contacts: [],
     })
     expect(items[0].isTombstone).toBe(true)
     expect(items[0].isNotFound).toBe(false)
@@ -232,7 +227,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, undefined, {isNotFound: true})],
-      contacts: [],
     })
     expect(items[0].isNotFound).toBe(true)
     expect(items[0].isTombstone).toBe(false)
@@ -243,7 +237,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Test'}}, {isDiscovering: true})],
-      contacts: [],
     })
     expect(items[0].isLoading).toBe(true)
   })
@@ -253,7 +246,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [{id, entity: {id: id.id}, isDiscovering: false}],
-      contacts: [],
     })
     expect(items[0].isError).toBeTruthy()
   })
@@ -263,7 +255,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       draftName: 'New Draft',
     })
     expect(items).toHaveLength(2)
@@ -280,7 +271,6 @@ describe('computeEntityBreadcrumbs', () => {
         makeEntityContent(rootId, {metadata: {name: 'Root'}}),
         makeEntityContent(childId, {metadata: {name: 'Page'}}),
       ],
-      contacts: [],
       draftName: 'Updated Page',
       replaceLastItem: true,
     })
@@ -295,7 +285,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'directory'},
     })
     expect(items.at(-1)?.name).toBe('Sub documents')
@@ -307,7 +296,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'collaborators'},
     })
     expect(items.at(-1)?.name).toBe('Collaborators')
@@ -318,7 +306,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'activity'},
     })
     expect(items.at(-1)?.name).toBe('Activity')
@@ -329,7 +316,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'inspect'},
     })
     expect(items.at(-1)?.name).toBe('Inspector')
@@ -341,7 +327,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'comments'},
     })
     expect(items.at(-1)?.name).toBe('Discussions')
@@ -353,7 +338,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'comments', openComment: 'someComment'},
       commentAuthorName: 'Alice',
     })
@@ -366,7 +350,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'comments', openComment: 'someComment'},
     })
     expect(items.at(-1)?.name).toBe('Comment')
@@ -377,7 +360,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
-      contacts: [],
       panel: {key: 'comments', openComment: 'someComment'},
       commentIsLoading: true,
     })
@@ -388,7 +370,6 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [],
       entityContents: [],
-      contacts: [],
     })
     expect(items).toHaveLength(0)
   })
