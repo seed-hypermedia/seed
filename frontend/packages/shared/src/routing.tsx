@@ -21,6 +21,7 @@ import {
 } from './utils'
 import type {StateStream} from './utils/stream'
 import {resolveDomainHmUrl} from './utils/resolve-domain-hm-url'
+import {allDocumentsQueryString} from './utils/all-documents-view'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -437,6 +438,11 @@ export function routeToHref(
     }
     const pageInput = pageParamsQuery(route.id.pageParams)
     if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`
+    // Append all-documents view state as query params (omitting defaults).
+    if (route.key === 'all-documents') {
+      const query = allDocumentsQueryString(route)
+      if (query) href += `${href.includes('?') ? '&' : '?'}${query}`
+    }
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`

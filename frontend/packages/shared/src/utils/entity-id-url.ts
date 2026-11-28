@@ -9,6 +9,7 @@ import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../con
 import type {NavRoute, DocumentRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import type {StateStream} from './stream'
+import {allDocumentsQueryString} from './all-documents-view'
 
 /**
  * Activity filter slug <-> filterEventType mapping for URL encoding
@@ -869,7 +870,7 @@ export function routeToUrl(
       commentPermalinkVersion = {version: route.openCommentVersion || null, latest: null}
     }
     const effectivePanelParam = route.key === 'all-documents' ? null : panelParam
-    return createWebHMUrl(route.id.uid, {
+    const webUrl = createWebHMUrl(route.id.uid, {
       ...route.id,
       ...commentPermalinkVersion,
       hostname: opts?.hostname,
@@ -879,6 +880,11 @@ export function routeToUrl(
       reply: getRouteReplyCommentId(route),
       pageParams: route.id.pageParams,
     })
+    if (route.key === 'all-documents') {
+      const query = allDocumentsQueryString(route)
+      return query ? `${webUrl}${webUrl.includes('?') ? '&' : '?'}${query}` : webUrl
+    }
+    return webUrl
   }
   if (route.key === 'schema' && route.id) {
     // The Schema tool tab: the document URL suffixed with /:schema.
@@ -1003,6 +1009,10 @@ export function routeToHmUrl(route: NavRoute): string | null {
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
     }
+    if (route.key === 'all-documents') {
+      const query = allDocumentsQueryString(route)
+      return query ? `${url}${url.includes('?') ? '&' : '?'}${query}` : url
+    }
     return url
   }
 
@@ -1055,7 +1065,12 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'metadata'
   ) {
     const term = route.key === 'metadata' ? 'attributes' : route.key
-    return `${packBaseId(route.id.uid, route.id.path)}/:${term}`
+    const base = `${packBaseId(route.id.uid, route.id.path)}/:${term}`
+    if (route.key === 'all-documents') {
+      const query = allDocumentsQueryString(route)
+      return query ? `${base}${base.includes('?') ? '&' : '?'}${query}` : base
+    }
+    return base
   }
   if (route.key === 'site-settings') {
     return `${packBaseId(route.id.uid, route.id.path)}/:settings`

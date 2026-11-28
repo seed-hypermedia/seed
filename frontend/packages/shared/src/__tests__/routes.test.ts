@@ -1077,6 +1077,66 @@ describe('explore routes', () => {
   })
 })
 
+describe('all documents routes', () => {
+  test('round-trips route to url and back with all params', () => {
+    const route: NavRoute = {
+      key: 'all-documents',
+      id: testDocId,
+      view: 'tree',
+      type: 'collections',
+      sort: 'updated',
+      order: 'asc',
+      q: 'setup',
+    }
+    const url = routeToUrl(route, {hostname: null, originHomeId: testDocId})
+    expect(url).toBe('/:all-documents?view=tree&type=collections&sort=updated&order=asc&q=setup')
+    const parsed = hypermediaUrlToRoute(`hm://testuid123${url}`)
+    expect(parsed).toMatchObject({
+      key: 'all-documents',
+      id: {uid: testDocId.uid},
+      view: 'tree',
+      type: 'collections',
+      sort: 'updated',
+      order: 'asc',
+      q: 'setup',
+    })
+  })
+
+  test('omits defaults from the url', () => {
+    const route: NavRoute = {key: 'all-documents', id: testDocId}
+    expect(routeToUrl(route, {hostname: null, originHomeId: testDocId})).toBe('/:all-documents')
+    expect(routeToHref(route, {originHomeId: testDocId})).toBe('/:all-documents')
+  })
+
+  test('omits order when it matches the column default', () => {
+    const route: NavRoute = {key: 'all-documents', id: testDocId, sort: 'title', order: 'asc'}
+    expect(routeToUrl(route, {hostname: null, originHomeId: testDocId})).toBe('/:all-documents?sort=title')
+  })
+
+  test('drops invalid params when parsing', () => {
+    const parsed = hypermediaUrlToRoute('hm://testuid123/:all-documents?view=grid&type=agents&sort=size&order=up&q=x')
+    expect(parsed).toMatchObject({key: 'all-documents', q: 'x'})
+    expect(parsed && parsed.key === 'all-documents' && parsed.view).toBeUndefined()
+    expect(parsed && parsed.key === 'all-documents' && parsed.type).toBeUndefined()
+    expect(parsed && parsed.key === 'all-documents' && parsed.sort).toBeUndefined()
+    expect(parsed && parsed.key === 'all-documents' && parsed.order).toBeUndefined()
+  })
+
+  test('routeToHref (third producer) appends all-documents query params', () => {
+    const route: NavRoute = {
+      key: 'all-documents',
+      id: testDocId,
+      view: 'tree',
+      type: 'collections',
+      sort: 'updated',
+      order: 'asc',
+      q: 'setup',
+    }
+    const href = routeToHref(route, {originHomeId: testDocId})
+    expect(href).toBe('/:all-documents?view=tree&type=collections&sort=updated&order=asc&q=setup')
+  })
+})
+
 describe('comment permalink version (?v pins the comment version)', () => {
   test('commentsRouteSchema accepts openCommentVersion', () => {
     const parsed = commentsRouteSchema.parse({

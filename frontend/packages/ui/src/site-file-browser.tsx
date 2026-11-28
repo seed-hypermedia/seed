@@ -1,17 +1,27 @@
 import {unpackHmId, type HMDocumentInfo, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDocumentTitle, hmId, useRouteLink} from '@shm/shared'
-import {
-  isDraftPlaceholderPath,
-  useDraftsForAccountSafe,
-  type HMListedDraftWithLocation,
-} from '@shm/shared/draft-breadcrumb-context'
+import {useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectory, useDocumentInfo, useResolvedHmId} from '@shm/shared/models/entity'
 import {MAX_REDIRECT_HOPS} from '@shm/shared/redirects'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {latestId} from '@shm/shared/utils/entity-id-url'
-import {filterDocumentsByTitle} from '@shm/shared/utils/all-documents-tree'
+import {filterDocumentsByTitle, listSpaceDocuments} from '@shm/shared/utils/all-documents-tree'
 import {getIndexedCardNavigationTargets} from '@shm/shared/utils/card-navigation'
-import {Blocks, Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
+import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
+import {
+  Blocks,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Grid3X3,
+  Home,
+  Layers,
+  Lock,
+  Plus,
+  Search,
+  X,
+} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ComponentProps} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
@@ -83,26 +93,7 @@ export function SiteFileBrowser({
     if (searchVisible) searchInputRef.current?.focus()
   }, [searchVisible])
 
-  const {documents, unpublishedDraftIds} = useMemo(() => {
-    const unpublished = drafts.flatMap((draft) => {
-      const {editId, locationId} = draft as HMListedDraftWithLocation
-      if (!locationId || (editId && !isDraftPlaceholderPath(editId.path, draft.id))) return []
-      const path = [...(locationId.path ?? []), `-${draft.id}`]
-      return [
-        {
-          id: editId ?? hmId(locationId.uid, {path}),
-          path,
-          metadata: draft.metadata,
-          isCollection: draft.isCollection ?? false,
-          visibility: draft.visibility ?? 'PUBLIC',
-        } as HMDocumentInfo,
-      ]
-    })
-    return {
-      documents: [...(directory ?? []), ...unpublished],
-      unpublishedDraftIds: new Set(unpublished.map((draft) => draft.id.id)),
-    }
-  }, [directory, drafts])
+  const {documents, unpublishedDraftIds} = useMemo(() => listSpaceDocuments(directory, drafts), [directory, drafts])
   const matches = useMemo(() => filterDocumentsByTitle(documents, query), [documents, query])
   const navigation: CardNavigationProps = {
     activeDocumentId,
@@ -126,7 +117,17 @@ export function SiteFileBrowser({
   }
 
   const homeId = latestId(hmId(siteId.uid))
-  const isHomeActive = activeDocumentId?.id === homeId.id
+  const route = useNavRouteOrNull()
+  const isAllDocumentsRoute = route?.key === 'all-documents'
+  const isHomeActive = !isAllDocumentsRoute && activeDocumentId?.id === homeId.id
+  // The All documents count equals the page's All count: published non-home docs plus unpublished drafts.
+  const countDirectory = useDirectory(siteId, {mode: 'AllDescendants'})
+  const allDocumentsCount = useMemo(() => {
+    if (countDirectory.isLoading || countDirectory.isInitialLoading) return null
+    const {documents: allDocs} = listSpaceDocuments(countDirectory.data, drafts)
+    return allDocs.length
+  }, [countDirectory.data, countDirectory.isLoading, countDirectory.isInitialLoading, drafts])
+  const allDocumentsLink = useRouteLink({key: 'all-documents', id: hmId(siteId.uid)}, {onClick: onAfterNavigate})
   const createButton = createItems?.length ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -211,6 +212,24 @@ export function SiteFileBrowser({
 
       <ScrollArea className="scroll-area-full-height min-h-0 flex-1" viewportClassName="[&>div]:!block">
         <div className="px-2 pb-4">
+          <div
+            className={cn(
+              'flex min-w-0 items-center rounded-md',
+              isAllDocumentsRoute && 'bg-accent text-accent-foreground',
+            )}
+          >
+            <a
+              {...allDocumentsLink}
+              aria-current={isAllDocumentsRoute ? 'page' : undefined}
+              className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 pl-5 text-left text-sm outline-none focus-visible:ring-2"
+            >
+              <Layers className="size-4 shrink-0" />
+              <span className="truncate">All documents</span>
+              {allDocumentsCount !== null && (
+                <span className="text-muted-foreground ml-auto shrink-0 text-xs">{allDocumentsCount}</span>
+              )}
+            </a>
+          </div>
           <div
             className={cn('flex min-w-0 items-center rounded-md', isHomeActive && 'bg-accent text-accent-foreground')}
           >

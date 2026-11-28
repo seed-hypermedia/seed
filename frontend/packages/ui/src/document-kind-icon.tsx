@@ -38,6 +38,11 @@ const documentKindIcons: Record<DocumentKind, {Icon: typeof FileText; label: str
   document: {Icon: FileText, label: 'Document'},
 }
 
+/** The display label for a document kind, for use in type pills and badges. */
+export function getDocumentKindLabel(kind: DocumentKind): string {
+  return documentKindIcons[kind].label
+}
+
 /** The icon for a document kind, labelled for assistive tech. */
 export function DocumentKindIcon({kind, ...props}: {kind: DocumentKind} & LucideProps) {
   const {Icon, label} = documentKindIcons[kind]

@@ -9,6 +9,7 @@ import {
   type SiteSettingsTab,
 } from '../routes'
 import {agentsRouteFromAbsoluteUrl} from './agents-routing'
+import {parseAllDocumentsSearchParams} from './all-documents-view'
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
@@ -99,6 +100,14 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
       context: {type: 'site', id},
       q: query?.q || undefined,
       sort,
+    }
+  }
+  if (routeKey === 'all-documents') {
+    const params = parseAllDocumentsSearchParams(query ?? {})
+    return {
+      key: 'all-documents',
+      id,
+      ...params,
     }
   }
   const panelParam = query?.panel || null

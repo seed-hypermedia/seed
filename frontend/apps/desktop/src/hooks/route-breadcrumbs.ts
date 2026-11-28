@@ -106,8 +106,9 @@ export function getWindowTitle(route: NavRoute, activeName?: string): string {
     case 'comments':
       return `${activeName} – Discussions`
     case 'directory':
-    case 'all-documents':
       return `${activeName} – Sub-documents`
+    case 'all-documents':
+      return 'All documents'
     case 'collaborators':
       return `${activeName} – Collaborators`
     case 'metadata':

@@ -339,6 +339,15 @@ export function Breadcrumbs({breadcrumbs, className}: {breadcrumbs: BreadcrumbEn
           <li className="flex shrink-0 items-center">
             <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
           </li>
+        ) : first && 'label' in first ? (
+          <li className="flex min-w-0 items-center">
+            <span
+              aria-current={lastIndex === 0 ? 'page' : undefined}
+              className="min-w-0 truncate text-xs whitespace-nowrap"
+            >
+              {first.label}
+            </span>
+          </li>
         ) : null}
         {rest.map((crumb, i) => {
           const index = i + 1

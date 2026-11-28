@@ -61,6 +61,10 @@ describe('getWindowTitle', () => {
     expect(getWindowTitle({key: 'metadata', id}, 'Document A')).toBe('Document A – Metadata')
   })
 
+  it('uses "All documents" as the window title for the all-documents route', () => {
+    expect(getWindowTitle({key: 'all-documents', id}, 'Document A')).toBe('All documents')
+  })
+
   it('uses Citations for the citations activity filter', () => {
     expect(
       getWindowTitle({key: 'activity', id, filterEventType: activitySlugToFilter('citations')}, 'Document A'),

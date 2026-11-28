@@ -19,10 +19,12 @@ Creating a child still uses the selected document's path. The existing publicati
 
 Sidebar search is a flat title search over the published pages of the current space, so it also finds pages that no Card reaches. It is not part of the navigation tree. New unpublished drafts appear in a separate **Drafts** list, including drafts under parents absent from navigation.
 
+An **All documents** row sits above Home. It opens the space's `/:all-documents` view, which lists every published page and new draft of the space by path, whether a Card reaches it or not. The row's count is the number of entries that view lists. [URLs](../protocol/urls.md) describes how the view keeps its filters in the address.
+
 # Data loading
 
 The indexer derives each published document's navigation Cards when it indexes a [Ref](../ref.md), in the same replay that derives its collection shape, and the documents API returns them as `navigation_cards` on `DocumentInfo`. A sidebar row reads only that document info, which also carries the title and kind, so the sidebar never loads a document. Only the backend decides which blocks are Cards; the frontend reads its list. When the info of a moved or republished address is a redirect, the row reads the info of the redirect's target instead, by the same rules as the document resolver: a move opens the target, a republish keeps its own address, and a cyclic chain or one longer than five hops shows the row as unavailable.
 
-Rows read without subscribing, so opening the sidebar starts no discovery or sync; the app already keeps followed spaces in sync. Descendants of collapsed rows do not mount. The sidebar runs no directory listing; the space-wide listing behind search runs only while the search box holds a query.
+Rows read without subscribing, so opening the sidebar starts no discovery or sync; the app already keeps followed spaces in sync. Descendants of collapsed rows do not mount. The navigation tree runs no directory listing. The space-wide listing feeds only search and the All documents count.
 
 If a document cannot be loaded, the sidebar shows a retry action. It does not interpret a failed request as an empty published document.

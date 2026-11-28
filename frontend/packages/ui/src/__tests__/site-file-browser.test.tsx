@@ -13,6 +13,7 @@ import {SiteFileBrowser} from '../site-file-browser'
 const useDirectoryMock = vi.hoisted(() => vi.fn())
 const useDraftsMock = vi.hoisted(() => vi.fn())
 const useDocumentInfoMock = vi.hoisted(() => vi.fn())
+const useNavRouteOrNullMock = vi.hoisted(() => vi.fn(() => null))
 /** Domain-based IDs and the account IDs they resolve to. */
 const domains = vi.hoisted(() => new Map<string, unknown>())
 vi.mock('@shm/shared/models/entity', () => ({
@@ -29,6 +30,10 @@ vi.mock('@shm/shared/draft-breadcrumb-context', async () => ({
     '@shm/shared/draft-breadcrumb-context',
   )),
   useDraftsForAccountSafe: useDraftsMock,
+}))
+vi.mock('@shm/shared/utils/navigation', async () => ({
+  ...(await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')),
+  useNavRouteOrNull: useNavRouteOrNullMock,
 }))
 
 if (typeof PointerEvent === 'undefined') vi.stubGlobal('PointerEvent', MouseEvent)
@@ -351,7 +356,8 @@ describe('SiteFileBrowser', () => {
   it('reads the space listing only while searching', () => {
     setCards('hm://site', ['hm://site/guides'])
     act(() => root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} searchVisible />))
-    expect(useDirectoryMock.mock.calls.every(([id]) => id === null)).toBe(true)
+    // The All documents count always fetches with siteId; the search query uses null until typing.
+    expect(useDirectoryMock.mock.calls.some(([id]) => id !== null)).toBe(true)
     const input = container.querySelector('input')!
     act(() => {
       const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
@@ -543,5 +549,51 @@ describe('SiteFileBrowser', () => {
     expect(items).toEqual(['Document', 'Agent'])
     act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
     expect(createAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the All documents entry with a count', () => {
+    setDirectory({directory: [makeDoc(['a'], 'A'), makeDoc(['b'], 'B')], drafts: []})
+    render()
+    const entry = Array.from(container.querySelectorAll('a')).find((a) => a.textContent?.includes('All documents'))
+    expect(entry).toBeTruthy()
+    expect(entry?.getAttribute('href')).toContain(':all-documents')
+    expect(entry?.textContent).toContain('2')
+  })
+
+  it('sidebar count excludes the home doc and drafts of published docs', () => {
+    // Home doc (empty path) + two published docs + a draft editing an already-published doc + a new draft
+    setDirectory({
+      directory: [makeDoc([], 'Home'), makeDoc(['a'], 'A'), makeDoc(['b'], 'B')],
+      drafts: [
+        {
+          id: 'draft-edit',
+          locationId: hmId('site', {path: ['a']}),
+          editId: hmId('site', {path: ['a']}),
+          metadata: {name: 'A (edited)'},
+        },
+        {
+          id: 'draft-new',
+          locationId: hmId('site', {path: []}),
+          editId: hmId('site', {path: ['-draft-new']}),
+          metadata: {name: 'New draft'},
+        },
+      ],
+    })
+    render()
+    const entry = Array.from(container.querySelectorAll('a')).find((a) => a.textContent?.includes('All documents'))
+    // Count = 2 published (A, B) + 1 new draft (draft-new) = 3
+    // Home excluded; draft-edit (editing published A) excluded because it's not a placeholder path
+    expect(entry?.textContent).toContain('3')
+  })
+
+  it('highlights All documents and not Home when on the all-documents route', () => {
+    useNavRouteOrNullMock.mockReturnValue({key: 'all-documents', id: hmId('site')} as never)
+    render()
+    const allDocumentsEntry = Array.from(container.querySelectorAll('a')).find(
+      (a) => a.textContent?.includes('All documents'),
+    )
+    expect(allDocumentsEntry?.getAttribute('aria-current')).toBe('page')
+    const homeEntry = Array.from(container.querySelectorAll('a')).find((a) => a.textContent?.trim() === 'Home')
+    expect(homeEntry?.getAttribute('aria-current')).toBeNull()
   })
 })
