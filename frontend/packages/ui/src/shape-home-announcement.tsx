@@ -51,7 +51,7 @@ export function ShapeHomeAnnouncement({
         </InfoRow>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3">
         <p className="text-muted-foreground text-sm">We’ll help you shape your Home as you go.</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="link" onClick={onLearnMore} className="w-full sm:w-auto">

@@ -90,6 +90,18 @@ function flushPromises() {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+/** Lets the state query settle until the announcement renders the named button. */
+async function findButton(text: string) {
+  for (let i = 0; i < 20; i++) {
+    const button = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === text)
+    if (button) return button
+    await act(async () => {
+      await flushPromises()
+    })
+  }
+  throw new Error(`Button "${text}" did not render`)
+}
+
 beforeEach(() => {
   state.getStateData = null
   state.windowId = 'win-1'
@@ -188,14 +200,11 @@ describe('ShapeHomeAnnouncementDialog', () => {
       needsShaping: ['alice'],
     }
     render()
-    await act(async () => {
-      await flushPromises()
-    })
-    const learnMore = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === 'Learn more')!
+    const learnMore = await findButton('Learn more')
     act(() => learnMore.click())
     expect(state.modalLearnMoreCalls).toBe(1)
 
-    const notNow = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === 'Not now')!
+    const notNow = await findButton('Not now')
     act(() => notNow.click())
     expect(state.modalNotNowCalls).toBe(1)
   })
@@ -207,12 +216,7 @@ describe('ShapeHomeAnnouncementDialog', () => {
       needsShaping: ['alice'],
     }
     render()
-    await act(async () => {
-      await flushPromises()
-    })
-    const shapeHome = Array.from(document.body.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Shape my Home',
-    )!
+    const shapeHome = await findButton('Shape my Home')
     act(() => shapeHome.click())
     expect(state.modalShapeHomeCalls).toBe(1)
   })

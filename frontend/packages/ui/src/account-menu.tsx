@@ -14,11 +14,14 @@ export function AccountMenuIdentity({
   name,
   role,
   email,
+  tag,
 }: {
   avatar: ReactNode
   name?: string | null
   role?: string | null
   email?: string | null
+  /** Optional label shown under the name, such as a pending task for this account. */
+  tag?: ReactNode
 }) {
   return (
     <>
@@ -28,6 +31,7 @@ export function AccountMenuIdentity({
           <span className="truncate font-medium">{name || 'Account'}</span>
           {role ? <span className="text-muted-foreground shrink-0">· {role}</span> : null}
         </span>
+        {tag}
         {email ? (
           <span className="text-muted-foreground truncate text-sm" title={email}>
             {email}

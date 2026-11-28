@@ -62,6 +62,11 @@ vi.mock('../publish-site', () => ({}))
 vi.mock('../search-input', () => ({}))
 vi.mock('@shm/ui/activity-panel', () => ({}))
 vi.mock('@shm/ui/agents/activity', () => ({}))
+const shapeHome = vi.hoisted(() => ({uids: [] as string[]}))
+vi.mock('../shape-home-account-tag', () => ({
+  useShapeHomeNeedsShaping: () => shapeHome.uids,
+  ShapeHomeAccountTag: () => <span data-testid="shape-home-tag">Shape Home</span>,
+}))
 
 import {AccountProfileButton, BookmarksButton} from '../titlebar-common'
 
@@ -78,6 +83,7 @@ beforeEach(() => {
   document.head.append(animationStyle)
   ;(globalThis as any).CSS ??= {escape: (value: string) => value}
   accountFixture.names = {}
+  shapeHome.uids = []
   bookmarksPanel.isOpen = false
   vi.mocked(bookmarksPanel.open).mockClear()
   vi.mocked(bookmarksPanel.close).mockClear()
@@ -336,6 +342,23 @@ describe('titlebar account switching', () => {
     act(() => header.dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})))
     expect(state.get().routes).toEqual([{key: 'document', id: hmId('site-1')}])
     expect(state.get().routeIndex).toBe(0)
+  })
+
+  it('labels the accounts whose site still needs Shape Home', () => {
+    shapeHome.uids = ['account-1', 'account-3']
+    renderAccountMenu()
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-slot="dropdown-menu-trigger"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true})),
+    )
+    const header = document.querySelector<HTMLElement>('[aria-label="Switch account"]')!
+    expect(header.querySelector('[data-testid="shape-home-tag"]')).not.toBeNull()
+    act(() => header.dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})))
+    const items = Array.from(document.querySelectorAll<HTMLElement>('[aria-label="Accounts"] [role="menuitem"]'))
+    const item = (uid: string) => items.find((element) => element.textContent?.startsWith(uid))!
+    expect(item('account-2').querySelector('[data-testid="shape-home-tag"]')).toBeNull()
+    expect(item('account-3').querySelector('[data-testid="shape-home-tag"]')).not.toBeNull()
   })
 })
 
