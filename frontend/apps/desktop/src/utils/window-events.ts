@@ -49,7 +49,7 @@ export type AppWindowEvent =
       targetBlockId?: string
       maintenanceRevision?: number
       jobId?: string
-      operation?: 'add' | 'remove' | 'rewrite'
+      operation?: 'add' | 'remove' | 'rewrite' | 'add-cards'
       sourceDocumentId?: string
       targetDocumentId?: string
       deletedDocumentId?: string

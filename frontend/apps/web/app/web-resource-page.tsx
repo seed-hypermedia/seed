@@ -68,6 +68,7 @@ import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from
 import {getWebDraftShellId, shouldUseLocalWebDraftShell} from './document-edit/web-draft-shell'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
+import {WebShapeHomeHelper} from './shape-home/shape-home-helper'
 import {restoreWebDocumentVersion} from './document-edit/web-restore-document-version'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
@@ -881,6 +882,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                               editingFloatingActions={editingFloatingActions}
                               fileUpload={fileUpload}
                               onPrefetchDocument={onPrefetchDocument}
+                              contentTopInsert={
+                                !docId.path?.length && effectiveCanEdit ? <WebShapeHomeHelper /> : undefined
+                              }
                             />
                           </AgentDocumentViewContext.Provider>
                         )}

@@ -9,6 +9,7 @@ import {
   type DocumentCardCleanupJob,
   runCleanupJobWithMachine,
 } from '../document-card-cleanup-machine'
+import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 
 function job(
   overrides: Partial<DocumentCardCleanupJob> & {
@@ -741,4 +742,63 @@ describe('dismissed maintenance history', () => {
       actor.stop()
     },
   )
+})
+
+describe('add-cards job reconciliation', () => {
+  it('keeps existing addedTargetIds when a later re-plan yields zero changes', async () => {
+    const addCardsJob = job({
+      id: 'add-cards-job',
+      operation: 'add-cards',
+      container: unpackHmId('hm://alice')!,
+      cardTargets: [{id: unpackHmId('hm://alice/about')!, blockId: 'block-1'}],
+      state: 'idle',
+      attempts: 0,
+      addedTargetIds: ['hm://alice/about'],
+      skippedTargetIds: [],
+    })
+    let planCallCount = 0
+    const actor = coordinator([addCardsJob], () => 1_000, {
+      loadParentDocument: async () => ({id: 'hm://alice', version: 'v1', content: [], navigationCards: []}) as any,
+      planPublishedParent: async () => {
+        planCallCount++
+        return {changes: [], removedBlockIds: [], addedTargetIds: [], skippedTargetIds: []}
+      },
+      publishParentUpdate: async () => 'published',
+      invalidateParent: () => {},
+    })
+    actor.start()
+    actor.send({type: 'cleanup.tick'})
+    await waitFor(actor, (s) => s.context.jobs[0]?.state === 'done' || s.status === 'done')
+    expect(planCallCount).toBeGreaterThanOrEqual(2)
+    const finalJob = actor.getSnapshot().context.jobs[0]
+    expect(finalJob?.state).toBe('done')
+    expect(finalJob?.addedTargetIds).toEqual(['hm://alice/about'])
+    actor.stop()
+  })
+
+  it('allows cleanup.retry to revive a failedNeedsAttention add-cards job', async () => {
+    const addCardsJob = job({
+      id: 'add-cards-job',
+      operation: 'add-cards',
+      container: unpackHmId('hm://alice')!,
+      cardTargets: [{id: unpackHmId('hm://alice/about')!, blockId: 'block-1'}],
+      state: 'failedNeedsAttention',
+      attempts: 3,
+      maxRetries: 3,
+      lastError: 'publish failed',
+    })
+    const actor = coordinator([addCardsJob], () => 1_000, {
+      loadParentDocument: async () => ({id: 'hm://alice', version: 'v1', content: [], navigationCards: []}) as any,
+      planPublishedParent: async () => ({changes: [], removedBlockIds: []}),
+      publishParentUpdate: async () => 'published',
+      invalidateParent: () => {},
+    })
+    actor.start()
+    actor.send({type: 'cleanup.retry', jobId: 'add-cards-job'})
+    const after = actor.getSnapshot().context.jobs[0]
+    expect(after?.state).toBe('idle')
+    expect(after?.attempts).toBe(0)
+    expect(after?.lastError).toBeUndefined()
+    actor.stop()
+  })
 })

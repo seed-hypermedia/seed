@@ -8,7 +8,7 @@ import {
 } from '@shm/shared/utils/confirmed-child-deletion'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {rebaseDocumentReferenceDraft, findPublishedCardPosition} from '@shm/shared/utils/document-reference-rebase'
-import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -16,6 +16,7 @@ import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   verifyDocumentCleanupPrimary,
   planDocumentCardAppend,
+  planAddCardsJob,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
 } from '@shm/shared/utils/document-card-cleanup'
@@ -276,7 +277,7 @@ async function reconcileParentDraft(
     cardBlockId: job.cardBlockId,
     childDraftId: job.childDraftId,
     targetBlockId: job.targetBlockId,
-    operation: getJobOperation(job) as 'add' | 'remove' | 'rewrite',
+    operation: getJobOperation(job) as 'add' | 'remove' | 'rewrite' | 'add-cards',
     sourceDocumentId: getJobSourceDocumentId(job),
     targetDocumentId: getJobTargetDocumentId(job),
     deletedDocumentId: job.source?.id,
@@ -368,6 +369,23 @@ function createCleanupActor() {
       const operation = getJobOperation(job)
       const sourceDocumentId = getJobSourceDocumentId(job)
       const targetDocumentId = getJobTargetDocumentId(job)
+      if (operation === 'add-cards') {
+        const plan = await planAddCardsJob(
+          seedClient.request.bind(seedClient) as any,
+          job.cardTargets || [],
+          getCleanupJobParent(job).id,
+          parentDocument as any,
+        )
+        cleanupDebug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
+          jobId: job.id,
+          operation,
+          parentDocumentId: getCleanupJobParent(job).id,
+          changeCount: plan.changes.length,
+          addedTargetIds: plan.addedTargetIds,
+          skippedTargetIds: plan.skippedTargetIds,
+        })
+        return plan
+      }
       const plan =
         operation === 'add' && targetDocumentId
           ? planDocumentCardAppend(
@@ -559,7 +577,7 @@ export const documentCardCleanupApi = t.router({
   enqueue: t.procedure
     .input(
       z.object({
-        operation: z.enum(['remove', 'add', 'rewrite', 'delete-child']).optional(),
+        operation: z.enum(['remove', 'add', 'rewrite', 'delete-child', 'add-cards']).optional(),
         deletedDocumentId: z.string().optional(),
         sourceDocumentId: z.string().optional(),
         targetDocumentId: z.string().optional(),
@@ -579,6 +597,7 @@ export const documentCardCleanupApi = t.router({
         targetBlockId: z.string().optional(),
         approvedSubtree: z.array(z.object({id: z.string(), version: z.string()})).optional(),
         authorizingParentVersion: z.string().optional(),
+        targetDocumentIds: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -592,6 +611,17 @@ export const documentCardCleanupApi = t.router({
       const sourceDocumentId = input.sourceDocumentId || input.deletedDocumentId
       const targetDocumentId = input.targetDocumentId
 
+      let cardTargets: Array<{id: UnpackedHypermediaId; blockId: string}> | undefined
+      if (operation === 'add-cards') {
+        const targetIds = input.targetDocumentIds || []
+        cardTargets = targetIds
+          .map((documentId) => {
+            const id = unpackHmId(documentId)
+            return id ? {id, blockId: nanoid(10)} : null
+          })
+          .filter((t): t is {id: UnpackedHypermediaId; blockId: string} => t !== null)
+      }
+
       const intentId = input.awaitingPrimary ? nanoid(16) : undefined
       const jobId = cleanupJobId({
         targetBlockId: input.targetBlockId,
@@ -602,6 +632,7 @@ export const documentCardCleanupApi = t.router({
         targetDocumentId,
         parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
+        cardTargetIds: cardTargets?.map((t) => t.id.id),
       })
       if (getPublicSnapshot().jobs.some((job) => job.id === jobId && isDocumentCardCleanupJobActive(job))) {
         return {enqueued: false, reason: 'duplicate' as const, jobId}
@@ -622,6 +653,7 @@ export const documentCardCleanupApi = t.router({
         targetBlockId: input.targetBlockId,
         approvedSubtree: input.approvedSubtree,
         authorizingParentVersion: input.authorizingParentVersion,
+        cardTargets,
       } as any)
       if (storageError) throw new Error(storageError)
       return {enqueued: true, jobId}

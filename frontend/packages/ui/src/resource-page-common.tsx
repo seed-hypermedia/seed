@@ -1098,6 +1098,8 @@ export interface ResourcePageProps {
   editNavPane?: ReactNode
   /** Optional platform adapter for user-defined metadata autocomplete. */
   attributeAutocomplete?: AttributeAutocomplete
+  /** Optional content rendered above the document body, constrained to content width (e.g. Shape Home helper). */
+  contentTopInsert?: ReactNode
 }
 
 /** Get panel title for display */
@@ -1180,6 +1182,7 @@ function ResourcePageContent({
   linkExtensionOptions,
   editNavPane,
   attributeAutocomplete,
+  contentTopInsert,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const effectiveFileBrowserCreateMenuItem =
@@ -1676,6 +1679,7 @@ function ResourcePageContent({
             perspectiveAccountUid={perspectiveAccountUid}
             linkExtensionOptions={linkExtensionOptions}
             transientResourceError={transientResourceError}
+            contentTopInsert={contentTopInsert}
           />
         </AttributeAutocompleteProvider>
         <ChildDeletionPublishDialog />
@@ -2040,6 +2044,7 @@ function DocumentBody({
   perspectiveAccountUid,
   linkExtensionOptions,
   transientResourceError,
+  contentTopInsert,
 }: {
   routeDocId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -2107,6 +2112,8 @@ function DocumentBody({
   linkExtensionOptions?: LinkExtensionOptions
   /** Non-fatal resource fetch state synced into the machine context. */
   transientResourceError?: TransientResourceError
+  /** Optional content rendered above the document body (e.g. Shape Home helper). */
+  contentTopInsert?: ReactNode
 }) {
   // Sync document into state machine
   useDocumentSync(document, documentSyncRouteKey, documentIsPlaceholderData)
@@ -3421,6 +3428,7 @@ function DocumentBody({
                 <AgentPromptMigration docId={docId} document={document} canEdit={!!canEditCurrentRoute} />
               </>
             ) : null}
+            {activeView === 'content' && contentTopInsert ? contentTopInsert : null}
             <DocumentViewContent
               activeView={activeView}
               collection={

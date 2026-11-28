@@ -116,3 +116,17 @@ it('retains a live deletion of the temporary child card after the child is publi
   )
   expect(result.content).toEqual([])
 })
+
+it('passes add-cards content through unchanged while rebasing onto the new published baseline', () => {
+  const published: HMBlockNode[] = [paragraph('intro'), card('hm://alice/about')]
+  const result = rebaseDocumentReferenceDraft(
+    {operation: 'add-cards'},
+    [paragraph('intro')],
+    [paragraph('intro')],
+    published,
+  )
+  expect(result.content.map((node) => (node.block as any)?.link || (node.block as any)?.text)).toEqual([
+    'intro',
+    'hm://alice/about',
+  ])
+})

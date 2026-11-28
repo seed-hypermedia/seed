@@ -46,6 +46,7 @@ import {DesktopDraftBreadcrumbProvider} from '../components/desktop-draft-breadc
 import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
+import {ShapeHomeAnnouncementDialog} from '../components/shape-home-announcement'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
 import {WindowTitle} from '../components/window-title'
@@ -329,6 +330,7 @@ export default function Main({className}: {className?: string}) {
                 <Footer />
 
                 <AutoUpdater />
+                <ShapeHomeAnnouncementDialog />
                 <ConfirmConnectionDialog />
                 <HypermediaHighlight />
               </SidebarContextProvider>

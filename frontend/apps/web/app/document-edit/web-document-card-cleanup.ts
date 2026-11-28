@@ -1,12 +1,13 @@
 import {reconcileChildRemovalIntent} from '@shm/shared/utils/confirmed-child-deletion'
 import {getCleanupJobParent} from '@shm/shared/models/document-card-cleanup-machine'
 import {createWebCleanupWorker} from './web-cleanup-worker'
-import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {
   applyDocumentCardCleanupToBlockNodes,
   verifyDocumentCleanupPrimary,
   planDocumentCardAppend,
+  planAddCardsJob,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
 } from '@shm/shared/utils/document-card-cleanup'
@@ -63,6 +64,7 @@ type EnqueueWebDocumentCardCleanupInput = {
   targetBlockId?: string
   approvedSubtree?: Array<{id: string; version: string}>
   authorizingParentVersion?: string
+  targetDocumentIds?: string[]
 }
 
 const WEB_CLEANUP_MACHINE_STORAGE_KEY = `Web${CLEANUP_MACHINE_STORAGE_KEY}`
@@ -288,6 +290,14 @@ function createCleanupActor(deps: WebCleanupDeps) {
       const operation = getJobOperation(job)
       const sourceDocumentId = getJobSourceDocumentId(job)
       const targetDocumentId = getJobTargetDocumentId(job)
+      if (operation === 'add-cards') {
+        return await planAddCardsJob(
+          deps.client.request.bind(deps.client) as any,
+          job.cardTargets || [],
+          getCleanupJobParent(job).id,
+          parentDocument as any,
+        )
+      }
       const plan =
         operation === 'add' && targetDocumentId
           ? planDocumentCardAppend(
@@ -407,6 +417,18 @@ export async function enqueueWebDocumentCardCleanup(input: EnqueueWebDocumentCar
   if (!parent) return {enqueued: false, reason: 'no-parent' as const}
   const sourceDocumentId = input.sourceDocumentId || input.deletedDocumentId
   const targetDocumentId = input.targetDocumentId
+
+  let cardTargets: Array<{id: UnpackedHypermediaId; blockId: string}> | undefined
+  if (operation === 'add-cards') {
+    const targetIds = input.targetDocumentIds || []
+    cardTargets = targetIds
+      .map((documentId) => {
+        const id = unpackHmId(documentId)
+        return id ? {id, blockId: nanoid(10)} : null
+      })
+      .filter((t): t is {id: UnpackedHypermediaId; blockId: string} => t !== null)
+  }
+
   const intentId = input.awaitingPrimary ? nanoid(16) : undefined
   const jobId = cleanupJobId({
     targetBlockId: input.targetBlockId,
@@ -417,6 +439,7 @@ export async function enqueueWebDocumentCardCleanup(input: EnqueueWebDocumentCar
     targetDocumentId,
     parentDocumentId: parent.id,
     signingAccountUid: input.signingAccountUid,
+    cardTargetIds: cardTargets?.map((t) => t.id.id),
   })
   if (deps) cleanupDeps = deps
   const snapshot = hasBrowserStorage()
@@ -441,6 +464,7 @@ export async function enqueueWebDocumentCardCleanup(input: EnqueueWebDocumentCar
     targetBlockId: input.targetBlockId,
     approvedSubtree: input.approvedSubtree,
     authorizingParentVersion: input.authorizingParentVersion,
+    cardTargets,
   } as any)
   return {enqueued: true, jobId}
 }

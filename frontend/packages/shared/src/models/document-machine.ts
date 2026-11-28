@@ -536,7 +536,7 @@ export type DocumentMachineEvent =
       childDraftId?: string
       targetBlockId?: string
       jobId?: string
-      operation?: 'add' | 'remove' | 'rewrite'
+      operation?: 'add' | 'remove' | 'rewrite' | 'add-cards'
       sourceDocumentId?: string
       targetDocumentId?: string
       previousContent?: HMBlockNode[]

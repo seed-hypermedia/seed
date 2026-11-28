@@ -213,6 +213,10 @@ vi.mock('../components/desktop-notification-inbox', () => ({
   DesktopNotificationInbox: () => null,
 }))
 
+vi.mock('../components/shape-home-announcement', () => ({
+  ShapeHomeAnnouncementDialog: () => null,
+}))
+
 vi.mock('@/components/bookmarks-panel', () => ({
   BookmarksPanelProvider: ({children}: {children: React.ReactNode}) => children,
   BookmarksPanel: () => null,

@@ -2,6 +2,7 @@ import {
   type HMBlockNode,
   type HMDocument,
   type UnpackedHypermediaId,
+  type HMRequest,
   unpackHmId,
 } from '@seed-hypermedia/client/hm-types'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
@@ -447,6 +448,188 @@ export function planDocumentCardAppend(
       }),
     ],
     addedBlockIds: [newBlockId],
+  }
+}
+
+/** Result of planning a batch append of Card embeds for several children to a parent document. */
+export type DocumentCardsAppendPlan = {
+  changes: DocumentChange[]
+  addedBlockIds: string[]
+  addedTargetIds: string[]
+  skippedTargetIds: string[]
+}
+
+type SelfQueryLocation = {blockId: string; parent: string; leftSibling: string}
+
+function findFirstSelfQuery(
+  nodes: HMBlockNode[],
+  parentDocumentId: string,
+  parentBlockId: string,
+): SelfQueryLocation | null {
+  const parent = unpackHmId(parentDocumentId)
+  if (!parent?.uid) return null
+  const parentUid = parent.uid
+  const parentPath = parent.path || []
+  let found: SelfQueryLocation | null = null
+  function walk(blocks: HMBlockNode[], currentParent: string, leftSibling: string) {
+    let prevSibling = leftSibling
+    for (const node of blocks) {
+      if (found) return
+      const block = node.block
+      const includes = block?.type === 'Query' ? (block.attributes as any)?.query?.includes : undefined
+      if (
+        Array.isArray(includes) &&
+        includes.length === 1 &&
+        queryIncludeTargetsParent(includes[0], parentUid, parentPath)
+      ) {
+        found = {blockId: block.id, parent: currentParent, leftSibling: prevSibling}
+        return
+      }
+      walk(node.children || [], block.id, '')
+      prevSibling = block.id
+    }
+  }
+  walk(nodes, parentBlockId, '')
+  return found
+}
+
+/** Whether a document already links the given document id as a Card (navigationCards key match OR Card-view Embed anywhere in content, version-agnostic). */
+export function documentHasNavigationCard(
+  document: Pick<HMDocument, 'content' | 'navigationCards'>,
+  documentId: string,
+): boolean {
+  const targetKey = hmDocumentKey(documentId)
+  if (!targetKey) return false
+  for (const link of document.navigationCards || []) {
+    if (hmDocumentKey(link) === targetKey) return true
+  }
+  return documentContainsCardForTarget(document.content || [], targetKey)
+}
+
+function isCardEmbedForTarget(node: HMBlockNode, targetKey: string): boolean {
+  const block = node.block
+  if (block?.type !== 'Embed' || (block.attributes as any)?.view !== 'Card') return false
+  if (!block.link) return false
+  return hmDocumentKey(block.link) === targetKey
+}
+
+function documentContainsCardForTarget(nodes: HMBlockNode[], targetKey: string): boolean {
+  return nodes.some(
+    (node) => isCardEmbedForTarget(node, targetKey) || documentContainsCardForTarget(node.children || [], targetKey),
+  )
+}
+
+/** Plans pure document changes that append Card embeds for several children to a parent in one publish. */
+export function planDocumentCardsAppend(
+  document: Pick<HMDocument, 'content' | 'navigationCards'>,
+  parentDocumentId: string,
+  targets: Array<{documentId: string; blockId: string}>,
+): DocumentCardsAppendPlan {
+  const toAdd: Array<{documentId: string; blockId: string; targetKey: string}> = []
+  const skippedTargetIds: string[] = []
+  const seenTargetKeys = new Set<string>()
+  for (const target of targets) {
+    const targetKey = hmDocumentKey(target.documentId)
+    if (!targetKey || !target.blockId) {
+      skippedTargetIds.push(target.documentId)
+      continue
+    }
+    if (documentHasNavigationCard(document, target.documentId) || seenTargetKeys.has(targetKey)) {
+      skippedTargetIds.push(target.documentId)
+      continue
+    }
+    seenTargetKeys.add(targetKey)
+    toAdd.push({documentId: target.documentId, blockId: target.blockId, targetKey})
+  }
+  if (!toAdd.length) {
+    return {changes: [], addedBlockIds: [], addedTargetIds: [], skippedTargetIds}
+  }
+
+  const changes: DocumentChange[] = []
+  const addedBlockIds: string[] = []
+  const addedTargetIds: string[] = []
+  const content = document.content || []
+
+  const selfQuery = findFirstSelfQuery(content, parentDocumentId, '')
+  let anchorParent = ''
+  let anchorLeftSibling = ''
+  if (selfQuery) {
+    anchorParent = selfQuery.parent
+    anchorLeftSibling = selfQuery.leftSibling
+  } else {
+    anchorLeftSibling = content.at(-1)?.block?.id || ''
+  }
+
+  let previousBlockId = anchorLeftSibling
+  for (const target of toAdd) {
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'moveBlock',
+          value: {blockId: target.blockId, parent: anchorParent, leftSibling: previousBlockId},
+        },
+      }),
+    )
+    changes.push(
+      new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: Block.fromJson({
+            id: target.blockId,
+            type: 'Embed',
+            link: target.documentId,
+            attributes: {view: 'Card'},
+          }),
+        },
+      }),
+    )
+    addedBlockIds.push(target.blockId)
+    addedTargetIds.push(target.documentId)
+    previousBlockId = target.blockId
+  }
+
+  if (selfQuery) {
+    changes.push(
+      new DocumentChange({
+        op: {case: 'deleteBlock', value: selfQuery.blockId},
+      }),
+    )
+  }
+
+  return {changes, addedBlockIds, addedTargetIds, skippedTargetIds}
+}
+
+/** Plans an add-cards cleanup job: checks each target via Resource, skips non-documents, then plans the batch append. */
+export async function planAddCardsJob(
+  request: <K extends HMRequest['key']>(
+    key: K,
+    input: Extract<HMRequest, {key: K}>['input'],
+  ) => Promise<Extract<HMRequest, {key: K}>['output']>,
+  cardTargets: Array<{id: UnpackedHypermediaId; blockId: string}>,
+  parentDocumentId: string,
+  parentDocument: Pick<HMDocument, 'content' | 'navigationCards'>,
+): Promise<{
+  changes: DocumentChange[]
+  removedBlockIds: string[]
+  addedTargetIds: string[]
+  skippedTargetIds: string[]
+}> {
+  const checkedTargets: Array<{documentId: string; blockId: string}> = []
+  const skippedTargetIds: string[] = []
+  for (const target of cardTargets) {
+    const resource = await request('Resource', {...target.id, version: null, latest: true})
+    if (resource.type !== 'document') {
+      skippedTargetIds.push(target.id.id)
+    } else {
+      checkedTargets.push({documentId: target.id.id, blockId: target.blockId})
+    }
+  }
+  const plan = planDocumentCardsAppend(parentDocument, parentDocumentId, checkedTargets)
+  return {
+    changes: plan.changes,
+    removedBlockIds: plan.addedBlockIds,
+    addedTargetIds: plan.addedTargetIds,
+    skippedTargetIds: [...skippedTargetIds, ...plan.skippedTargetIds],
   }
 }
 

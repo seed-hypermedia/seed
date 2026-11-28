@@ -111,6 +111,7 @@ import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
 import {usePublishSite} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
+import {ShapeHomeAccountTag, useShapeHomeNeedsShaping} from './shape-home-account-tag'
 const OMNIBAR_DOMAIN_STALE_TIME_MS = 3 * 60 * 60 * 1000
 
 function getUrlHostname(url?: string | null): string | null {
@@ -175,6 +176,7 @@ export function AccountProfileButton() {
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
+  const shapeHomeUids = useShapeHomeNeedsShaping()
   const recentAccountIds = useRecentAccountIds()
   const vaultStatus = useVaultStatus()
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
@@ -376,6 +378,7 @@ export function AccountProfileButton() {
                 name={getProfileName(selectedAccount?.metadata)}
                 role={role}
                 email={remoteVaultConnected ? vaultEmail.data : undefined}
+                tag={accountUid && shapeHomeUids.includes(accountUid) ? <ShapeHomeAccountTag /> : undefined}
               />
             }
           >
@@ -390,7 +393,8 @@ export function AccountProfileButton() {
                   }}
                 >
                   <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={24} />
-                  <span className="min-w-0 truncate">{getProfileName(option.metadata)}</span>
+                  <span className="min-w-0 flex-1 truncate">{getProfileName(option.metadata)}</span>
+                  {shapeHomeUids.includes(option.id.uid) ? <ShapeHomeAccountTag /> : null}
                 </DropdownMenuItem>
               ) : null,
             )}
