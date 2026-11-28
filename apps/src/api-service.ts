@@ -172,6 +172,7 @@ import {compileExploreQuery, parseExploreQuery, type ExplorePredicate} from '@se
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
 import {
   HM_SCHEMAS,
+  schemaCid,
   validate as validateSchema,
   validateDefaults,
   resolveSchema,
@@ -12157,7 +12158,8 @@ async function readIpfsObject(
 ): Promise<Record<string, unknown>> {
   const client = createSeedClient(context.hmServerUrl, {fetch: fetchWithReadDeadline})
   const got = await client.request('GetCID', {cid}).catch((error) => {
-    throw new APIError(404, `No object at ipfs://${cid}: ${error instanceof Error ? error.message : String(error)}`)
+    const message = error instanceof Error ? error.message : String(error)
+    throw new APIError(404, `No object at ipfs://${cid}: ${message}${notPublicSchemaHint(message)}`)
   })
   const value = (got as {value?: unknown} | undefined)?.value
   if (value === undefined) throw new APIError(404, `No object at ipfs://${cid}`)
@@ -18400,6 +18402,18 @@ async function writeDocumentCreate(
   /** The writing agent's id: an hm:// document id when it is mounted. */
   agentId?: string,
 ): Promise<Record<string, unknown>> {
+  return withInlineSchemas(client, request, extraBlobs, (inlineClient, inlineRequest, blobs) =>
+    publishDocumentCreate(inlineClient, signer, inlineRequest, blobs, agentId),
+  )
+}
+
+async function publishDocumentCreate(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  request: ReturnType<typeof normalizeWriteToolRequest>,
+  extraBlobs: CollectedBlob[],
+  agentId?: string,
+): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
   await assertPublishableMermaid(parsed.blocks)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
@@ -18503,6 +18517,90 @@ async function writeDocumentCreate(
   })
 }
 
+/** Metadata keys that hold a schema reference, and so may be given the schema itself. */
+const INLINE_SCHEMA_KEYS = ['schemaDefinition', 'attributesSchema', 'childAttributesSchema'] as const
+
+/**
+ * Lets a document write carry a schema itself, not only a reference to one: an object under
+ * `options.metadata.schemaDefinition` (or `attributesSchema`, `childAttributesSchema`) is
+ * encoded as a DAG-CBOR schema blob linked to the meta-schema, the metadata key is set to its
+ * `ipfs://<cid>`, and the blob is published in the same batch as the document.
+ *
+ * The two steps cannot be done one after the other. A blob nobody links to is not public, so the
+ * server cannot read a schema published on its own with `write ipfs://`, and a write that points
+ * at a schema the server cannot read is refused. In one batch the document's change links the
+ * schema, which makes it public. Validation reads the schema from memory through `client`, which
+ * answers GetCID for these blobs before the server has them.
+ */
+async function withInlineSchemas(
+  client: ReturnType<typeof createSeedClient>,
+  request: ReturnType<typeof normalizeWriteToolRequest>,
+  extraBlobs: CollectedBlob[],
+  write: (
+    client: ReturnType<typeof createSeedClient>,
+    request: ReturnType<typeof normalizeWriteToolRequest>,
+    extraBlobs: CollectedBlob[],
+  ) => Promise<Record<string, unknown>>,
+): Promise<Record<string, unknown>> {
+  const metadata = request.input.metadata
+  if (!isPlainRecord(metadata)) return write(client, request, extraBlobs)
+  const pending = new Map<string, unknown>()
+  const blobs: CollectedBlob[] = []
+  const inlineSchemas: Record<string, string> = {}
+  const rewritten: Record<string, unknown> = {...metadata}
+  for (const key of INLINE_SCHEMA_KEYS) {
+    const value = metadata[key]
+    if (value === undefined || value === null || typeof value === 'string') continue
+    if (!isPlainMap(value)) {
+      throw new APIError(
+        400,
+        `options.metadata.${key} must be a schema reference (ipfs://<cid> or a type document's hm:// URL) or a Hypermedia schema object`,
+      )
+    }
+    const metaSchemaCid = schemaCid('schema')
+    const linked = 'schema' in value || !metaSchemaCid ? value : {...value, schema: {'/': metaSchemaCid}}
+    const {cid, data} = await encodeDagCbor(linked)
+    pending.set(cid, linked)
+    blobs.push({cid, data})
+    inlineSchemas[key] = `ipfs://${cid}`
+    rewritten[key] = `ipfs://${cid}`
+  }
+  if (!blobs.length) return write(client, request, extraBlobs)
+  const result = await write(
+    withPendingObjects(client, pending),
+    {...request, input: {...request.input, metadata: rewritten}},
+    // The schema blobs go first, so the change that links them is indexed after them.
+    [...blobs, ...extraBlobs],
+  )
+  return {...result, inlineSchemas}
+}
+
+/**
+ * The client, except that GetCID answers from `pending` for the objects this write is about to
+ * publish. Everything else, including publishing, goes to the server as before.
+ */
+function withPendingObjects<C extends Pick<ReturnType<typeof createSeedClient>, 'request'>>(
+  client: C,
+  pending: Map<string, unknown>,
+): C {
+  const wrapped = Object.create(client) as C
+  wrapped.request = ((key: string, input: unknown) => {
+    const cid = key === 'GetCID' && isPlainRecord(input) ? input.cid : undefined
+    if (typeof cid === 'string' && pending.has(cid)) return Promise.resolve({value: pending.get(cid)})
+    return (client.request as (key: string, input: unknown) => Promise<unknown>)(key, input)
+  }) as C['request']
+  return wrapped
+}
+
+/**
+ * What to do about a schema the server would not serve because nothing public links to it yet.
+ * Empty for any other failure.
+ */
+function notPublicSchemaHint(message: string): string {
+  if (!/is not public/.test(message)) return ''
+  return ' The blob is stored, but the server serves a blob only once a published document, comment or profile links to it. To define a type, pass the schema object itself as options.metadata.schemaDefinition: it is published with the document, which makes it public.'
+}
+
 /**
  * How a document fares against its effective attributes schema (its own `attributesSchema`, else the
  * parent's `childAttributesSchema`) and whether a `schemaDefinition` it carries is a valid Hypermedia
@@ -18529,7 +18627,11 @@ async function documentSchemaReport(
   const definition = (metadata as Record<string, unknown>).schemaDefinition
   if (typeof definition === 'string' && definition) {
     for (const violation of await checkSchemaDefinition(client, definition)) {
-      problems.push(`schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}`)
+      problems.push(
+        `schemaDefinition ${definition} is not a valid Hypermedia schema: ${violation}${notPublicSchemaHint(
+          violation,
+        )}`,
+      )
     }
   }
   warnings.push(...problems)
@@ -18593,6 +18695,17 @@ async function writeDocumentUpdate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
   extraBlobs: CollectedBlob[] = [],
+): Promise<Record<string, unknown>> {
+  return withInlineSchemas(client, request, extraBlobs, (inlineClient, inlineRequest, blobs) =>
+    publishDocumentUpdate(inlineClient, signer, inlineRequest, blobs),
+  )
+}
+
+async function publishDocumentUpdate(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  request: ReturnType<typeof normalizeWriteToolRequest>,
+  extraBlobs: CollectedBlob[],
 ): Promise<Record<string, unknown>> {
   const editSource = request.input.edit ?? request.input.id
   if (editSource === undefined) {
