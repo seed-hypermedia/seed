@@ -401,7 +401,16 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
       target={opensInApp ? undefined : '_blank'}
       rel={opensInApp ? undefined : 'noopener noreferrer'}
       onClick={(event) => {
-        if (!href || !opensInApp) return
+        if (!href) return
+        if (!opensInApp) {
+          // A plain web link still goes through the platform opener. Desktop drops a native
+          // `target="_blank"` click: Chromium uses up the click's user activation creating the popup,
+          // and `noreferrer` hides the opener, so the window-open guard can't verify the user asked.
+          if (!/^https?:\/\//i.test(href)) return
+          event.preventDefault()
+          openUrl(href, true)
+          return
+        }
         event.preventDefault()
         if (isMemoryLink) {
           // Lands on the agent's Memory tab at that file; a dead relative href otherwise.
