@@ -3,13 +3,96 @@ import {keydownHandler} from '@tiptap/pm/keymap'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
-import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
+import {
+  characterBoundary,
+  extendBlockSelectionToText,
+  extendSelectionByBlock,
+  findNextBlock,
+  findPreviousBlock,
+} from '../../../../block-utils'
 import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
+import {rangeSelectionBetween} from '../FullBlockSelection/BlockRangeSelection'
 
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
 export {selectableNodeTypes}
+
+type ShiftArrow = {forward: boolean; vertical: boolean}
+
+const SHIFT_ARROWS: Partial<Record<string, ShiftArrow>> = {
+  ArrowUp: {forward: false, vertical: true},
+  ArrowDown: {forward: true, vertical: true},
+  ArrowLeft: {forward: false, vertical: false},
+  ArrowRight: {forward: true, vertical: false},
+}
+
+const MODIFIER_KEYS = ['Shift', 'Control', 'Alt', 'Meta']
+
+/**
+ * The start of a range at a block's edge, per editor, while the browser moves the range's end within text. ProseMirror
+ * reads the browser's result back, and would otherwise move that start into the nearest text.
+ */
+const anchorsToKeep = new WeakMap<EditorView, number>()
+
+/**
+ * Takes in a move the browser made in text that ProseMirror hasn't read yet. The browser reports those moves after the
+ * key press, so with keys pressed in quick succession, or held down, the next press would otherwise start from the
+ * selection before it.
+ */
+function syncBrowserSelection(view: EditorView, keptAnchor: number | undefined) {
+  const {selection, doc} = view.state
+  if (!(selection instanceof TextSelection) || !selection.$head.parent.inlineContent) return
+  const domSelection = view.dom.ownerDocument.getSelection()
+  const {anchorNode, focusNode} = domSelection ?? {}
+  if (!domSelection || !anchorNode || !focusNode) return
+  if (!view.dom.contains(anchorNode) || !view.dom.contains(focusNode)) return
+
+  const $head = doc.resolve(view.posAtDOM(focusNode, domSelection.focusOffset))
+  if (!$head.parent.inlineContent) return
+  const movedToCursor = domSelection.isCollapsed && $head.pos !== selection.head
+  let $anchor = selection.$anchor
+  if (keptAnchor !== undefined) $anchor = doc.resolve(keptAnchor)
+  else if ($anchor.parent.inlineContent || movedToCursor) {
+    $anchor = doc.resolve(view.posAtDOM(anchorNode, domSelection.anchorOffset))
+  }
+  if ($anchor.pos === selection.anchor && $head.pos === selection.head) return
+  view.dispatch(view.state.tr.setSelection(rangeSelectionBetween($anchor, $head)))
+}
+
+function handleShiftArrow(view: EditorView, {forward, vertical}: ShiftArrow, keptAnchor: number | undefined): boolean {
+  syncBrowserSelection(view, keptAnchor)
+  const {selection} = view.state
+  const isNodeSelection = selection instanceof NodeSelection && selectableNodeTypes.includes(selection.node.type.name)
+  if (!isNodeSelection && !(selection instanceof TextSelection)) return false
+  const {$head} = selection
+
+  for (let depth = $head.depth; depth > 0; depth--) {
+    if ($head.node(depth).type.spec.tableRole) return false
+  }
+
+  if (!isNodeSelection && $head.parent.inlineContent) {
+    let atEdge: boolean
+    if (vertical) {
+      const {state} = view
+      const fromHead = state.apply(state.tr.setSelection(TextSelection.create(state.doc, $head.pos)))
+      atEdge = view.endOfTextblock(forward ? 'down' : 'up', fromHead)
+    } else {
+      const edge = forward ? $head.parent.content.size : 0
+      // Stepping onto the block's edge with none of it selected would look like no change, so step out of it instead.
+      const leavesBlockUnselected =
+        !selection.$anchor.sameParent($head) &&
+        characterBoundary($head.parent, $head.parentOffset, forward) === edge &&
+        (forward ? selection.head < selection.anchor : selection.head > selection.anchor)
+      atEdge = $head.parentOffset === edge || leavesBlockUnselected
+    }
+    if (!atEdge) {
+      if (!selection.$anchor.parent.inlineContent) anchorsToKeep.set(view, selection.anchor)
+      return false
+    }
+  }
+  return extendSelectionByBlock(view, forward, vertical)
+}
 
 function isInteractiveEmbedClickTarget(event: MouseEvent) {
   const target = event.target as HTMLElement | null
@@ -186,6 +269,48 @@ export const BlockManipulationExtension = Extension.create<{
         },
       }),
       new Plugin({
+        key: new PluginKey('ShiftClickTextFromBlock'),
+        props: {
+          handleDOMEvents: {
+            // Shift-clicking text while a card is selected extends from that card. Shift-clicks on cards themselves are
+            // handled by BlockSelectionWrapper and never get here.
+            mousedown(view, event) {
+              if (!view.editable || !event.shiftKey || event.button !== 0) return false
+              const coords = view.posAtCoords({left: event.clientX, top: event.clientY})
+              if (!coords || !view.state.doc.resolve(coords.pos).parent.inlineContent) return false
+              if (!extendBlockSelectionToText(view, coords.pos)) return false
+              event.preventDefault()
+              return true
+            },
+          },
+        },
+      }),
+      new Plugin({
+        key: new PluginKey('DoubleClickPastText'),
+        props: {
+          // A double-click in the empty space to the right of a block's text makes the browser select a "word" that runs
+          // on to the next text it finds, across any cards in between. Select the block's last word instead.
+          handleDoubleClick(view, pos, event) {
+            const $pos = view.state.doc.resolve(pos)
+            const block = $pos.parent
+            if (!block.inlineContent || $pos.parentOffset !== block.content.size) return false
+            if (event.clientX <= view.coordsAtPos(pos).right + 2) return false
+
+            const start = $pos.start()
+            // One character per inline node, so offsets in the text are offsets in the block.
+            const text = block.textBetween(0, block.content.size, undefined, '\ufffc')
+            // Split words the way the browser does for a double-click.
+            const segments = Array.from(new Intl.Segmenter(undefined, {granularity: 'word'}).segment(text))
+            const last = segments.filter((segment) => !/^\s*$/.test(segment.segment)).pop()
+            const selection = last?.isWordLike
+              ? TextSelection.create(view.state.doc, start + last.index, start + last.index + last.segment.length)
+              : TextSelection.create(view.state.doc, pos)
+            view.dispatch(view.state.tr.setSelection(selection))
+            return true
+          },
+        },
+      }),
+      new Plugin({
         key: new PluginKey('CursorSelectPlugin'),
         props: {
           handleDoubleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
@@ -229,9 +354,30 @@ export const BlockManipulationExtension = Extension.create<{
       new Plugin({
         key: new PluginKey('KeyboardShortcutsSelectPlugin'),
         props: {
+          // After Shift+Arrow let the browser move the end within text, keep the range's start at its block edge.
+          createSelectionBetween(view, $anchor, $head) {
+            const anchor = anchorsToKeep.get(view)
+            if (anchor === undefined || anchor !== view.state.selection.anchor) return null
+            return rangeSelectionBetween(view.state.doc.resolve(anchor), $head)
+          },
+          handleDOMEvents: {
+            mousedown(view) {
+              anchorsToKeep.delete(view)
+              return false
+            },
+          },
           handleKeyDown(view, event) {
+            if (MODIFIER_KEYS.includes(event.key)) return false
+            const keptAnchor = anchorsToKeep.get(view)
+            anchorsToKeep.delete(view)
             const mentionState = mentionSuggestionPluginKey.getState(view.state)
             if (mentionState?.active) return false
+            const shiftArrow = SHIFT_ARROWS[event.key]
+            if (shiftArrow && event.shiftKey) {
+              // Let browser handle Shift with Alt, Cmd or Ctrl.
+              if (event.altKey || event.metaKey || event.ctrlKey) return false
+              return handleShiftArrow(view, shiftArrow, keptAnchor)
+            }
             const {state} = view
             if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
               // When the current selection is a text cursor (not a whole-block
@@ -251,22 +397,6 @@ export const BlockManipulationExtension = Extension.create<{
                 // resolve back to the current block; don't re-select it.
                 const currentBlockInfo = getBlockInfoFromSelection(state)
                 if (prevBlockPos === currentBlockInfo.block.beforePos) return false
-                if (event.shiftKey) {
-                  if (event.key === 'ArrowLeft') return false
-
-                  // If shift key, check if the previous node is media type and set selection to include it.
-                  // Return false otherwise, to let tiptap handle shift selection.
-                  if (selectableNodeTypes.includes(prevNode.type.name)) {
-                    const selection = TextSelection.create(state.doc, state.selection.anchor, prevNodePos)
-                    let tr = state.tr.setSelection(selection)
-                    tr = tr.scrollIntoView()
-                    view.dispatch(tr)
-                    view.focus()
-                    return true
-                  }
-
-                  return false
-                }
                 if (event.key === 'ArrowLeft') {
                   // Return false if triggered by arrow left and the selection is not at block start,
                   // to let tiptap set the selection to the previous character.
@@ -291,7 +421,6 @@ export const BlockManipulationExtension = Extension.create<{
               } else {
                 // If media block is the first block in the document, create an empty block
                 // before it, and set the selection to the newly created block.
-                if (event.shiftKey) return false
                 const blockInfo = getBlockInfoFromSelection(state)
 
                 if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
@@ -325,29 +454,6 @@ export const BlockManipulationExtension = Extension.create<{
                 // resolve back to the current block; don't re-select it and
                 // swallow the keypress.
                 if (nextBlockInfo.nextBlockPos === blockInfo.block.beforePos) return false
-                if (event.shiftKey) {
-                  if (blockInfo.block.beforePos + 1 === state.selection.from) return false
-                  if (event.key === 'ArrowRight') return false
-                  // If shift key, check if the next node is media type, and set the selection include it.
-                  // Return false otherwise, to let tiptap handle shift selection.
-                  const blockInfoAfterSelection = findNextBlock(view, state.selection.head)
-                  if (blockInfoAfterSelection) {
-                    const {nextBlock, nextBlockPos} = blockInfoAfterSelection
-                    if (selectableNodeTypes.includes(nextBlock.firstChild!.type.name)) {
-                      const selection = TextSelection.create(
-                        state.doc,
-                        state.selection.anchor,
-                        state.doc.resolve(nextBlockPos + 2).end() + 1,
-                      )
-                      let tr = state.tr.setSelection(selection)
-                      tr = tr.scrollIntoView()
-                      view.dispatch(tr)
-                      view.focus()
-                      return true
-                    }
-                  }
-                  return false
-                }
                 const {nextBlock, nextBlockPos} = nextBlockInfo
                 const nextNode = nextBlock.firstChild!
                 const nextNodePos = nextBlockPos + 1

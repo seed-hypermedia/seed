@@ -30,7 +30,7 @@ export function applyReadOnlyClickSelectionGuard(view: EditorView, hadSelectionA
   if (!sel.empty) {
     // Collapse the selection. For a TextSelection, `sel.from` is inside an
     // inline-content node, so a plain `TextSelection.create(doc, from)` is
-    // valid. For a NodeSelection / MultipleNodeSelection, `sel.from` sits at
+    // valid. For a NodeSelection or a range of whole blocks, `sel.from` sits at
     // a block boundary where a TextSelection would be invalid; in that case
     // search for the nearest text-only position.
     const $from = view.state.doc.resolve(sel.from)

@@ -18,11 +18,11 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {CellSelection} from '@tiptap/pm/tables'
 import {ChevronDown, FileText, Link, ListChecks, MessageSquare} from 'lucide-react'
-import {TextSelection} from 'prosemirror-state'
+import {EditorState, TextSelection} from 'prosemirror-state'
 import {useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
-import {getNearestBlockOrCellPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getReferenceableRevision} from './blocknote/core/extensions/BlockRevision/BlockRevisionInvalidation'
+import {getNearestBlockOrCellPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {prosemirrorPosToBlockTextOffset} from './blocknote/core/extensions/RangeSelection/RangeSelectionPlugin'
 import {
@@ -42,6 +42,22 @@ import {TOOLBAR_COLOR_NAMES, type ToolbarColorName} from './toolbar-color-palett
 import {deriveDraftNameFromBlocks, getSelectedFullBlocks, replaceBlocksWithDraftEmbed} from './turn-into-doc'
 import {useMobile} from './use-mobile'
 
+// Whether the selection is text within one block, the only selection a link can be added to.
+function isInlineTextSelection(state: EditorState): boolean {
+  const {selection} = state
+  return (
+    selection instanceof TextSelection &&
+    selection.$from.sameParent(selection.$to) &&
+    selection.$from.parent.inlineContent
+  )
+}
+
+// Whether the selection contains any text for the style buttons to format.
+function selectionHasText(state: EditorState): boolean {
+  const {from, to} = state.selection
+  return state.doc.textBetween(from, to).length > 0
+}
+
 /**
  * Ensures a grid has at least columnCount number of children.
  */
@@ -51,14 +67,15 @@ function fillGridChildren(tiptap: any, columnCount: number) {
       if (!dispatch) return true
       const {group, $pos, depth} = getGroupInfoFromPos(state.selection.from, state)
       if (group.attrs.listType !== 'Grid') return true
+      const targetCount = Number(group.attrs.columnCount) || columnCount
       const currentCount = group.childCount
-      if (currentCount >= columnCount) return true
+      if (currentCount >= targetCount) return true
       const schema = state.schema
       const tr = state.tr
       // Insert position: just before the closing of the blockChildren node
       const groupStart = $pos.before(depth) + 1 // inside blockChildren
       const insertPos = groupStart + group.content.size
-      for (let i = 0; i < columnCount - currentCount; i++) {
+      for (let i = 0; i < targetCount - currentCount; i++) {
         const para = schema.nodes['paragraph'].create()
         const blockNode = schema.nodes['blockNode'].create({}, para)
         tr.insert(insertPos + i * blockNode.nodeSize, blockNode)
@@ -235,6 +252,8 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
   const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
   const [hasReferenceableFragment, setHasReferenceableFragment] = useState(() => !!getSelectionFragment(props.editor))
+  const [isInlineText, setIsInlineText] = useState(() => isInlineTextSelection(props.editor._tiptapEditor.view.state))
+  const [hasText, setHasText] = useState(() => selectionHasText(props.editor._tiptapEditor.view.state))
   const stylePopover = usePopoverState()
   // Keep a ref to the latest popover state so the toolbar visibility
   // subscription doesn't need to resubscribe on every render.
@@ -257,6 +276,8 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     const tiptap = props.editor._tiptapEditor
     const {state} = tiptap
     setHasReferenceableFragment(!!getSelectionFragment(props.editor))
+    setIsInlineText(isInlineTextSelection(state))
+    setHasText(selectionHasText(state))
 
     try {
       const groupInfo = getGroupInfoFromPos(state.selection.from, state)
@@ -293,18 +314,21 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     if (listType === currentGroupType) return
     const tiptap = props.editor._tiptapEditor
     const {state} = tiptap
-    const {$pos, group} = getGroupInfoFromPos(state.selection.from, state)
+    const {$pos} = getGroupInfoFromPos(state.selection.from, state)
     tiptap.commands.command(updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true))
     if (listType === 'Grid') {
-      const colCount = group.attrs.columnCount || 3
-      if (!group.attrs.columnCount) {
+      // Root-level blocks become a grid in a new list that updateGroupCommand creates on the next tick, so set the grid
+      // up after that.
+      setTimeout(() => {
         const info = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
-        const tr = tiptap.state.tr
-        tr.setNodeAttribute(info.$pos.before(info.depth), 'columnCount', colCount)
-        tiptap.view.dispatch(tr)
-      }
-      setCurrentColumnCount(String(colCount))
-      fillGridChildren(tiptap, colCount)
+        if (info.group.attrs.listType !== 'Grid') return
+        const colCount = info.group.attrs.columnCount || 3
+        if (!info.group.attrs.columnCount) {
+          tiptap.view.dispatch(tiptap.state.tr.setNodeAttribute(info.$pos.before(info.depth), 'columnCount', colCount))
+        }
+        setCurrentColumnCount(String(colCount))
+        fillGridChildren(tiptap, colCount)
+      })
     }
     setCurrentGroupType(listType)
   }
@@ -312,13 +336,16 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   const handleColumnCountChange = (colCount: string) => {
     if (colCount === currentColumnCount) return
     const tiptap = props.editor._tiptapEditor
-    const {$pos, depth} = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
     const newCount = parseInt(colCount, 10)
-    const tr = tiptap.state.tr
-    tr.setNodeAttribute($pos.before(depth), 'columnCount', newCount)
-    tiptap.view.dispatch(tr)
+    // Scheduled after any grid conversion picked in the same click, so it sets the count on
+    // the new grid rather than on the list the blocks were in.
+    setTimeout(() => {
+      const {$pos, depth, group} = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
+      if (group.attrs.listType !== 'Grid') return
+      tiptap.view.dispatch(tiptap.state.tr.setNodeAttribute($pos.before(depth), 'columnCount', newCount))
+      fillGridChildren(tiptap, newCount)
+    })
     setCurrentColumnCount(colCount)
-    fillGridChildren(tiptap, newCount)
   }
 
   const handleBlockTypeChange = (blockType: string) => {
@@ -412,7 +439,13 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
           {/* Row 1 - inline marks and fragment actions */}
           <div className="flex items-center gap-1">
             {toggleStyles.map((item) => (
-              <ToggleStyleButton key={item.style} editor={props.editor} toggleStyle={item.style} {...item} />
+              <ToggleStyleButton
+                key={item.style}
+                editor={props.editor}
+                toggleStyle={item.style}
+                disabled={!hasText}
+                {...item}
+              />
             ))}
 
             {/* Link button - different for mobile/desktop */}
@@ -438,13 +471,14 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                 </Button>
               </>
             )}
-            {isMobile ? (
-              <MobileLinkToolbarButton editor={props.editor} />
-            ) : (
-              <div className="relative">
-                <HMLinkToolbarButton editor={props.editor} testId="link-button" />
-              </div>
-            )}
+            {isInlineText &&
+              (isMobile ? (
+                <MobileLinkToolbarButton editor={props.editor} />
+              ) : (
+                <div className="relative">
+                  <HMLinkToolbarButton editor={props.editor} testId="link-button" />
+                </div>
+              ))}
 
             {/* Fragment actions are only valid for selections inside one
                 previously-published block (identified by revision). Per design:
@@ -611,14 +645,15 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
 function ToggleStyleButton<Schema extends Record<string, BlockSpec<string, PropSchema>>>({
   editor,
   toggleStyle,
-
   name,
   icon,
+  disabled,
 }: {
   editor: BlockNoteEditor<Schema>
   toggleStyle: EditorToggledStyle
   name: string
   icon: any
+  disabled?: boolean
 }) {
   const [active, setActive] = useState<boolean>(toggleStyle in editor.getActiveStyles())
 
@@ -641,6 +676,7 @@ function ToggleStyleButton<Schema extends Record<string, BlockSpec<string, PropS
         type="button"
         size="icon"
         variant="ghost"
+        disabled={disabled}
         className={cn(
           'rounded-md border border-black/10 dark:border-white/10',
           'hover:bg-black/10 dark:hover:bg-white/10',

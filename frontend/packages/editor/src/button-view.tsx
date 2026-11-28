@@ -7,7 +7,7 @@ import {useEffect, useState} from 'react'
 import type {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import type {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
-import {selectBlockNodeById} from './block-utils'
+import {extendSelectionToBlock, selectBlockNodeById} from './block-utils'
 import type {HMBlockSchema} from './schema'
 
 type ButtonAlignment = 'flex-start' | 'center' | 'flex-end'
@@ -61,12 +61,14 @@ export function ButtonBlockView({
   const url = block.props.url
   // In read/view mode navigate to the URL. In edit mode the <button> face
   // swallows the mousedown before ProseMirror (tiptap NodeView.stopEvent), so
-  // the block would never node-select on click; select it explicitly here.
+  // the block would never node-select on click; select it explicitly here,
+  // or extend the selection to it on shift-click.
   const handleClick = navigateOnClick
     ? url
       ? () => openUrl(url)
       : undefined
-    : () => selectBlockNodeById(editor, block.id)
+    : (e: React.MouseEvent) =>
+        e.shiftKey ? extendSelectionToBlock(editor, block.id) : selectBlockNodeById(editor, block.id)
 
   return (
     <BlockSelectionWrapper editor={editor} block={block} selectOnMouseDown>
